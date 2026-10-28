@@ -1,0 +1,15 @@
+{
+  "plugins": ["typescript", "unicorn"],
+  "rules": {
+    "unicorn/require-post-message-target-origin": "off"
+  },
+  "categories": {
+    "correctness": "error",
+    "suspicious": "warn"
+  },
+  "ignorePatterns": [
+    "**/dist/**",
+    "**/node_modules/**",
+    "**/out/**"
+  ]
+}

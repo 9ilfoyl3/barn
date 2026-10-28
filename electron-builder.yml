@@ -1,0 +1,22 @@
+appId: com.barn.desktop
+productName: Barn
+asar: true
+directories:
+  output: release
+files:
+  - out/**/*
+  - package.json
+mac:
+  category: public.app-category.business
+  target:
+    - dmg
+    - zip
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true

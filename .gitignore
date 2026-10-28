@@ -1,0 +1,13 @@
+node_modules/
+dist/
+out/
+release/
+coverage/
+test-results/
+playwright-report/
+.DS_Store
+*.log
+.env
+.env.local
+apps/desktop/.electron-vite/
+apps/desktop/.vite/
