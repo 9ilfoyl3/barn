@@ -234,6 +234,37 @@ export interface LocalSourceBridge {
   pollNow(): Promise<void>
 }
 
+export interface DiagnosticsSnapshot {
+  appVersion: string
+  platform: NodeJS.Platform
+  arch: string
+  electronVersion: string
+  nodeVersion: string
+  schemaVersion: number
+  stateDirectory: string
+  retentionDays: number
+  lastMaintenanceAt?: string
+  counts: {
+    sessions: number
+    tasks: number
+    approvalsPending: number
+    actionsActive: number
+    localSources: number
+  }
+  automationMode: 'observe' | 'active'
+  shell: {
+    available: boolean
+    backend: string
+    reason?: string
+  }
+}
+
+export interface DiagnosticsBridge {
+  get(): Promise<DiagnosticsSnapshot>
+  setRetentionDays(days: number): Promise<number>
+  runMaintenance(): Promise<{ cutoff: string; actionEvents: number; sourceEvents: number; approvals: number }>
+}
+
 export type PermissionKind = 'local-read' | 'workspace-write' | 'external-write' | 'destructive'
 export type PermissionMode = 'allow' | 'ask' | 'deny'
 export type ApprovalStatus = 'pending' | 'approved' | 'denied'
@@ -414,4 +445,5 @@ export interface BarnBridge {
   approvals: ApprovalBridge
   localSources: LocalSourceBridge
   lifecycle: LifecycleBridge
+  diagnostics: DiagnosticsBridge
 }

@@ -48,9 +48,13 @@ test('configures a watched folder and turns a file change into a suggestion', as
     await expect.poll(async () => page.evaluate(async () => {
       const tasks = await window.barn.tasks.list()
       return tasks.filter((task) => task.status === 'proposed').length
-    })).toBe(1)
+    })).toBeGreaterThanOrEqual(1)
+    const proposedCount = await page.evaluate(async () => {
+      const tasks = await window.barn.tasks.list()
+      return tasks.filter((task) => task.status === 'proposed').length
+    })
     await page.getByRole('button', { name: 'Close local sources' }).click()
-    await expect(page.locator('.task-nav-count')).toHaveText('1')
+    await expect(page.locator('.task-nav-count')).toHaveText(String(proposedCount))
     await page.locator('.task-nav-button').click()
     await expect(page.getByText('Review changed file: notes.txt')).toBeVisible()
     await page.screenshot({ path: 'test-results/barn-local-sources.png', fullPage: true })

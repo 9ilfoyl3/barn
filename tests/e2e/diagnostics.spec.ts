@@ -1,0 +1,39 @@
+import { mkdtemp } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { _electron as electron, expect, test } from '@playwright/test'
+
+test('shows diagnostics and runs local maintenance', async () => {
+  const userData = await mkdtemp(join(tmpdir(), 'barn-desktop-diagnostics-e2e-'))
+  const inheritedEnv = Object.fromEntries(
+    Object.entries(process.env).filter((entry): entry is [string, string] => entry[1] !== undefined),
+  )
+  const app = await electron.launch({
+    args: ['.'],
+    env: {
+      ...inheritedEnv,
+      ELECTRON_DISABLE_SECURITY_WARNINGS: 'true',
+      BARN_USER_DATA_DIR: userData,
+      BARN_UI_LANGUAGE: 'en',
+    },
+  })
+
+  try {
+    const page = await app.firstWindow()
+    await page.waitForLoadState('domcontentloaded')
+    await page.locator('.account-row').click()
+    await page.getByRole('menuitem', { name: 'Diagnostics' }).click()
+    const dialog = page.getByRole('dialog', { name: 'Diagnostics' })
+    await expect(dialog).toBeVisible()
+    await expect(dialog).toContainText('Database schema')
+    await expect(dialog).toContainText('1')
+    await dialog.getByRole('spinbutton', { name: 'Retention days' }).fill('30')
+    await dialog.getByRole('button', { name: 'Save', exact: true }).click()
+    await expect(dialog.getByText('Retention setting saved.')).toBeVisible()
+    await dialog.getByRole('button', { name: 'Run cleanup' }).click()
+    await expect(dialog.getByText(/Cleanup removed/)).toBeVisible()
+    await page.screenshot({ path: 'test-results/barn-diagnostics.png', fullPage: true })
+  } finally {
+    await app.close()
+  }
+})
