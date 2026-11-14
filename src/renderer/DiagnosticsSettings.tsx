@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { Activity, X } from 'lucide-react'
 import type { DiagnosticsSnapshot } from '../shared/models'
 import { TooltipButton } from './components/TooltipButton'
+import { MemorySettingsPanel } from './MemorySettingsPanel'
 import './diagnostics-settings.css'
 
 export function DiagnosticsSettings({ onClose }: { onClose(): void }) {
@@ -101,6 +102,7 @@ export function DiagnosticsSettings({ onClose }: { onClose(): void }) {
                 <div><dt>{t('diagnostics.approvals')}</dt><dd>{snapshot.counts.approvalsPending}</dd></div>
                 <div><dt>{t('diagnostics.actions')}</dt><dd>{snapshot.counts.actionsActive}</dd></div>
                 <div><dt>{t('diagnostics.sources')}</dt><dd>{snapshot.counts.localSources}</dd></div>
+                <div><dt>{t('diagnostics.memory')}</dt><dd>{snapshot.counts.memoryEntries}</dd></div>
                 <div><dt>{t('diagnostics.automation')}</dt><dd>{t(`sourceSettings.${snapshot.automationMode}`)}</dd></div>
                 <div><dt>{t('diagnostics.shell')}</dt><dd>{snapshot.shell.available ? snapshot.shell.backend : t('footer.shellUnavailable')}</dd></div>
               </dl>
@@ -122,6 +124,10 @@ export function DiagnosticsSettings({ onClose }: { onClose(): void }) {
                   <small>{t('diagnostics.lastCleanup', { time: new Date(snapshot.lastMaintenanceAt).toLocaleString() })}</small>
                 )}
               </section>
+
+              <MemorySettingsPanel onChanged={() => {
+                void window.barn.diagnostics.get().then(setSnapshot).catch((reason: unknown) => setError(errorMessage(reason)))
+              }} />
 
               <p className="diagnostics-path">{snapshot.stateDirectory}</p>
             </>

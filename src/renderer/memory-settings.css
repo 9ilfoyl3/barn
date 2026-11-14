@@ -1,0 +1,280 @@
+/* Hallmark · page: Barn Desktop diagnostics · genre: modern-minimal · theme: barn-native · redesign: extend · scope: component · built: the project */
+/* Hallmark · pre-emit critique: P5 H4 E5 S5 R4 V4 · weakest: V, memory management reuses the existing diagnostics settings language */
+
+.diagnostics-memory {
+  display: grid;
+  min-width: 0;
+  gap: 16px;
+  margin-top: 28px;
+  border-top: 1px solid var(--line);
+  padding-top: 24px;
+}
+
+.diagnostics-memory-heading {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+}
+
+.diagnostics-memory-icon {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel-raised);
+  color: var(--accent);
+}
+
+.diagnostics-memory-heading h3,
+.memory-library-heading h4 {
+  overflow-wrap: anywhere;
+  min-width: 0;
+  margin: 0;
+  color: var(--text);
+  font-size: 15px;
+  font-weight: 590;
+  letter-spacing: -0.015em;
+}
+
+.diagnostics-memory-heading p,
+.memory-library-heading p {
+  margin: 8px 0 0;
+  color: var(--text-dim);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.memory-settings-grid {
+  display: grid;
+  gap: 8px;
+}
+
+.memory-switch-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 16px;
+  align-items: center;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--panel-raised) 64%, var(--panel));
+  padding: 12px 16px;
+}
+
+.memory-switch-row span {
+  display: grid;
+  min-width: 0;
+  gap: 4px;
+}
+
+.memory-switch-row strong,
+.memory-number-grid span {
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 570;
+}
+
+.memory-switch-row small,
+.memory-number-grid small {
+  color: var(--text-faint);
+  font-size: 10px;
+  line-height: 1.45;
+}
+
+.memory-switch-row input {
+  width: 34px;
+  height: 20px;
+  margin: 0;
+  accent-color: var(--accent);
+}
+
+.memory-switch-row input:focus-visible,
+.memory-number-grid input:focus-visible,
+.memory-library-heading input:focus-visible,
+.memory-delete-confirm:focus-visible,
+.memory-delete-cancel:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent) 72%, transparent);
+  outline-offset: 2px;
+}
+
+.memory-number-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.memory-number-grid label {
+  display: grid;
+  min-width: 0;
+  gap: 8px;
+  border-top: 1px solid var(--line);
+  padding-top: 12px;
+}
+
+.memory-number-grid input,
+.memory-library-heading input {
+  width: 100%;
+  min-height: 38px;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  background: var(--panel);
+  padding: 8px 12px;
+  color: var(--text);
+  font-size: 12px;
+}
+
+.memory-settings-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.memory-settings-actions span {
+  max-width: 420px;
+  color: var(--text-faint);
+  font-size: 10px;
+  line-height: 1.45;
+}
+
+.memory-library {
+  display: grid;
+  gap: 12px;
+  border-top: 1px solid var(--line);
+  padding-top: 16px;
+}
+
+.memory-library-heading {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(180px, 260px);
+  gap: 16px;
+  align-items: center;
+}
+
+.memory-list {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.memory-entry {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: start;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel-raised);
+  padding: 12px;
+}
+
+.memory-entry-main {
+  display: grid;
+  min-width: 0;
+  gap: 8px;
+}
+
+.memory-entry-title {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+}
+
+.memory-entry-title strong {
+  overflow: hidden;
+  min-width: 0;
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 590;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.memory-entry-title span,
+.memory-entry-tags span {
+  flex: 0 0 auto;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 10%, var(--panel));
+  padding: 4px 8px;
+  color: var(--accent);
+  font-size: 9px;
+}
+
+.memory-entry p {
+  display: -webkit-box;
+  overflow: hidden;
+  margin: 0;
+  color: var(--text-dim);
+  font-size: 11px;
+  line-height: 1.5;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+
+.memory-entry-meta,
+.memory-entry-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.memory-entry-meta span,
+.memory-entry-meta time {
+  color: var(--text-faint);
+  font-size: 9px;
+}
+
+.memory-entry-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.memory-entry-actions .icon-button {
+  width: 28px;
+  height: 28px;
+}
+
+.memory-delete-confirm,
+.memory-delete-cancel {
+  min-height: 28px;
+  border: 1px solid var(--line-strong);
+  border-radius: 7px;
+  background: var(--panel);
+  padding: 4px 8px;
+  color: var(--text-dim);
+  font-size: 9px;
+  cursor: pointer;
+}
+
+.memory-delete-confirm {
+  border-color: color-mix(in srgb, var(--danger) 50%, var(--line));
+  color: var(--danger);
+}
+
+.memory-empty {
+  margin: 0;
+  border: 1px dashed var(--line-strong);
+  border-radius: 10px;
+  padding: 20px;
+  color: var(--text-faint);
+  font-size: 11px;
+  text-align: center;
+}
+
+@media (max-width: 760px) {
+  .memory-number-grid,
+  .memory-library-heading {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .memory-settings-actions {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
