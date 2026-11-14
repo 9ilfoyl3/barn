@@ -9,6 +9,7 @@ import { loadOrCreateDeviceDataKey } from './session/device-data-key'
 import { AesGcmEventCipher } from './session/event-cipher'
 import { registerSessionIpc } from './session/session-ipc'
 import { registerTaskIpc } from './tasks/task-ipc'
+import { TaskRunner } from './tasks/task-runner'
 import { TaskService } from './tasks/task-service'
 import { SessionStore } from './session/session-store'
 import { scrubbedShellEnvironment } from './sandbox/environment'
@@ -29,6 +30,8 @@ let mainWindow: BrowserWindow | undefined
 let modelService: ModelService | undefined
 let sessionStore: SessionStore | undefined
 let agentService: AgentService | undefined
+let taskService: TaskService | undefined
+let taskRunner: TaskRunner | undefined
 const shellService = new ShellService()
 
 function windowBackgroundColor(): string {
@@ -125,9 +128,12 @@ void app.whenReady().then(async () => {
   })
   agentService = new AgentService(supervisor, modelService, sessionStore, tools)
   await agentService.start()
+  taskService = new TaskService(sessionStore.tasks)
+  taskRunner = new TaskRunner(agentService, taskService, sessionStore)
+  taskRunner.start()
   registerModelIpc(modelService, trustedSender)
   registerSessionIpc(sessionStore, agentService, join(workspaceRoot, 'attachments'), trustedSender, () => nativeLocale())
-  registerTaskIpc(new TaskService(sessionStore.tasks), trustedSender)
+  registerTaskIpc(taskService, trustedSender)
   registerRuntimeIpc(shellService, trustedSender, () => nativeLocale())
   await createWindow()
 
@@ -141,6 +147,9 @@ app.on('window-all-closed', () => {
 })
 
 app.on('before-quit', () => {
+  taskRunner?.stop()
+  taskRunner = undefined
+  taskService = undefined
   void agentService?.stop()
   agentService = undefined
   sessionStore?.close()

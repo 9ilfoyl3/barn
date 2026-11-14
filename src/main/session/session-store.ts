@@ -32,7 +32,7 @@ export class SessionStore {
   ) {
     mkdirSync(dirname(path), { recursive: true, mode: 0o700 })
     this.database = new DatabaseSync(path)
-    this.tasks = new TaskStore(this.database)
+    this.tasks = new TaskStore(this.database, cipher)
   }
 
   async initialize(): Promise<void> {
