@@ -8,6 +8,7 @@ import { ShellService } from './sandbox/shell-service'
 import { loadOrCreateDeviceDataKey } from './session/device-data-key'
 import { AesGcmEventCipher } from './session/event-cipher'
 import { registerSessionIpc } from './session/session-ipc'
+import { ActionService } from './actions/action-service'
 import { registerPermissionIpc } from './permissions/permission-ipc'
 import { PermissionService } from './permissions/permission-service'
 import { registerTaskIpc } from './tasks/task-ipc'
@@ -35,6 +36,7 @@ let agentService: AgentService | undefined
 let taskService: TaskService | undefined
 let taskRunner: TaskRunner | undefined
 let permissionService: PermissionService | undefined
+let actionService: ActionService | undefined
 const shellService = new ShellService()
 
 function windowBackgroundColor(): string {
@@ -135,6 +137,8 @@ void app.whenReady().then(async () => {
   taskRunner = new TaskRunner(agentService, taskService, sessionStore)
   taskRunner.start()
   permissionService = new PermissionService(sessionStore.permissions, taskService)
+  actionService = new ActionService(sessionStore.actions, permissionService)
+  actionService.start()
   registerModelIpc(modelService, trustedSender)
   registerSessionIpc(sessionStore, agentService, join(workspaceRoot, 'attachments'), trustedSender, () => nativeLocale())
   registerTaskIpc(taskService, trustedSender)
@@ -156,6 +160,8 @@ app.on('before-quit', () => {
   taskRunner = undefined
   taskService = undefined
   permissionService = undefined
+  actionService?.stop()
+  actionService = undefined
   void agentService?.stop()
   agentService = undefined
   sessionStore?.close()
