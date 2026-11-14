@@ -161,6 +161,7 @@ const en = {
 
   attachments: {
     selected: 'Selected attachments',
+    previewLoading: 'Loading attachment preview',
     kind: {
       folder: 'Folder',
       image: 'Image',
@@ -478,6 +479,7 @@ const zhCN: TranslationSchema = {
 
   attachments: {
     selected: '已选择的附件',
+    previewLoading: '正在加载附件预览',
     kind: {
       folder: '文件夹',
       image: '图片',

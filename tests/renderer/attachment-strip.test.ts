@@ -11,7 +11,10 @@ describe('attachmentVisualKind', () => {
     expect(attachmentPreviewMode(file('notes.md'))).toBe('text')
     expect(attachmentPreviewMode(file('data.csv'))).toBe('text')
     expect(attachmentPreviewMode(file('script.ts'))).toBe('text')
-    expect(attachmentPreviewMode(file('document.pdf'))).toBeUndefined()
+    expect(attachmentPreviewMode(file('document.pdf'))).toBe('office')
+    expect(attachmentPreviewMode(file('brief.docx'))).toBe('office')
+    expect(attachmentPreviewMode(file('deck.pptx'))).toBe('office')
+    expect(attachmentPreviewMode(file('budget.xlsx'))).toBe('office')
     expect(attachmentPreviewMode(file('archive', 'directory'))).toBeUndefined()
   })
 

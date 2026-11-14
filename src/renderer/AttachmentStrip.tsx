@@ -27,11 +27,12 @@ export type AttachmentVisualKind =
   | 'code'
   | 'file'
 
-export function attachmentPreviewMode(file: Pick<AttachmentDescriptor, 'name' | 'path' | 'kind'>): 'image' | 'text' | undefined {
+export function attachmentPreviewMode(file: Pick<AttachmentDescriptor, 'name' | 'path' | 'kind'>): 'image' | 'text' | 'office' | undefined {
   const kind = attachmentVisualKind(file)
   if (kind === 'image') return 'image'
   const extension = attachmentExtension(file)
   if (kind === 'text' || kind === 'code' || ['csv', 'tsv', 'json'].includes(extension)) return 'text'
+  if (['pdf', 'document', 'presentation', 'spreadsheet'].includes(kind)) return 'office'
   return undefined
 }
 
@@ -72,25 +73,39 @@ function AttachmentCard({ file, onRemove }: { file: AttachmentDescriptor; onRemo
   const name = attachmentDisplayName(file)
   const extension = attachmentExtension(file).toUpperCase()
   const [preview, setPreview] = useState<AttachmentPreview>()
+  const [previewLoading, setPreviewLoading] = useState(attachmentPreviewMode(file) !== undefined)
   const previewMode = attachmentPreviewMode(file)
 
   useEffect(() => {
-    if (previewMode === undefined) return
+    if (previewMode === undefined) {
+      setPreview(undefined)
+      setPreviewLoading(false)
+      return
+    }
     let active = true
-    void window.barn.sessions.getAttachmentPreview(file.path)
-      .then((value) => { if (active) setPreview(value) })
-      .catch(() => undefined)
+    setPreview(undefined)
+    setPreviewLoading(true)
+    void Promise.all([
+      window.barn.sessions.getAttachmentPreview(file.path).catch(() => undefined),
+      new Promise((resolve) => setTimeout(resolve, 600)),
+    ]).then(([value]) => {
+      if (!active) return
+      setPreview(value)
+      setPreviewLoading(false)
+    })
     return () => { active = false }
   }, [file.path, previewMode])
 
   return (
     <article className={`attachment-card attachment-${kind}`} role="listitem" title={file.path}>
       <div className="attachment-preview">
-        {preview?.kind === 'image'
-          ? <img src={preview.dataUrl} alt="" />
-          : preview?.kind === 'text'
-            ? <pre className="attachment-text-preview">{preview.text}</pre>
-            : <AttachmentIcon kind={kind} />}
+        {previewLoading
+          ? <div className="attachment-preview-loading" aria-label={t('attachments.previewLoading')}><span /><span /><span /></div>
+          : preview?.kind === 'image'
+            ? <img src={preview.dataUrl} alt="" />
+            : preview?.kind === 'text'
+              ? <pre className={`attachment-text-preview attachment-text-preview-${preview.variant}`}>{preview.text}</pre>
+              : <AttachmentIcon kind={kind} />}
         {kind !== 'folder' && extension.length > 0 && <span className="attachment-extension">{extension}</span>}
       </div>
       <div className="attachment-card-copy">

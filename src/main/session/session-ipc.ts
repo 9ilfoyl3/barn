@@ -8,6 +8,7 @@ import type { AgentService } from '../worker/agent-service'
 import { storedAttachmentFileName } from '../../shared/attachments'
 import type { SessionStore } from './session-store'
 import { nativeCopy, nativeLocale, type NativeLocale } from '../platform/native-locale'
+import { documentPreview } from './attachment-preview'
 
 export function registerSessionIpc(
   sessions: SessionStore,
@@ -128,14 +129,21 @@ export function registerSessionIpc(
       if (info.size > 10 * 1024 * 1024) return undefined
       return { kind: 'image', dataUrl: `data:${mime};base64,${(await readFile(path)).toString('base64')}` }
     }
-    if (!TEXT_PREVIEW_EXTENSIONS.has(extension)) return undefined
+    if (!TEXT_PREVIEW_EXTENSIONS.has(extension)) {
+      if (!OFFICE_PREVIEW_EXTENSIONS.has(extension) || info.size > 50 * 1024 * 1024) return undefined
+      try {
+        return await documentPreview(path, new Uint8Array(await readFile(path)))
+      } catch {
+        return undefined
+      }
+    }
     const file = await open(path, 'r')
     try {
       const buffer = Buffer.alloc(Math.min(info.size, 8 * 1024))
       await file.read(buffer, 0, buffer.length, 0)
       if (!isUtf8(buffer)) return undefined
       const text = buffer.toString('utf8').replace(/\r\n?/g, '\n').slice(0, 1_200)
-      return { kind: 'text', text }
+      return { kind: 'text', text, variant: 'plain' }
     } finally {
       await file.close()
     }
@@ -172,3 +180,5 @@ const TEXT_PREVIEW_EXTENSIONS = new Set([
   '.html', '.css', '.js', '.jsx', '.ts', '.tsx', '.py', '.sql', '.log', '.toml',
   '.ini', '.sh', '.bat', '.ps1', '.rst',
 ])
+
+const OFFICE_PREVIEW_EXTENSIONS = new Set(['.pdf', '.docx', '.pptx', '.xlsx'])
