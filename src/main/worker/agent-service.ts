@@ -33,7 +33,12 @@ export class AgentService {
     await this.supervisor.start()
   }
 
-  async prompt(sessionId: string, text: string, attachments: AttachmentDescriptor[] = []): Promise<SessionSummary> {
+  async prompt(
+    sessionId: string,
+    text: string,
+    attachments: AttachmentDescriptor[] = [],
+    workingDirectory?: string,
+  ): Promise<SessionSummary> {
     const trimmed = text.trim()
     if (trimmed.length === 0) throw new Error('Prompt cannot be empty')
     const snapshot = await this.models.getSnapshot()
@@ -45,7 +50,10 @@ export class AgentService {
       snapshot.defaultReasoningEffort,
       model.reasoningEfforts,
     )
-    const session = this.sessions.ensureSession(sessionId)
+    let session = this.sessions.ensureSession(sessionId, 'New session', workingDirectory)
+    if (workingDirectory !== undefined && session.workingDirectory !== workingDirectory) {
+      session = this.sessions.updateWorkingDirectory(sessionId, workingDirectory)
+    }
 
     const modelKey = `${this.models.getModelFingerprint(selection)
       ?? `${selection.providerId}:${selection.modelId}`}:${reasoningEffort ?? 'off'}`
@@ -76,16 +84,25 @@ export class AgentService {
     }
     this.sessions.updateStatus(sessionId, 'running')
     this.emit({ type: 'session.updated', session: this.sessions.getSession(sessionId) })
+    const workingDirectoryContext = workingDirectory === undefined
+      ? ''
+      : `\n\nCurrent working directory:\n${workingDirectory}`
     const attachmentContext = attachments.length === 0
       ? ''
-      : `\n\nAttached files:\n${attachments.map((file) => `- ${file.path}`).join('\n')}`
-    await this.supervisor.prompt(sessionId, `${trimmed}${attachmentContext}`)
+      : `\n\nAttached files and folders:\n${attachments.map((file) => `- ${file.path}`).join('\n')}`
+    await this.supervisor.prompt(sessionId, `${trimmed}${workingDirectoryContext}${attachmentContext}`)
     return this.sessions.getSession(sessionId)
   }
 
   async cancel(sessionId: string): Promise<void> {
     this.sessions.getSession(sessionId)
     await this.supervisor.cancel(sessionId)
+  }
+
+  setWorkingDirectory(sessionId: string, workingDirectory: string): SessionSummary {
+    const session = this.sessions.updateWorkingDirectory(sessionId, workingDirectory)
+    this.emit({ type: 'session.updated', session })
+    return session
   }
 
   getEvents(sessionId: string): SessionTimelineEvent[] {
@@ -157,7 +174,9 @@ export class AgentService {
         this.broker.abort(message.requestId)
         return
       case 'tool.execute':
-        void this.tools.execute(message.toolName, message.args)
+        void this.tools.execute(message.toolName, message.args, {
+          workingDirectory: this.sessions.getSession(message.sessionId).workingDirectory,
+        })
           .then((result) => {
             this.supervisor.post({
               type: 'request.ok',
@@ -240,6 +259,11 @@ function attachmentDescriptors(value: unknown): AttachmentDescriptor[] {
     && typeof entry.name === 'string'
     && typeof entry.path === 'string'
     && typeof entry.size === 'number'
-    ? [{ name: entry.name, path: entry.path, size: entry.size }]
+    ? [{
+        name: entry.name,
+        path: entry.path,
+        size: entry.size,
+        ...(entry.kind === 'file' || entry.kind === 'directory' ? { kind: entry.kind } : {}),
+      }]
     : [])
 }

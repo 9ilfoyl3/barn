@@ -317,6 +317,7 @@ export interface SessionSummary {
   id: string
   title: string
   status: 'idle' | 'running' | 'failed'
+  workingDirectory?: string
   createdAt: string
   updatedAt: string
 }
@@ -387,12 +388,14 @@ export interface SessionPromptInput {
   sessionId: string
   text: string
   attachments?: AttachmentDescriptor[] | undefined
+  workingDirectory?: string | undefined
 }
 
 export interface AttachmentDescriptor {
   name: string
   path: string
   size: number
+  kind?: 'file' | 'directory' | undefined
 }
 
 export interface SessionBridge {
@@ -401,7 +404,9 @@ export interface SessionBridge {
   getEvents(sessionId: string): Promise<SessionTimelineEvent[]>
   prompt(input: SessionPromptInput): Promise<SessionSummary>
   cancel(sessionId: string): Promise<void>
-  attach(sessionId: string): Promise<AttachmentDescriptor[]>
+  attach(sessionId: string, kind?: 'files' | 'folder'): Promise<AttachmentDescriptor[]>
+  chooseDirectory(): Promise<string | undefined>
+  setWorkingDirectory(sessionId: string, workingDirectory: string): Promise<SessionSummary>
   onEvent(listener: (event: SessionLiveEvent) => void): () => void
 }
 

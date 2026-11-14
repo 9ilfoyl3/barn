@@ -49,15 +49,23 @@ export interface ToolServiceOptions {
   shell: ShellService
 }
 
+export interface ToolExecutionContext {
+  workingDirectory?: string | undefined
+}
+
 export class ToolService {
-  private readonly roots: string[]
+  private readonly defaultRoots: string[]
 
   constructor(private readonly options: ToolServiceOptions) {
-    this.roots = [options.workspaceRoot, options.outputRoot, options.privateTempRoot]
+    this.defaultRoots = [options.workspaceRoot, options.outputRoot, options.privateTempRoot]
       .map((root) => realpathSync.native(root))
   }
 
-  async execute(toolName: string, rawArgs: unknown): Promise<ToolExecutionResult> {
+  async execute(
+    toolName: string,
+    rawArgs: unknown,
+    context: ToolExecutionContext = {},
+  ): Promise<ToolExecutionResult> {
     const input = TOOL_INPUTS[toolName as keyof typeof TOOL_INPUTS]
     if (input === undefined) {
       return errorResult(`Unknown tool: ${toolName}`)
@@ -65,17 +73,21 @@ export class ToolService {
 
     try {
       const args = input.parse(rawArgs)
+      const workingRoot = context.workingDirectory === undefined
+        ? this.options.workspaceRoot
+        : await realpath(context.workingDirectory)
+      const roots = [...new Set([workingRoot, ...this.defaultRoots])]
       switch (toolName) {
         case 'read_file':
-          return await this.readFile(args as z.infer<typeof readFileInput>)
+          return await this.readFile(args as z.infer<typeof readFileInput>, roots, workingRoot)
         case 'list_dir':
-          return await this.listDirectory(args as z.infer<typeof listDirInput>)
+          return await this.listDirectory(args as z.infer<typeof listDirInput>, roots, workingRoot)
         case 'search_files':
-          return await this.searchFiles(args as z.infer<typeof searchFilesInput>)
+          return await this.searchFiles(args as z.infer<typeof searchFilesInput>, roots, workingRoot)
         case 'view_image':
-          return await this.viewImage(args as z.infer<typeof viewImageInput>)
+          return await this.viewImage(args as z.infer<typeof viewImageInput>, roots, workingRoot)
         case 'shell':
-          return await this.runShell(args as z.infer<typeof shellInput>)
+          return await this.runShell(args as z.infer<typeof shellInput>, workingRoot)
         default:
           return errorResult(`Unknown tool: ${toolName}`)
       }
@@ -84,8 +96,12 @@ export class ToolService {
     }
   }
 
-  private async readFile(input: z.infer<typeof readFileInput>): Promise<ToolExecutionResult> {
-    const path = await this.safeExistingPath(input.path)
+  private async readFile(
+    input: z.infer<typeof readFileInput>,
+    roots: string[],
+    defaultRoot: string,
+  ): Promise<ToolExecutionResult> {
+    const path = await this.safeExistingPath(input.path, roots, defaultRoot)
     const info = await stat(path)
     if (!info.isFile()) throw new Error(`Not a file: ${input.path}`)
     if (info.size > 20 * 1024 * 1024) throw new Error('File is too large to read directly')
@@ -126,8 +142,12 @@ export class ToolService {
     }
   }
 
-  private async listDirectory(input: z.infer<typeof listDirInput>): Promise<ToolExecutionResult> {
-    const path = await this.safeExistingPath(input.path)
+  private async listDirectory(
+    input: z.infer<typeof listDirInput>,
+    roots: string[],
+    defaultRoot: string,
+  ): Promise<ToolExecutionResult> {
+    const path = await this.safeExistingPath(input.path, roots, defaultRoot)
     const info = await stat(path)
     if (!info.isDirectory()) throw new Error(`Not a directory: ${input.path}`)
     const entries = await this.listEntries(path, input.depth)
@@ -137,8 +157,12 @@ export class ToolService {
     }
   }
 
-  private async searchFiles(input: z.infer<typeof searchFilesInput>): Promise<ToolExecutionResult> {
-    const root = await this.safeExistingPath(input.path)
+  private async searchFiles(
+    input: z.infer<typeof searchFilesInput>,
+    roots: string[],
+    defaultRoot: string,
+  ): Promise<ToolExecutionResult> {
+    const root = await this.safeExistingPath(input.path, roots, defaultRoot)
     const matches: string[] = []
     let scanned = 0
     let skipped = 0
@@ -189,8 +213,12 @@ export class ToolService {
     }
   }
 
-  private async viewImage(input: z.infer<typeof viewImageInput>): Promise<ToolExecutionResult> {
-    const path = await this.safeExistingPath(input.path)
+  private async viewImage(
+    input: z.infer<typeof viewImageInput>,
+    roots: string[],
+    defaultRoot: string,
+  ): Promise<ToolExecutionResult> {
+    const path = await this.safeExistingPath(input.path, roots, defaultRoot)
     const mimeType = imageMimeType(path)
     if (mimeType === undefined) throw new Error(`Unsupported image type: ${extname(path) || '(none)'}`)
     const info = await stat(path)
@@ -206,12 +234,15 @@ export class ToolService {
     }
   }
 
-  private async runShell(input: z.infer<typeof shellInput>): Promise<ToolExecutionResult> {
-    const cwd = await this.safeExistingPath(input.cwd)
+  private async runShell(
+    input: z.infer<typeof shellInput>,
+    workingRoot: string,
+  ): Promise<ToolExecutionResult> {
+    const cwd = await this.safeExistingPath(input.cwd, [workingRoot, ...this.defaultRoots], workingRoot)
     if (!(await stat(cwd)).isDirectory()) throw new Error(`Not a directory: ${input.cwd}`)
     const policy = resolveSandboxPolicy({
       mode: 'workspace-write',
-      workspaceRoot: this.options.workspaceRoot,
+      workspaceRoot: workingRoot,
       outputRoot: this.options.outputRoot,
       privateTempRoot: this.options.privateTempRoot,
       ...(input.timeoutMs === undefined ? {} : { timeoutMs: input.timeoutMs }),
@@ -242,16 +273,16 @@ export class ToolService {
     }
   }
 
-  private async safeExistingPath(input: string): Promise<string> {
-    const candidate = isAbsolute(input) ? input : resolve(this.options.workspaceRoot, input)
+  private async safeExistingPath(input: string, roots: string[], defaultRoot: string): Promise<string> {
+    const candidate = isAbsolute(input) ? input : resolve(defaultRoot, input)
     const canonical = await realpath(candidate)
-    this.assertAllowed(canonical)
+    this.assertAllowed(canonical, roots)
     return canonical
   }
 
-  private assertAllowed(path: string): void {
+  private assertAllowed(path: string, roots: string[]): void {
     if (isDeniedPath(path)) throw new Error('Access to this path is denied')
-    const allowed = this.roots.some((root) => {
+    const allowed = roots.some((root) => {
       const rel = relative(root, path)
       return rel === '' || (!rel.startsWith(`..${sep}`) && rel !== '..' && !isAbsolute(rel))
     })
@@ -264,14 +295,14 @@ export class ToolService {
     for (const entry of entries.toSorted((a, b) => a.name.localeCompare(b.name))) {
       const path = resolve(root, entry.name)
       if (entry.isDirectory()) {
-        lines.push(`${relative(this.options.workspaceRoot, path)}/`)
+        lines.push(`${relative(root, path)}/`)
         if (depth > 0) {
           const children = await this.listEntries(path, depth - 1)
           lines.push(...children.map((child) => `${relative(this.options.workspaceRoot, path)}/${child}`))
         }
       } else {
         const info = await stat(path)
-        lines.push(`${relative(this.options.workspaceRoot, path)} (${info.size} bytes)`)
+        lines.push(`${relative(root, path)} (${info.size} bytes)`)
       }
     }
     return lines

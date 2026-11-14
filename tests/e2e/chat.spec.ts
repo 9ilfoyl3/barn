@@ -1,5 +1,5 @@
 import { createServer, type Server } from 'node:http'
-import { mkdir, mkdtemp, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { _electron as electron, expect, test } from '@playwright/test'
@@ -66,7 +66,8 @@ test('streams a multi-turn conversation through the Agent Worker', async () => {
 
     await page.getByRole('button', { name: /New session/i }).click()
     await expect(page.locator('.session-row')).toHaveCount(0)
-    await page.getByRole('button', { name: 'Attach files' }).click()
+    await page.getByRole('button', { name: 'Attach', exact: true }).click()
+    await page.getByRole('menuitem', { name: 'Add files' }).click()
     await expect(page.locator('.attachment-chip')).toContainText('contract.pdf')
     expect(await page.evaluate(() => window.barn.sessions.list())).toHaveLength(0)
 
@@ -88,6 +89,97 @@ test('streams a multi-turn conversation through the Agent Worker', async () => {
     await expect(page.getByText('Barn reply 2').last()).toBeVisible({ timeout: 15_000 })
     await expect(page.getByLabel('User message').getByText('Second turn', { exact: true })).toBeVisible()
     await page.screenshot({ path: 'test-results/barn-desktop-chat.png', fullPage: true })
+  } finally {
+    await app.close()
+    await new Promise<void>((resolve, reject) => server.close((error) => error === undefined ? resolve() : reject(error)))
+  }
+})
+
+
+test('selects a working directory and attaches a folder', async () => {
+  const server = await startMockModelServer(() => 'Folder inspected.')
+  const address = server.address()
+  if (address === null || typeof address === 'string') throw new Error('Mock server did not bind')
+  const baseUrl = `http://127.0.0.1:${address.port}/v1`
+  const userData = await mkdtemp(join(tmpdir(), 'barn-desktop-workspace-e2e-'))
+  const workingDirectory = join(userData, 'selected-project')
+  const attachmentFolder = join(userData, 'reference-folder')
+  await Promise.all([
+    mkdir(workingDirectory, { recursive: true }),
+    mkdir(attachmentFolder, { recursive: true }),
+  ])
+  await writeFile(join(workingDirectory, 'notes.txt'), 'working directory notes')
+  await writeFile(join(attachmentFolder, 'reference.txt'), 'reference folder content')
+  const inheritedEnv = Object.fromEntries(
+    Object.entries(process.env).filter((entry): entry is [string, string] => entry[1] !== undefined),
+  )
+  const app = await electron.launch({
+    args: ['.'],
+    env: {
+      ...inheritedEnv,
+      ELECTRON_DISABLE_SECURITY_WARNINGS: 'true',
+      BARN_USER_DATA_DIR: userData,
+      BARN_UI_LANGUAGE: 'en',
+    },
+  })
+
+  try {
+    const page = await app.firstWindow()
+    await page.waitForLoadState('domcontentloaded')
+    await page.evaluate(async (url) => {
+      await window.barn.models.saveCustomProvider({
+        id: 'workspace-provider',
+        name: 'Workspace Provider',
+        baseUrl: url,
+        api: 'openai-completions',
+        models: [{
+          id: 'workspace-model',
+          name: 'Workspace Model',
+          contextWindow: 128_000,
+          maxTokens: 8_000,
+          reasoning: false,
+          reasoningEfforts: [],
+          input: ['text'],
+        }],
+      })
+      await window.barn.models.saveCredential({ providerId: 'workspace-provider', apiKey: 'test-key' })
+      await window.barn.models.setDefault({ providerId: 'workspace-provider', modelId: 'workspace-model' })
+    }, baseUrl)
+
+    await app.evaluate(({ dialog }, paths) => {
+      dialog.showOpenDialog = (async (_window: unknown, options: { title?: string }) => {
+        if (options.title === 'Choose current working directory') {
+          return { canceled: false, filePaths: [paths.working] }
+        }
+        if (options.title === 'Attach a folder') {
+          return { canceled: false, filePaths: [paths.attachment] }
+        }
+        return { canceled: true, filePaths: [] }
+      }) as typeof dialog.showOpenDialog
+    }, { working: workingDirectory, attachment: attachmentFolder })
+
+    await page.getByRole('button', { name: 'Choose working folder' }).click()
+    await expect(page.locator('.composer-project')).toContainText('selected-project')
+    await page.getByRole('button', { name: 'Attach', exact: true }).click()
+    await page.getByRole('menuitem', { name: 'Add folder' }).click()
+    await expect(page.locator('.attachment-chip')).toContainText('reference-folder')
+    await page.screenshot({ path: 'test-results/barn-composer-directory.png', fullPage: true })
+
+    const composer = page.getByLabel('Message Barn')
+    await composer.fill('Inspect the attached folder.')
+    await composer.press('Enter')
+    await expect(page.getByText('Folder inspected.').last()).toBeVisible({ timeout: 15_000 })
+
+    const sessions = await page.evaluate(() => window.barn.sessions.list())
+    expect(sessions[0]?.workingDirectory).toBe(workingDirectory)
+    const events = await page.evaluate((sessionId) => window.barn.sessions.getEvents(sessionId), sessions[0]!.id)
+    const userEvent = events.find((event) => event.type === 'agent.message' && event.actor.kind === 'user')
+    if (userEvent === undefined) throw new Error('User attachment event was not stored')
+    expect(userEvent.data).toMatchObject({
+      attachments: [expect.objectContaining({ kind: 'directory', name: 'reference-folder' })],
+    })
+    const attachmentPath = (userEvent.data as { attachments: Array<{ path: string }> }).attachments[0]!.path
+    expect(await readFile(join(attachmentPath, 'reference.txt'), 'utf8')).toBe('reference folder content')
   } finally {
     await app.close()
     await new Promise<void>((resolve, reject) => server.close((error) => error === undefined ? resolve() : reject(error)))

@@ -9,9 +9,12 @@ import {
   CircleX,
   ArrowUp,
   ChevronDown,
+  FilePlus,
   FileSearch,
   FileText,
+  Folder,
   FolderOpen,
+  FolderPlus,
   FolderSearch,
   Inbox,
   Search,
@@ -42,6 +45,7 @@ import { ModelPicker } from './ModelPicker'
 import { LanguagePicker } from './LanguagePicker'
 import { SourceSettings } from './SourceSettings'
 import { DiagnosticsSettings } from './DiagnosticsSettings'
+import './composer-workspace.css'
 import { TaskCenter } from './TaskCenter'
 import { initializeAppLanguage } from './i18n'
 import { TooltipButton } from './components/TooltipButton'
@@ -78,6 +82,8 @@ export function App() {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [input, setInput] = useState('')
   const [attachments, setAttachments] = useState<AttachmentDescriptor[]>([])
+  const [workingDirectory, setWorkingDirectory] = useState<string>()
+  const [attachMenuOpen, setAttachMenuOpen] = useState(false)
   const [liveParts, setLiveParts] = useState<ConversationPart[]>([])
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<string>()
@@ -92,6 +98,7 @@ export function App() {
   const listRef = useRef<HTMLDivElement>(null)
   const sessionSearchInputRef = useRef<HTMLInputElement>(null)
   const accountAreaRef = useRef<HTMLDivElement>(null)
+  const attachAreaRef = useRef<HTMLDivElement>(null)
   const accountTriggerRef = useRef<HTMLButtonElement>(null)
   const activeSessionIdRef = useRef<string | undefined>(undefined)
   const draftSessionIdRef = useRef<string | undefined>(undefined)
@@ -181,6 +188,30 @@ export function App() {
   }, [activeSessionId])
 
   useEffect(() => {
+    if (activeSessionId === undefined) return
+    const session = sessions.find((item) => item.id === activeSessionId)
+    if (session?.workingDirectory !== undefined) setWorkingDirectory(session.workingDirectory)
+  }, [activeSessionId, sessions])
+
+  useEffect(() => {
+    if (!attachMenuOpen) return
+    const close = (event: PointerEvent): void => {
+      const target = event.target
+      if (!(target instanceof Node)) return
+      if (!(attachAreaRef.current?.contains(target) ?? false)) setAttachMenuOpen(false)
+    }
+    const closeOnEscape = (event: KeyboardEvent): void => {
+      if (event.key === 'Escape') setAttachMenuOpen(false)
+    }
+    document.addEventListener('pointerdown', close)
+    document.addEventListener('keydown', closeOnEscape)
+    return () => {
+      document.removeEventListener('pointerdown', close)
+      document.removeEventListener('keydown', closeOnEscape)
+    }
+  }, [attachMenuOpen])
+
+  useEffect(() => {
     return window.barn.sessions.onEvent(handleLiveEvent)
   }, [])
 
@@ -252,6 +283,7 @@ export function App() {
     setLiveParts([])
     setInput('')
     setAttachments([])
+    setWorkingDirectory(undefined)
     setContextStatus(undefined)
     setPending(false)
     setError(undefined)
@@ -277,6 +309,7 @@ export function App() {
         sessionId,
         text,
         attachments: filesToSend,
+        ...(workingDirectory === undefined ? {} : { workingDirectory }),
       })
       draftSessionIdRef.current = undefined
       setSessions((current) => upsertSession(current, session))
@@ -297,11 +330,28 @@ export function App() {
     }
   }
 
-  async function attachFiles(): Promise<void> {
+  async function attachFiles(kind: 'files' | 'folder'): Promise<void> {
     const sessionId = activeSessionId ?? draftSessionId()
     try {
-      const selected = await window.barn.sessions.attach(sessionId)
+      const selected = await window.barn.sessions.attach(sessionId, kind)
       setAttachments((current) => [...current, ...selected])
+      setAttachMenuOpen(false)
+    } catch (reason) {
+      setError(errorMessage(reason, t))
+    }
+  }
+
+  async function chooseWorkingDirectory(): Promise<void> {
+    try {
+      const selected = await window.barn.sessions.chooseDirectory()
+      if (selected === undefined) return
+      if (activeSessionId === undefined) {
+        setWorkingDirectory(selected)
+        return
+      }
+      const session = await window.barn.sessions.setWorkingDirectory(activeSessionId, selected)
+      setWorkingDirectory(session.workingDirectory)
+      setSessions((current) => upsertSession(current, session))
     } catch (reason) {
       setError(errorMessage(reason, t))
     }
@@ -314,6 +364,9 @@ export function App() {
     ? sessions
     : sessions.filter((session) => session.title.toLocaleLowerCase().includes(sessionQuery.trim().toLocaleLowerCase()))
   const conversationTitle = activeSession?.title ?? t('conversation.newSession')
+  const workingDirectoryLabel = workingDirectory === undefined
+    ? t('conversation.chooseWorkingDirectory')
+    : workingDirectory.split(/[\\/]/).filter(Boolean).at(-1) ?? workingDirectory
   const workspaceTitle = view === 'tasks' ? t('tasks.title') : conversationTitle
   const needsYouCount = tasks.filter((task) => ['proposed', 'waiting', 'failed'].includes(task.status)).length
 
@@ -614,7 +667,7 @@ export function App() {
                           const name = attachmentDisplayName(file)
                           return (
                             <span className="message-attachment" key={`${message.key}:${file.path}`} title={name}>
-                              <Paperclip size={11} />
+                              {file.kind === 'directory' ? <Folder size={11} /> : <Paperclip size={11} />}
                               <span>{name}</span>
                               {file.size > 0 && <small>{formatFileSize(file.size)}</small>}
                             </span>
@@ -643,9 +696,14 @@ export function App() {
             )}
 
             <div className="composer-dock">
-              <button className="composer-project" type="button" onClick={() => setSettingsOpen(true)}>
-                <Sparkles size={13} />
-                <span>{t('sidebar.localAgent')}</span>
+              <button
+                className="composer-project"
+                type="button"
+                title={workingDirectory ?? t('conversation.managedWorkspace')}
+                onClick={() => void chooseWorkingDirectory()}
+              >
+                <Folder size={13} />
+                <span>{workingDirectoryLabel}</span>
                 <ChevronDown size={12} />
               </button>
               <div className="composer">
@@ -655,7 +713,7 @@ export function App() {
                       const name = attachmentDisplayName(file)
                       return (
                         <span className="attachment-chip" key={file.path}>
-                          <Paperclip size={11} />
+                          {file.kind === 'directory' ? <Folder size={11} /> : <Paperclip size={11} />}
                           {name}
                           <TooltipButton
                             label={t('conversation.removeAttachment', { name })}
@@ -683,19 +741,30 @@ export function App() {
                 />
                 <div className="composer-toolbar">
                   <div className="composer-hints">
-                    <button
-                      className="context-chip"
-                      type="button"
-                      aria-label={t('conversation.attachFiles')}
-                      onClick={() => void attachFiles()}
-                    >
-                      <Plus size={15} />
-                      <span>{t('conversation.attach')}</span>
-                    </button>
-                    <span className="composer-mode">
-                      <span className="composer-mode-dot" />
-                      {t('conversation.localWorkspace')}
-                    </span>
+                    <div className="attach-control" ref={attachAreaRef}>
+                      <button
+                        className={attachMenuOpen ? 'context-chip active' : 'context-chip'}
+                        type="button"
+                        aria-label={t('conversation.attach')}
+                        aria-expanded={attachMenuOpen}
+                        onClick={() => setAttachMenuOpen((current) => !current)}
+                      >
+                        <Plus size={15} />
+                        <span>{t('conversation.attach')}</span>
+                      </button>
+                      {attachMenuOpen && (
+                        <div className="attach-menu" role="menu" aria-label={t('conversation.attachMenu')}>
+                          <button type="button" role="menuitem" onClick={() => void attachFiles('files')}>
+                            <FilePlus size={14} />
+                            <span>{t('conversation.addFiles')}</span>
+                          </button>
+                          <button type="button" role="menuitem" onClick={() => void attachFiles('folder')}>
+                            <FolderPlus size={14} />
+                            <span>{t('conversation.addFolder')}</span>
+                          </button>
+                        </div>
+                      )}
+                    </div>
                   </div>
                   <div className="composer-actions">
                     <ModelPicker

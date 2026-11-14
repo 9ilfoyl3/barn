@@ -231,7 +231,12 @@ function attachmentList(value: unknown): AttachmentDescriptor[] {
     && typeof entry.name === 'string'
     && typeof entry.path === 'string'
     && typeof entry.size === 'number'
-    ? [{ name: attachmentDisplayName({ name: entry.name, path: entry.path }), path: entry.path, size: entry.size }]
+    ? [{
+        name: attachmentDisplayName({ name: entry.name, path: entry.path }),
+        path: entry.path,
+        size: entry.size,
+        ...(entry.kind === 'file' || entry.kind === 'directory' ? { kind: entry.kind } : {}),
+      }]
     : [])
 }
 

@@ -3,6 +3,33 @@
   "shape": "app screen",
   "theme": "barn-native",
   "axes": [
+   "folder-first composer",
+   "explicit working directory",
+   "file-or-folder attach menu"
+  ],
+  "hero": "none",
+  "nav": "existing sidebar",
+  "footer": "existing workspace footer",
+  "imagery": "none",
+  "photos": [],
+  "entry": "Composer working-directory selector",
+  "fingerprint": "barn-composer-directory-2026-11-14",
+  "sections": [
+   "working directory chip",
+   "attachment menu",
+   "attachment chips",
+   "composer"
+  ],
+  "signature": "the current folder replaces agent branding above the composer",
+  "waived": [],
+  "prompt": "Make the composer working directory selectable and allow file or folder attachments without changing the Barn visual system",
+  "date": "2026-11-14",
+  "mode": "build"
+ },
+ {
+  "shape": "app screen",
+  "theme": "barn-native",
+  "axes": [
    "local health",
    "bounded retention",
    "existing settings panel"

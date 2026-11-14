@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import { copyFile, mkdir, stat } from 'node:fs/promises'
+import { cp, copyFile, mkdir, stat } from 'node:fs/promises'
 import { basename, join } from 'node:path'
 import { BrowserWindow, dialog, ipcMain, type IpcMainInvokeEvent } from 'electron'
 import { z } from 'zod'
@@ -40,9 +40,16 @@ export function registerSessionIpc(
         name: z.string().min(1).max(500),
         path: z.string().min(1).max(4_000),
         size: z.number().int().nonnegative(),
+        kind: z.enum(['file', 'directory']).optional(),
       })).max(50).optional(),
+      workingDirectory: z.string().min(1).max(4_000).optional(),
     }).parse(input)
-    return agent.prompt(parsed.sessionId, parsed.text, parsed.attachments ?? [])
+    return agent.prompt(
+      parsed.sessionId,
+      parsed.text,
+      parsed.attachments ?? [],
+      parsed.workingDirectory,
+    )
   })
 
   ipcMain.handle('sessions:cancel', (event, sessionId: unknown) => {
@@ -50,26 +57,60 @@ export function registerSessionIpc(
     return agent.cancel(z.string().min(1).parse(sessionId))
   })
 
-  ipcMain.handle('sessions:attach', async (event, sessionId: unknown) => {
+  ipcMain.handle('sessions:attach', async (event, input: unknown) => {
     requireTrusted(event, isTrustedSender)
-    const id = z.uuid().parse(sessionId)
+    const parsed = z.object({
+      sessionId: z.uuid(),
+      kind: z.enum(['files', 'folder']).default('files'),
+    }).parse(input)
     const window = BrowserWindow.fromWebContents(event.sender)
     if (window === null) throw new Error(nativeCopy(getLocale()).noActiveWindow)
     const result = await dialog.showOpenDialog(window, {
-      title: nativeCopy(getLocale()).attachFiles,
-      properties: ['openFile', 'multiSelections'],
+      title: parsed.kind === 'folder'
+        ? nativeCopy(getLocale()).attachFolder
+        : nativeCopy(getLocale()).attachFiles,
+      properties: parsed.kind === 'folder'
+        ? ['openDirectory', 'multiSelections']
+        : ['openFile', 'multiSelections'],
     })
     if (result.canceled) return []
 
-    const sessionDirectory = join(attachmentsRoot, id)
+    const sessionDirectory = join(attachmentsRoot, parsed.sessionId)
     await mkdir(sessionDirectory, { recursive: true, mode: 0o700 })
     return Promise.all(result.filePaths.map(async (sourcePath) => {
       const name = basename(sourcePath)
       const destination = join(sessionDirectory, storedAttachmentFileName(randomUUID(), name))
+      const sourceInfo = await stat(sourcePath)
+      if (sourceInfo.isDirectory()) {
+        await cp(sourcePath, destination, { recursive: true, force: true, errorOnExist: false })
+        return { name, path: destination, size: 0, kind: 'directory' as const }
+      }
       await copyFile(sourcePath, destination)
       const info = await stat(destination)
-      return { name, path: destination, size: info.size }
+      return { name, path: destination, size: info.size, kind: 'file' as const }
     }))
+  })
+
+  ipcMain.handle('sessions:choose-directory', async (event) => {
+    requireTrusted(event, isTrustedSender)
+    const window = BrowserWindow.fromWebContents(event.sender)
+    if (window === null) throw new Error(nativeCopy(getLocale()).noActiveWindow)
+    const result = await dialog.showOpenDialog(window, {
+      title: nativeCopy(getLocale()).chooseWorkingDirectory,
+      properties: ['openDirectory'],
+    })
+    return result.canceled ? undefined : result.filePaths[0]
+  })
+
+  ipcMain.handle('sessions:set-working-directory', async (event, input: unknown) => {
+    requireTrusted(event, isTrustedSender)
+    const parsed = z.object({
+      sessionId: z.string().min(1),
+      workingDirectory: z.string().min(1).max(4_000),
+    }).parse(input)
+    const info = await stat(parsed.workingDirectory)
+    if (!info.isDirectory()) throw new Error('Working directory must be a directory')
+    return agent.setWorkingDirectory(parsed.sessionId, parsed.workingDirectory)
   })
 
   agent.onLiveEvent((liveEvent) => {
