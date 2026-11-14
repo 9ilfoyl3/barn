@@ -7,6 +7,7 @@ import { AesGcmEventCipher } from './event-cipher'
 import { TaskStore } from '../tasks/task-store'
 import { PermissionStore } from '../permissions/permission-store'
 import { ActionStore } from '../actions/action-store'
+import { LocalSourceStore } from '../sources/local-source-store'
 
 export type SessionStatus = SessionSummary['status']
 
@@ -29,6 +30,7 @@ export class SessionStore {
   readonly tasks: TaskStore
   readonly permissions: PermissionStore
   readonly actions: ActionStore
+  readonly localSources: LocalSourceStore
 
   constructor(
     path: string,
@@ -39,6 +41,7 @@ export class SessionStore {
     this.tasks = new TaskStore(this.database, cipher)
     this.permissions = new PermissionStore(this.database, cipher)
     this.actions = new ActionStore(this.database, cipher)
+    this.localSources = new LocalSourceStore(this.database, cipher)
   }
 
   async initialize(): Promise<void> {
@@ -72,6 +75,7 @@ export class SessionStore {
     this.tasks.initialize()
     this.permissions.initialize()
     this.actions.initialize()
+    this.localSources.initialize()
     this.pruneEmptySessions()
   }
 

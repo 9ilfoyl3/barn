@@ -184,6 +184,47 @@ export interface TaskBridge {
   onEvent(listener: (event: TaskLiveEvent) => void): () => void
 }
 
+export type LocalSourceKind = 'file-watch' | 'schedule'
+
+export interface FileWatchSourceConfig {
+  kind: 'file-watch'
+  path: string
+  recursive: boolean
+  maxDepth: number
+}
+
+export interface ScheduleSourceConfig {
+  kind: 'schedule'
+  intervalMinutes: number
+  title: string
+  prompt: string
+}
+
+export type LocalSourceConfig = FileWatchSourceConfig | ScheduleSourceConfig
+
+export interface LocalSource {
+  id: string
+  name: string
+  enabled: boolean
+  config: LocalSourceConfig
+  lastError?: string
+  createdAt: string
+  updatedAt: string
+}
+
+export type CreateLocalSourceInput =
+  | { name: string; config: FileWatchSourceConfig }
+  | { name: string; config: ScheduleSourceConfig }
+
+export interface LocalSourceBridge {
+  list(): Promise<LocalSource[]>
+  create(input: CreateLocalSourceInput): Promise<LocalSource>
+  setEnabled(sourceId: string, enabled: boolean): Promise<LocalSource>
+  remove(sourceId: string): Promise<void>
+  chooseDirectory(): Promise<string | undefined>
+  pollNow(): Promise<void>
+}
+
 export type PermissionKind = 'local-read' | 'workspace-write' | 'external-write' | 'destructive'
 export type PermissionMode = 'allow' | 'ask' | 'deny'
 export type ApprovalStatus = 'pending' | 'approved' | 'denied'
@@ -358,4 +399,5 @@ export interface BarnBridge {
   tasks: TaskBridge
   permissions: PermissionBridge
   approvals: ApprovalBridge
+  localSources: LocalSourceBridge
 }

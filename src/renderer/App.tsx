@@ -12,6 +12,7 @@ import {
   FileSearch,
   FileText,
   FolderOpen,
+  FolderSearch,
   Inbox,
   Search,
   Wrench,
@@ -38,6 +39,7 @@ import { attachmentDisplayName } from '../shared/attachments'
 import { ModelSettings } from './ModelSettings'
 import { ModelPicker } from './ModelPicker'
 import { LanguagePicker } from './LanguagePicker'
+import { SourceSettings } from './SourceSettings'
 import { TaskCenter } from './TaskCenter'
 import { initializeAppLanguage } from './i18n'
 import { TooltipButton } from './components/TooltipButton'
@@ -64,6 +66,7 @@ export function App() {
   const dateLocale = i18n.language === 'zh-CN' ? 'zh-CN' : 'en-US'
   const [snapshot, setSnapshot] = useState<ModelConfigSnapshot>()
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [sourceSettingsOpen, setSourceSettingsOpen] = useState(false)
   const [modelSelectionBusy, setModelSelectionBusy] = useState(false)
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [sessions, setSessions] = useState<SessionSummary[]>([])
@@ -485,6 +488,19 @@ export function App() {
                   role="menuitem"
                   onClick={() => {
                     setAccountOpen(false)
+                    setSourceSettingsOpen(true)
+                  }}
+                >
+                  <FolderSearch size={14} />
+                  <span>{t('sidebar.localSources')}</span>
+                  <ChevronRight className="account-menu-chevron" size={13} />
+                </button>
+                <button
+                  className="account-menu-item"
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    setAccountOpen(false)
                     setSettingsOpen(true)
                   }}
                 >
@@ -731,6 +747,7 @@ export function App() {
           onClose={() => setSettingsOpen(false)}
         />
       )}
+      {sourceSettingsOpen && <SourceSettings onClose={() => setSourceSettingsOpen(false)} />}
     </div>
   )
 }

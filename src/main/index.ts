@@ -10,6 +10,8 @@ import { AesGcmEventCipher } from './session/event-cipher'
 import { registerSessionIpc } from './session/session-ipc'
 import { ActionService } from './actions/action-service'
 import { registerPermissionIpc } from './permissions/permission-ipc'
+import { registerLocalSourceIpc } from './sources/local-source-ipc'
+import { LocalSourceService } from './sources/local-source-service'
 import { PermissionService } from './permissions/permission-service'
 import { registerTaskIpc } from './tasks/task-ipc'
 import { TaskRunner } from './tasks/task-runner'
@@ -37,6 +39,7 @@ let taskService: TaskService | undefined
 let taskRunner: TaskRunner | undefined
 let permissionService: PermissionService | undefined
 let actionService: ActionService | undefined
+let localSourceService: LocalSourceService | undefined
 const shellService = new ShellService()
 
 function windowBackgroundColor(): string {
@@ -139,10 +142,13 @@ void app.whenReady().then(async () => {
   permissionService = new PermissionService(sessionStore.permissions, taskService)
   actionService = new ActionService(sessionStore.actions, permissionService)
   actionService.start()
+  localSourceService = new LocalSourceService(sessionStore.localSources, taskService)
+  localSourceService.start()
   registerModelIpc(modelService, trustedSender)
   registerSessionIpc(sessionStore, agentService, join(workspaceRoot, 'attachments'), trustedSender, () => nativeLocale())
   registerTaskIpc(taskService, trustedSender)
   registerPermissionIpc(permissionService, trustedSender)
+  registerLocalSourceIpc(localSourceService, trustedSender)
   registerRuntimeIpc(shellService, trustedSender, () => nativeLocale())
   await createWindow()
 
@@ -162,6 +168,8 @@ app.on('before-quit', () => {
   permissionService = undefined
   actionService?.stop()
   actionService = undefined
+  localSourceService?.stop()
+  localSourceService = undefined
   void agentService?.stop()
   agentService = undefined
   sessionStore?.close()
