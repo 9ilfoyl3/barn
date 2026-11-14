@@ -1,0 +1,50 @@
+import type {
+  CreateTaskInput,
+  Task,
+  TaskLiveEvent,
+  TaskStatusUpdate,
+} from '../../shared/models'
+import { TaskStore } from './task-store'
+
+/** Application-facing Task commands with change events for the Desktop UI and future background runtime. */
+export class TaskService {
+  private readonly listeners = new Set<(event: TaskLiveEvent) => void>()
+
+  constructor(private readonly store: TaskStore) {}
+
+  list(): Task[] {
+    return this.store.list()
+  }
+
+  get(taskId: string): Task {
+    return this.store.get(taskId)
+  }
+
+  create(input: CreateTaskInput): Task {
+    const task = this.store.create(input)
+    this.emit(task)
+    return task
+  }
+
+  updateStatus(taskId: string, update: TaskStatusUpdate): Task {
+    const task = this.store.updateStatus(taskId, update)
+    this.emit(task)
+    return task
+  }
+
+  assignSession(taskId: string, sessionId: string | null): Task {
+    const task = this.store.assignSession(taskId, sessionId)
+    this.emit(task)
+    return task
+  }
+
+  onEvent(listener: (event: TaskLiveEvent) => void): () => void {
+    this.listeners.add(listener)
+    return () => this.listeners.delete(listener)
+  }
+
+  private emit(task: Task): void {
+    const event: TaskLiveEvent = { type: 'task.updated', task }
+    for (const listener of this.listeners) listener(event)
+  }
+}

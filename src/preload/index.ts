@@ -13,6 +13,10 @@ import type {
   SessionLiveEvent,
   NativeLocale,
   SessionPromptInput,
+  TaskBridge,
+  CreateTaskInput,
+  TaskStatusUpdate,
+  TaskLiveEvent,
   ThemeBridge,
   ThemeState,
   SetDefaultModelInput,
@@ -44,6 +48,19 @@ const sessions: SessionBridge = {
   },
 }
 
+const tasks: TaskBridge = {
+  list: () => ipcRenderer.invoke('tasks:list'),
+  get: (taskId: string) => ipcRenderer.invoke('tasks:get', taskId),
+  create: (input: CreateTaskInput) => ipcRenderer.invoke('tasks:create', input),
+  updateStatus: (taskId: string, update: TaskStatusUpdate) => ipcRenderer.invoke('tasks:update-status', { taskId, update }),
+  assignSession: (taskId: string, sessionId: string | null) => ipcRenderer.invoke('tasks:assign-session', { taskId, sessionId }),
+  onEvent: (listener: (event: TaskLiveEvent) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, liveEvent: TaskLiveEvent): void => listener(liveEvent)
+    ipcRenderer.on('tasks:event', handler)
+    return () => ipcRenderer.removeListener('tasks:event', handler)
+  },
+}
+
 const theme: ThemeBridge = {
   getState: () => ipcRenderer.invoke('runtime:theme-state') as Promise<ThemeState>,
   onChange: (listener: (state: ThemeState) => void) => {
@@ -64,5 +81,6 @@ const api: BarnBridge = {
   i18n,
   models,
   sessions,
+  tasks,
 }
 contextBridge.exposeInMainWorld('barn', api)

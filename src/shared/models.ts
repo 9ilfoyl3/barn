@@ -134,6 +134,52 @@ export interface ModelBridge {
 }
 
 
+export type TaskStatus = 'proposed' | 'queued' | 'running' | 'waiting' | 'completed' | 'failed' | 'cancelled'
+export type TaskOrigin = 'user' | 'automation'
+export type TaskWaitingReason = 'input' | 'approval'
+
+/** Durable user-facing work, independent of any one Session used to execute it. */
+export interface Task {
+  id: string
+  title: string
+  status: TaskStatus
+  origin: TaskOrigin
+  sessionId?: string
+  waitingReason?: TaskWaitingReason
+  detail?: string
+  createdAt: string
+  updatedAt: string
+  startedAt?: string
+  finishedAt?: string
+}
+
+export interface CreateTaskInput {
+  title: string
+  origin: TaskOrigin
+  status?: 'proposed' | 'queued'
+  sessionId?: string
+}
+
+export interface TaskStatusUpdate {
+  status: TaskStatus
+  waitingReason?: TaskWaitingReason
+  detail?: string
+}
+
+export type TaskLiveEvent = {
+  type: 'task.updated'
+  task: Task
+}
+
+export interface TaskBridge {
+  list(): Promise<Task[]>
+  get(taskId: string): Promise<Task>
+  create(input: CreateTaskInput): Promise<Task>
+  updateStatus(taskId: string, update: TaskStatusUpdate): Promise<Task>
+  assignSession(taskId: string, sessionId: string | null): Promise<Task>
+  onEvent(listener: (event: TaskLiveEvent) => void): () => void
+}
+
 export interface SessionSummary {
   id: string
   title: string
@@ -257,4 +303,5 @@ export interface BarnBridge {
   i18n: I18nBridge
   models: ModelBridge
   sessions: SessionBridge
+  tasks: TaskBridge
 }

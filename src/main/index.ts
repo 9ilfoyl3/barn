@@ -8,6 +8,8 @@ import { ShellService } from './sandbox/shell-service'
 import { loadOrCreateDeviceDataKey } from './session/device-data-key'
 import { AesGcmEventCipher } from './session/event-cipher'
 import { registerSessionIpc } from './session/session-ipc'
+import { registerTaskIpc } from './tasks/task-ipc'
+import { TaskService } from './tasks/task-service'
 import { SessionStore } from './session/session-store'
 import { scrubbedShellEnvironment } from './sandbox/environment'
 import { ToolService } from './tools/tool-service'
@@ -100,6 +102,7 @@ void app.whenReady().then(async () => {
   )
   await sessionStore.initialize()
   sessionStore.recoverInterruptedSessions()
+  sessionStore.tasks.recoverInterruptedTasks()
   const workspaceRoot = join(userData, 'workspace')
   const outputRoot = join(userData, 'output')
   const privateTempRoot = join(userData, 'sandbox-temp')
@@ -124,6 +127,7 @@ void app.whenReady().then(async () => {
   await agentService.start()
   registerModelIpc(modelService, trustedSender)
   registerSessionIpc(sessionStore, agentService, join(workspaceRoot, 'attachments'), trustedSender, () => nativeLocale())
+  registerTaskIpc(new TaskService(sessionStore.tasks), trustedSender)
   registerRuntimeIpc(shellService, trustedSender, () => nativeLocale())
   await createWindow()
 

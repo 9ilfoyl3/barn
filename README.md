@@ -22,7 +22,9 @@ This README defines product positioning, not a committed feature roadmap. The ne
 
 ## Architecture
 
-The Electron Host owns model provider configuration, encrypted credentials, local capabilities, and durable Session storage. A dedicated Agent Worker runs Pi Agent Core and accesses local capabilities only through typed Host-owned interfaces. The renderer receives typed Session events and never receives model credentials.
+The Electron Host owns model provider configuration, encrypted credentials, local capabilities, durable Task and Session storage. A dedicated Agent Worker runs Pi Agent Core and accesses local capabilities only through typed Host-owned interfaces. The renderer receives typed Task and Session events and never receives model credentials.
+
+Tasks are the durable user-facing unit of work. A Session is the execution transcript that carries model context for one run. A Task may link to a Session, move to another Session, or wait without an active run.
 
 Interactive model calls are made by the Desktop with the user's configured provider. The Desktop owns its provider catalog, credentials, default model, and reasoning-effort settings.
 
