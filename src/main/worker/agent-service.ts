@@ -94,7 +94,7 @@ export class AgentService {
       : `\n\nAttached files and folders:\n${attachments.map((file) => `- ${file.path}`).join('\n')}`
     let memoryContext = ''
     try {
-      memoryContext = this.memory?.contextForPrompt(trimmed, workingDirectory) ?? ''
+      memoryContext = this.memory?.contextForPrompt(trimmed, workingDirectory, sessionId) ?? ''
     } catch {
       // Memory is an enhancement; a retrieval failure must not block the user's prompt.
     }
@@ -190,6 +190,7 @@ export class AgentService {
       case 'tool.execute':
         void this.tools.execute(message.toolName, message.args, {
           workingDirectory: this.sessions.getSession(message.sessionId).workingDirectory,
+          sessionId: message.sessionId,
         })
           .then((result) => {
             this.supervisor.post({

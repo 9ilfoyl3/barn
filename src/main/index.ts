@@ -12,6 +12,8 @@ import { ActionService } from './actions/action-service'
 import { registerDiagnosticsIpc } from './diagnostics/diagnostics-ipc'
 import { DiagnosticsService } from './diagnostics/diagnostics-service'
 import { MemoryService } from './memory/memory-service'
+import { MemoryExtractionService } from './memory/memory-extraction'
+import { registerMemoryIpc } from './memory/memory-ipc'
 import { registerPermissionIpc } from './permissions/permission-ipc'
 import { registerLocalSourceIpc } from './sources/local-source-ipc'
 import { LocalSourceService } from './sources/local-source-service'
@@ -47,6 +49,7 @@ let actionService: ActionService | undefined
 let localSourceService: LocalSourceService | undefined
 let lifecycle: AlwaysOnLifecycle | undefined
 let diagnosticsService: DiagnosticsService | undefined
+let memoryExtractionService: MemoryExtractionService | undefined
 let maintenanceTimer: NodeJS.Timeout | undefined
 let isQuitting = false
 const shellService = new ShellService()
@@ -130,6 +133,7 @@ function showTasks(): void {
 
 function resumeWork(): void {
   taskRunner?.kick()
+  void memoryExtractionService?.runOnce().catch(() => undefined)
   void localSourceService?.pollNow()
   void actionService?.runDue()
 }
@@ -188,6 +192,7 @@ void app.whenReady().then(async () => {
   localSourceService = new LocalSourceService(sessionStore.localSources, taskService)
   localSourceService.start()
   registerModelIpc(modelService, trustedSender)
+  registerMemoryIpc(memoryService, trustedSender)
   registerSessionIpc(sessionStore, agentService, join(workspaceRoot, 'attachments'), trustedSender, () => nativeLocale())
   registerTaskIpc(taskService, trustedSender)
   registerPermissionIpc(permissionService, trustedSender)
@@ -199,6 +204,8 @@ void app.whenReady().then(async () => {
     () => getRuntimeCapabilities(shellService),
   )
   registerDiagnosticsIpc(diagnosticsService, trustedSender)
+  memoryExtractionService = new MemoryExtractionService(sessionStore, modelService)
+  memoryExtractionService.start()
   sessionStore.runRetention()
   maintenanceTimer = setInterval(() => sessionStore?.runRetention(), 24 * 60 * 60 * 1_000)
   maintenanceTimer.unref()
@@ -236,6 +243,8 @@ app.on('before-quit', () => {
   localSourceService?.stop()
   localSourceService = undefined
   diagnosticsService = undefined
+  memoryExtractionService?.stop()
+  memoryExtractionService = undefined
   if (maintenanceTimer !== undefined) clearInterval(maintenanceTimer)
   maintenanceTimer = undefined
   void agentService?.stop()

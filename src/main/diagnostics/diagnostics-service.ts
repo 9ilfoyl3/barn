@@ -22,7 +22,7 @@ export class DiagnosticsService {
       schemaVersion: this.store.schemaVersion(),
       stateDirectory: this.stateDirectory,
       retentionDays: this.store.getRetentionDays(),
-      counts: this.store.diagnosticsCounts(),
+      counts: { ...this.store.diagnosticsCounts(), memoryEntries: this.store.memories.activeCount() },
       automationMode: this.sources.getAutomationSettings().mode,
       shell,
     }
