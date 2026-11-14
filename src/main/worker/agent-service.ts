@@ -12,6 +12,7 @@ import type { ModelService } from '../models/model-service'
 import type { ToolService } from '../tools/tool-service'
 import type { SessionStore } from '../session/session-store'
 import { WorkerSupervisor, type WorkerSupervisorStatus } from './worker-supervisor'
+import type { MemoryService } from '../memory/memory-service'
 
 export class AgentService {
   private readonly broker: ModelStreamBroker
@@ -23,6 +24,7 @@ export class AgentService {
     private readonly models: ModelService,
     private readonly sessions: SessionStore,
     private readonly tools: ToolService,
+    private readonly memory?: Pick<MemoryService, 'contextForPrompt'>,
   ) {
     this.broker = new ModelStreamBroker(models, (message) => supervisor.post(message))
     supervisor.onMessage((message) => this.handleWorkerMessage(message))
@@ -90,7 +92,13 @@ export class AgentService {
     const attachmentContext = attachments.length === 0
       ? ''
       : `\n\nAttached files and folders:\n${attachments.map((file) => `- ${file.path}`).join('\n')}`
-    await this.supervisor.prompt(sessionId, `${trimmed}${workingDirectoryContext}${attachmentContext}`)
+    let memoryContext = ''
+    try {
+      memoryContext = this.memory?.contextForPrompt(trimmed, workingDirectory) ?? ''
+    } catch {
+      // Memory is an enhancement; a retrieval failure must not block the user's prompt.
+    }
+    await this.supervisor.prompt(sessionId, `${trimmed}${workingDirectoryContext}${attachmentContext}${memoryContext}`)
     return this.sessions.getSession(sessionId)
   }
 

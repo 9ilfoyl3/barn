@@ -8,10 +8,11 @@ import { TaskStore } from '../tasks/task-store'
 import { PermissionStore } from '../permissions/permission-store'
 import { ActionStore } from '../actions/action-store'
 import { LocalSourceStore } from '../sources/local-source-store'
+import { MemoryStore } from '../memory/memory-store'
 
 export type SessionStatus = SessionSummary['status']
 
-export const CURRENT_SCHEMA_VERSION = 1
+export const CURRENT_SCHEMA_VERSION = 2
 
 export interface NewSessionEvent {
   type: string
@@ -33,6 +34,7 @@ export class SessionStore {
   readonly permissions: PermissionStore
   readonly actions: ActionStore
   readonly localSources: LocalSourceStore
+  readonly memories: MemoryStore
 
   constructor(
     path: string,
@@ -44,6 +46,7 @@ export class SessionStore {
     this.permissions = new PermissionStore(this.database, cipher)
     this.actions = new ActionStore(this.database, cipher)
     this.localSources = new LocalSourceStore(this.database, cipher)
+    this.memories = new MemoryStore(this.database, cipher)
   }
 
   async initialize(): Promise<void> {
@@ -96,6 +99,7 @@ export class SessionStore {
     this.permissions.initialize()
     this.actions.initialize()
     this.localSources.initialize()
+    this.memories.initialize()
     this.database.prepare(`
       INSERT INTO schema_meta (id, version, updated_at) VALUES (1, ?, ?)
       ON CONFLICT(id) DO UPDATE SET version = excluded.version, updated_at = excluded.updated_at

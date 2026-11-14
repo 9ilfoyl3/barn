@@ -234,6 +234,47 @@ export interface LocalSourceBridge {
   pollNow(): Promise<void>
 }
 
+export type MemoryScope = 'global' | 'workspace'
+export type MemoryKind = 'preference' | 'fact' | 'procedure' | 'decision' | 'project'
+
+export interface MemoryEntry {
+  id: string
+  scope: MemoryScope
+  kind: MemoryKind
+  title: string
+  content: string
+  tags: string[]
+  pinned: boolean
+  confidence: number
+  sourceSessionIds: string[]
+  version: number
+  createdAt: string
+  updatedAt: string
+  lastUsedAt?: string
+  useCount: number
+}
+
+export interface MemorySettings {
+  enabled: boolean
+  useMemories: boolean
+  generateMemories: boolean
+  idleMinutes: number
+  maxEntries: number
+}
+
+export interface MemorySaveInput {
+  kind: MemoryKind
+  scope: MemoryScope
+  workspacePath?: string
+  title: string
+  content: string
+  tags?: string[]
+  key?: string
+  pinned?: boolean
+  confidence?: number
+  sourceSessionId?: string
+}
+
 export interface DiagnosticsSnapshot {
   appVersion: string
   platform: NodeJS.Platform

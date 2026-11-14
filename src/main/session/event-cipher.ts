@@ -1,4 +1,4 @@
-import { createCipheriv, createDecipheriv, randomBytes } from 'node:crypto'
+import { createCipheriv, createDecipheriv, createHmac, randomBytes } from 'node:crypto'
 
 export interface EncryptedPayload {
   ciphertext: Uint8Array
@@ -24,6 +24,10 @@ export class AesGcmEventCipher {
       nonce,
       tag: cipher.getAuthTag(),
     }
+  }
+
+  fingerprint(value: string): string {
+    return createHmac('sha256', this.key).update(value, 'utf8').digest('hex')
   }
 
   decrypt<T>(payload: EncryptedPayload, associatedData: string): T {

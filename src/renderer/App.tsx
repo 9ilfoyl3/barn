@@ -948,6 +948,9 @@ function toolActionLabel(name: string, t: ReturnType<typeof useTranslation>['t']
     case 'search_files': return t('tools.searchFiles')
     case 'find_files': return t('tools.findFiles')
     case 'view_image': return t('tools.viewImage')
+    case 'memory_search': return t('tools.memorySearch')
+    case 'memory_save': return t('tools.memorySave')
+    case 'memory_forget': return t('tools.memoryForget')
     default: return t('tools.ranTool', { name })
   }
 }

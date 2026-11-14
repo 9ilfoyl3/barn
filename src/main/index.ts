@@ -11,6 +11,7 @@ import { registerSessionIpc } from './session/session-ipc'
 import { ActionService } from './actions/action-service'
 import { registerDiagnosticsIpc } from './diagnostics/diagnostics-ipc'
 import { DiagnosticsService } from './diagnostics/diagnostics-service'
+import { MemoryService } from './memory/memory-service'
 import { registerPermissionIpc } from './permissions/permission-ipc'
 import { registerLocalSourceIpc } from './sources/local-source-ipc'
 import { LocalSourceService } from './sources/local-source-service'
@@ -162,11 +163,13 @@ void app.whenReady().then(async () => {
     mkdir(outputRoot, { recursive: true, mode: 0o700 }),
     mkdir(privateTempRoot, { recursive: true, mode: 0o700 }),
   ])
+  const memoryService = new MemoryService(sessionStore.memories)
   const tools = new ToolService({
     workspaceRoot,
     outputRoot,
     privateTempRoot,
     shell: shellService,
+    memory: memoryService,
   })
   const supervisor = new WorkerSupervisor({
     createTransport: () => createElectronWorkerTransport(
@@ -174,7 +177,7 @@ void app.whenReady().then(async () => {
       scrubbedShellEnvironment(process.env, privateTempRoot),
     ),
   })
-  agentService = new AgentService(supervisor, modelService, sessionStore, tools)
+  agentService = new AgentService(supervisor, modelService, sessionStore, tools, memoryService)
   await agentService.start()
   taskService = new TaskService(sessionStore.tasks)
   taskRunner = new TaskRunner(agentService, taskService, sessionStore)

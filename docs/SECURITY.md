@@ -16,6 +16,7 @@
 - File tools resolve real paths and reject traversal, symlink escape, and known secret files.
 - Workspace discovery and content search skip symlinks, known secret paths, `.git`, `node_modules`, and entries ignored by the workspace-root `.gitignore`; results are bounded.
 - Workspace writes resolve the nearest existing ancestor before creating a target, reject symlink escapes and sensitive paths, and use atomic file replacement.
+- Cross-Session memory payloads are AES-GCM encrypted with the device key, workspace identity is keyed-hashed, credential-like content is rejected, and retrieved memory is injected as untrusted reference data.
 - A user-selected Session working directory becomes an additional authorized read/write root. Selecting a broad directory intentionally broadens the Agent's local capability boundary.
 - Local source folder watches read metadata only and skip symlinks.
 - Attachment image and text previews are read only from the managed attachment store and are size-limited. PDF and modern Office previews have a 50MB input cap and are parsed without executing embedded content; unsupported or binary formats fall back to an icon.
