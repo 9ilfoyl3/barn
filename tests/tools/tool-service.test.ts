@@ -1,6 +1,6 @@
 import { mkdir, mkdtemp, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { join, sep } from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
 import { ToolService } from '../../src/main/tools/tool-service'
 import type { ShellService } from '../../src/main/sandbox/shell-service'
@@ -46,10 +46,11 @@ describe('ToolService', () => {
 
   it('rejects paths outside managed roots and secret files', async () => {
     const { service, workspace } = await createService()
-    await writeFile('/tmp/barn-outside-secret.txt', 'secret').catch(() => undefined)
+    const outside = join(tmpdir(), 'barn-outside-secret.txt')
+    await writeFile(outside, 'secret').catch(() => undefined)
     await writeFile(join(workspace, '.env'), 'TOKEN=secret')
 
-    await expect(service.execute('read_file', { path: '/tmp/barn-outside-secret.txt' }))
+    await expect(service.execute('read_file', { path: outside }))
       .resolves.toMatchObject({ isError: true })
     await expect(service.execute('read_file', { path: '.env' }))
       .resolves.toMatchObject({ isError: true })
@@ -90,7 +91,7 @@ describe('ToolService', () => {
 
     expect(result.content).toEqual([{
       type: 'text',
-      text: 'docs/notes.txt:1:alpha beta\ndocs/notes.txt:3:alpha beta',
+      text: `docs${sep}notes.txt:1:alpha beta\ndocs${sep}notes.txt:3:alpha beta`,
     }])
   })
 })
