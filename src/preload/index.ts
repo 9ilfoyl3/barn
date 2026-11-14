@@ -81,6 +81,8 @@ const approvals: ApprovalBridge = {
 }
 
 const localSources: LocalSourceBridge = {
+  getAutomationSettings: () => ipcRenderer.invoke('local-sources:get-automation-settings'),
+  setAutomationSettings: (settings) => ipcRenderer.invoke('local-sources:set-automation-settings', settings),
   list: () => ipcRenderer.invoke('local-sources:list'),
   create: (input: CreateLocalSourceInput) => ipcRenderer.invoke('local-sources:create', input),
   setEnabled: (sourceId: string, enabled: boolean) => ipcRenderer.invoke('local-sources:set-enabled', { sourceId, enabled }),

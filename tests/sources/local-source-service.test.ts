@@ -82,6 +82,46 @@ describe('LocalSourceService', () => {
     h.sessions.close()
   })
 
+  it('queues tasks in active mode instead of proposing them', async () => {
+    const h = await harness()
+    h.sources.setAutomationSettings({ mode: 'active', maxPendingSuggestions: 20, suggestionCooldownMinutes: 0 })
+    const source = h.sources.create({
+      name: 'Active schedule',
+      config: { kind: 'schedule', intervalMinutes: 1, title: 'Active review', prompt: 'Review now.' },
+    })
+    h.sessions.localSources.saveState(source.id, { nextRunAt: '2000-01-01T00:00:00.000Z' })
+    await h.sources.pollNow()
+    expect(h.tasks.list()[0]).toMatchObject({ status: 'queued', title: 'Active review' })
+    h.sources.stop()
+    h.sessions.close()
+  })
+
+  it('applies the pending suggestion limit and per-source cooldown', async () => {
+    const h = await harness()
+    const watched = join(h.directory, 'limited')
+    await mkdir(watched)
+    await writeFile(join(watched, 'a.txt'), 'a')
+    await writeFile(join(watched, 'b.txt'), 'b')
+    h.sources.create({
+      name: 'Limited watch',
+      config: { kind: 'file-watch', path: watched, recursive: false, maxDepth: 1 },
+    })
+    h.sources.setAutomationSettings({ mode: 'observe', maxPendingSuggestions: 20, suggestionCooldownMinutes: 60 })
+    await h.sources.pollNow()
+    await writeFile(join(watched, 'a.txt'), 'a changed')
+    await writeFile(join(watched, 'b.txt'), 'b changed')
+    await h.sources.pollNow()
+    expect(h.tasks.list()).toHaveLength(1)
+
+    h.sources.setAutomationSettings({ mode: 'observe', maxPendingSuggestions: 1, suggestionCooldownMinutes: 0 })
+    await writeFile(join(watched, 'a.txt'), 'a changed again')
+    await writeFile(join(watched, 'b.txt'), 'b changed again')
+    await h.sources.pollNow()
+    expect(h.tasks.list()).toHaveLength(1)
+    h.sources.stop()
+    h.sessions.close()
+  })
+
   it('records source failures without stopping other sources', async () => {
     const h = await harness()
     const broken = h.sources.create({

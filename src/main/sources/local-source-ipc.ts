@@ -27,6 +27,21 @@ export function registerLocalSourceIpc(
   sources: LocalSourceService,
   isTrustedSender: (event: IpcMainInvokeEvent) => boolean,
 ): void {
+  ipcMain.handle('local-sources:get-automation-settings', (event) => {
+    requireTrusted(event, isTrustedSender)
+    return sources.getAutomationSettings()
+  })
+
+  ipcMain.handle('local-sources:set-automation-settings', (event, settings: unknown) => {
+    requireTrusted(event, isTrustedSender)
+    const parsed = z.object({
+      mode: z.enum(['observe', 'active']),
+      maxPendingSuggestions: z.number().int().min(1).max(200),
+      suggestionCooldownMinutes: z.number().int().min(0).max(10_080),
+    }).strict().parse(settings)
+    return sources.setAutomationSettings(parsed)
+  })
+
   ipcMain.handle('local-sources:list', (event) => {
     requireTrusted(event, isTrustedSender)
     return sources.list()

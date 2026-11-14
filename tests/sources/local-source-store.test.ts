@@ -43,6 +43,23 @@ describe('LocalSourceStore', () => {
     reopened.close()
   })
 
+  it('persists observe and attention-budget settings', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'barn-source-store-'))
+    const store = await openStore(directory)
+    expect(store.localSources.getAutomationSettings()).toMatchObject({ mode: 'observe' })
+    store.localSources.setAutomationSettings({
+      mode: 'active',
+      maxPendingSuggestions: 5,
+      suggestionCooldownMinutes: 30,
+    })
+    expect(store.localSources.getAutomationSettings()).toEqual({
+      mode: 'active',
+      maxPendingSuggestions: 5,
+      suggestionCooldownMinutes: 30,
+    })
+    store.close()
+  })
+
   it('deduplicates source events and supports enable, disable, and removal', async () => {
     const directory = await mkdtemp(join(tmpdir(), 'barn-source-store-'))
     const store = await openStore(directory)

@@ -185,6 +185,13 @@ export interface TaskBridge {
 }
 
 export type LocalSourceKind = 'file-watch' | 'schedule'
+export type AutomationMode = 'observe' | 'active'
+
+export interface AutomationSettings {
+  mode: AutomationMode
+  maxPendingSuggestions: number
+  suggestionCooldownMinutes: number
+}
 
 export interface FileWatchSourceConfig {
   kind: 'file-watch'
@@ -217,6 +224,8 @@ export type CreateLocalSourceInput =
   | { name: string; config: ScheduleSourceConfig }
 
 export interface LocalSourceBridge {
+  getAutomationSettings(): Promise<AutomationSettings>
+  setAutomationSettings(settings: AutomationSettings): Promise<AutomationSettings>
   list(): Promise<LocalSource[]>
   create(input: CreateLocalSourceInput): Promise<LocalSource>
   setEnabled(sourceId: string, enabled: boolean): Promise<LocalSource>
