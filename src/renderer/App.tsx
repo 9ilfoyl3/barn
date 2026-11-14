@@ -12,6 +12,7 @@ import {
   FileSearch,
   FileText,
   FolderOpen,
+  Inbox,
   Search,
   Wrench,
   LoaderCircle,
@@ -30,11 +31,14 @@ import type {
   RuntimeCapabilities,
   SessionLiveEvent,
   SessionSummary,
+  Task,
+  TaskLiveEvent,
 } from '../shared/models'
 import { attachmentDisplayName } from '../shared/attachments'
 import { ModelSettings } from './ModelSettings'
 import { ModelPicker } from './ModelPicker'
 import { LanguagePicker } from './LanguagePicker'
+import { TaskCenter } from './TaskCenter'
 import { initializeAppLanguage } from './i18n'
 import { TooltipButton } from './components/TooltipButton'
 import {
@@ -75,6 +79,10 @@ export function App() {
   const [accountOpen, setAccountOpen] = useState(false)
   const [sessionSearchOpen, setSessionSearchOpen] = useState(false)
   const [sessionQuery, setSessionQuery] = useState('')
+  const [view, setView] = useState<'conversation' | 'tasks'>('conversation')
+  const [tasks, setTasks] = useState<Task[]>([])
+  const [tasksLoading, setTasksLoading] = useState(true)
+  const [taskError, setTaskError] = useState<string>()
   const listRef = useRef<HTMLDivElement>(null)
   const sessionSearchInputRef = useRef<HTMLInputElement>(null)
   const accountAreaRef = useRef<HTMLDivElement>(null)
@@ -109,11 +117,20 @@ export function App() {
         setActiveSessionId(initialSessionId)
       })
       .catch((reason: unknown) => setError(errorMessage(reason, t)))
+    void window.barn.tasks.list()
+      .then((value) => {
+        setTasks(value)
+        setTaskError(undefined)
+      })
+      .catch((reason: unknown) => setTaskError(errorMessage(reason, t)))
+      .finally(() => setTasksLoading(false))
+    const unsubscribeTasks = window.barn.tasks.onEvent(handleTaskEvent)
     void window.barn.getCapabilities()
       .then(setCapabilities)
       .catch((reason: unknown) => setError(errorMessage(reason, t)))
     return () => {
       unsubscribeTheme()
+      unsubscribeTasks()
     }
   }, [])
 
@@ -175,6 +192,10 @@ export function App() {
     }
   }
 
+  function handleTaskEvent(event: TaskLiveEvent): void {
+    setTasks((current) => upsertTask(current, event.task))
+  }
+
   function handleLiveEvent(event: SessionLiveEvent): void {
     const sessionId = activeSessionIdRef.current
     if (event.type === 'session.updated') {
@@ -215,6 +236,7 @@ export function App() {
   }
 
   function startNewSession(): void {
+    setView('conversation')
     draftSessionIdRef.current = crypto.randomUUID()
     activeSessionIdRef.current = undefined
     setActiveSessionId(undefined)
@@ -284,6 +306,14 @@ export function App() {
     ? sessions
     : sessions.filter((session) => session.title.toLocaleLowerCase().includes(sessionQuery.trim().toLocaleLowerCase()))
   const conversationTitle = activeSession?.title ?? t('conversation.newSession')
+  const workspaceTitle = view === 'tasks' ? t('tasks.title') : conversationTitle
+  const needsYouCount = tasks.filter((task) => ['proposed', 'waiting', 'failed'].includes(task.status)).length
+
+  function openSession(sessionId: string): void {
+    activeSessionIdRef.current = sessionId
+    setActiveSessionId(sessionId)
+    setView('conversation')
+  }
 
   function draftSessionId(): string {
     draftSessionIdRef.current ??= crypto.randomUUID()
@@ -373,6 +403,16 @@ export function App() {
             <span>{t('sidebar.newSession')}</span>
             <kbd>{commandKey} N</kbd>
           </button>
+          <button
+            className={view === 'tasks' ? 'new-session-button task-nav-button active' : 'new-session-button task-nav-button'}
+            type="button"
+            aria-current={view === 'tasks' ? 'page' : undefined}
+            onClick={() => setView('tasks')}
+          >
+            <Inbox size={15} />
+            <span>{t('tasks.title')}</span>
+            {needsYouCount > 0 && <span className="task-nav-count">{needsYouCount}</span>}
+          </button>
 
           <nav className="session-nav" aria-label={t('sidebar.sessions')}>
             <div className="nav-label">
@@ -388,12 +428,11 @@ export function App() {
               <div className="session-list">
                 {visibleSessions.map((session) => (
                   <button
-                    className={session.id === activeSessionId ? 'session-row active' : 'session-row'}
+                    className={view === 'conversation' && session.id === activeSessionId ? 'session-row active' : 'session-row'}
                     type="button"
                     key={session.id}
                     onClick={() => {
-                      activeSessionIdRef.current = session.id
-                      setActiveSessionId(session.id)
+                      openSession(session.id)
                       if (session.id === activeSessionId) void loadSession(session.id)
                     }}
                   >
@@ -476,13 +515,22 @@ export function App() {
           )}
           <div className="workspace-header-title">
             <div className="workspace-header-copy">
-              <h1 title={conversationTitle}>{conversationTitle}</h1>
+              <h1 title={workspaceTitle}>{workspaceTitle}</h1>
             </div>
           </div>
           <div className="workspace-header-actions" />
         </header>
 
         <div className="workspace-body">
+          {view === 'tasks' ? (
+            <TaskCenter
+              tasks={tasks}
+              loading={tasksLoading}
+              error={taskError}
+              onOpenSession={openSession}
+              onError={setTaskError}
+            />
+          ) : (
           <section className={messages.length === 0 && liveParts.length === 0 ? 'conversation-surface empty-conversation' : 'conversation-surface chat-surface'}>
             {messages.length === 0 && liveParts.length === 0 ? (
               <div className="empty-center">
@@ -650,6 +698,7 @@ export function App() {
               </div>
             </div>
           </section>
+          )}
 
         </div>
 
@@ -877,6 +926,10 @@ function ConversationParts({
 function upsertSession(current: SessionSummary[], session: SessionSummary): SessionSummary[] {
   const next = current.filter((item) => item.id !== session.id)
   return [session, ...next].toSorted((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+}
+
+function upsertTask(current: Task[], task: Task): Task[] {
+  return [task, ...current.filter((item) => item.id !== task.id)]
 }
 
 function errorMessage(reason: unknown, t: ReturnType<typeof useTranslation>['t']): string {

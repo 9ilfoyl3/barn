@@ -32,6 +32,12 @@ export class TaskService {
     return task
   }
 
+  updatePrompt(taskId: string, prompt: string): Task {
+    const task = this.store.updatePrompt(taskId, prompt)
+    this.emit(task)
+    return task
+  }
+
   assignSession(taskId: string, sessionId: string | null): Task {
     const task = this.store.assignSession(taskId, sessionId)
     this.emit(task)

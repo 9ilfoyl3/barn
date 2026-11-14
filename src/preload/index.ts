@@ -53,6 +53,7 @@ const tasks: TaskBridge = {
   get: (taskId: string) => ipcRenderer.invoke('tasks:get', taskId),
   create: (input: CreateTaskInput) => ipcRenderer.invoke('tasks:create', input),
   updateStatus: (taskId: string, update: TaskStatusUpdate) => ipcRenderer.invoke('tasks:update-status', { taskId, update }),
+  updatePrompt: (taskId: string, prompt: string) => ipcRenderer.invoke('tasks:update-prompt', { taskId, prompt }),
   assignSession: (taskId: string, sessionId: string | null) => ipcRenderer.invoke('tasks:assign-session', { taskId, sessionId }),
   onEvent: (listener: (event: TaskLiveEvent) => void) => {
     const handler = (_event: Electron.IpcRendererEvent, liveEvent: TaskLiveEvent): void => listener(liveEvent)

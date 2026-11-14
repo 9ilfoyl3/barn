@@ -134,6 +134,19 @@ describe('TaskStore', () => {
     store.close()
   })
 
+  it('updates instructions before a task runs and rejects edits during execution', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'barn-task-store-'))
+    const store = await openStore(directory)
+    const task = store.tasks.create({ title: 'Needs instructions', origin: 'user' })
+    store.tasks.updateStatus(task.id, { status: 'waiting', waitingReason: 'input' })
+
+    expect(store.tasks.updatePrompt(task.id, 'Summarize the notes.').prompt).toBe('Summarize the notes.')
+    store.tasks.updateStatus(task.id, { status: 'queued' })
+    store.tasks.updateStatus(task.id, { status: 'running' })
+    expect(() => store.tasks.updatePrompt(task.id, 'Different instructions.')).toThrow('cannot change')
+    store.close()
+  })
+
   it('links tasks only to existing Sessions', async () => {
     const directory = await mkdtemp(join(tmpdir(), 'barn-task-store-'))
     const store = await openStore(directory)

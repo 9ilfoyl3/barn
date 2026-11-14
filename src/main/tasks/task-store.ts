@@ -179,6 +179,22 @@ export class TaskStore {
     return this.get(taskId)
   }
 
+  updatePrompt(taskId: string, value: string): Task {
+    const task = this.get(taskId)
+    if (!['proposed', 'queued', 'waiting', 'failed'].includes(task.status)) {
+      throw new Error(`Task instructions cannot change while the task is ${task.status}`)
+    }
+    const prompt = normalizePrompt(value)
+    const encrypted = this.cipher.encrypt(prompt, promptAssociatedData(taskId))
+    const now = new Date().toISOString()
+    this.database.prepare(`
+      UPDATE tasks
+      SET prompt_ciphertext = ?, prompt_nonce = ?, prompt_tag = ?, updated_at = ?
+      WHERE id = ?
+    `).run(encrypted.ciphertext, encrypted.nonce, encrypted.tag, now, taskId)
+    return this.get(taskId)
+  }
+
   assignSession(taskId: string, sessionId: string | null): Task {
     this.get(taskId)
     if (sessionId !== null) this.requireSession(sessionId)

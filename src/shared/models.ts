@@ -178,6 +178,7 @@ export interface TaskBridge {
   get(taskId: string): Promise<Task>
   create(input: CreateTaskInput): Promise<Task>
   updateStatus(taskId: string, update: TaskStatusUpdate): Promise<Task>
+  updatePrompt(taskId: string, prompt: string): Promise<Task>
   assignSession(taskId: string, sessionId: string | null): Promise<Task>
   onEvent(listener: (event: TaskLiveEvent) => void): () => void
 }
