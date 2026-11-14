@@ -43,6 +43,7 @@ async function listMarkdown(directory: string): Promise<string[]> {
 
 export function validateNote(path: string, content: string): string[] {
   const errors: string[] = []
+  const normalized = content.replace(/\r\n?/g, '\n')
   const relativePath = relative(root, path)
   if (basename(path) === 'README.md' || basename(path) === 'AGENTS.md') return errors
 
@@ -58,7 +59,7 @@ export function validateNote(path: string, content: string): string[] {
     errors.push(`${relativePath}: filename must start with YYYY-MM-DD-`)
   }
 
-  const lines = content.split('\n')
+  const lines = normalized.split('\n')
   if (!lines[0]?.startsWith('# Agent Note: ')) {
     errors.push(`${relativePath}: first line must be "# Agent Note: <title>"`)
   }
@@ -70,7 +71,7 @@ export function validateNote(path: string, content: string): string[] {
 
   const required = lifecycle === 'proposed' ? proposedSections : implementedSections
   for (const heading of required) {
-    if (!content.includes(`\n${heading}\n`)) {
+    if (!normalized.includes(`\n${heading}\n`)) {
       errors.push(`${relativePath}: missing ${heading}`)
     }
   }
