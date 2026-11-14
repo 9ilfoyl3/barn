@@ -944,6 +944,7 @@ function toolActionLabel(name: string, t: ReturnType<typeof useTranslation>['t']
     case 'read_file': return t('tools.readFile')
     case 'list_dir': return t('tools.listDir')
     case 'search_files': return t('tools.searchFiles')
+    case 'find_files': return t('tools.findFiles')
     case 'view_image': return t('tools.viewImage')
     default: return t('tools.ranTool', { name })
   }

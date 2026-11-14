@@ -1,27 +1,25 @@
 import { isUtf8 } from 'node:buffer'
 import { realpathSync } from 'node:fs'
-import { readdir, readFile, realpath, stat } from 'node:fs/promises'
-import { basename, extname, isAbsolute, relative, resolve, sep } from 'node:path'
+import { readFile, realpath, stat } from 'node:fs/promises'
+import { extname, isAbsolute, relative, resolve, sep } from 'node:path'
 import { z } from 'zod'
 import type { ToolExecutionResult } from '../../shared/agent-protocol'
 import type { ShellService } from '../sandbox/shell-service'
 import { resolveSandboxPolicy } from '../sandbox/policy'
+import {
+  findFilesInput,
+  findWorkspaceFiles,
+  listDirInput,
+  listWorkspaceDirectory,
+  searchFilesInput,
+  searchWorkspaceContents,
+} from './workspace-search'
+import { isDeniedPath } from './workspace-path-policy'
 
 const readFileInput = z.object({
   path: z.string().min(1),
   startLine: z.number().int().positive().optional(),
   lineCount: z.number().int().positive().max(5_000).optional(),
-})
-
-const listDirInput = z.object({
-  path: z.string().default('.'),
-  depth: z.number().int().min(0).max(4).default(1),
-})
-
-const searchFilesInput = z.object({
-  path: z.string().default('.'),
-  query: z.string().min(1).max(500),
-  maxResults: z.number().int().positive().max(500).default(100),
 })
 
 const viewImageInput = z.object({
@@ -38,6 +36,7 @@ const TOOL_INPUTS = {
   read_file: readFileInput,
   list_dir: listDirInput,
   search_files: searchFilesInput,
+  find_files: findFilesInput,
   view_image: viewImageInput,
   shell: shellInput,
 } as const
@@ -84,6 +83,8 @@ export class ToolService {
           return await this.listDirectory(args as z.infer<typeof listDirInput>, roots, workingRoot)
         case 'search_files':
           return await this.searchFiles(args as z.infer<typeof searchFilesInput>, roots, workingRoot)
+        case 'find_files':
+          return await this.findFiles(args as z.infer<typeof findFilesInput>, roots, workingRoot)
         case 'view_image':
           return await this.viewImage(args as z.infer<typeof viewImageInput>, roots, workingRoot)
         case 'shell':
@@ -148,13 +149,8 @@ export class ToolService {
     defaultRoot: string,
   ): Promise<ToolExecutionResult> {
     const path = await this.safeExistingPath(input.path, roots, defaultRoot)
-    const info = await stat(path)
-    if (!info.isDirectory()) throw new Error(`Not a directory: ${input.path}`)
-    const entries = await this.listEntries(path, input.depth)
-    return {
-      content: [{ type: 'text', text: entries.join('\n') || '(empty directory)' }],
-      details: { path, entries: entries.length, depth: input.depth },
-    }
+    if (!(await stat(path)).isDirectory()) throw new Error(`Not a directory: ${input.path}`)
+    return listWorkspaceDirectory(path, input)
   }
 
   private async searchFiles(
@@ -162,55 +158,17 @@ export class ToolService {
     roots: string[],
     defaultRoot: string,
   ): Promise<ToolExecutionResult> {
-    const root = await this.safeExistingPath(input.path, roots, defaultRoot)
-    const matches: string[] = []
-    let scanned = 0
-    let skipped = 0
+    const path = await this.safeExistingPath(input.path, roots, defaultRoot)
+    return searchWorkspaceContents(path, input)
+  }
 
-    const visit = async (directory: string): Promise<void> => {
-      if (matches.length >= input.maxResults) return
-      const entries = await readdir(directory, { withFileTypes: true })
-      for (const entry of entries) {
-        if (matches.length >= input.maxResults) return
-        if (entry.name === 'node_modules' || entry.name === '.git') {
-          skipped++
-          continue
-        }
-        const path = resolve(directory, entry.name)
-        if (entry.isDirectory()) {
-          await visit(path)
-          continue
-        }
-        if (!entry.isFile()) continue
-        const info = await stat(path)
-        if (info.size > 2 * 1024 * 1024) {
-          skipped++
-          continue
-        }
-        const bytes = await readFile(path)
-        if (!isUtf8(bytes)) {
-          skipped++
-          continue
-        }
-        scanned++
-        const lines = bytes.toString('utf8').split(/\r?\n/)
-        for (let index = 0; index < lines.length; index++) {
-          const line = lines[index] ?? ''
-          if (line.includes(input.query)) {
-            matches.push(`${relative(root, path)}:${index + 1}:${line.slice(0, 500)}`)
-            if (matches.length >= input.maxResults) return
-          }
-        }
-      }
-    }
-
-    if ((await stat(root)).isDirectory()) await visit(root)
-    else throw new Error(`Not a directory: ${input.path}`)
-
-    return {
-      content: [{ type: 'text', text: matches.join('\n') || `No matches for ${JSON.stringify(input.query)}` }],
-      details: { path: root, matches: matches.length, scanned, skipped },
-    }
+  private async findFiles(
+    input: z.infer<typeof findFilesInput>,
+    roots: string[],
+    defaultRoot: string,
+  ): Promise<ToolExecutionResult> {
+    const path = await this.safeExistingPath(input.path, roots, defaultRoot)
+    return findWorkspaceFiles(path, input)
   }
 
   private async viewImage(
@@ -289,24 +247,7 @@ export class ToolService {
     if (!allowed) throw new Error('Path is outside the managed workspace')
   }
 
-  private async listEntries(root: string, depth: number): Promise<string[]> {
-    const entries = await readdir(root, { withFileTypes: true })
-    const lines: string[] = []
-    for (const entry of entries.toSorted((a, b) => a.name.localeCompare(b.name))) {
-      const path = resolve(root, entry.name)
-      if (entry.isDirectory()) {
-        lines.push(`${relative(root, path)}/`)
-        if (depth > 0) {
-          const children = await this.listEntries(path, depth - 1)
-          lines.push(...children.map((child) => `${relative(this.options.workspaceRoot, path)}/${child}`))
-        }
-      } else {
-        const info = await stat(path)
-        lines.push(`${relative(root, path)} (${info.size} bytes)`)
-      }
-    }
-    return lines
-  }
+
 }
 
 function imageMimeType(path: string): string | undefined {
@@ -320,15 +261,7 @@ function imageMimeType(path: string): string | undefined {
   }
 }
 
-function isDeniedPath(path: string): boolean {
-  const name = basename(path).toLowerCase()
-  return name === '.env'
-    || name.startsWith('.env.')
-    || name === 'credentials'
-    || name === 'id_rsa'
-    || name === 'id_ed25519'
-    || name.includes('keychain')
-}
+
 
 function errorResult(message: string): ToolExecutionResult {
   return {
