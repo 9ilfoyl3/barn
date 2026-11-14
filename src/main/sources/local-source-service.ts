@@ -25,7 +25,7 @@ export class LocalSourceService {
 
   constructor(
     private readonly store: LocalSourceStore,
-    private readonly tasks: Pick<TaskService, 'create'>,
+    private readonly tasks: Pick<TaskService, 'create' | 'list'>,
     options: LocalSourceServiceOptions = {},
   ) {
     this.options = {
@@ -49,6 +49,14 @@ export class LocalSourceService {
     this.started = false
     if (this.timer !== undefined) clearInterval(this.timer)
     this.timer = undefined
+  }
+
+  getAutomationSettings(): ReturnType<LocalSourceStore['getAutomationSettings']> {
+    return this.store.getAutomationSettings()
+  }
+
+  setAutomationSettings(settings: Parameters<LocalSourceStore['setAutomationSettings']>[0]): ReturnType<LocalSourceStore['setAutomationSettings']> {
+    return this.store.setAutomationSettings(settings)
   }
 
   list(): LocalSource[] {
@@ -98,16 +106,26 @@ export class LocalSourceService {
   }
 
   private processEvents(source: LocalSource, events: GeneratedEvent[]): void {
+    const settings = this.store.getAutomationSettings()
+    const state = this.store.state(source.id)
+    let pendingSuggestions = this.tasks.list().filter((task) => task.status === 'proposed').length
+    let lastSuggestionAt = state.lastSuggestionAt === undefined ? 0 : Date.parse(state.lastSuggestionAt)
     for (const event of events.slice(0, this.options.maxEventsPerPoll)) {
       const recorded = this.store.recordEvent(source.id, event)
       if (!recorded.created) continue
+      const now = this.options.now()
+      if (settings.mode === 'observe' && pendingSuggestions >= settings.maxPendingSuggestions) continue
+      if (settings.suggestionCooldownMinutes > 0 && now.getTime() - lastSuggestionAt < settings.suggestionCooldownMinutes * 60_000) continue
       const task = this.tasks.create({
         title: event.title,
         origin: 'automation',
-        status: 'proposed',
+        status: settings.mode === 'active' ? 'queued' : 'proposed',
         prompt: event.prompt,
       })
       this.store.attachTask(recorded.event.id, task.id)
+      if (settings.mode === 'observe') pendingSuggestions++
+      lastSuggestionAt = now.getTime()
+      this.store.saveState(source.id, { ...this.store.state(source.id), lastSuggestionAt: now.toISOString() })
     }
   }
 

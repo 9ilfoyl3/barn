@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import type { DatabaseSync } from 'node:sqlite'
 import type { AesGcmEventCipher } from '../session/event-cipher'
-import type { CreateLocalSourceInput, LocalSource, LocalSourceConfig } from '../../shared/models'
+import type { AutomationSettings, CreateLocalSourceInput, LocalSource, LocalSourceConfig } from '../../shared/models'
 
 interface SourceRow {
   id: string
@@ -24,6 +24,13 @@ export interface LocalSourceState {
   initialized?: boolean
   files?: Record<string, string>
   nextRunAt?: string
+  lastSuggestionAt?: string
+}
+
+export const DEFAULT_AUTOMATION_SETTINGS: AutomationSettings = {
+  mode: 'observe',
+  maxPendingSuggestions: 20,
+  suggestionCooldownMinutes: 15,
 }
 
 export interface LocalSourceEventInput {
@@ -80,7 +87,59 @@ export class LocalSourceStore {
 
       CREATE INDEX IF NOT EXISTS local_source_events_source
         ON local_source_events(source_id, created_at DESC);
+
+      CREATE TABLE IF NOT EXISTS automation_settings (
+        id INTEGER PRIMARY KEY CHECK (id = 1),
+        mode TEXT NOT NULL,
+        max_pending_suggestions INTEGER NOT NULL,
+        suggestion_cooldown_minutes INTEGER NOT NULL
+      );
     `)
+    this.database.prepare(`
+      INSERT OR IGNORE INTO automation_settings (
+        id, mode, max_pending_suggestions, suggestion_cooldown_minutes
+      ) VALUES (1, ?, ?, ?)
+    `).run(
+      DEFAULT_AUTOMATION_SETTINGS.mode,
+      DEFAULT_AUTOMATION_SETTINGS.maxPendingSuggestions,
+      DEFAULT_AUTOMATION_SETTINGS.suggestionCooldownMinutes,
+    )
+  }
+
+  getAutomationSettings(): AutomationSettings {
+    const row = this.database.prepare(`
+      SELECT mode, max_pending_suggestions, suggestion_cooldown_minutes
+      FROM automation_settings WHERE id = 1
+    `).get() as {
+      mode: string
+      max_pending_suggestions: number
+      suggestion_cooldown_minutes: number
+    } | undefined
+    if (row === undefined) return { ...DEFAULT_AUTOMATION_SETTINGS }
+    if (row.mode !== 'observe' && row.mode !== 'active') throw new Error(`Unknown automation mode: ${row.mode}`)
+    return {
+      mode: row.mode,
+      maxPendingSuggestions: row.max_pending_suggestions,
+      suggestionCooldownMinutes: row.suggestion_cooldown_minutes,
+    }
+  }
+
+  setAutomationSettings(settings: AutomationSettings): AutomationSettings {
+    if (settings.mode !== 'observe' && settings.mode !== 'active') {
+      throw new Error(`Unknown automation mode: ${settings.mode}`)
+    }
+    if (!Number.isInteger(settings.maxPendingSuggestions) || settings.maxPendingSuggestions < 1 || settings.maxPendingSuggestions > 200) {
+      throw new Error('Pending suggestion limit must be between 1 and 200')
+    }
+    if (!Number.isInteger(settings.suggestionCooldownMinutes) || settings.suggestionCooldownMinutes < 0 || settings.suggestionCooldownMinutes > 10_080) {
+      throw new Error('Suggestion cooldown must be between 0 and 10,080 minutes')
+    }
+    this.database.prepare(`
+      UPDATE automation_settings
+      SET mode = ?, max_pending_suggestions = ?, suggestion_cooldown_minutes = ?
+      WHERE id = 1
+    `).run(settings.mode, settings.maxPendingSuggestions, settings.suggestionCooldownMinutes)
+    return this.getAutomationSettings()
   }
 
   list(): LocalSource[] {

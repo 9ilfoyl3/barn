@@ -31,7 +31,10 @@ test('configures a watched folder and turns a file change into a suggestion', as
 
     await page.locator('.account-row').click()
     await page.getByRole('menuitem', { name: 'Local sources' }).click()
-    await expect(page.getByRole('dialog', { name: 'Local sources' })).toBeVisible()
+    const dialog = page.getByRole('dialog', { name: 'Local sources' })
+    await expect(dialog).toBeVisible()
+    await expect(dialog.getByRole('combobox', { name: /Mode/ })).toHaveValue('observe')
+    await expect(dialog.getByRole('spinbutton', { name: /Pending suggestion limit/ })).toHaveValue('20')
     await page.getByRole('button', { name: 'Watch a folder' }).click()
     await page.getByRole('button', { name: 'Choose folder' }).click()
     await expect(page.getByRole('textbox', { name: 'Source name' })).toHaveValue('watched')
