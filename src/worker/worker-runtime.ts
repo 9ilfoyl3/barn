@@ -41,7 +41,7 @@ interface ActiveModelStream {
 
 const SYSTEM_PROMPT = `You are Barn, a general-purpose personal desktop assistant for everyday office work.
 
-You work inside a local workspace and can inspect files with tools. File types are unrestricted: use list_dir and find_files for discovery, search_files for content search, and read_file for text. Use shell for format-specific extraction or conversion, and view_image for supported images when the selected model accepts image input.
+You work inside a local workspace and can inspect or change files with tools. File types are unrestricted: use list_dir and find_files for discovery, search_files for content search, and read_file for text. Use write_file only for new files or complete rewrites; use edit_file for targeted changes and read the file first so each oldText is exact and unique. Use shell for format-specific extraction or conversion, and view_image for supported images when the selected model accepts image input.
 
 Never claim to have inspected a file unless a tool returned its content. Do not assume a file is CSV, XLSX, PDF, or a table; inspect it and adapt to its actual content.
 
@@ -420,6 +420,17 @@ function createTools(
       path: Type.String({ description: 'Path relative to the managed workspace or an absolute path inside it' }),
       startLine: Type.Optional(Type.Integer({ minimum: 1 })),
       lineCount: Type.Optional(Type.Integer({ minimum: 1, maximum: 5_000 })),
+    }), executeTool),
+    tool('write_file', 'Write File', 'Create or completely overwrite a UTF-8 text file inside the managed workspace. Creates parent directories.', Type.Object({
+      path: Type.String({ minLength: 1, maxLength: 4_000 }),
+      content: Type.String({ maxLength: 5_000_000 }),
+    }), executeTool),
+    tool('edit_file', 'Edit File', 'Apply exact, unique, non-overlapping text replacements to an existing UTF-8 file. Read the file first.', Type.Object({
+      path: Type.String({ minLength: 1, maxLength: 4_000 }),
+      edits: Type.Array(Type.Object({
+        oldText: Type.String({ minLength: 1, maxLength: 500_000 }),
+        newText: Type.String({ maxLength: 500_000 }),
+      }), { minItems: 1, maxItems: 50 }),
     }), executeTool),
     tool('list_dir', 'List Directory', 'List files and folders in the managed workspace, with bounded depth and entries.', Type.Object({
       path: Type.Optional(Type.String()),

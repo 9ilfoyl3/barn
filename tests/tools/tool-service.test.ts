@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, readdir, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
@@ -180,6 +180,117 @@ describe('ToolService', () => {
       content: [{ type: 'text', text: 'src/app.ts' }],
       details: { matches: 1 },
     })
+  })
+
+  it('writes new text files inside the managed workspace and creates parents', async () => {
+    const { service, workspace } = await createService()
+
+    const result = await service.execute('write_file', {
+      path: 'drafts/report.txt',
+      content: 'first draft\n',
+    })
+
+    expect(result).toMatchObject({
+      content: [{ type: 'text', text: expect.stringContaining('Successfully wrote') }],
+      details: { created: true, bytes: 12 },
+    })
+    expect(await readFile(join(workspace, 'drafts', 'report.txt'), 'utf8')).toBe('first draft\n')
+    expect(await readdir(join(workspace, 'drafts'))).toEqual(['report.txt'])
+  })
+
+  it('rejects writes outside managed roots and to sensitive paths', async () => {
+    const { service } = await createService()
+
+    await expect(service.execute('write_file', { path: '../escape.txt', content: 'no' }))
+      .resolves.toMatchObject({ isError: true })
+    await expect(service.execute('write_file', { path: '.env', content: 'TOKEN=no' }))
+      .resolves.toMatchObject({ isError: true })
+  })
+
+  it('applies multiple exact edits and preserves CRLF line endings', async () => {
+    const { service, workspace } = await createService()
+    const path = join(workspace, 'notes.txt')
+    await writeFile(path, 'title\r\nold one\r\nmiddle\r\nold two\r\n')
+
+    const result = await service.execute('edit_file', {
+      path: 'notes.txt',
+      edits: [
+        { oldText: 'old one', newText: 'new one\ncontinued' },
+        { oldText: 'old two', newText: 'new two' },
+      ],
+    })
+
+    expect(result).toMatchObject({
+      content: [{ type: 'text', text: expect.stringContaining('Successfully applied 2 edits') }],
+      details: { edits: 2 },
+    })
+    expect(await readFile(path, 'utf8')).toBe('title\r\nnew one\r\ncontinued\r\nmiddle\r\nnew two\r\n')
+  })
+
+  it('preserves a UTF-8 BOM while editing', async () => {
+    const { service, workspace } = await createService()
+    const path = join(workspace, 'bom.txt')
+    await writeFile(path, '\uFEFFalpha\n')
+
+    await service.execute('edit_file', {
+      path: 'bom.txt',
+      edits: [{ oldText: 'alpha', newText: 'beta' }],
+    })
+
+    expect(await readFile(path, 'utf8')).toBe('\uFEFFbeta\n')
+  })
+
+  it('rejects overlapping edits before writing', async () => {
+    const { service, workspace } = await createService()
+    const path = join(workspace, 'overlap.txt')
+    await writeFile(path, 'abcdef')
+
+    const result = await service.execute('edit_file', {
+      path: 'overlap.txt',
+      edits: [
+        { oldText: 'abc', newText: 'x' },
+        { oldText: 'cde', newText: 'y' },
+      ],
+    })
+
+    expect(result).toMatchObject({ isError: true })
+    expect(result.content[0]).toMatchObject({ text: expect.stringContaining('overlap') })
+    expect(await readFile(path, 'utf8')).toBe('abcdef')
+  })
+
+  it('rejects writes through a symlink that escapes the managed workspace', async () => {
+    const { service, workspace } = await createService()
+    const outside = await mkdtemp(join(tmpdir(), 'barn-tools-outside-'))
+    await symlink(outside, join(workspace, 'linked'), process.platform === 'win32' ? 'junction' : 'dir')
+
+    const result = await service.execute('write_file', {
+      path: 'linked/escape.txt',
+      content: 'should not exist',
+    })
+
+    expect(result).toMatchObject({ isError: true })
+    await expect(readFile(join(outside, 'escape.txt'))).rejects.toMatchObject({ code: 'ENOENT' })
+  })
+
+  it('rejects ambiguous or non-matching edits without changing the file', async () => {
+    const { service, workspace } = await createService()
+    const path = join(workspace, 'duplicate.txt')
+    await writeFile(path, 'same\nsame\n')
+
+    const ambiguous = await service.execute('edit_file', {
+      path: 'duplicate.txt',
+      edits: [{ oldText: 'same', newText: 'changed' }],
+    })
+    expect(ambiguous).toMatchObject({ isError: true })
+    expect(ambiguous.content[0]).toMatchObject({ text: expect.stringContaining('must be unique') })
+    expect(await readFile(path, 'utf8')).toBe('same\nsame\n')
+
+    const missing = await service.execute('edit_file', {
+      path: 'duplicate.txt',
+      edits: [{ oldText: 'missing', newText: 'changed' }],
+    })
+    expect(missing).toMatchObject({ isError: true })
+    expect(await readFile(path, 'utf8')).toBe('same\nsame\n')
   })
 
   it('lists entries relative to the requested directory with a bounded count', async () => {
