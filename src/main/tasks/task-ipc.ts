@@ -1,0 +1,78 @@
+import { BrowserWindow, ipcMain, type IpcMainInvokeEvent } from 'electron'
+import { z } from 'zod'
+import type { TaskService } from './task-service'
+
+const taskIdSchema = z.string().uuid()
+const createTaskSchema = z.object({
+  title: z.string().trim().min(1).max(200),
+  origin: z.enum(['user', 'automation']),
+  status: z.enum(['proposed', 'queued']).optional(),
+  sessionId: z.string().uuid().optional(),
+}).strict()
+const updateTaskSchema = z.object({
+  taskId: taskIdSchema,
+  update: z.object({
+    status: z.enum(['proposed', 'queued', 'running', 'waiting', 'completed', 'failed', 'cancelled']),
+    waitingReason: z.enum(['input', 'approval']).optional(),
+    detail: z.string().max(2_000).optional(),
+  }).strict(),
+}).strict()
+const assignSessionSchema = z.object({
+  taskId: taskIdSchema,
+  sessionId: z.string().uuid().nullable(),
+}).strict()
+
+export function registerTaskIpc(
+  tasks: TaskService,
+  isTrustedSender: (event: IpcMainInvokeEvent) => boolean,
+): void {
+  ipcMain.handle('tasks:list', (event) => {
+    requireTrusted(event, isTrustedSender)
+    return tasks.list()
+  })
+
+  ipcMain.handle('tasks:get', (event, taskId: unknown) => {
+    requireTrusted(event, isTrustedSender)
+    return tasks.get(taskIdSchema.parse(taskId))
+  })
+
+  ipcMain.handle('tasks:create', (event, input: unknown) => {
+    requireTrusted(event, isTrustedSender)
+    const parsed = createTaskSchema.parse(input)
+    return tasks.create({
+      title: parsed.title,
+      origin: parsed.origin,
+      ...(parsed.status === undefined ? {} : { status: parsed.status }),
+      ...(parsed.sessionId === undefined ? {} : { sessionId: parsed.sessionId }),
+    })
+  })
+
+  ipcMain.handle('tasks:update-status', (event, input: unknown) => {
+    requireTrusted(event, isTrustedSender)
+    const parsed = updateTaskSchema.parse(input)
+    return tasks.updateStatus(parsed.taskId, {
+      status: parsed.update.status,
+      ...(parsed.update.waitingReason === undefined ? {} : { waitingReason: parsed.update.waitingReason }),
+      ...(parsed.update.detail === undefined ? {} : { detail: parsed.update.detail }),
+    })
+  })
+
+  ipcMain.handle('tasks:assign-session', (event, input: unknown) => {
+    requireTrusted(event, isTrustedSender)
+    const parsed = assignSessionSchema.parse(input)
+    return tasks.assignSession(parsed.taskId, parsed.sessionId)
+  })
+
+  tasks.onEvent((liveEvent) => {
+    for (const window of BrowserWindow.getAllWindows()) {
+      if (!window.isDestroyed()) window.webContents.send('tasks:event', liveEvent)
+    }
+  })
+}
+
+function requireTrusted(
+  event: IpcMainInvokeEvent,
+  isTrustedSender: (event: IpcMainInvokeEvent) => boolean,
+): void {
+  if (!isTrustedSender(event)) throw new Error('Untrusted IPC sender')
+}

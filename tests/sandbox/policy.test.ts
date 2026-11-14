@@ -1,5 +1,5 @@
 import { homedir } from 'node:os'
-import { join } from 'node:path'
+import { join, resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { scrubbedShellEnvironment } from '../../src/main/sandbox/environment'
 import { seatbeltProfile } from '../../src/main/sandbox/macos-seatbelt'
@@ -7,14 +7,16 @@ import { resolveSandboxPolicy } from '../../src/main/sandbox/policy'
 
 describe('sandbox policy', () => {
   it('allows output writes without granting the workspace', () => {
+    const workspaceRoot = resolve('work', 'workspace')
+    const outputRoot = resolve('work', 'output')
     const policy = resolveSandboxPolicy({
       mode: 'output-write',
-      workspaceRoot: '/work/workspace',
-      outputRoot: '/work/output',
-      privateTempRoot: '/tmp/barn-private',
+      workspaceRoot,
+      outputRoot,
+      privateTempRoot: resolve('tmp', 'barn-private'),
     })
-    expect(policy.writeRoots).toContain('/work/output')
-    expect(policy.writeRoots).not.toContain('/work/workspace')
+    expect(policy.writeRoots).toContain(outputRoot)
+    expect(policy.writeRoots).not.toContain(workspaceRoot)
     expect(policy.denyPaths).toContain(join(homedir(), '.ssh'))
   })
 
@@ -32,20 +34,22 @@ describe('sandbox policy', () => {
     expect(environment.TMPDIR).toBe('/tmp/barn-private')
   })
 
-  it('generates a network-denying Seatbelt profile', () => {
+  it.skipIf(process.platform !== 'darwin')('generates a network-denying Seatbelt profile', () => {
+    const workspaceRoot = resolve('work', 'workspace')
+    const outputRoot = resolve('work', 'output')
     const policy = resolveSandboxPolicy({
       mode: 'workspace-write',
-      workspaceRoot: '/work/workspace',
-      outputRoot: '/work/output',
-      privateTempRoot: '/tmp/barn-private',
+      workspaceRoot,
+      outputRoot,
+      privateTempRoot: resolve('tmp', 'barn-private'),
     })
     const profile = seatbeltProfile({
       command: 'true',
-      cwd: '/work/workspace',
+      cwd: workspaceRoot,
       policy,
     })
     expect(profile).toContain('(deny network*)')
-    expect(profile).toContain('(subpath "/work/workspace")')
-    expect(profile).toContain('(subpath "/work/output")')
+    expect(profile).toContain(`(subpath ${JSON.stringify(workspaceRoot)})`)
+    expect(profile).toContain(`(subpath ${JSON.stringify(outputRoot)})`)
   })
 })

@@ -1,5 +1,5 @@
 import { readdir, readFile } from 'node:fs/promises'
-import { basename, join, relative } from 'node:path'
+import { basename, join, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const root = fileURLToPath(new URL('..', import.meta.url))
@@ -41,12 +41,13 @@ async function listMarkdown(directory: string): Promise<string[]> {
   return files
 }
 
-function validateNote(path: string, content: string): string[] {
+export function validateNote(path: string, content: string): string[] {
   const errors: string[] = []
+  const normalized = content.replace(/\r\n?/g, '\n')
   const relativePath = relative(root, path)
   if (basename(path) === 'README.md' || basename(path) === 'AGENTS.md') return errors
 
-  const segments = relativePath.split('/')
+  const segments = relativePath.split(/[\\/]/)
   const notesIndex = segments.indexOf('notes')
   const lifecycle = segments[notesIndex + 1]
   const noteClass = segments[notesIndex + 2]
@@ -58,7 +59,7 @@ function validateNote(path: string, content: string): string[] {
     errors.push(`${relativePath}: filename must start with YYYY-MM-DD-`)
   }
 
-  const lines = content.split('\n')
+  const lines = normalized.split('\n')
   if (!lines[0]?.startsWith('# Agent Note: ')) {
     errors.push(`${relativePath}: first line must be "# Agent Note: <title>"`)
   }
@@ -70,7 +71,7 @@ function validateNote(path: string, content: string): string[] {
 
   const required = lifecycle === 'proposed' ? proposedSections : implementedSections
   for (const heading of required) {
-    if (!content.includes(`\n${heading}\n`)) {
+    if (!normalized.includes(`\n${heading}\n`)) {
       errors.push(`${relativePath}: missing ${heading}`)
     }
   }
@@ -81,14 +82,20 @@ function isLifecycle(value: string | undefined): value is keyof typeof lifecycle
   return value === 'proposed' || value === 'implemented'
 }
 
-const errors: string[] = []
-for (const path of await listMarkdown(notesRoot)) {
-  errors.push(...validateNote(path, await readFile(path, 'utf8')))
+export async function verifyAgentNotes(): Promise<string[]> {
+  const errors: string[] = []
+  for (const path of await listMarkdown(notesRoot)) {
+    errors.push(...validateNote(path, await readFile(path, 'utf8')))
+  }
+  return errors
 }
 
-if (errors.length > 0) {
-  console.error(errors.join('\n'))
-  process.exitCode = 1
-} else {
-  console.log('Agent Notes are valid.')
+if (process.argv[1] !== undefined && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  const errors = await verifyAgentNotes()
+  if (errors.length > 0) {
+    console.error(errors.join('\n'))
+    process.exitCode = 1
+  } else {
+    console.log('Agent Notes are valid.')
+  }
 }
