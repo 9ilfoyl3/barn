@@ -14,6 +14,7 @@ import type { ShellService } from '../../src/main/sandbox/shell-service'
 import { AgentService } from '../../src/main/worker/agent-service'
 import type { WorkerTransport } from '../../src/main/worker/worker-supervisor'
 import { WorkerSupervisor } from '../../src/main/worker/worker-supervisor'
+import { MemoryService } from '../../src/main/memory/memory-service'
 import { WorkerRuntime, type WorkerPort } from '../../src/worker/worker-runtime'
 
 class PairedHostTransport implements WorkerTransport {
@@ -110,6 +111,50 @@ function fakeModels(): ModelService {
 }
 
 describe('AgentService integration', () => {
+  it('injects relevant cross-session memory into the next prompt', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'barn-agent-memory-'))
+    const workspace = join(directory, 'workspace')
+    const output = join(directory, 'output')
+    const temp = join(directory, 'temp')
+    await Promise.all([mkdir(workspace), mkdir(output), mkdir(temp)])
+    const sessions = new SessionStore(join(directory, 'sessions.db'), new AesGcmEventCipher(randomBytes(32)))
+    await sessions.initialize()
+    const memory = new MemoryService(sessions.memories)
+    memory.setSettings({ enabled: true, useMemories: true })
+    memory.save({
+      kind: 'preference',
+      scope: 'workspace',
+      workspacePath: workspace,
+      title: 'Summary style',
+      content: 'Prefer concise bullet summaries.',
+      key: 'summary-style',
+    })
+    const prompt = vi.fn(async (_sessionId: string, _text: string) => undefined)
+    const supervisor = {
+      onMessage: () => () => undefined,
+      onStatus: () => () => undefined,
+      openSession: vi.fn(async () => undefined),
+      prompt,
+    } as unknown as WorkerSupervisor
+    const tools = new ToolService({
+      workspaceRoot: workspace,
+      outputRoot: output,
+      privateTempRoot: temp,
+      shell: { run: vi.fn() } as unknown as ShellService,
+      memory,
+    })
+    const agent = new AgentService(supervisor, fakeModels(), sessions, tools, memory)
+
+    await agent.prompt(randomUUID(), 'Summarize this document', [], workspace)
+
+    expect(prompt).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.stringContaining('<memory_context>'),
+    )
+    expect(prompt.mock.calls[0]?.[1]).toContain('Prefer concise bullet summaries')
+    sessions.close()
+  })
+
   it('runs a prompt through the Worker and persists the conversation', async () => {
     const directory = await mkdtemp(join(tmpdir(), 'barn-agent-service-'))
     const workspace = join(directory, 'workspace')

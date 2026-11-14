@@ -15,6 +15,12 @@ import {
   searchWorkspaceContents,
 } from './workspace-search'
 import { isDeniedPath } from './workspace-path-policy'
+import type { MemoryService } from '../memory/memory-service'
+import {
+  memoryForgetInput,
+  memorySaveInput,
+  memorySearchInput,
+} from '../memory/memory-tool-inputs'
 import {
   editFileInput,
   editWorkspaceFile,
@@ -47,6 +53,9 @@ const TOOL_INPUTS = {
   find_files: findFilesInput,
   view_image: viewImageInput,
   shell: shellInput,
+  memory_search: memorySearchInput,
+  memory_save: memorySaveInput,
+  memory_forget: memoryForgetInput,
 } as const
 
 export interface ToolServiceOptions {
@@ -54,6 +63,7 @@ export interface ToolServiceOptions {
   outputRoot: string
   privateTempRoot: string
   shell: ShellService
+  memory?: MemoryService
 }
 
 export interface ToolExecutionContext {
@@ -101,6 +111,12 @@ export class ToolService {
           return await this.viewImage(args as z.infer<typeof viewImageInput>, roots, workingRoot)
         case 'shell':
           return await this.runShell(args as z.infer<typeof shellInput>, workingRoot)
+        case 'memory_search':
+          return this.memorySearch(args as z.infer<typeof memorySearchInput>, workingRoot)
+        case 'memory_save':
+          return this.memorySave(args as z.infer<typeof memorySaveInput>, workingRoot)
+        case 'memory_forget':
+          return this.memoryForget(args as z.infer<typeof memoryForgetInput>)
         default:
           return errorResult(`Unknown tool: ${toolName}`)
       }
@@ -220,6 +236,51 @@ export class ToolService {
       }],
       details: { path, size: info.size, mimeType },
     }
+  }
+
+  private memorySearch(
+    input: z.infer<typeof memorySearchInput>,
+    workingRoot: string,
+  ): ToolExecutionResult {
+    const memory = this.requireMemory()
+    const entries = memory.search(input.query, workingRoot, input.limit, input.scope)
+    return {
+      content: [{ type: 'text', text: entries.length === 0 ? 'No matching memory entries.' : JSON.stringify({ memories: entries }, null, 2) }],
+      details: { count: entries.length, ids: entries.map((entry) => entry.id) },
+    }
+  }
+
+  private memorySave(
+    input: z.infer<typeof memorySaveInput>,
+    workingRoot: string,
+  ): ToolExecutionResult {
+    const entry = this.requireMemory().save({
+      kind: input.kind,
+      scope: input.scope,
+      title: input.title,
+      content: input.content,
+      tags: input.tags,
+      pinned: input.pinned,
+      ...(input.key === undefined ? {} : { key: input.key }),
+      ...(input.scope === 'workspace' ? { workspacePath: workingRoot } : {}),
+    })
+    return {
+      content: [{ type: 'text', text: `Saved memory: ${entry.title}` }],
+      details: { id: entry.id, version: entry.version },
+    }
+  }
+
+  private memoryForget(input: z.infer<typeof memoryForgetInput>): ToolExecutionResult {
+    this.requireMemory().forget(input.id)
+    return {
+      content: [{ type: 'text', text: `Forgot memory ${input.id}` }],
+      details: { id: input.id },
+    }
+  }
+
+  private requireMemory(): MemoryService {
+    if (this.options.memory === undefined) throw new Error('Agent memory is not available')
+    return this.options.memory
   }
 
   private async runShell(

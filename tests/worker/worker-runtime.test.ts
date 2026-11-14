@@ -191,6 +191,8 @@ describe('WorkerRuntime', () => {
     expect(serializedContext).toEqual(expect.stringContaining('maxEntries'))
     expect(serializedContext).toEqual(expect.stringContaining('write_file'))
     expect(serializedContext).toEqual(expect.stringContaining('edit_file'))
+    expect(serializedContext).toEqual(expect.stringContaining('memory_search'))
+    expect(serializedContext).toEqual(expect.stringContaining('memory_save'))
   })
 
   it('executes file tools through the Host and continues the model loop', async () => {

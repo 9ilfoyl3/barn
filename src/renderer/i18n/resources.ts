@@ -237,6 +237,9 @@ const en = {
     searchFiles: 'Searched files',
     findFiles: 'Found files',
     viewImage: 'Viewed an image',
+    memorySearch: 'Searched memory',
+    memorySave: 'Saved memory',
+    memoryForget: 'Forgot memory',
     ranTool: 'Ran {{name}}',
   },
   settings: {
@@ -558,6 +561,9 @@ const zhCN: TranslationSchema = {
     searchFiles: '已搜索文件',
     findFiles: '已查找文件',
     viewImage: '已查看图像',
+    memorySearch: '已搜索记忆',
+    memorySave: '已保存记忆',
+    memoryForget: '已移除记忆',
     ranTool: '已运行 {{name}}',
   },
   settings: {
