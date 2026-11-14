@@ -43,6 +43,7 @@ test('renders loading placeholders and office document previews', async () => {
     await expect(word.locator('.attachment-text-preview-document')).toContainText('Word preview')
     await expect(slides.locator('.attachment-text-preview-presentation')).toContainText('Deck preview')
     await expect(sheet.locator('.attachment-text-preview-spreadsheet')).toContainText('Name')
+    await expect.poll(() => page.locator('.attachment-text-preview').evaluateAll((previews) => previews.map((preview) => getComputedStyle(preview).borderTopWidth))).toEqual(['0px', '0px', '0px', '0px'])
     await expect(page.locator('.attachment-preview-loading')).toHaveCount(0)
     await page.screenshot({ path: 'test-results/barn-office-attachment-previews.png', fullPage: true })
   } finally {
