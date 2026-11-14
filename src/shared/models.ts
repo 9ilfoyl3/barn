@@ -404,9 +404,10 @@ export interface SessionBridge {
   getEvents(sessionId: string): Promise<SessionTimelineEvent[]>
   prompt(input: SessionPromptInput): Promise<SessionSummary>
   cancel(sessionId: string): Promise<void>
-  attach(sessionId: string, kind?: 'files' | 'folder'): Promise<AttachmentDescriptor[]>
+  attach(sessionId: string): Promise<AttachmentDescriptor[]>
   chooseDirectory(): Promise<string | undefined>
   setWorkingDirectory(sessionId: string, workingDirectory: string): Promise<SessionSummary>
+  clearWorkingDirectory(sessionId: string): Promise<SessionSummary>
   onEvent(listener: (event: SessionLiveEvent) => void): () => void
 }
 

@@ -12,9 +12,8 @@ export function nativeLocale(languages: readonly string[] = app.getPreferredSyst
 export function nativeCopy(locale: NativeLocale) {
   return locale === 'zh-CN'
     ? {
-        attachFiles: '添加文件',
         chooseFolder: '选择要监听的文件夹',
-        attachFolder: '添加文件夹',
+        attachFilesAndFolders: '添加文件和文件夹',
         chooseWorkingDirectory: '选择当前工作目录',
         openBarn: '打开 Barn',
         needsYou: '需要你',
@@ -23,9 +22,8 @@ export function nativeCopy(locale: NativeLocale) {
         noActiveWindow: '没有活动窗口',
       }
     : {
-        attachFiles: 'Attach files',
         chooseFolder: 'Choose a folder to watch',
-        attachFolder: 'Attach a folder',
+        attachFilesAndFolders: 'Add files and folders',
         chooseWorkingDirectory: 'Choose current working directory',
         openBarn: 'Open Barn',
         needsYou: 'Needs you',

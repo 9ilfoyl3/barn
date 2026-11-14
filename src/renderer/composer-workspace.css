@@ -1,5 +1,5 @@
 /* Hallmark · page: Barn Desktop composer workspace · genre: modern-minimal · theme: barn-native · redesign: extend · scope: component · built: the project */
-/* Hallmark · pre-emit critique: P5 H4 E5 S5 R5 V3 · weakest: V, the existing composer shape is retained by product requirement */
+/* Hallmark · pre-emit critique: P5 H4 E5 S5 R5 V3 · weakest: V, the existing composer and model-menu system are intentionally reused */
 
 .composer-project {
   position: relative;
@@ -9,15 +9,11 @@
   max-width: min(520px, calc(100% - 32px));
   min-height: 32px;
   align-items: center;
-  gap: 8px;
-  margin: 0 0 -8px 16px;
+  margin: 0 0 -16px 16px;
   border: 1px solid var(--line);
   border-radius: 8px;
   background: color-mix(in srgb, var(--panel) 94%, transparent);
-  padding: 0 12px;
   color: var(--text-dim);
-  cursor: pointer;
-  font-size: 11px;
   box-shadow: var(--card-shadow);
 }
 
@@ -27,40 +23,95 @@
   color: var(--text);
 }
 
-.composer-project:focus-visible,
+.composer-project-icon {
+  display: grid;
+  width: 30px;
+  min-height: 30px;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 0;
+  border-radius: 7px 0 0 7px;
+  background: transparent;
+  color: var(--text-faint);
+}
+
+button.composer-project-icon {
+  cursor: pointer;
+}
+
+.composer-project-delete .delete-icon {
+  display: none;
+}
+
+.composer-project:hover .composer-project-delete .folder-icon {
+  display: none;
+}
+
+.composer-project:hover .composer-project-delete .delete-icon {
+  display: block;
+  color: var(--danger);
+}
+
+.composer-project-picker {
+  display: flex;
+  min-width: 0;
+  min-height: 30px;
+  align-items: center;
+  gap: 8px;
+  border: 0;
+  border-radius: 0 7px 7px 0;
+  background: transparent;
+  padding: 0 12px 0 4px;
+  color: inherit;
+  cursor: pointer;
+  font-size: 11px;
+}
+
+.composer-project-picker span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.composer-project-picker svg {
+  flex: 0 0 auto;
+}
+
+.composer-project-icon:focus-visible,
+.composer-project-picker:focus-visible,
 .context-chip:focus-visible,
-.attach-menu button:focus-visible {
+.composer-add-menu button:focus-visible {
   outline: 2px solid color-mix(in srgb, var(--accent) 72%, transparent);
   outline-offset: 2px;
 }
 
-.composer-project:active,
+.composer-project-icon:active,
+.composer-project-picker:active,
 .context-chip:active,
-.attach-menu button:active {
+.composer-add-menu button:active {
   transform: translateY(1px);
 }
 
-.composer-project:disabled,
+.composer-project-icon:disabled,
+.composer-project-picker:disabled,
 .context-chip:disabled,
-.attach-menu button:disabled {
+.composer-add-menu button:disabled {
   border-color: var(--line);
   background: var(--disabled-surface);
   color: var(--text-faint);
   cursor: default;
 }
 
-.composer-project svg {
-  flex: 0 0 auto;
-}
-
-.composer-project span {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 .attach-control {
   position: relative;
+}
+
+.composer:has(.composer-add-popover.open) {
+  z-index: 3;
+}
+
+.composer-dock:has(.composer-add-popover.open) {
+  z-index: 6;
 }
 
 .context-chip.active {
@@ -69,43 +120,49 @@
   color: var(--text);
 }
 
-.attach-menu {
-  position: absolute;
-  bottom: calc(100% + 8px);
+.composer-add-popover {
+  right: auto;
   left: 0;
-  z-index: 20;
-  display: grid;
-  width: 184px;
-  border: 1px solid var(--menu-border);
-  border-radius: 12px;
-  background: color-mix(in srgb, var(--panel) 98%, transparent);
-  padding: 8px;
-  box-shadow: var(--menu-shadow);
-  -webkit-backdrop-filter: blur(22px) saturate(120%);
-  backdrop-filter: blur(22px) saturate(120%);
+  width: min(280px, calc(100vw - 32px));
+  transform-origin: bottom left;
 }
 
-.attach-menu button {
+.composer-add-menu {
+  display: grid;
+  align-content: start;
+  gap: 2px;
+  padding: 8px;
+}
+
+.composer-add-label {
+  padding: 4px 12px 8px;
+  color: var(--text-faint);
+  font-size: 10px;
+  font-weight: 520;
+}
+
+.composer-add-menu button {
   display: flex;
-  min-height: 36px;
+  width: 100%;
+  min-height: 40px;
   align-items: center;
   gap: 8px;
-  border: 0;
-  border-radius: 7px;
+  border: 1px solid transparent;
+  border-radius: 8px;
   background: transparent;
   padding: 0 12px;
-  color: var(--text-dim);
+  color: var(--text);
   cursor: pointer;
   font-size: 12px;
   text-align: left;
 }
 
-.attach-menu button:hover {
-  background: var(--panel-raised);
-  color: var(--text);
+.composer-add-menu button:hover {
+  border-color: color-mix(in srgb, var(--accent) 12%, transparent);
+  background: color-mix(in srgb, var(--panel-raised) 74%, var(--accent-soft));
 }
 
-.attach-menu button svg {
+.composer-add-menu button svg {
   flex: 0 0 auto;
   color: var(--text-faint);
 }
