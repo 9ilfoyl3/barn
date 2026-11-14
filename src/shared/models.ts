@@ -400,7 +400,7 @@ export interface AttachmentDescriptor {
 
 export type AttachmentPreview =
   | { kind: 'image'; dataUrl: string }
-  | { kind: 'text'; text: string }
+  | { kind: 'text'; text: string; variant: 'plain' | 'pdf' | 'document' | 'presentation' | 'spreadsheet' }
 
 export interface SessionBridge {
   list(): Promise<SessionSummary[]>
