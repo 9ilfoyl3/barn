@@ -19,7 +19,7 @@ When a working directory is present:
 
 Attachment selection now reuses the same floating-layer transition and elevation system as the model picker. The menu has one primary `Files and folders` action, matching the Codex-style Add menu and leaving room for future add actions. Folders are recursively copied into the Session attachment directory, stored in the transcript as directory attachments, and displayed with folder icons.
 
-The previous green-dot `Local workspace` label beside Attach is removed. The working-directory chip carries that context instead. Its folder icon becomes a delete affordance on hover; clicking clears the current working directory. The chip is vertically centered on the composer border.
+The previous green-dot `Local workspace` label beside Attach is removed. The working-directory chip carries that context instead. Its folder icon becomes a delete affordance on hover; clicking clears the current working directory. The chip sits above the composer with an 8px bottom gap, keeping it clear of attachment chips and input text.
 
 ## Alternatives considered
 
