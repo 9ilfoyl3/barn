@@ -1,5 +1,32 @@
 [
  {
+  "shape": "component",
+  "theme": "barn-native",
+  "axes": [
+   "horizontal attachment rail",
+   "type-specific previews",
+   "single selected-file surface"
+  ],
+  "hero": "none",
+  "nav": "existing composer",
+  "footer": "existing workspace footer",
+  "imagery": "attachment thumbnails and type icons",
+  "photos": [],
+  "entry": "Selected attachment strip",
+  "fingerprint": "barn-attachment-strip-2026-11-14",
+  "sections": [
+   "attachment rail",
+   "folder card",
+   "file cards",
+   "remove controls"
+  ],
+  "signature": "a compact horizontal file rail inside the composer",
+  "waived": [],
+  "prompt": "Show selected attachments as a horizontal rail with clear folder and file-type distinction",
+  "date": "2026-11-14",
+  "mode": "build"
+ },
+ {
   "shape": "app screen",
   "theme": "barn-native",
   "axes": [

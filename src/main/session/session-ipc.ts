@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto'
-import { cp, copyFile, mkdir, stat } from 'node:fs/promises'
-import { basename, join } from 'node:path'
+import { isUtf8 } from 'node:buffer'
+import { cp, copyFile, mkdir, open, readFile, realpath, stat } from 'node:fs/promises'
+import { basename, extname, join, relative } from 'node:path'
 import { BrowserWindow, dialog, ipcMain, type IpcMainInvokeEvent } from 'electron'
 import { z } from 'zod'
 import type { AgentService } from '../worker/agent-service'
@@ -111,6 +112,35 @@ export function registerSessionIpc(
     return agent.clearWorkingDirectory(z.string().min(1).parse(sessionId))
   })
 
+  ipcMain.handle('sessions:attachment-preview', async (event, input: unknown) => {
+    requireTrusted(event, isTrustedSender)
+    const path = await realpath(z.string().min(1).max(4_000).parse(input))
+    const root = await realpath(attachmentsRoot)
+    const rel = relative(root, path)
+    if (rel === '..' || rel.startsWith('../') || rel.startsWith('..\\') || rel.startsWith('/') || /^[A-Za-z]:/.test(rel)) {
+      throw new Error('Attachment preview is outside the managed attachment store')
+    }
+    const info = await stat(path)
+    if (!info.isFile()) return undefined
+    const extension = extname(path).toLowerCase()
+    const mime = imageMimeType(path)
+    if (mime !== undefined) {
+      if (info.size > 10 * 1024 * 1024) return undefined
+      return { kind: 'image', dataUrl: `data:${mime};base64,${(await readFile(path)).toString('base64')}` }
+    }
+    if (!TEXT_PREVIEW_EXTENSIONS.has(extension)) return undefined
+    const file = await open(path, 'r')
+    try {
+      const buffer = Buffer.alloc(Math.min(info.size, 8 * 1024))
+      await file.read(buffer, 0, buffer.length, 0)
+      if (!isUtf8(buffer)) return undefined
+      const text = buffer.toString('utf8').replace(/\r\n?/g, '\n').slice(0, 1_200)
+      return { kind: 'text', text }
+    } finally {
+      await file.close()
+    }
+  })
+
   agent.onLiveEvent((liveEvent) => {
     for (const window of BrowserWindow.getAllWindows()) {
       if (!window.isDestroyed()) window.webContents.send('sessions:event', liveEvent)
@@ -124,3 +154,21 @@ function requireTrusted(
 ): void {
   if (!isTrustedSender(event)) throw new Error('Untrusted IPC sender')
 }
+
+function imageMimeType(path: string): string | undefined {
+  switch (extname(path).toLowerCase()) {
+    case '.png': return 'image/png'
+    case '.jpg':
+    case '.jpeg': return 'image/jpeg'
+    case '.webp': return 'image/webp'
+    case '.gif': return 'image/gif'
+    case '.bmp': return 'image/bmp'
+    default: return undefined
+  }
+}
+
+const TEXT_PREVIEW_EXTENSIONS = new Set([
+  '.txt', '.md', '.markdown', '.csv', '.tsv', '.json', '.yaml', '.yml', '.xml',
+  '.html', '.css', '.js', '.jsx', '.ts', '.tsx', '.py', '.sql', '.log', '.toml',
+  '.ini', '.sh', '.bat', '.ps1', '.rst',
+])

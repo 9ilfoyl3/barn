@@ -398,6 +398,10 @@ export interface AttachmentDescriptor {
   kind?: 'file' | 'directory' | undefined
 }
 
+export type AttachmentPreview =
+  | { kind: 'image'; dataUrl: string }
+  | { kind: 'text'; text: string }
+
 export interface SessionBridge {
   list(): Promise<SessionSummary[]>
   create(sessionId?: string): Promise<SessionSummary>
@@ -408,6 +412,7 @@ export interface SessionBridge {
   chooseDirectory(): Promise<string | undefined>
   setWorkingDirectory(sessionId: string, workingDirectory: string): Promise<SessionSummary>
   clearWorkingDirectory(sessionId: string): Promise<SessionSummary>
+  getAttachmentPreview(path: string): Promise<AttachmentPreview | undefined>
   onEvent(listener: (event: SessionLiveEvent) => void): () => void
 }
 

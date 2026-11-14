@@ -16,6 +16,7 @@
 - File tools resolve real paths and reject traversal, symlink escape, and known secret files.
 - A user-selected Session working directory becomes an additional authorized read/write root. Selecting a broad directory intentionally broadens the Agent's local capability boundary.
 - Local source folder watches read metadata only and skip symlinks.
+- Attachment image and text previews are read only from the managed attachment store and are size-limited; non-UTF-8 text-like files fall back to an icon.
 
 ## Consequential actions
 

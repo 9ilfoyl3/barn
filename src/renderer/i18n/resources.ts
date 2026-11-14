@@ -158,6 +158,22 @@ const en = {
     fileDescription: 'Proposes a review when a file changes. Depth {{depth}}.',
     scheduleDescription: 'Proposes a review every {{count}} minutes.',
   },
+
+  attachments: {
+    selected: 'Selected attachments',
+    kind: {
+      folder: 'Folder',
+      image: 'Image',
+      pdf: 'PDF',
+      document: 'Document',
+      spreadsheet: 'Spreadsheet',
+      presentation: 'Presentation',
+      archive: 'Archive',
+      text: 'Text',
+      code: 'Code',
+      file: 'File',
+    },
+  },
   tasks: {
     title: 'Needs you',
     loading: 'Loading tasks',
@@ -458,6 +474,22 @@ const zhCN: TranslationSchema = {
     watchedFolder: '监听文件夹',
     fileDescription: '文件变化时生成检查建议。深度 {{depth}}。',
     scheduleDescription: '每 {{count}} 分钟生成一次检查建议。',
+  },
+
+  attachments: {
+    selected: '已选择的附件',
+    kind: {
+      folder: '文件夹',
+      image: '图片',
+      pdf: 'PDF',
+      document: '文档',
+      spreadsheet: '表格',
+      presentation: '演示文稿',
+      archive: '压缩包',
+      text: '文本',
+      code: '代码',
+      file: '文件',
+    },
   },
   tasks: {
     title: '需要你',

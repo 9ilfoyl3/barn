@@ -1,0 +1,155 @@
+/* Hallmark · page: Barn Desktop attachment strip · genre: modern-minimal · theme: barn-native · redesign: extend · scope: component · built: the project */
+/* Hallmark · pre-emit critique: P5 H4 E5 S5 R5 V3 · weakest: V, the card rail borrows the supplied reference while keeping Barn tokens */
+
+:root {
+  --attachment-mono-font: "JetBrains Mono Variable", monospace;
+}
+
+.attachment-strip {
+  display: flex;
+  gap: 12px;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  padding: 12px;
+  scroll-snap-type: x proximity;
+  scrollbar-width: thin;
+}
+
+.attachment-card {
+  --attachment-tint: var(--text-faint);
+  position: relative;
+  display: grid;
+  min-width: 156px;
+  max-width: 156px;
+  height: 118px;
+  flex: 0 0 156px;
+  grid-template-rows: 76px 1fr;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--panel);
+  box-shadow: var(--card-shadow);
+  scroll-snap-align: start;
+}
+
+.attachment-folder { --attachment-tint: var(--text-dim); }
+.attachment-image { --attachment-tint: var(--accent); }
+.attachment-pdf { --attachment-tint: var(--danger); }
+.attachment-document { --attachment-tint: var(--accent); }
+.attachment-spreadsheet { --attachment-tint: var(--green); }
+.attachment-presentation { --attachment-tint: var(--warning); }
+.attachment-archive { --attachment-tint: var(--warning); }
+.attachment-text { --attachment-tint: var(--text-dim); }
+.attachment-code { --attachment-tint: var(--accent-strong); }
+.attachment-file { --attachment-tint: var(--text-faint); }
+
+.attachment-preview {
+  position: relative;
+  display: grid;
+  min-width: 0;
+  place-items: center;
+  overflow: hidden;
+  border-bottom: 1px solid var(--line);
+  background:
+    linear-gradient(145deg, color-mix(in srgb, var(--attachment-tint) 9%, transparent), transparent 70%),
+    var(--panel-raised);
+  color: var(--attachment-tint);
+}
+
+.attachment-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.attachment-text-preview {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--panel) 94%, var(--panel-raised));
+  padding: 8px;
+  color: var(--text-dim);
+  font-family: var(--attachment-mono-font);
+  font-size: 6px;
+  line-height: 1.35;
+  white-space: pre-wrap;
+  word-break: break-word;
+  mask-image: linear-gradient(to bottom, var(--text) 70%, transparent 100%);
+}
+
+.attachment-extension {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  border-radius: 5px;
+  background: color-mix(in srgb, var(--panel) 92%, transparent);
+  padding: 4px 8px;
+  color: var(--attachment-tint);
+  font-size: 8px;
+  font-weight: 620;
+  line-height: 1.3;
+}
+
+.attachment-card-copy {
+  display: grid;
+  min-width: 0;
+  align-content: center;
+  gap: 2px;
+  padding: 8px 12px;
+}
+
+.attachment-card-copy strong,
+.attachment-card-copy small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.attachment-card-copy strong {
+  color: var(--text);
+  font-size: 11px;
+  font-weight: 570;
+}
+
+.attachment-card-copy small {
+  color: var(--text-faint);
+  font-size: 9px;
+}
+
+.attachment-remove {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: grid;
+  width: 22px;
+  height: 22px;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--line-strong) 72%, transparent);
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--panel) 90%, transparent);
+  color: var(--text-dim);
+  cursor: pointer;
+  box-shadow: var(--card-shadow);
+}
+
+.attachment-remove:hover {
+  background: var(--panel-raised);
+  color: var(--text);
+}
+
+.attachment-remove:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent) 72%, transparent);
+  outline-offset: 2px;
+}
+
+.attachment-remove:active {
+  transform: scale(0.96);
+}
+
+.attachment-remove:disabled {
+  border-color: var(--line);
+  background: var(--disabled-surface);
+  color: var(--text-faint);
+  cursor: default;
+}
