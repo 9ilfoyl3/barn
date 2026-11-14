@@ -38,6 +38,22 @@ describe('SessionStore', () => {
     store.close()
   })
 
+  it('persists the current working directory for a Session', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'barn-session-store-'))
+    const path = pathForSessions(directory)
+    const store = new SessionStore(path, new AesGcmEventCipher(randomBytes(32)))
+    await store.initialize()
+    const session = store.createSession('Workspace session', undefined, directory)
+    store.append(session.id, [{ type: 'message/user', data: { text: 'Inspect this folder' } }])
+    expect(store.getSession(session.id).workingDirectory).toBe(directory)
+    store.close()
+
+    const reopened = new SessionStore(path, new AesGcmEventCipher(randomBytes(32)))
+    await reopened.initialize()
+    expect(reopened.listSessions()[0]?.workingDirectory).toBe(directory)
+    reopened.close()
+  })
+
   it('recovers sessions left running after an interrupted app shutdown', async () => {
     const directory = await mkdtemp(join(tmpdir(), 'barn-session-store-'))
     const store = new SessionStore(pathForSessions(directory), new AesGcmEventCipher(randomBytes(32)))

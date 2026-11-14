@@ -68,6 +68,7 @@ export class SessionStore {
         id TEXT PRIMARY KEY,
         title TEXT NOT NULL,
         status TEXT NOT NULL,
+        working_directory TEXT,
         last_seq INTEGER NOT NULL DEFAULT 0,
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL
@@ -86,6 +87,7 @@ export class SessionStore {
         PRIMARY KEY (session_id, seq)
       );
     `)
+    this.ensureSessionColumns()
     const current = this.database.prepare('SELECT version FROM schema_meta WHERE id = 1').get() as { version: number } | undefined
     if (current !== undefined && current.version > CURRENT_SCHEMA_VERSION) {
       throw new Error(`Database schema ${current.version} is newer than this app supports (${CURRENT_SCHEMA_VERSION})`)
@@ -178,7 +180,7 @@ export class SessionStore {
     }
   }
 
-  createSession(title = 'New session', sessionId: string = randomUUID()): SessionSummary {
+  createSession(title = 'New session', sessionId: string = randomUUID(), workingDirectory?: string): SessionSummary {
     const now = new Date().toISOString()
     const session: SessionSummary = {
       id: sessionId,
@@ -187,40 +189,29 @@ export class SessionStore {
       createdAt: now,
       updatedAt: now,
     }
+    if (workingDirectory !== undefined) session.workingDirectory = workingDirectory
     this.database.prepare(`
-      INSERT INTO sessions (id, title, status, last_seq, created_at, updated_at)
-      VALUES (?, ?, ?, 0, ?, ?)
-    `).run(session.id, session.title, session.status, now, now)
+      INSERT INTO sessions (id, title, status, working_directory, last_seq, created_at, updated_at)
+      VALUES (?, ?, ?, ?, 0, ?, ?)
+    `).run(session.id, session.title, session.status, session.workingDirectory ?? null, now, now)
     return session
   }
 
-  ensureSession(sessionId: string, title = 'New session'): SessionSummary {
+  ensureSession(sessionId: string, title = 'New session', workingDirectory?: string): SessionSummary {
     const row = this.database.prepare(`
-      SELECT id, title, status, created_at, updated_at
+      SELECT id, title, status, working_directory, created_at, updated_at
       FROM sessions WHERE id = ?
     `).get(sessionId) as SessionRow | undefined
-    return row === undefined ? this.createSession(title, sessionId) : toSessionSummary(row)
+    return row === undefined ? this.createSession(title, sessionId, workingDirectory) : toSessionSummary(row)
   }
 
   getSession(sessionId: string): SessionSummary {
     const row = this.database.prepare(`
-      SELECT id, title, status, created_at, updated_at
+      SELECT id, title, status, working_directory, created_at, updated_at
       FROM sessions WHERE id = ?
-    `).get(sessionId) as {
-      id: string
-      title: string
-      status: string
-      created_at: string
-      updated_at: string
-    } | undefined
+    `).get(sessionId) as SessionRow | undefined
     if (row === undefined) throw new Error(`Unknown session: ${sessionId}`)
-    return {
-      id: row.id,
-      title: row.title,
-      status: normalizeStatus(row.status),
-      createdAt: row.created_at,
-      updatedAt: row.updated_at,
-    }
+    return toSessionSummary(row)
   }
 
   updateStatus(sessionId: string, status: SessionStatus): SessionSummary {
@@ -228,6 +219,15 @@ export class SessionStore {
     const result = this.database.prepare(`
       UPDATE sessions SET status = ?, updated_at = ? WHERE id = ?
     `).run(status, updatedAt, sessionId)
+    if (result.changes === 0) throw new Error(`Unknown session: ${sessionId}`)
+    return this.getSession(sessionId)
+  }
+
+  updateWorkingDirectory(sessionId: string, workingDirectory: string): SessionSummary {
+    const updatedAt = new Date().toISOString()
+    const result = this.database.prepare(`
+      UPDATE sessions SET working_directory = ?, updated_at = ? WHERE id = ?
+    `).run(workingDirectory, updatedAt, sessionId)
     if (result.changes === 0) throw new Error(`Unknown session: ${sessionId}`)
     return this.getSession(sessionId)
   }
@@ -250,7 +250,7 @@ export class SessionStore {
 
   listSessions(): SessionSummary[] {
     const rows = this.database.prepare(`
-      SELECT id, title, status, created_at, updated_at
+      SELECT id, title, status, working_directory, created_at, updated_at
       FROM sessions
       WHERE last_seq > 0
       ORDER BY updated_at DESC
@@ -258,17 +258,12 @@ export class SessionStore {
       id: string
       title: string
       status: string
+      working_directory: string | null
       created_at: string
       updated_at: string
     }>
 
-    return rows.map((row) => ({
-      id: row.id,
-      title: row.title,
-      status: normalizeStatus(row.status),
-      createdAt: row.created_at,
-      updatedAt: row.updated_at,
-    }))
+    return rows.map(toSessionSummary)
   }
 
   append(sessionId: string, events: NewSessionEvent[]): StoredSessionEvent[] {
@@ -372,6 +367,12 @@ export class SessionStore {
     this.database.close()
   }
 
+  private ensureSessionColumns(): void {
+    const columns = new Set((this.database.prepare('PRAGMA table_info(sessions)').all() as Array<{ name: string }>)
+      .map((column) => column.name))
+    if (!columns.has('working_directory')) this.database.exec('ALTER TABLE sessions ADD COLUMN working_directory TEXT')
+  }
+
   private pruneEmptySessions(): void {
     this.database.prepare(`
       DELETE FROM sessions
@@ -391,18 +392,21 @@ interface SessionRow {
   id: string
   title: string
   status: string
+  working_directory: string | null
   created_at: string
   updated_at: string
 }
 
 function toSessionSummary(row: SessionRow): SessionSummary {
-  return {
+  const session: SessionSummary = {
     id: row.id,
     title: row.title,
     status: normalizeStatus(row.status),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   }
+  if (row.working_directory !== null) session.workingDirectory = row.working_directory
+  return session
 }
 
 function associatedData(sessionId: string, seq: number, type: string): string {

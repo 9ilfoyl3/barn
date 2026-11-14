@@ -1,6 +1,6 @@
 import { mkdir, mkdtemp, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { join, sep } from 'node:path'
+import { dirname, join, sep } from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
 import { ToolService } from '../../src/main/tools/tool-service'
 import type { ShellService } from '../../src/main/sandbox/shell-service'
@@ -42,6 +42,21 @@ describe('ToolService', () => {
 
     expect(result.content).toEqual([{ type: 'text', text: '2: two\n3: three' }])
     expect(result.details).toMatchObject({ totalLines: 4, truncated: true })
+  })
+
+  it('uses a selected working directory as the default tool root', async () => {
+    const { service, workspace } = await createService()
+    const root = dirname(workspace)
+    const working = join(root, 'selected-working-directory')
+    await mkdir(working)
+    await writeFile(join(working, 'outside.txt'), 'selected directory content')
+
+    await expect(service.execute('read_file', { path: 'outside.txt' }))
+      .resolves.toMatchObject({ isError: true })
+    const result = await service.execute('read_file', { path: 'outside.txt' }, { workingDirectory: working })
+    expect(result).toMatchObject({
+      content: [{ type: 'text', text: '1: selected directory content' }],
+    })
   })
 
   it('rejects paths outside managed roots and secret files', async () => {
