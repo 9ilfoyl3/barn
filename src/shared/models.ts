@@ -145,6 +145,7 @@ export interface Task {
   status: TaskStatus
   origin: TaskOrigin
   sessionId?: string
+  approvalId?: string
   prompt?: string
   waitingReason?: TaskWaitingReason
   detail?: string
@@ -181,6 +182,54 @@ export interface TaskBridge {
   updatePrompt(taskId: string, prompt: string): Promise<Task>
   assignSession(taskId: string, sessionId: string | null): Promise<Task>
   onEvent(listener: (event: TaskLiveEvent) => void): () => void
+}
+
+export type PermissionKind = 'local-read' | 'workspace-write' | 'external-write' | 'destructive'
+export type PermissionMode = 'allow' | 'ask' | 'deny'
+export type ApprovalStatus = 'pending' | 'approved' | 'denied'
+
+export interface PermissionPolicy {
+  localRead: PermissionMode
+  workspaceWrite: PermissionMode
+  externalWrite: PermissionMode
+  destructive: PermissionMode
+}
+
+export interface PermissionRequestInput {
+  kind: PermissionKind
+  title: string
+  summary: string
+  details?: string
+  taskId?: string
+}
+
+export interface ApprovalRequest {
+  id: string
+  kind: PermissionKind
+  title: string
+  summary: string
+  details?: string
+  taskId?: string
+  status: ApprovalStatus
+  createdAt: string
+  resolvedAt?: string
+}
+
+export type PermissionOutcome =
+  | { decision: 'allowed' }
+  | { decision: 'denied'; reason: string }
+  | { decision: 'approval_required'; approval: ApprovalRequest }
+
+export interface PermissionBridge {
+  getPolicy(): Promise<PermissionPolicy>
+  setPolicy(policy: PermissionPolicy): Promise<PermissionPolicy>
+  request(input: PermissionRequestInput): Promise<PermissionOutcome>
+}
+
+export interface ApprovalBridge {
+  listPending(): Promise<ApprovalRequest[]>
+  get(approvalId: string): Promise<ApprovalRequest>
+  resolve(approvalId: string, decision: 'approved' | 'denied'): Promise<ApprovalRequest>
 }
 
 export interface SessionSummary {
@@ -307,4 +356,6 @@ export interface BarnBridge {
   models: ModelBridge
   sessions: SessionBridge
   tasks: TaskBridge
+  permissions: PermissionBridge
+  approvals: ApprovalBridge
 }

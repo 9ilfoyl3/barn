@@ -32,6 +32,12 @@ export class TaskService {
     return task
   }
 
+  requestApproval(taskId: string, approvalId: string, detail: string): Task {
+    const task = this.store.requestApproval(taskId, approvalId, detail)
+    this.emit(task)
+    return task
+  }
+
   updatePrompt(taskId: string, prompt: string): Task {
     const task = this.store.updatePrompt(taskId, prompt)
     this.emit(task)

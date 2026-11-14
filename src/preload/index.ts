@@ -17,6 +17,10 @@ import type {
   CreateTaskInput,
   TaskStatusUpdate,
   TaskLiveEvent,
+  ApprovalBridge,
+  PermissionBridge,
+  PermissionPolicy,
+  PermissionRequestInput,
   ThemeBridge,
   ThemeState,
   SetDefaultModelInput,
@@ -62,6 +66,18 @@ const tasks: TaskBridge = {
   },
 }
 
+const permissions: PermissionBridge = {
+  getPolicy: () => ipcRenderer.invoke('permissions:get-policy'),
+  setPolicy: (policy: PermissionPolicy) => ipcRenderer.invoke('permissions:set-policy', policy),
+  request: (input: PermissionRequestInput) => ipcRenderer.invoke('permissions:request', input),
+}
+
+const approvals: ApprovalBridge = {
+  listPending: () => ipcRenderer.invoke('approvals:list-pending'),
+  get: (approvalId: string) => ipcRenderer.invoke('approvals:get', approvalId),
+  resolve: (approvalId: string, decision: 'approved' | 'denied') => ipcRenderer.invoke('approvals:resolve', { approvalId, decision }),
+}
+
 const theme: ThemeBridge = {
   getState: () => ipcRenderer.invoke('runtime:theme-state') as Promise<ThemeState>,
   onChange: (listener: (state: ThemeState) => void) => {
@@ -83,5 +99,7 @@ const api: BarnBridge = {
   models,
   sessions,
   tasks,
+  permissions,
+  approvals,
 }
 contextBridge.exposeInMainWorld('barn', api)

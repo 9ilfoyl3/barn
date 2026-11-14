@@ -5,6 +5,7 @@ import { DatabaseSync } from 'node:sqlite'
 import type { SessionSummary } from '../../shared/models'
 import { AesGcmEventCipher } from './event-cipher'
 import { TaskStore } from '../tasks/task-store'
+import { PermissionStore } from '../permissions/permission-store'
 
 export type SessionStatus = SessionSummary['status']
 
@@ -25,6 +26,7 @@ export interface StoredSessionEvent extends Omit<NewSessionEvent, 'actor'> {
 export class SessionStore {
   private readonly database: DatabaseSync
   readonly tasks: TaskStore
+  readonly permissions: PermissionStore
 
   constructor(
     path: string,
@@ -33,6 +35,7 @@ export class SessionStore {
     mkdirSync(dirname(path), { recursive: true, mode: 0o700 })
     this.database = new DatabaseSync(path)
     this.tasks = new TaskStore(this.database, cipher)
+    this.permissions = new PermissionStore(this.database, cipher)
   }
 
   async initialize(): Promise<void> {
@@ -64,6 +67,7 @@ export class SessionStore {
       );
     `)
     this.tasks.initialize()
+    this.permissions.initialize()
     this.pruneEmptySessions()
   }
 
