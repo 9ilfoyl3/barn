@@ -1,6 +1,7 @@
 import type {
   MemoryEntry,
   MemorySaveInput,
+  MemorySessionControls,
   MemorySettings,
 } from '../../shared/models'
 import type { MemoryStore } from './memory-store'
@@ -27,9 +28,11 @@ export class MemoryService {
     workspacePath?: string,
     limit = 8,
     scope: 'all' | 'global' | 'workspace' = 'all',
+    sessionId?: string,
   ): MemoryEntry[] {
     this.requireEnabled()
     if (!this.store.getSettings().useMemories) return []
+    if (sessionId !== undefined && !this.store.getSessionControls(sessionId).useMemories) return []
     const entries = this.store.search({
       query,
       scope,
@@ -45,14 +48,26 @@ export class MemoryService {
     return this.store.save(input)
   }
 
+  getSessionControls(sessionId: string): MemorySessionControls {
+    return this.store.getSessionControls(sessionId)
+  }
+
+  setSessionControls(sessionId: string, change: Partial<MemorySessionControls>): MemorySessionControls {
+    return this.store.setSessionControls(sessionId, change)
+  }
+
+  setPinned(id: string, pinned: boolean): MemoryEntry {
+    return this.store.setPinned(id, pinned)
+  }
+
   forget(id: string): void {
-    this.requireEnabled()
     this.store.delete(id)
   }
 
-  contextForPrompt(query: string, workspacePath?: string): string {
+  contextForPrompt(query: string, workspacePath?: string, sessionId?: string): string {
     const settings = this.store.getSettings()
     if (!settings.enabled || !settings.useMemories) return ''
+    if (sessionId !== undefined && !this.store.getSessionControls(sessionId).useMemories) return ''
     const entries = this.store.search({ query, ...(workspacePath === undefined ? {} : { workspacePath }), limit: 10 })
     if (entries.length === 0) return ''
     this.store.touch(entries.map((entry) => entry.id))

@@ -16,7 +16,9 @@ Memory writes are explicit Agent calls to `memory_save`; `memory_search` recalls
 
 Before each prompt, Host retrieves a bounded, query-relevant set of global and current-workspace entries. Worker receives it as JSON inside a `<memory_context>` block explicitly marked as untrusted reference data, not instructions. Memory retrieval failure does not block the user's prompt. The model can search memory when the injected context is insufficient.
 
-Memory is disabled by default. `AGENTS.md`-style deterministic instructions remain the correct place for rules that must always apply; memory is a probabilistic recall aid.
+Memory is disabled by default. When generation is enabled, a background extractor runs at most every 15 minutes and processes completed, idle Sessions whose last successful extraction is older than the configured idle window. It records the processed Session sequence, retries failures after a six-hour backoff, and persists per-Session use/generate controls. Extraction sends only a recent bounded set of user and assistant text messages to the configured default model; tool results and images are excluded. Returned entries pass the same schema, scope, quota, deduplication, and credential checks as explicit memory writes.
+
+`AGENTS.md`-style deterministic instructions remain the correct place for rules that must always apply; memory is a probabilistic recall aid.
 
 ## Alternatives considered
 
@@ -37,4 +39,6 @@ Memory is disabled by default. `AGENTS.md`-style deterministic instructions rema
 - credentials are rejected before encryption and should still never be intentionally placed in memory;
 - memory content is encrypted at rest but decrypted inside the Host when retrieved;
 - deterministic always-on rules belong in `AGENTS.md`, not memory;
-- asynchronous extraction, consolidation, and user management build on this storage and tool contract.
+- asynchronous extraction runs against the configured model provider only when the user enables generation;
+- repeated extraction is avoided by Session sequence tracking, while later turns can produce a new extraction pass;
+- user-facing settings and management build on the typed Memory bridge.

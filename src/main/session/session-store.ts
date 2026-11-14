@@ -12,7 +12,7 @@ import { MemoryStore } from '../memory/memory-store'
 
 export type SessionStatus = SessionSummary['status']
 
-export const CURRENT_SCHEMA_VERSION = 2
+export const CURRENT_SCHEMA_VERSION = 3
 
 export interface NewSessionEvent {
   type: string

@@ -262,6 +262,27 @@ export interface MemorySettings {
   maxEntries: number
 }
 
+export interface MemorySessionControls {
+  useMemories: boolean
+  generateMemories: boolean
+}
+
+export interface MemoryExtractionCandidate {
+  sessionId: string
+  workingDirectory?: string
+  lastSeq: number
+  updatedAt: string
+}
+
+export interface MemoryExtractionState {
+  sessionId: string
+  lastProcessedSeq: number
+  lastProcessedAt?: string
+  lastError?: string
+  attempts: number
+  nextAttemptAt?: string
+}
+
 export interface MemorySaveInput {
   kind: MemoryKind
   scope: MemoryScope
@@ -273,6 +294,16 @@ export interface MemorySaveInput {
   pinned?: boolean
   confidence?: number
   sourceSessionId?: string
+}
+
+export interface MemoryBridge {
+  getSettings(): Promise<MemorySettings>
+  setSettings(settings: Partial<MemorySettings>): Promise<MemorySettings>
+  list(): Promise<MemoryEntry[]>
+  delete(id: string): Promise<void>
+  setPinned(id: string, pinned: boolean): Promise<MemoryEntry>
+  getSessionControls(sessionId: string): Promise<MemorySessionControls>
+  setSessionControls(sessionId: string, controls: Partial<MemorySessionControls>): Promise<MemorySessionControls>
 }
 
 export interface DiagnosticsSnapshot {
@@ -291,6 +322,7 @@ export interface DiagnosticsSnapshot {
     approvalsPending: number
     actionsActive: number
     localSources: number
+    memoryEntries: number
   }
   automationMode: 'observe' | 'active'
   shell: {
@@ -498,4 +530,5 @@ export interface BarnBridge {
   localSources: LocalSourceBridge
   lifecycle: LifecycleBridge
   diagnostics: DiagnosticsBridge
+  memory: MemoryBridge
 }

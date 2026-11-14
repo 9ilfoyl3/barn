@@ -28,6 +28,7 @@ import type {
   ThemeBridge,
   ThemeState,
   SetDefaultModelInput,
+  MemoryBridge,
 } from '../shared/models'
 
 const models: ModelBridge = {
@@ -105,6 +106,16 @@ const lifecycle: LifecycleBridge = {
   },
 }
 
+const memory: MemoryBridge = {
+  getSettings: () => ipcRenderer.invoke('memory:get-settings'),
+  setSettings: (settings) => ipcRenderer.invoke('memory:set-settings', settings),
+  list: () => ipcRenderer.invoke('memory:list'),
+  delete: (id: string) => ipcRenderer.invoke('memory:delete', id),
+  setPinned: (id: string, pinned: boolean) => ipcRenderer.invoke('memory:set-pinned', { id, pinned }),
+  getSessionControls: (sessionId: string) => ipcRenderer.invoke('memory:get-session-controls', sessionId),
+  setSessionControls: (sessionId: string, controls) => ipcRenderer.invoke('memory:set-session-controls', { sessionId, controls }),
+}
+
 const diagnostics: DiagnosticsBridge = {
   get: () => ipcRenderer.invoke('diagnostics:get'),
   setRetentionDays: (days: number) => ipcRenderer.invoke('diagnostics:set-retention', days),
@@ -137,5 +148,6 @@ const api: BarnBridge = {
   localSources,
   lifecycle,
   diagnostics,
+  memory,
 }
 contextBridge.exposeInMainWorld('barn', api)

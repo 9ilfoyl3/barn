@@ -68,6 +68,7 @@ export interface ToolServiceOptions {
 
 export interface ToolExecutionContext {
   workingDirectory?: string | undefined
+  sessionId?: string | undefined
 }
 
 export class ToolService {
@@ -112,7 +113,7 @@ export class ToolService {
         case 'shell':
           return await this.runShell(args as z.infer<typeof shellInput>, workingRoot)
         case 'memory_search':
-          return this.memorySearch(args as z.infer<typeof memorySearchInput>, workingRoot)
+          return this.memorySearch(args as z.infer<typeof memorySearchInput>, workingRoot, context.sessionId)
         case 'memory_save':
           return this.memorySave(args as z.infer<typeof memorySaveInput>, workingRoot)
         case 'memory_forget':
@@ -241,9 +242,10 @@ export class ToolService {
   private memorySearch(
     input: z.infer<typeof memorySearchInput>,
     workingRoot: string,
+    sessionId?: string,
   ): ToolExecutionResult {
     const memory = this.requireMemory()
-    const entries = memory.search(input.query, workingRoot, input.limit, input.scope)
+    const entries = memory.search(input.query, workingRoot, input.limit, input.scope, sessionId)
     return {
       content: [{ type: 'text', text: entries.length === 0 ? 'No matching memory entries.' : JSON.stringify({ memories: entries }, null, 2) }],
       details: { count: entries.length, ids: entries.map((entry) => entry.id) },
@@ -271,7 +273,9 @@ export class ToolService {
   }
 
   private memoryForget(input: z.infer<typeof memoryForgetInput>): ToolExecutionResult {
-    this.requireMemory().forget(input.id)
+    const memory = this.requireMemory()
+    if (!memory.getSettings().enabled) throw new Error('Agent memory is disabled')
+    memory.forget(input.id)
     return {
       content: [{ type: 'text', text: `Forgot memory ${input.id}` }],
       details: { id: input.id },

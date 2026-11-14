@@ -9,6 +9,9 @@ import type {
   MemorySaveInput,
   MemoryScope,
   MemorySettings,
+  MemorySessionControls,
+  MemoryExtractionCandidate,
+  MemoryExtractionState,
 } from '../../shared/models'
 import type { AesGcmEventCipher } from '../session/event-cipher'
 
@@ -101,6 +104,17 @@ export class MemoryStore {
 
       CREATE INDEX IF NOT EXISTS memory_entries_status_idx
       ON memory_entries(status, scope, workspace_hash, updated_at DESC);
+
+      CREATE TABLE IF NOT EXISTS memory_session_state (
+        session_id TEXT PRIMARY KEY REFERENCES sessions(id) ON DELETE CASCADE,
+        last_processed_seq INTEGER NOT NULL DEFAULT 0,
+        last_processed_at TEXT,
+        last_error TEXT,
+        attempts INTEGER NOT NULL DEFAULT 0,
+        next_attempt_at TEXT,
+        use_memories INTEGER NOT NULL DEFAULT 1,
+        generate_memories INTEGER NOT NULL DEFAULT 1
+      );
     `)
     this.database.prepare(`
       INSERT OR IGNORE INTO memory_settings (
@@ -291,10 +305,124 @@ export class MemoryStore {
     for (const id of new Set(ids)) statement.run(now, id)
   }
 
+  setPinned(id: string, pinned: boolean): MemoryEntry {
+    const result = this.database.prepare(`
+      UPDATE memory_entries SET pinned = ?, updated_at = ? WHERE id = ? AND status = 'active'
+    `).run(pinned ? 1 : 0, new Date().toISOString(), id)
+    if (result.changes === 0) throw new Error(`Unknown memory: ${id}`)
+    return this.get(id)
+  }
+
   delete(id: string): void {
     const result = this.database.prepare("UPDATE memory_entries SET status = 'archived', updated_at = ? WHERE id = ? AND status = 'active'")
       .run(new Date().toISOString(), id)
     if (result.changes === 0) throw new Error(`Unknown memory: ${id}`)
+  }
+
+  getSessionControls(sessionId: string): MemorySessionControls {
+    const row = this.database.prepare(`
+      SELECT use_memories, generate_memories FROM memory_session_state WHERE session_id = ?
+    `).get(sessionId) as { use_memories: number; generate_memories: number } | undefined
+    return {
+      useMemories: row?.use_memories !== 0,
+      generateMemories: row?.generate_memories !== 0,
+    }
+  }
+
+  setSessionControls(sessionId: string, change: Partial<MemorySessionControls>): MemorySessionControls {
+    const current = this.getSessionControls(sessionId)
+    const next = { ...current, ...change }
+    this.database.prepare(`
+      INSERT INTO memory_session_state (session_id, use_memories, generate_memories)
+      VALUES (?, ?, ?)
+      ON CONFLICT(session_id) DO UPDATE SET
+        use_memories = excluded.use_memories,
+        generate_memories = excluded.generate_memories
+    `).run(sessionId, next.useMemories ? 1 : 0, next.generateMemories ? 1 : 0)
+    return next
+  }
+
+  eligibleSessions(
+    now: Date,
+    idleMinutes: number,
+    limit = 5,
+  ): MemoryExtractionCandidate[] {
+    const cutoff = new Date(now.getTime() - idleMinutes * 60_000).toISOString()
+    const rows = this.database.prepare(`
+      SELECT s.id, s.working_directory, s.last_seq, s.updated_at
+      FROM sessions s
+      LEFT JOIN memory_session_state state ON state.session_id = s.id
+      WHERE s.last_seq > 0
+        AND s.status = 'idle'
+        AND s.updated_at <= ?
+        AND COALESCE(state.generate_memories, 1) = 1
+        AND (state.session_id IS NULL OR state.last_processed_seq < s.last_seq)
+        AND (state.next_attempt_at IS NULL OR state.next_attempt_at <= ?)
+      ORDER BY s.updated_at ASC
+      LIMIT ?
+    `).all(cutoff, now.toISOString(), Math.max(1, Math.min(20, limit))) as Array<{
+      id: string
+      working_directory: string | null
+      last_seq: number
+      updated_at: string
+    }>
+    return rows.map((row) => ({
+      sessionId: row.id,
+      lastSeq: row.last_seq,
+      updatedAt: row.updated_at,
+      ...(row.working_directory === null ? {} : { workingDirectory: row.working_directory }),
+    }))
+  }
+
+  markExtractionSuccess(sessionId: string, processedSeq: number): void {
+    const now = new Date().toISOString()
+    this.database.prepare(`
+      INSERT INTO memory_session_state (
+        session_id, last_processed_seq, last_processed_at, last_error, attempts, next_attempt_at
+      ) VALUES (?, ?, ?, NULL, 0, NULL)
+      ON CONFLICT(session_id) DO UPDATE SET
+        last_processed_seq = MAX(memory_session_state.last_processed_seq, excluded.last_processed_seq),
+        last_processed_at = excluded.last_processed_at,
+        last_error = NULL,
+        attempts = 0,
+        next_attempt_at = NULL
+    `).run(sessionId, processedSeq, now)
+  }
+
+  markExtractionFailure(sessionId: string, processedSeq: number, message: string, retryAt: string): void {
+    this.database.prepare(`
+      INSERT INTO memory_session_state (
+        session_id, last_processed_seq, last_processed_at, last_error, attempts, next_attempt_at
+      ) VALUES (?, ?, NULL, ?, 1, ?)
+      ON CONFLICT(session_id) DO UPDATE SET
+        last_error = excluded.last_error,
+        attempts = memory_session_state.attempts + 1,
+        next_attempt_at = excluded.next_attempt_at
+      WHERE memory_session_state.last_processed_seq < excluded.last_processed_seq
+    `).run(sessionId, processedSeq, message.slice(0, 1_000), retryAt)
+  }
+
+  extractionState(sessionId: string): MemoryExtractionState | undefined {
+    const row = this.database.prepare(`
+      SELECT session_id, last_processed_seq, last_processed_at, last_error, attempts, next_attempt_at
+      FROM memory_session_state WHERE session_id = ?
+    `).get(sessionId) as {
+      session_id: string
+      last_processed_seq: number
+      last_processed_at: string | null
+      last_error: string | null
+      attempts: number
+      next_attempt_at: string | null
+    } | undefined
+    if (row === undefined) return undefined
+    return {
+      sessionId: row.session_id,
+      lastProcessedSeq: row.last_processed_seq,
+      attempts: row.attempts,
+      ...(row.last_processed_at === null ? {} : { lastProcessedAt: row.last_processed_at }),
+      ...(row.last_error === null ? {} : { lastError: row.last_error }),
+      ...(row.next_attempt_at === null ? {} : { nextAttemptAt: row.next_attempt_at }),
+    }
   }
 
   activeCount(): number {
