@@ -41,7 +41,7 @@ interface ActiveModelStream {
 
 const SYSTEM_PROMPT = `You are Barn, a general-purpose personal desktop assistant for everyday office work.
 
-You work inside a local workspace and can inspect files with tools. File types are unrestricted: use read_file for text, list_dir and search_files for discovery, shell for format-specific extraction or conversion, and view_image for supported images when the selected model accepts image input.
+You work inside a local workspace and can inspect files with tools. File types are unrestricted: use list_dir and find_files for discovery, search_files for content search, and read_file for text. Use shell for format-specific extraction or conversion, and view_image for supported images when the selected model accepts image input.
 
 Never claim to have inspected a file unless a tool returned its content. Do not assume a file is CSV, XLSX, PDF, or a table; inspect it and adapt to its actual content.
 
@@ -421,13 +421,24 @@ function createTools(
       startLine: Type.Optional(Type.Integer({ minimum: 1 })),
       lineCount: Type.Optional(Type.Integer({ minimum: 1, maximum: 5_000 })),
     }), executeTool),
-    tool('list_dir', 'List Directory', 'List files in the managed workspace.', Type.Object({
+    tool('list_dir', 'List Directory', 'List files and folders in the managed workspace, with bounded depth and entries.', Type.Object({
       path: Type.Optional(Type.String()),
       depth: Type.Optional(Type.Integer({ minimum: 0, maximum: 4 })),
+      maxEntries: Type.Optional(Type.Integer({ minimum: 1, maximum: 2_000 })),
     }), executeTool),
-    tool('search_files', 'Search Files', 'Search UTF-8 text files for a literal string.', Type.Object({
+    tool('find_files', 'Find Files', 'Find files by glob pattern. Respects the workspace root .gitignore and skips generated or sensitive directories.', Type.Object({
+      path: Type.Optional(Type.String()),
+      pattern: Type.Optional(Type.String({ minLength: 1, maxLength: 500 })),
+      includeDirectories: Type.Optional(Type.Boolean()),
+      maxResults: Type.Optional(Type.Integer({ minimum: 1, maximum: 1_000 })),
+    }), executeTool),
+    tool('search_files', 'Search Files', 'Search UTF-8 text file contents by literal string or regular expression. Supports glob filters, context lines, case folding, and bounded results.', Type.Object({
       path: Type.Optional(Type.String()),
       query: Type.String({ minLength: 1, maxLength: 500 }),
+      literal: Type.Optional(Type.Boolean()),
+      ignoreCase: Type.Optional(Type.Boolean()),
+      glob: Type.Optional(Type.String({ minLength: 1, maxLength: 500 })),
+      context: Type.Optional(Type.Integer({ minimum: 0, maximum: 10 })),
       maxResults: Type.Optional(Type.Integer({ minimum: 1, maximum: 500 })),
     }), executeTool),
     tool('shell', 'Shell', 'Run a command in the local sandbox. Network is denied. Use this to inspect or convert arbitrary file formats.', Type.Object({

@@ -167,6 +167,30 @@ describe('WorkerRuntime', () => {
       .toBe(true)
   })
 
+  it('exposes bounded search and discovery tools to the model', async () => {
+    const host = new FakeHost()
+    const runtime = new WorkerRuntime(host)
+    await initialize(host, runtime)
+
+    const before = host.received.length
+    host.send({
+      type: 'session.prompt',
+      requestId: 'host:prompt-tool-schema',
+      sessionId: 'session-1',
+      text: 'Search the workspace',
+    })
+    await viWait(() => host.received.slice(before).some(
+      (message) => message.type === 'run.status' && message.status === 'idle',
+    ))
+
+    const start = host.received.find((message) => message.type === 'model.start')
+    const serializedContext = JSON.stringify(start?.context)
+    expect(serializedContext).toEqual(expect.stringContaining('find_files'))
+    expect(serializedContext).toEqual(expect.stringContaining('search_files'))
+    expect(serializedContext).toEqual(expect.stringContaining('literal'))
+    expect(serializedContext).toEqual(expect.stringContaining('maxEntries'))
+  })
+
   it('executes file tools through the Host and continues the model loop', async () => {
     const host = new FakeHost('tools')
     const runtime = new WorkerRuntime(host)
