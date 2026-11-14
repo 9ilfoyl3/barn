@@ -14,11 +14,19 @@ export function nativeCopy(locale: NativeLocale) {
     ? {
         attachFiles: '添加文件',
         chooseFolder: '选择要监听的文件夹',
+        openBarn: '打开 Barn',
+        needsYou: '需要你',
+        launchAtLogin: '登录时启动',
+        quitBarn: '退出 Barn',
         noActiveWindow: '没有活动窗口',
       }
     : {
         attachFiles: 'Attach files',
         chooseFolder: 'Choose a folder to watch',
+        openBarn: 'Open Barn',
+        needsYou: 'Needs you',
+        launchAtLogin: 'Launch at login',
+        quitBarn: 'Quit Barn',
         noActiveWindow: 'No active window',
       }
 }

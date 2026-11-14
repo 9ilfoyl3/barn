@@ -181,6 +181,8 @@ export function App() {
     return window.barn.sessions.onEvent(handleLiveEvent)
   }, [])
 
+  useEffect(() => window.barn.lifecycle.onShowTasks(() => setView('tasks')), [])
+
   useEffect(() => {
     const element = listRef.current
     if (element !== null) element.scrollTop = element.scrollHeight

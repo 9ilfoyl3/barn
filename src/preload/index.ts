@@ -22,6 +22,7 @@ import type {
   PermissionPolicy,
   PermissionRequestInput,
   LocalSourceBridge,
+  LifecycleBridge,
   CreateLocalSourceInput,
   ThemeBridge,
   ThemeState,
@@ -91,6 +92,14 @@ const localSources: LocalSourceBridge = {
   pollNow: () => ipcRenderer.invoke('local-sources:poll-now'),
 }
 
+const lifecycle: LifecycleBridge = {
+  onShowTasks: (listener: () => void) => {
+    const handler = (): void => listener()
+    ipcRenderer.on('runtime:show-tasks', handler)
+    return () => ipcRenderer.removeListener('runtime:show-tasks', handler)
+  },
+}
+
 const theme: ThemeBridge = {
   getState: () => ipcRenderer.invoke('runtime:theme-state') as Promise<ThemeState>,
   onChange: (listener: (state: ThemeState) => void) => {
@@ -115,5 +124,6 @@ const api: BarnBridge = {
   permissions,
   approvals,
   localSources,
+  lifecycle,
 }
 contextBridge.exposeInMainWorld('barn', api)
