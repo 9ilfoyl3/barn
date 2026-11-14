@@ -62,6 +62,23 @@ export function TaskCenter({ tasks, loading, error, onOpenSession, onError }: Ta
     }
   }
 
+  async function resolveApproval(task: Task, decision: 'approved' | 'denied'): Promise<void> {
+    if (task.approvalId === undefined) {
+      await updateStatus(task, decision === 'approved' ? 'queued' : 'cancelled')
+      return
+    }
+    setBusyTaskId(task.id)
+    onError(undefined)
+    try {
+      await window.barn.approvals.resolve(task.approvalId, decision)
+      if (decision === 'denied') setEditingTaskId(undefined)
+    } catch (reason) {
+      onError(errorMessage(reason))
+    } finally {
+      setBusyTaskId(undefined)
+    }
+  }
+
   function editInstructions(task: Task): void {
     setEditingTaskId(task.id)
     setDraftPrompt(task.prompt ?? '')
@@ -132,6 +149,7 @@ export function TaskCenter({ tasks, loading, error, onOpenSession, onError }: Ta
         }}
         onSave={saveInstructions}
         onStatus={updateStatus}
+        onResolveApproval={resolveApproval}
         onOpenSession={onOpenSession}
       />
       <TaskGroup
@@ -148,6 +166,7 @@ export function TaskCenter({ tasks, loading, error, onOpenSession, onError }: Ta
         onCancelEdit={() => setEditingTaskId(undefined)}
         onSave={saveInstructions}
         onStatus={updateStatus}
+        onResolveApproval={resolveApproval}
         onOpenSession={onOpenSession}
       />
       <TaskGroup
@@ -164,6 +183,7 @@ export function TaskCenter({ tasks, loading, error, onOpenSession, onError }: Ta
         onCancelEdit={() => setEditingTaskId(undefined)}
         onSave={saveInstructions}
         onStatus={updateStatus}
+        onResolveApproval={resolveApproval}
         onOpenSession={onOpenSession}
       />
     </section>
@@ -184,6 +204,7 @@ interface TaskGroupProps {
   onCancelEdit(): void
   onSave(task: Task): Promise<void>
   onStatus(task: Task, status: TaskStatus): Promise<void>
+  onResolveApproval(task: Task, decision: 'approved' | 'denied'): Promise<void>
   onOpenSession(sessionId: string): void
 }
 
@@ -216,6 +237,7 @@ function TaskRow({
   onCancelEdit,
   onSave,
   onStatus,
+  onResolveApproval,
   onOpenSession,
 }: TaskGroupProps & { task: Task }) {
   const { t } = useTranslation()
@@ -247,7 +269,7 @@ function TaskRow({
           </button>
         )}
         {task.status === 'waiting' && task.waitingReason === 'approval' && (
-          <button type="button" className="task-action primary" disabled={busy} onClick={() => void onStatus(task, 'queued')}>
+          <button type="button" className="task-action primary" disabled={busy} onClick={() => void onResolveApproval(task, 'approved')}>
             {t('tasks.approve')}
           </button>
         )}
@@ -262,7 +284,7 @@ function TaskRow({
           </button>
         )}
         {(task.status === 'proposed' || task.status === 'waiting' || task.status === 'failed') && (
-          <button type="button" className="task-action quiet" disabled={busy} onClick={() => void onStatus(task, 'cancelled')}>
+          <button type="button" className="task-action quiet" disabled={busy} onClick={() => void (task.approvalId === undefined ? onStatus(task, 'cancelled') : onResolveApproval(task, 'denied'))}>
             {t('tasks.dismiss')}
           </button>
         )}

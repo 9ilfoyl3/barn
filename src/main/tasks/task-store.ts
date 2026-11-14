@@ -31,6 +31,7 @@ interface TaskRow {
   status: string
   origin: string
   session_id: string | null
+  approval_id: string | null
   prompt_ciphertext: Uint8Array | null
   prompt_nonce: Uint8Array | null
   prompt_tag: Uint8Array | null
@@ -57,6 +58,7 @@ export class TaskStore {
         status TEXT NOT NULL,
         origin TEXT NOT NULL,
         session_id TEXT REFERENCES sessions(id) ON DELETE SET NULL,
+        approval_id TEXT,
         prompt_ciphertext BLOB,
         prompt_nonce BLOB,
         prompt_tag BLOB,
@@ -73,7 +75,7 @@ export class TaskStore {
       CREATE INDEX IF NOT EXISTS tasks_session
         ON tasks(session_id);
     `)
-    this.ensurePromptColumns()
+    this.ensureOptionalColumns()
   }
 
   create(input: CreateTaskInput, taskId: string = randomUUID()): Task {
@@ -102,10 +104,10 @@ export class TaskStore {
       : this.cipher.encrypt(task.prompt, promptAssociatedData(task.id))
     this.database.prepare(`
       INSERT INTO tasks (
-        id, title, status, origin, session_id,
+        id, title, status, origin, session_id, approval_id,
         prompt_ciphertext, prompt_nonce, prompt_tag,
         waiting_reason, detail, created_at, updated_at, started_at, finished_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, ?, ?, NULL, NULL)
+      ) VALUES (?, ?, ?, ?, ?, NULL, ?, ?, ?, NULL, NULL, ?, ?, NULL, NULL)
     `).run(
       task.id,
       task.title,
@@ -163,6 +165,7 @@ export class TaskStore {
 
     const now = new Date().toISOString()
     const waitingReason = update.status === 'waiting' ? update.waitingReason ?? null : null
+    const approvalId = update.status === 'waiting' ? current.approvalId ?? null : null
     const detail = update.detail === undefined ? current.detail ?? null : normalizeDetail(update.detail)
     const startedAt = update.status === 'running'
       ? current.startedAt ?? now
@@ -173,9 +176,23 @@ export class TaskStore {
 
     this.database.prepare(`
       UPDATE tasks
-      SET status = ?, waiting_reason = ?, detail = ?, updated_at = ?, started_at = ?, finished_at = ?
+      SET status = ?, approval_id = ?, waiting_reason = ?, detail = ?, updated_at = ?, started_at = ?, finished_at = ?
       WHERE id = ?
-    `).run(update.status, waitingReason, detail, now, startedAt, finishedAt, taskId)
+    `).run(update.status, approvalId, waitingReason, detail, now, startedAt, finishedAt, taskId)
+    return this.get(taskId)
+  }
+
+  requestApproval(taskId: string, approvalId: string, detail: string): Task {
+    const task = this.get(taskId)
+    if (!['proposed', 'queued', 'running', 'waiting', 'failed'].includes(task.status)) {
+      throw new Error(`Task cannot request approval while it is ${task.status}`)
+    }
+    const now = new Date().toISOString()
+    this.database.prepare(`
+      UPDATE tasks
+      SET status = 'waiting', approval_id = ?, waiting_reason = 'approval', detail = ?, updated_at = ?, finished_at = NULL
+      WHERE id = ?
+    `).run(approvalId, normalizeDetail(detail), now, taskId)
     return this.get(taskId)
   }
 
@@ -226,6 +243,7 @@ export class TaskStore {
       updatedAt: row.updated_at,
     }
     if (row.session_id !== null) task.sessionId = row.session_id
+    if (row.approval_id !== null) task.approvalId = row.approval_id
     if (row.waiting_reason !== null) task.waitingReason = requireWaitingReason(row.waiting_reason)
     if (row.detail !== null) task.detail = row.detail
     if (row.started_at !== null) task.startedAt = row.started_at
@@ -242,11 +260,12 @@ export class TaskStore {
     return task
   }
 
-  /** Add prompt encryption columns to databases created by earlier task-domain versions. */
-  private ensurePromptColumns(): void {
+  /** Add columns introduced after the initial Task schema. */
+  private ensureOptionalColumns(): void {
     const columns = new Set((this.database.prepare('PRAGMA table_info(tasks)').all() as Array<{ name: string }>)
       .map((column) => column.name))
     const additions = [
+      ['approval_id', 'TEXT'],
       ['prompt_ciphertext', 'BLOB'],
       ['prompt_nonce', 'BLOB'],
       ['prompt_tag', 'BLOB'],

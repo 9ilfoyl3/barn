@@ -187,6 +187,86 @@ test('shows needs-you, in-progress, and recent tasks with usable actions', async
   }
 })
 
+
+test('requires durable approval before a task can resume', async () => {
+  const server = await startMockModelServer('Approved task completed.')
+  const address = server.address()
+  if (address === null || typeof address === 'string') throw new Error('Mock server did not bind')
+  const baseUrl = `http://127.0.0.1:${address.port}/v1`
+  const userData = await mkdtemp(join(tmpdir(), 'barn-desktop-approval-e2e-'))
+  const inheritedEnv = Object.fromEntries(
+    Object.entries(process.env).filter((entry): entry is [string, string] => entry[1] !== undefined),
+  )
+  const app = await electron.launch({
+    args: ['.'],
+    env: {
+      ...inheritedEnv,
+      ELECTRON_DISABLE_SECURITY_WARNINGS: 'true',
+      BARN_USER_DATA_DIR: userData,
+      BARN_UI_LANGUAGE: 'en',
+    },
+  })
+
+  try {
+    const page = await app.firstWindow()
+    await page.waitForLoadState('domcontentloaded')
+    await page.evaluate(async (url) => {
+      await window.barn.models.saveCustomProvider({
+        id: 'approval-provider',
+        name: 'Approval Provider',
+        baseUrl: url,
+        api: 'openai-completions',
+        models: [{
+          id: 'approval-model',
+          name: 'Approval Model',
+          contextWindow: 128_000,
+          maxTokens: 8_000,
+          reasoning: false,
+          reasoningEfforts: [],
+          input: ['text'],
+        }],
+      })
+      await window.barn.models.saveCredential({ providerId: 'approval-provider', apiKey: 'test-key' })
+      await window.barn.models.setDefault({ providerId: 'approval-provider', modelId: 'approval-model' })
+    }, baseUrl)
+
+    const task = await page.evaluate(() => window.barn.tasks.create({
+      title: 'Send the approved draft',
+      origin: 'user',
+      status: 'proposed',
+      prompt: 'Send the prepared draft.',
+    }))
+    const outcome = await page.evaluate((taskId) => window.barn.permissions.request({
+      kind: 'external-write',
+      title: 'Send draft',
+      summary: 'Send the prepared draft externally.',
+      taskId,
+    }), task.id)
+    expect(outcome.decision).toBe('approval_required')
+    if (outcome.decision !== 'approval_required') throw new Error('approval expected')
+    await expect.poll(async () => page.evaluate(
+      (taskId) => window.barn.tasks.get(taskId).then((current) => current.status),
+      task.id,
+    )).toBe('waiting')
+
+    await page.locator('.task-nav-button').click()
+    const row = page.locator('.task-row', { hasText: 'Send the approved draft' })
+    await expect(row).toContainText('Waiting')
+    await expect(row).toContainText('Send the prepared draft externally.')
+    await row.getByRole('button', { name: 'Approve' }).click()
+    await expect(row.locator('.task-status')).toHaveText('Completed', { timeout: 15_000 })
+    const approval = await page.evaluate(
+      (approvalId) => window.barn.approvals.get(approvalId),
+      outcome.approval.id,
+    )
+    expect(approval.status).toBe('approved')
+    expect(approval.resolvedAt).toBeDefined()
+  } finally {
+    await app.close()
+    await new Promise<void>((resolve, reject) => server.close((error) => error === undefined ? resolve() : reject(error)))
+  }
+})
+
 async function startMockModelServer(text: string): Promise<Server> {
   const server = createServer((request, response) => {
     if (request.method !== 'POST' || request.url !== '/v1/chat/completions') {

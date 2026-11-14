@@ -134,6 +134,25 @@ describe('TaskStore', () => {
     store.close()
   })
 
+  it('links a waiting task to a durable approval and clears it when resolved', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'barn-task-store-'))
+    const store = await openStore(directory)
+    const task = store.tasks.create({ title: 'Needs approval', origin: 'user', prompt: 'Send the draft.' })
+
+    const waiting = store.tasks.requestApproval(
+      task.id,
+      '11111111-1111-4111-8111-111111111111',
+      'Send the prepared draft.',
+    )
+    expect(waiting).toMatchObject({
+      status: 'waiting',
+      waitingReason: 'approval',
+      approvalId: '11111111-1111-4111-8111-111111111111',
+    })
+    expect(store.tasks.updateStatus(task.id, { status: 'queued' }).approvalId).toBeUndefined()
+    store.close()
+  })
+
   it('updates instructions before a task runs and rejects edits during execution', async () => {
     const directory = await mkdtemp(join(tmpdir(), 'barn-task-store-'))
     const store = await openStore(directory)
