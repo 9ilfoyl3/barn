@@ -27,6 +27,11 @@ jobs:
       - run: pnpm install --registry=https://registry.npmjs.org --frozen-lockfile
       - run: pnpm docs:check
       - run: pnpm lint
+      - run: pnpm security:check
       - run: pnpm typecheck
       - run: pnpm test
       - run: pnpm ${{ matrix.package }}
+      - name: Locate packaged executable
+        shell: bash
+        run: echo "BARN_PACKAGED_EXECUTABLE=$(find release -type f \( -name Barn -o -name Barn.exe \) | head -n 1)" >> "$GITHUB_ENV"
+      - run: pnpm exec playwright test tests/e2e/packaged.spec.ts

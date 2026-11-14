@@ -19,6 +19,7 @@ test('packaged Desktop starts and loads the workspace', async () => {
       ...inheritedEnv,
       ELECTRON_DISABLE_SECURITY_WARNINGS: 'true',
       BARN_USER_DATA_DIR: userData,
+      BARN_UI_LANGUAGE: 'en',
     },
   })
 

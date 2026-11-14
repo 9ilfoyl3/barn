@@ -11,6 +11,8 @@ import { LocalSourceStore } from '../sources/local-source-store'
 
 export type SessionStatus = SessionSummary['status']
 
+export const CURRENT_SCHEMA_VERSION = 1
+
 export interface NewSessionEvent {
   type: string
   data: unknown
@@ -50,6 +52,18 @@ export class SessionStore {
       PRAGMA foreign_keys = ON;
       PRAGMA busy_timeout = 5000;
 
+      CREATE TABLE IF NOT EXISTS schema_meta (
+        id INTEGER PRIMARY KEY CHECK (id = 1),
+        version INTEGER NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS maintenance_settings (
+        id INTEGER PRIMARY KEY CHECK (id = 1),
+        retention_days INTEGER NOT NULL,
+        last_run_at TEXT
+      );
+
       CREATE TABLE IF NOT EXISTS sessions (
         id TEXT PRIMARY KEY,
         title TEXT NOT NULL,
@@ -72,11 +86,96 @@ export class SessionStore {
         PRIMARY KEY (session_id, seq)
       );
     `)
+    const current = this.database.prepare('SELECT version FROM schema_meta WHERE id = 1').get() as { version: number } | undefined
+    if (current !== undefined && current.version > CURRENT_SCHEMA_VERSION) {
+      throw new Error(`Database schema ${current.version} is newer than this app supports (${CURRENT_SCHEMA_VERSION})`)
+    }
     this.tasks.initialize()
     this.permissions.initialize()
     this.actions.initialize()
     this.localSources.initialize()
+    this.database.prepare(`
+      INSERT INTO schema_meta (id, version, updated_at) VALUES (1, ?, ?)
+      ON CONFLICT(id) DO UPDATE SET version = excluded.version, updated_at = excluded.updated_at
+    `).run(CURRENT_SCHEMA_VERSION, new Date().toISOString())
+    this.database.prepare(`
+      INSERT OR IGNORE INTO maintenance_settings (id, retention_days, last_run_at)
+      VALUES (1, 365, NULL)
+    `).run()
     this.pruneEmptySessions()
+  }
+
+  schemaVersion(): number {
+    const row = this.database.prepare('SELECT version FROM schema_meta WHERE id = 1').get() as { version: number } | undefined
+    return row?.version ?? 0
+  }
+
+  getRetentionDays(): number {
+    const row = this.database.prepare('SELECT retention_days FROM maintenance_settings WHERE id = 1')
+      .get() as { retention_days: number } | undefined
+    return row?.retention_days ?? 365
+  }
+
+  setRetentionDays(days: number): number {
+    if (!Number.isInteger(days) || days < 30 || days > 3_650) {
+      throw new Error('Retention must be between 30 and 3,650 days')
+    }
+    this.database.prepare('UPDATE maintenance_settings SET retention_days = ? WHERE id = 1').run(days)
+    return days
+  }
+
+  lastMaintenanceAt(): string | undefined {
+    const row = this.database.prepare('SELECT last_run_at FROM maintenance_settings WHERE id = 1')
+      .get() as { last_run_at: string | null } | undefined
+    return row?.last_run_at ?? undefined
+  }
+
+  runRetention(now = new Date()): { cutoff: string; actionEvents: number; sourceEvents: number; approvals: number } {
+    const cutoff = new Date(now.getTime() - this.getRetentionDays() * 24 * 60 * 60 * 1_000).toISOString()
+    this.database.exec('BEGIN IMMEDIATE')
+    try {
+      const actionEvents = Number(this.database.prepare(`
+        DELETE FROM action_events
+        WHERE action_id IN (
+          SELECT id FROM actions
+          WHERE status IN ('succeeded', 'failed', 'cancelled')
+            AND completed_at IS NOT NULL AND completed_at < ?
+        )
+      `).run(cutoff).changes)
+      const sourceEvents = Number(this.database.prepare(`
+        DELETE FROM local_source_events WHERE created_at < ? AND task_id IS NULL
+      `).run(cutoff).changes)
+      const approvals = Number(this.database.prepare(`
+        DELETE FROM approvals
+        WHERE status IN ('approved', 'denied')
+          AND resolved_at IS NOT NULL AND resolved_at < ?
+          AND id NOT IN (SELECT approval_id FROM actions WHERE approval_id IS NOT NULL)
+      `).run(cutoff).changes)
+      this.database.prepare('UPDATE maintenance_settings SET last_run_at = ? WHERE id = 1')
+        .run(now.toISOString())
+      this.database.exec('COMMIT')
+      return { cutoff, actionEvents, sourceEvents, approvals }
+    } catch (error) {
+      this.database.exec('ROLLBACK')
+      throw error
+    }
+  }
+
+  diagnosticsCounts(): {
+    sessions: number
+    tasks: number
+    approvalsPending: number
+    actionsActive: number
+    localSources: number
+  } {
+    const count = (sql: string): number => Number((this.database.prepare(sql).get() as { count: number }).count)
+    return {
+      sessions: count('SELECT COUNT(*) AS count FROM sessions'),
+      tasks: count('SELECT COUNT(*) AS count FROM tasks'),
+      approvalsPending: count(`SELECT COUNT(*) AS count FROM approvals WHERE status = 'pending'`),
+      actionsActive: count(`SELECT COUNT(*) AS count FROM actions WHERE status IN ('pending_approval', 'queued', 'running')`),
+      localSources: count('SELECT COUNT(*) AS count FROM local_sources'),
+    }
   }
 
   createSession(title = 'New session', sessionId: string = randomUUID()): SessionSummary {

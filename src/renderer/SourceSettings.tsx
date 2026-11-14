@@ -157,7 +157,7 @@ export function SourceSettings({ onClose }: { onClose(): void }) {
       >
         <header className="settings-header">
           <div>
-            <span>{t('sourceSettings.kicker')}</span>
+            <span className="source-settings-kicker">{t('sourceSettings.kicker')}</span>
             <h2>{t('sourceSettings.title')}</h2>
           </div>
           <TooltipButton className="icon-button" label={t('sourceSettings.close')} onClick={onClose}>

@@ -9,6 +9,8 @@ import { loadOrCreateDeviceDataKey } from './session/device-data-key'
 import { AesGcmEventCipher } from './session/event-cipher'
 import { registerSessionIpc } from './session/session-ipc'
 import { ActionService } from './actions/action-service'
+import { registerDiagnosticsIpc } from './diagnostics/diagnostics-ipc'
+import { DiagnosticsService } from './diagnostics/diagnostics-service'
 import { registerPermissionIpc } from './permissions/permission-ipc'
 import { registerLocalSourceIpc } from './sources/local-source-ipc'
 import { LocalSourceService } from './sources/local-source-service'
@@ -23,6 +25,7 @@ import { AgentService } from './worker/agent-service'
 import { createElectronWorkerTransport } from './worker/electron-worker-transport'
 import { WorkerSupervisor } from './worker/worker-supervisor'
 import { nativeLocale } from './platform/native-locale'
+import { getRuntimeCapabilities } from './platform/runtime-capabilities'
 import { AlwaysOnLifecycle } from './lifecycle/always-on-lifecycle'
 
 if (process.env.BARN_USER_DATA_DIR !== undefined) {
@@ -42,6 +45,8 @@ let permissionService: PermissionService | undefined
 let actionService: ActionService | undefined
 let localSourceService: LocalSourceService | undefined
 let lifecycle: AlwaysOnLifecycle | undefined
+let diagnosticsService: DiagnosticsService | undefined
+let maintenanceTimer: NodeJS.Timeout | undefined
 let isQuitting = false
 const shellService = new ShellService()
 
@@ -184,6 +189,16 @@ void app.whenReady().then(async () => {
   registerTaskIpc(taskService, trustedSender)
   registerPermissionIpc(permissionService, trustedSender)
   registerLocalSourceIpc(localSourceService, trustedSender)
+  diagnosticsService = new DiagnosticsService(
+    sessionStore,
+    localSourceService,
+    userData,
+    () => getRuntimeCapabilities(shellService),
+  )
+  registerDiagnosticsIpc(diagnosticsService, trustedSender)
+  sessionStore.runRetention()
+  maintenanceTimer = setInterval(() => sessionStore?.runRetention(), 24 * 60 * 60 * 1_000)
+  maintenanceTimer.unref()
   registerRuntimeIpc(shellService, trustedSender, () => nativeLocale())
   await createWindow()
   lifecycle = new AlwaysOnLifecycle({
@@ -217,6 +232,9 @@ app.on('before-quit', () => {
   actionService = undefined
   localSourceService?.stop()
   localSourceService = undefined
+  diagnosticsService = undefined
+  if (maintenanceTimer !== undefined) clearInterval(maintenanceTimer)
+  maintenanceTimer = undefined
   void agentService?.stop()
   agentService = undefined
   sessionStore?.close()

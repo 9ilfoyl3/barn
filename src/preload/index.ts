@@ -23,6 +23,7 @@ import type {
   PermissionRequestInput,
   LocalSourceBridge,
   LifecycleBridge,
+  DiagnosticsBridge,
   CreateLocalSourceInput,
   ThemeBridge,
   ThemeState,
@@ -100,6 +101,12 @@ const lifecycle: LifecycleBridge = {
   },
 }
 
+const diagnostics: DiagnosticsBridge = {
+  get: () => ipcRenderer.invoke('diagnostics:get'),
+  setRetentionDays: (days: number) => ipcRenderer.invoke('diagnostics:set-retention', days),
+  runMaintenance: () => ipcRenderer.invoke('diagnostics:run-maintenance'),
+}
+
 const theme: ThemeBridge = {
   getState: () => ipcRenderer.invoke('runtime:theme-state') as Promise<ThemeState>,
   onChange: (listener: (state: ThemeState) => void) => {
@@ -125,5 +132,6 @@ const api: BarnBridge = {
   approvals,
   localSources,
   lifecycle,
+  diagnostics,
 }
 contextBridge.exposeInMainWorld('barn', api)

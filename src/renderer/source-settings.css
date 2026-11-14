@@ -1,6 +1,14 @@
 /* Hallmark · page: Barn Desktop source settings · genre: modern-minimal · theme: barn-native · redesign: extend · scope: component · built: the project */
 /* Hallmark · pre-emit critique: P5 H4 E5 S5 R5 V3 · weakest: V, the existing settings shell is intentionally retained */
 
+.source-settings-kicker {
+  color: var(--text-faint);
+  font-family: inherit;
+  font-size: 10px;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
 .source-settings-panel {
   width: min(760px, calc(100% - 20px));
 }

@@ -3,6 +3,33 @@
   "shape": "app screen",
   "theme": "barn-native",
   "axes": [
+   "local health",
+   "bounded retention",
+   "existing settings panel"
+  ],
+  "hero": "none",
+  "nav": "existing account menu",
+  "footer": "existing workspace footer",
+  "imagery": "none",
+  "photos": [],
+  "entry": "Diagnostics settings",
+  "fingerprint": "barn-diagnostics-2026-11-14",
+  "sections": [
+   "runtime summary",
+   "health counts",
+   "retention",
+   "cleanup"
+  ],
+  "signature": "quiet operational health inside the existing Barn modal system",
+  "waived": [],
+  "prompt": "Add local diagnostics and retention controls without changing the Barn visual system",
+  "date": "2026-11-14",
+  "mode": "build"
+ },
+ {
+  "shape": "app screen",
+  "theme": "barn-native",
+  "axes": [
    "observe-first",
    "attention budget",
    "existing settings panel"
