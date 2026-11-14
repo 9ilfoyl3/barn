@@ -32,6 +32,15 @@ test('shows diagnostics and runs local maintenance', async () => {
     await expect(dialog.getByText('Retention setting saved.')).toBeVisible()
     await dialog.getByRole('button', { name: 'Run cleanup' }).click()
     await expect(dialog.getByText(/Cleanup removed/)).toBeVisible()
+
+    await expect(dialog.getByRole('heading', { name: 'Agent memory' })).toBeVisible()
+    await expect(dialog.getByText('No memories yet.')).toBeVisible()
+    const memorySwitch = dialog.getByRole('switch', { name: /Enable agent memory/ })
+    await expect(memorySwitch).not.toBeChecked()
+    await memorySwitch.check()
+    await dialog.getByRole('button', { name: 'Save memory settings' }).click()
+    await expect(dialog.getByText('Memory settings saved.')).toBeVisible()
+    await expect.poll(() => page.evaluate(async () => (await window.barn.memory.getSettings()).enabled)).toBe(true)
     await page.screenshot({ path: 'test-results/barn-diagnostics.png', fullPage: true })
   } finally {
     await app.close()
