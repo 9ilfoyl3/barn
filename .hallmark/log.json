@@ -1,0 +1,29 @@
+[
+ {
+  "shape": "app screen",
+  "theme": "barn-native",
+  "axes": [
+   "attention-first",
+   "flat rows",
+   "existing shell"
+  ],
+  "hero": "none",
+  "nav": "existing sidebar with Needs you destination",
+  "footer": "existing workspace footer",
+  "imagery": "none",
+  "photos": [],
+  "entry": "Needs you task center",
+  "fingerprint": "barn-task-center-2026-11-14",
+  "sections": [
+   "summary",
+   "needs you",
+   "in progress",
+   "recent"
+  ],
+  "signature": "flat attention inbox inside the existing Barn workspace",
+  "waived": [],
+  "prompt": "Add a Needs you task center without changing the Barn visual system",
+  "date": "2026-11-14",
+  "mode": "build"
+ }
+]

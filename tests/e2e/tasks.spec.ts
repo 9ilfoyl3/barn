@@ -92,6 +92,101 @@ test('runs queued tasks in the background and preserves their Session transcript
   }
 })
 
+test('shows needs-you, in-progress, and recent tasks with usable actions', async () => {
+  const server = await startMockModelServer('Task finished from the inbox.')
+  const address = server.address()
+  if (address === null || typeof address === 'string') throw new Error('Mock server did not bind')
+  const baseUrl = `http://127.0.0.1:${address.port}/v1`
+  const userData = await mkdtemp(join(tmpdir(), 'barn-desktop-task-center-e2e-'))
+  const inheritedEnv = Object.fromEntries(
+    Object.entries(process.env).filter((entry): entry is [string, string] => entry[1] !== undefined),
+  )
+  const app = await electron.launch({
+    args: ['.'],
+    env: {
+      ...inheritedEnv,
+      ELECTRON_DISABLE_SECURITY_WARNINGS: 'true',
+      BARN_USER_DATA_DIR: userData,
+      BARN_UI_LANGUAGE: 'en',
+    },
+  })
+
+  try {
+    const page = await app.firstWindow()
+    await page.waitForLoadState('domcontentloaded')
+    await page.evaluate(async (url) => {
+      await window.barn.models.saveCustomProvider({
+        id: 'task-center-provider',
+        name: 'Task Center Provider',
+        baseUrl: url,
+        api: 'openai-completions',
+        models: [{
+          id: 'task-center-model',
+          name: 'Task Center Model',
+          contextWindow: 128_000,
+          maxTokens: 8_000,
+          reasoning: false,
+          reasoningEfforts: [],
+          input: ['text'],
+        }],
+      })
+      await window.barn.models.saveCredential({ providerId: 'task-center-provider', apiKey: 'test-key' })
+      await window.barn.models.setDefault({ providerId: 'task-center-provider', modelId: 'task-center-model' })
+    }, baseUrl)
+
+    const proposed = await page.evaluate(() => window.barn.tasks.create({
+      title: 'Review a suggested cleanup',
+      origin: 'automation',
+      status: 'proposed',
+    }))
+    const waiting = await page.evaluate(() => window.barn.tasks.create({
+      title: 'Needs instructions',
+      origin: 'user',
+    }))
+    const completed = await page.evaluate(() => window.barn.tasks.create({
+      title: 'Finished background report',
+      origin: 'user',
+      prompt: 'Prepare the report.',
+    }))
+    await expect.poll(async () => page.evaluate(
+      (taskId) => window.barn.tasks.get(taskId).then((task) => task.status),
+      waiting.id,
+    )).toBe('waiting')
+    await expect.poll(async () => page.evaluate(
+      (taskId) => window.barn.tasks.get(taskId).then((task) => task.status),
+      completed.id,
+    ), { timeout: 15_000 }).toBe('completed')
+    await expect.poll(async () => page.evaluate(
+      (taskId) => window.barn.tasks.get(taskId).then((task) => task.status),
+      proposed.id,
+    )).toBe('proposed')
+
+    await page.locator('.task-nav-button').click()
+    await expect(page.getByRole('heading', { name: 'Needs you', level: 1 })).toBeVisible()
+    await expect(page.locator('.task-nav-count')).toHaveText('2')
+    await expect(page.getByRole('heading', { name: 'Needs you', level: 2 })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Recent', level: 2 })).toBeVisible()
+    await expect(page.getByText('2 tasks need you.')).toBeVisible()
+    await page.screenshot({ path: 'test-results/barn-task-center.png', fullPage: true })
+
+    const proposedRow = page.locator('.task-row', { hasText: 'Review a suggested cleanup' })
+    await proposedRow.getByRole('button', { name: 'Add instructions' }).click()
+    const editor = proposedRow.getByRole('textbox', { name: 'Task instructions' })
+    await expect(editor).toBeFocused()
+    await editor.fill('Review the files and remove only exact duplicates.')
+    await proposedRow.getByRole('button', { name: 'Save and run' }).click()
+    await expect(proposedRow.locator('.task-status')).toHaveText('Completed', { timeout: 15_000 })
+
+    const completedRow = page.locator('.task-row', { hasText: 'Finished background report' })
+    await completedRow.getByRole('button', { name: 'Open' }).click()
+    await expect(page.getByRole('heading', { name: 'Finished background report', level: 1 })).toBeVisible()
+    await expect(page.getByText('Task finished from the inbox.').last()).toBeVisible()
+  } finally {
+    await app.close()
+    await new Promise<void>((resolve, reject) => server.close((error) => error === undefined ? resolve() : reject(error)))
+  }
+})
+
 async function startMockModelServer(text: string): Promise<Server> {
   const server = createServer((request, response) => {
     if (request.method !== 'POST' || request.url !== '/v1/chat/completions') {

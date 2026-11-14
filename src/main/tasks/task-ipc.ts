@@ -18,6 +18,10 @@ const updateTaskSchema = z.object({
     detail: z.string().max(2_000).optional(),
   }).strict(),
 }).strict()
+const updatePromptSchema = z.object({
+  taskId: taskIdSchema,
+  prompt: z.string().trim().min(1).max(2_000_000),
+}).strict()
 const assignSessionSchema = z.object({
   taskId: taskIdSchema,
   sessionId: z.string().uuid().nullable(),
@@ -57,6 +61,12 @@ export function registerTaskIpc(
       ...(parsed.update.waitingReason === undefined ? {} : { waitingReason: parsed.update.waitingReason }),
       ...(parsed.update.detail === undefined ? {} : { detail: parsed.update.detail }),
     })
+  })
+
+  ipcMain.handle('tasks:update-prompt', (event, input: unknown) => {
+    requireTrusted(event, isTrustedSender)
+    const parsed = updatePromptSchema.parse(input)
+    return tasks.updatePrompt(parsed.taskId, parsed.prompt)
   })
 
   ipcMain.handle('tasks:assign-session', (event, input: unknown) => {

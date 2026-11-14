@@ -1,5 +1,5 @@
-/* Hallmark · page: Barn Desktop effort picker · genre: modern-minimal · theme: barn-native · redesign: polish · scope: component · built: the project */
-/* Hallmark · pre-emit critique: P4 H4 E4 S4 R4 V3 · weakest: V, component inherits Barn's existing visual system */
+/* Hallmark · page: Barn Desktop workspace · genre: modern-minimal · theme: barn-native · redesign: extend · scope: app · built: the project */
+/* Hallmark · pre-emit critique: P5 H4 E5 S5 R5 V3 · weakest: V, the existing Barn visual system is intentionally preserved */
 
 :root {
   color-scheme: light dark;
@@ -99,7 +99,8 @@ body,
   width: 100%;
   height: 100%;
   margin: 0;
-  overflow: hidden;
+  overflow-x: clip;
+  overflow-y: hidden;
 }
 
 body {
