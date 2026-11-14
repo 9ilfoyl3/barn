@@ -111,23 +111,16 @@
   mask-image: linear-gradient(to bottom, var(--text) 70%, transparent 100%);
 }
 
-.attachment-text-preview-pdf {
-  border-top: 3px solid var(--danger);
-}
-
 .attachment-text-preview-document {
-  border-top: 3px solid var(--accent);
   font-family: var(--attachment-body-font);
   font-size: 7px;
 }
 
 .attachment-text-preview-presentation {
-  border-top: 3px solid var(--warning);
   background: color-mix(in srgb, var(--warning) 7%, var(--panel));
 }
 
 .attachment-text-preview-spreadsheet {
-  border-top: 3px solid var(--green);
   background-image:
     linear-gradient(to right, color-mix(in srgb, var(--line) 80%, transparent) 1px, transparent 1px),
     linear-gradient(to bottom, color-mix(in srgb, var(--line) 80%, transparent) 1px, transparent 1px);
