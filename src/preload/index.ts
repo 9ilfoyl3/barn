@@ -21,6 +21,8 @@ import type {
   PermissionBridge,
   PermissionPolicy,
   PermissionRequestInput,
+  LocalSourceBridge,
+  CreateLocalSourceInput,
   ThemeBridge,
   ThemeState,
   SetDefaultModelInput,
@@ -78,6 +80,15 @@ const approvals: ApprovalBridge = {
   resolve: (approvalId: string, decision: 'approved' | 'denied') => ipcRenderer.invoke('approvals:resolve', { approvalId, decision }),
 }
 
+const localSources: LocalSourceBridge = {
+  list: () => ipcRenderer.invoke('local-sources:list'),
+  create: (input: CreateLocalSourceInput) => ipcRenderer.invoke('local-sources:create', input),
+  setEnabled: (sourceId: string, enabled: boolean) => ipcRenderer.invoke('local-sources:set-enabled', { sourceId, enabled }),
+  remove: (sourceId: string) => ipcRenderer.invoke('local-sources:remove', sourceId),
+  chooseDirectory: () => ipcRenderer.invoke('local-sources:choose-directory') as Promise<string | undefined>,
+  pollNow: () => ipcRenderer.invoke('local-sources:poll-now'),
+}
+
 const theme: ThemeBridge = {
   getState: () => ipcRenderer.invoke('runtime:theme-state') as Promise<ThemeState>,
   onChange: (listener: (state: ThemeState) => void) => {
@@ -101,5 +112,6 @@ const api: BarnBridge = {
   tasks,
   permissions,
   approvals,
+  localSources,
 }
 contextBridge.exposeInMainWorld('barn', api)

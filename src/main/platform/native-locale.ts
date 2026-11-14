@@ -13,10 +13,12 @@ export function nativeCopy(locale: NativeLocale) {
   return locale === 'zh-CN'
     ? {
         attachFiles: '添加文件',
+        chooseFolder: '选择要监听的文件夹',
         noActiveWindow: '没有活动窗口',
       }
     : {
         attachFiles: 'Attach files',
+        chooseFolder: 'Choose a folder to watch',
         noActiveWindow: 'No active window',
       }
 }

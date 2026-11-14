@@ -3,6 +3,33 @@
   "shape": "app screen",
   "theme": "barn-native",
   "axes": [
+   "flat source rows",
+   "existing settings panel",
+   "observe-first copy"
+  ],
+  "hero": "none",
+  "nav": "existing account menu",
+  "footer": "existing workspace footer",
+  "imagery": "none",
+  "photos": [],
+  "entry": "Local sources settings",
+  "fingerprint": "barn-local-sources-2026-11-14",
+  "sections": [
+   "intro",
+   "source list",
+   "source actions",
+   "add source form"
+  ],
+  "signature": "quiet local automation settings inside the existing Barn modal system",
+  "waived": [],
+  "prompt": "Add configurable local folder and schedule sources without changing the Barn visual system",
+  "date": "2026-11-14",
+  "mode": "build"
+ },
+ {
+  "shape": "app screen",
+  "theme": "barn-native",
+  "axes": [
    "attention-first",
    "flat rows",
    "existing shell"
