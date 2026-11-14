@@ -387,6 +387,10 @@ export interface ThemeState {
   shouldUseDarkColors: boolean
 }
 
+export interface LifecycleBridge {
+  onShowTasks(listener: () => void): () => void
+}
+
 export interface ThemeBridge {
   getState(): Promise<ThemeState>
   onChange(listener: (state: ThemeState) => void): () => void
@@ -409,4 +413,5 @@ export interface BarnBridge {
   permissions: PermissionBridge
   approvals: ApprovalBridge
   localSources: LocalSourceBridge
+  lifecycle: LifecycleBridge
 }

@@ -61,6 +61,11 @@ export class TaskRunner {
     this.schedule()
   }
 
+  /** Nudge the runner after wake, network recovery, or an external lifecycle event. */
+  kick(): void {
+    this.schedule()
+  }
+
   stop(): void {
     this.started = false
     if (this.scheduled !== undefined) {

@@ -1,6 +1,6 @@
 import { mkdir } from 'node:fs/promises'
 import { join } from 'node:path'
-import { app, BrowserWindow, nativeTheme, shell, type IpcMainInvokeEvent } from 'electron'
+import { app, BrowserWindow, nativeTheme, powerMonitor, shell, type IpcMainInvokeEvent } from 'electron'
 import { registerModelIpc } from './ipc'
 import { ModelService } from './models/model-service'
 import { registerRuntimeIpc } from './platform/runtime-ipc'
@@ -23,6 +23,7 @@ import { AgentService } from './worker/agent-service'
 import { createElectronWorkerTransport } from './worker/electron-worker-transport'
 import { WorkerSupervisor } from './worker/worker-supervisor'
 import { nativeLocale } from './platform/native-locale'
+import { AlwaysOnLifecycle } from './lifecycle/always-on-lifecycle'
 
 if (process.env.BARN_USER_DATA_DIR !== undefined) {
   app.setPath('userData', process.env.BARN_USER_DATA_DIR)
@@ -40,6 +41,8 @@ let taskRunner: TaskRunner | undefined
 let permissionService: PermissionService | undefined
 let actionService: ActionService | undefined
 let localSourceService: LocalSourceService | undefined
+let lifecycle: AlwaysOnLifecycle | undefined
+let isQuitting = false
 const shellService = new ShellService()
 
 function windowBackgroundColor(): string {
@@ -47,6 +50,11 @@ function windowBackgroundColor(): string {
 }
 
 async function createWindow(): Promise<void> {
+  if (mainWindow !== undefined && !mainWindow.isDestroyed()) {
+    mainWindow.show()
+    mainWindow.focus()
+    return
+  }
   const window = new BrowserWindow({
     width: 1440,
     height: 900,
@@ -71,6 +79,11 @@ async function createWindow(): Promise<void> {
 
   mainWindow = window
   window.once('ready-to-show', () => window.show())
+  window.on('close', (event) => {
+    if (isQuitting) return
+    event.preventDefault()
+    window.hide()
+  })
   window.on('closed', () => {
     if (mainWindow === window) mainWindow = undefined
   })
@@ -91,6 +104,28 @@ async function createWindow(): Promise<void> {
   } else {
     await window.loadFile(join(__dirname, '../renderer/index.html'))
   }
+}
+
+function showWindow(): void {
+  if (mainWindow === undefined || mainWindow.isDestroyed()) void createWindow()
+  else {
+    if (mainWindow.isMinimized()) mainWindow.restore()
+    mainWindow.show()
+    mainWindow.focus()
+  }
+}
+
+function showTasks(): void {
+  showWindow()
+  const send = (): void => mainWindow?.webContents.send('runtime:show-tasks')
+  if (mainWindow?.webContents.isLoading()) mainWindow.webContents.once('did-finish-load', send)
+  else send()
+}
+
+function resumeWork(): void {
+  taskRunner?.kick()
+  void localSourceService?.pollNow()
+  void actionService?.runDue()
 }
 
 function trustedSender(event: IpcMainInvokeEvent): boolean {
@@ -151,17 +186,29 @@ void app.whenReady().then(async () => {
   registerLocalSourceIpc(localSourceService, trustedSender)
   registerRuntimeIpc(shellService, trustedSender, () => nativeLocale())
   await createWindow()
+  lifecycle = new AlwaysOnLifecycle({
+    showWindow,
+    showTasks,
+    resumeWork,
+    quit: () => {
+      isQuitting = true
+      app.quit()
+    },
+  }, taskService)
+  lifecycle.install()
+  powerMonitor.on('resume', resumeWork)
+  powerMonitor.on('unlock-screen', resumeWork)
 
-  app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) void createWindow()
-  })
+  app.on('activate', showWindow)
 })
 
-app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') app.quit()
-})
+// Barn stays resident for background Tasks. Quit is explicit from the tray or app menu.
+app.on('window-all-closed', () => {})
 
 app.on('before-quit', () => {
+  isQuitting = true
+  lifecycle?.dispose()
+  lifecycle = undefined
   taskRunner?.stop()
   taskRunner = undefined
   taskService = undefined
@@ -176,8 +223,4 @@ app.on('before-quit', () => {
   sessionStore = undefined
 })
 
-app.on('second-instance', () => {
-  if (mainWindow === undefined) return
-  if (mainWindow.isMinimized()) mainWindow.restore()
-  mainWindow.focus()
-})
+app.on('second-instance', showWindow)
