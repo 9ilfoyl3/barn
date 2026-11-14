@@ -145,6 +145,7 @@ export interface Task {
   status: TaskStatus
   origin: TaskOrigin
   sessionId?: string
+  prompt?: string
   waitingReason?: TaskWaitingReason
   detail?: string
   createdAt: string
@@ -158,6 +159,7 @@ export interface CreateTaskInput {
   origin: TaskOrigin
   status?: 'proposed' | 'queued'
   sessionId?: string
+  prompt?: string
 }
 
 export interface TaskStatusUpdate {

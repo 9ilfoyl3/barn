@@ -30,4 +30,4 @@ Task commands are exposed through a typed Task service and IPC bridge. Changes e
 - The Task state machine and IPC inputs are validated at the persistence and process boundaries.
 - Running tasks recover predictably after a crash or app restart.
 - The current database owner is still named `SessionStore`; separating storage ownership is deferred to a dedicated refactor.
-- Task titles and lifecycle metadata are stored as SQLite metadata, while Session event payloads remain encrypted; content encryption for Task metadata remains a future hardening item.
+- Task titles and lifecycle metadata are stored as SQLite metadata; Session payloads and Task instructions use authenticated encryption.

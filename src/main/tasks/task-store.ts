@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import type { DatabaseSync } from 'node:sqlite'
+import type { AesGcmEventCipher } from '../session/event-cipher'
 import type {
   CreateTaskInput,
   Task,
@@ -30,6 +31,9 @@ interface TaskRow {
   status: string
   origin: string
   session_id: string | null
+  prompt_ciphertext: Uint8Array | null
+  prompt_nonce: Uint8Array | null
+  prompt_tag: Uint8Array | null
   waiting_reason: string | null
   detail: string | null
   created_at: string
@@ -40,7 +44,10 @@ interface TaskRow {
 
 /** Durable work items are independent of the Session that happens to execute one run. */
 export class TaskStore {
-  constructor(private readonly database: DatabaseSync) {}
+  constructor(
+    private readonly database: DatabaseSync,
+    private readonly cipher: AesGcmEventCipher,
+  ) {}
 
   initialize(): void {
     this.database.exec(`
@@ -50,6 +57,9 @@ export class TaskStore {
         status TEXT NOT NULL,
         origin TEXT NOT NULL,
         session_id TEXT REFERENCES sessions(id) ON DELETE SET NULL,
+        prompt_ciphertext BLOB,
+        prompt_nonce BLOB,
+        prompt_tag BLOB,
         waiting_reason TEXT,
         detail TEXT,
         created_at TEXT NOT NULL,
@@ -63,6 +73,7 @@ export class TaskStore {
       CREATE INDEX IF NOT EXISTS tasks_session
         ON tasks(session_id);
     `)
+    this.ensurePromptColumns()
   }
 
   create(input: CreateTaskInput, taskId: string = randomUUID()): Task {
@@ -85,19 +96,35 @@ export class TaskStore {
       updatedAt: now,
     }
     if (input.sessionId !== undefined) task.sessionId = input.sessionId
+    if (input.prompt !== undefined) task.prompt = normalizePrompt(input.prompt)
+    const encryptedPrompt = task.prompt === undefined
+      ? undefined
+      : this.cipher.encrypt(task.prompt, promptAssociatedData(task.id))
     this.database.prepare(`
       INSERT INTO tasks (
         id, title, status, origin, session_id,
+        prompt_ciphertext, prompt_nonce, prompt_tag,
         waiting_reason, detail, created_at, updated_at, started_at, finished_at
-      ) VALUES (?, ?, ?, ?, ?, NULL, NULL, ?, ?, NULL, NULL)
-    `).run(task.id, task.title, task.status, task.origin, task.sessionId ?? null, now, now)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, ?, ?, NULL, NULL)
+    `).run(
+      task.id,
+      task.title,
+      task.status,
+      task.origin,
+      task.sessionId ?? null,
+      encryptedPrompt?.ciphertext ?? null,
+      encryptedPrompt?.nonce ?? null,
+      encryptedPrompt?.tag ?? null,
+      now,
+      now,
+    )
     return task
   }
 
   get(taskId: string): Task {
     const row = this.database.prepare('SELECT * FROM tasks WHERE id = ?').get(taskId) as TaskRow | undefined
     if (row === undefined) throw new Error(`Unknown task: ${taskId}`)
-    return toTask(row)
+    return this.toTask(row)
   }
 
   list(): Task[] {
@@ -115,7 +142,7 @@ export class TaskStore {
         created_at DESC,
         id DESC
     `).all() as unknown as TaskRow[]
-    return rows.map(toTask)
+    return rows.map((row) => this.toTask(row))
   }
 
   updateStatus(taskId: string, update: TaskStatusUpdate): Task {
@@ -167,10 +194,50 @@ export class TaskStore {
     const now = new Date().toISOString()
     const result = this.database.prepare(`
       UPDATE tasks
-      SET status = 'queued', waiting_reason = NULL, detail = 'Recovered after restart', updated_at = ?, finished_at = NULL
+      SET status = 'queued', session_id = NULL, waiting_reason = NULL, detail = 'Recovered after restart', updated_at = ?, finished_at = NULL
       WHERE status = 'running'
     `).run(now)
     return Number(result.changes)
+  }
+
+  private toTask(row: TaskRow): Task {
+    const task: Task = {
+      id: row.id,
+      title: row.title,
+      status: requireStatus(row.status),
+      origin: requireOrigin(row.origin),
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+    }
+    if (row.session_id !== null) task.sessionId = row.session_id
+    if (row.waiting_reason !== null) task.waitingReason = requireWaitingReason(row.waiting_reason)
+    if (row.detail !== null) task.detail = row.detail
+    if (row.started_at !== null) task.startedAt = row.started_at
+    if (row.finished_at !== null) task.finishedAt = row.finished_at
+    const promptFields = [row.prompt_ciphertext, row.prompt_nonce, row.prompt_tag]
+    if (promptFields.some((field) => field !== null)) {
+      if (promptFields.some((field) => field === null)) throw new Error(`Incomplete encrypted prompt for task: ${row.id}`)
+      task.prompt = this.cipher.decrypt({
+        ciphertext: row.prompt_ciphertext!,
+        nonce: row.prompt_nonce!,
+        tag: row.prompt_tag!,
+      }, promptAssociatedData(row.id)) as string
+    }
+    return task
+  }
+
+  /** Add prompt encryption columns to databases created by earlier task-domain versions. */
+  private ensurePromptColumns(): void {
+    const columns = new Set((this.database.prepare('PRAGMA table_info(tasks)').all() as Array<{ name: string }>)
+      .map((column) => column.name))
+    const additions = [
+      ['prompt_ciphertext', 'BLOB'],
+      ['prompt_nonce', 'BLOB'],
+      ['prompt_tag', 'BLOB'],
+    ] as const
+    for (const [name, type] of additions) {
+      if (!columns.has(name)) this.database.exec(`ALTER TABLE tasks ADD COLUMN ${name} ${type}`)
+    }
   }
 
   private requireSession(sessionId: string): void {
@@ -184,28 +251,22 @@ export function isActiveTask(task: Pick<Task, 'status'>): boolean {
   return ACTIVE_STATUSES.includes(task.status)
 }
 
-function toTask(row: TaskRow): Task {
-  const task: Task = {
-    id: row.id,
-    title: row.title,
-    status: requireStatus(row.status),
-    origin: requireOrigin(row.origin),
-    createdAt: row.created_at,
-    updatedAt: row.updated_at,
-  }
-  if (row.session_id !== null) task.sessionId = row.session_id
-  if (row.waiting_reason !== null) task.waitingReason = requireWaitingReason(row.waiting_reason)
-  if (row.detail !== null) task.detail = row.detail
-  if (row.started_at !== null) task.startedAt = row.started_at
-  if (row.finished_at !== null) task.finishedAt = row.finished_at
-  return task
-}
-
 function requireTitle(value: string): string {
   const title = value.trim()
   if (title.length === 0) throw new Error('Task title cannot be empty')
   if (title.length > 200) throw new Error('Task title must be 200 characters or fewer')
   return title
+}
+
+function normalizePrompt(value: string): string {
+  const prompt = value.trim()
+  if (prompt.length === 0) throw new Error('Task prompt cannot be empty')
+  if (prompt.length > 2_000_000) throw new Error('Task prompt must be 2,000,000 characters or fewer')
+  return prompt
+}
+
+function promptAssociatedData(taskId: string): string {
+  return `task:${taskId}:prompt`
 }
 
 function normalizeDetail(value: string | undefined): string | null {

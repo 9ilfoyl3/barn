@@ -8,6 +8,7 @@ const createTaskSchema = z.object({
   origin: z.enum(['user', 'automation']),
   status: z.enum(['proposed', 'queued']).optional(),
   sessionId: z.string().uuid().optional(),
+  prompt: z.string().trim().min(1).max(2_000_000).optional(),
 }).strict()
 const updateTaskSchema = z.object({
   taskId: taskIdSchema,
@@ -44,6 +45,7 @@ export function registerTaskIpc(
       origin: parsed.origin,
       ...(parsed.status === undefined ? {} : { status: parsed.status }),
       ...(parsed.sessionId === undefined ? {} : { sessionId: parsed.sessionId }),
+      ...(parsed.prompt === undefined ? {} : { prompt: parsed.prompt }),
     })
   })
 

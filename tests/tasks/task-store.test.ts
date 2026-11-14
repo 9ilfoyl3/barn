@@ -2,6 +2,7 @@ import { randomBytes } from 'node:crypto'
 import { mkdtemp } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { DatabaseSync } from 'node:sqlite'
 import { describe, expect, it } from 'vitest'
 import { AesGcmEventCipher } from '../../src/main/session/event-cipher'
 import { SessionStore } from '../../src/main/session/session-store'
@@ -22,6 +23,7 @@ describe('TaskStore', () => {
       title: 'Prepare the quarterly report',
       origin: 'user',
       sessionId: session.id,
+      prompt: 'Summarize the attached figures and prepare the report.',
     }, '11111111-1111-4111-8111-111111111111')
     store.close()
 
@@ -32,8 +34,62 @@ describe('TaskStore', () => {
       status: 'queued',
       origin: 'user',
       sessionId: session.id,
+      prompt: 'Summarize the attached figures and prepare the report.',
     }))
     reopened.close()
+  })
+
+  it('encrypts task instructions at rest and fails closed with another key', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'barn-task-store-'))
+    const path = join(directory, 'sessions.db')
+    const key = randomBytes(32)
+    const store = await openStore(directory, key)
+    const task = store.tasks.create({
+      title: 'Private task',
+      origin: 'user',
+      prompt: 'Do not expose this instruction in plain text.',
+    })
+    store.close()
+
+    const raw = new DatabaseSync(path)
+    const row = raw.prepare('SELECT prompt_ciphertext, prompt_nonce, prompt_tag FROM tasks WHERE id = ?').get(task.id) as {
+      prompt_ciphertext: Uint8Array
+      prompt_nonce: Uint8Array
+      prompt_tag: Uint8Array
+    }
+    expect(Buffer.from(row.prompt_ciphertext).toString('utf8')).not.toContain('Do not expose')
+    raw.close()
+
+    const wrongKey = await openStore(directory, randomBytes(32))
+    expect(() => wrongKey.tasks.get(task.id)).toThrow()
+    wrongKey.close()
+  })
+
+  it('migrates task tables created before prompt encryption existed', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'barn-task-store-'))
+    const path = join(directory, 'sessions.db')
+    const raw = new DatabaseSync(path)
+    raw.exec(`
+      CREATE TABLE sessions (
+        id TEXT PRIMARY KEY, title TEXT NOT NULL, status TEXT NOT NULL,
+        last_seq INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+      );
+      CREATE TABLE tasks (
+        id TEXT PRIMARY KEY, title TEXT NOT NULL, status TEXT NOT NULL, origin TEXT NOT NULL,
+        session_id TEXT REFERENCES sessions(id) ON DELETE SET NULL, waiting_reason TEXT, detail TEXT,
+        created_at TEXT NOT NULL, updated_at TEXT NOT NULL, started_at TEXT, finished_at TEXT
+      );
+      INSERT INTO tasks (id, title, status, origin, created_at, updated_at)
+      VALUES ('11111111-1111-4111-8111-111111111111', 'Legacy task', 'queued', 'user', '2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z');
+    `)
+    raw.close()
+
+    const store = await openStore(directory)
+    expect(store.tasks.get('11111111-1111-4111-8111-111111111111')).toMatchObject({
+      title: 'Legacy task',
+      status: 'queued',
+    })
+    store.close()
   })
 
   it('enforces the task state machine and records lifecycle timestamps', async () => {
@@ -93,16 +149,24 @@ describe('TaskStore', () => {
   it('returns interrupted running work to the queue on restart', async () => {
     const directory = await mkdtemp(join(tmpdir(), 'barn-task-store-'))
     const store = await openStore(directory)
-    const interrupted = store.tasks.create({ title: 'Summarize invoices', origin: 'automation' })
+    const session = store.createSession('Invoice summary')
+    const interrupted = store.tasks.create({
+      title: 'Summarize invoices',
+      origin: 'automation',
+      sessionId: session.id,
+      prompt: 'Summarize the invoices.',
+    })
     const untouched = store.tasks.create({ title: 'Waiting on a decision', origin: 'user' })
     store.tasks.updateStatus(interrupted.id, { status: 'running' })
     store.tasks.updateStatus(untouched.id, { status: 'waiting', waitingReason: 'input' })
 
     expect(store.tasks.recoverInterruptedTasks()).toBe(1)
-    expect(store.tasks.get(interrupted.id)).toMatchObject({
+    const recovered = store.tasks.get(interrupted.id)
+    expect(recovered).toMatchObject({
       status: 'queued',
       detail: 'Recovered after restart',
     })
+    expect(recovered.sessionId).toBeUndefined()
     expect(store.tasks.get(untouched.id).status).toBe('waiting')
     store.close()
   })
