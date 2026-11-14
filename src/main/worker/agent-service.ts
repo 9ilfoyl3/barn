@@ -1,22 +1,15 @@
 import type { AgentMessage } from '@earendil-works/pi-agent-core'
+import { resolveReasoningEffort } from '../../shared/models'
 import type {
-  CommitEmployeeIntakeInput,
-  EmployeeIntake,
-  EmployeeIntakeCommitResult,
-  EmployeeIntakePreview,
-  LifecycleProposal,
   SessionLiveEvent,
   SessionSummary,
   AttachmentDescriptor,
   SessionTimelineEvent,
-  UpdateEmployeeIntakeInput,
 } from '../../shared/models'
 import type { WorkerToHostMessage } from '../../shared/agent-protocol'
 import { ModelStreamBroker } from '../models/model-stream-broker'
 import type { ModelService } from '../models/model-service'
 import type { ToolService } from '../tools/tool-service'
-import type { EmployeeIntakeStore } from '../intake/employee-intake-store'
-import type { HrClient } from '../cloud/hr-client'
 import type { SessionStore } from '../session/session-store'
 import { WorkerSupervisor, type WorkerSupervisorStatus } from './worker-supervisor'
 
@@ -30,8 +23,6 @@ export class AgentService {
     private readonly models: ModelService,
     private readonly sessions: SessionStore,
     private readonly tools: ToolService,
-    private readonly intakeStore: EmployeeIntakeStore,
-    private readonly hrClient: HrClient,
   ) {
     this.broker = new ModelStreamBroker(models, (message) => supervisor.post(message))
     supervisor.onMessage((message) => this.handleWorkerMessage(message))
@@ -50,15 +41,20 @@ export class AgentService {
     if (selection === undefined) throw new Error('Configure a default model before chatting')
     const model = this.models.getModelDescriptor(selection)
     if (model === undefined) throw new Error('The selected model is no longer available')
+    const reasoningEffort = resolveReasoningEffort(
+      snapshot.defaultReasoningEffort,
+      model.reasoningEfforts,
+    )
     const session = this.sessions.ensureSession(sessionId)
 
-    const modelKey = this.models.getModelFingerprint(selection)
-      ?? `${selection.providerId}:${selection.modelId}`
+    const modelKey = `${this.models.getModelFingerprint(selection)
+      ?? `${selection.providerId}:${selection.modelId}`}:${reasoningEffort ?? 'off'}`
     if (this.openSessions.get(sessionId) !== modelKey) {
       await this.supervisor.openSession({
         sessionId,
         messages: this.loadAgentMessages(sessionId),
         model,
+        ...(reasoningEffort === undefined ? {} : { reasoningEffort }),
       })
       this.openSessions.set(sessionId, modelKey)
     }
@@ -75,7 +71,7 @@ export class AgentService {
       },
       actor: { kind: 'user', id: 'desktop-user' },
     }])
-    if (session.title === 'New HRBP session') {
+    if (session.title === 'New session') {
       this.sessions.updateTitle(sessionId, titleFromPrompt(trimmed))
     }
     this.sessions.updateStatus(sessionId, 'running')
@@ -95,33 +91,6 @@ export class AgentService {
   getEvents(sessionId: string): SessionTimelineEvent[] {
     this.sessions.getSession(sessionId)
     return this.sessions.read(sessionId)
-  }
-
-  getIntake(sessionId: string): EmployeeIntake | undefined {
-    return this.intakeStore.get(sessionId)
-  }
-
-  updateIntakeEmployee(input: UpdateEmployeeIntakeInput): EmployeeIntake {
-    const intake = this.intakeStore.updateEmployee(input.sessionId, input)
-    this.emit({ type: 'intake.updated', sessionId: input.sessionId, intake })
-    return intake
-  }
-
-  async previewIntake(sessionId: string): Promise<EmployeeIntakePreview> {
-    const intake = this.intakeStore.require(sessionId)
-    return this.hrClient.preview(intake)
-  }
-
-  async listEmployees(): Promise<EmployeeIntakeCommitResult['employees']> {
-    return this.hrClient.listEmployees()
-  }
-
-  async commitIntake(input: CommitEmployeeIntakeInput): Promise<EmployeeIntakeCommitResult> {
-    this.intakeStore.require(input.sessionId)
-    const result = await this.hrClient.commit(input)
-    const intake = this.intakeStore.markCommitted(input.sessionId, input.employeeIds)
-    this.emit({ type: 'intake.updated', sessionId: input.sessionId, intake })
-    return result
   }
 
   onLiveEvent(listener: (event: SessionLiveEvent) => void): () => void {
@@ -188,23 +157,11 @@ export class AgentService {
         this.broker.abort(message.requestId)
         return
       case 'tool.execute':
-        void this.tools.execute(message.toolName, message.args, message.sessionId)
+        void this.tools.execute(message.toolName, message.args)
           .then((result) => {
-            if (message.toolName.startsWith('employee_intake_')) {
-              const intake = this.intakeStore.get(message.sessionId)
-              if (intake !== undefined) {
-                this.emit({ type: 'intake.updated', sessionId: message.sessionId, intake })
-              }
-            }
-            if (message.toolName === 'lifecycle_propose_transition') {
-              const proposal = (result.details as { proposal?: LifecycleProposal } | undefined)?.proposal
-              if (proposal !== undefined) {
-                this.emit({ type: 'lifecycle.proposal', sessionId: message.sessionId, proposal })
-              }
-            }
             this.supervisor.post({
-            type: 'request.ok',
-            requestId: message.requestId,
+              type: 'request.ok',
+              requestId: message.requestId,
               result,
             })
           })

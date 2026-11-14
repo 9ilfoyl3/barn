@@ -1,10 +1,34 @@
 # Barn Desktop
 
-Local-first HRBP desktop workspace built with Electron, React, Pi Agent Core, and pi-ai.
+A general-purpose, local-first personal Agent for everyday office work, built with Electron, React, Pi Agent Core, and pi-ai.
 
-The Desktop owns its model provider catalog and credentials. Interactive model calls do not use a Barn Cloud model gateway.
+## Product Positioning
 
-Employee data reads require Barn Cloud sign-in. The Electron Host performs OIDC Authorization Code + PKCE login, keeps access tokens in memory, stores refresh tokens through `safeStorage`, and calls the HR API through a typed Host-owned client. The renderer and Agent Worker never receive access tokens. Signed-in users can search employees, filter by status or organization, inspect current assignment and manager details, manage lifecycle cases and tasks, receive in-app lifecycle notifications and reminders, and ask the Agent to read tenant-scoped employee data.
+Barn Desktop is a personal local Agent, not an Agent built for one job role or industry. It should be useful to ordinary people doing everyday knowledge and office work, including users who have never used an Agent before.
+
+The product should feel simple, direct, and safe:
+
+- **General-purpose:** help with common office tasks instead of assuming a specialist workflow.
+- **Beginner-friendly:** use plain language, sensible defaults, guided setup, and progressive disclosure rather than requiring prompt engineering or Agent knowledge.
+- **Local-first:** keep local files, Session history, model credentials, and the core experience on the user's device.
+- **Action-oriented:** turn a request into a useful result or a clear next step without making the user assemble tools manually.
+- **Controllable:** explain consequential actions and ask for understandable confirmation before external writes or destructive operations.
+
+The target use cases include document reading and summarization, writing and rewriting, spreadsheet analysis, structured data extraction, report and presentation preparation, meeting notes, local file organization, research synthesis, and repetitive multi-step office workflows.
+
+Barn Desktop is intended to work as a self-contained local application. A hosted Barn account or control plane is not part of the product direction.
+
+This README defines product positioning, not a committed feature roadmap. The next development direction is intentionally undecided.
+
+## Architecture
+
+The Electron Host owns model provider configuration, encrypted credentials, local capabilities, and durable Session storage. A dedicated Agent Worker runs Pi Agent Core and accesses local capabilities only through typed Host-owned interfaces. The renderer receives typed Session events and never receives model credentials.
+
+Interactive model calls are made by the Desktop with the user's configured provider. The Desktop owns its provider catalog, credentials, default model, and reasoning-effort settings.
+
+## Internationalization
+
+Desktop UI supports English and Simplified Chinese. Other languages fall back to English. The language picker persists the selected language locally and keeps the document `lang` attribute in sync. If no preference has been saved, Desktop follows the operating system's preferred language. `BARN_UI_LANGUAGE=en|zh-CN` can override detection for tests or controlled deployments. Electron-native strings such as the attachment picker follow the same effective locale.
 
 ## Development
 

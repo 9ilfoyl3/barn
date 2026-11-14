@@ -38,7 +38,7 @@ Current limitation:
 
 - write, patch, and output-directory tools are not connected;
 - Windows shell is unavailable until its enforcing backend lands;
-- employee-intake draft tools and Cloud HR preview/commit integration are implemented; lifecycle workflows remain future work.
+- generic local file tools are implemented; broader office workflows remain future work.
 
 ## 2. Execution Order
 

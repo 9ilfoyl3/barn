@@ -5,14 +5,15 @@ import { BrowserWindow, dialog, ipcMain, type IpcMainInvokeEvent } from 'electro
 import { z } from 'zod'
 import type { AgentService } from '../worker/agent-service'
 import { storedAttachmentFileName } from '../../shared/attachments'
-import type { CommitEmployeeIntakeInput, UpdateEmployeeIntakeInput } from '../../shared/models'
 import type { SessionStore } from './session-store'
+import { nativeCopy, nativeLocale, type NativeLocale } from '../platform/native-locale'
 
 export function registerSessionIpc(
   sessions: SessionStore,
   agent: AgentService,
   attachmentsRoot: string,
   isTrustedSender: (event: IpcMainInvokeEvent) => boolean,
+  getLocale: () => NativeLocale = () => nativeLocale(),
 ): void {
   ipcMain.handle('sessions:list', (event) => {
     requireTrusted(event, isTrustedSender)
@@ -22,7 +23,7 @@ export function registerSessionIpc(
   ipcMain.handle('sessions:create', (event, sessionId: unknown) => {
     requireTrusted(event, isTrustedSender)
     const id = z.uuid().optional().parse(sessionId)
-    return sessions.createSession('New HRBP session', id)
+    return sessions.createSession('New session', id)
   })
 
   ipcMain.handle('sessions:get-events', (event, sessionId: unknown) => {
@@ -49,50 +50,13 @@ export function registerSessionIpc(
     return agent.cancel(z.string().min(1).parse(sessionId))
   })
 
-  ipcMain.handle('intake:get', (event, sessionId: unknown) => {
-    requireTrusted(event, isTrustedSender)
-    return agent.getIntake(z.string().min(1).parse(sessionId))
-  })
-
-  ipcMain.handle('intake:update-employee', (event, input: unknown) => {
-    requireTrusted(event, isTrustedSender)
-    const parsed = z.object({
-      sessionId: z.string().min(1),
-      employeeId: z.string().min(1),
-      expectedRevision: z.number().int().positive(),
-      fields: z.record(z.string().min(1).max(100), z.string().max(10_000)),
-    }).parse(input) as UpdateEmployeeIntakeInput
-    return agent.updateIntakeEmployee(parsed)
-  })
-
-  ipcMain.handle('intake:preview', (event, sessionId: unknown) => {
-    requireTrusted(event, isTrustedSender)
-    return agent.previewIntake(z.string().min(1).parse(sessionId))
-  })
-
-  ipcMain.handle('intake:list-employees', (event) => {
-    requireTrusted(event, isTrustedSender)
-    return agent.listEmployees()
-  })
-
-  ipcMain.handle('intake:commit', (event, input: unknown) => {
-    requireTrusted(event, isTrustedSender)
-    const parsed = z.object({
-      sessionId: z.string().min(1),
-      previewId: z.string().min(1),
-      previewHash: z.string().regex(/^[a-f0-9]{64}$/),
-      employeeIds: z.array(z.string().min(1)).min(1),
-    }).parse(input) as CommitEmployeeIntakeInput
-    return agent.commitIntake(parsed)
-  })
-
   ipcMain.handle('sessions:attach', async (event, sessionId: unknown) => {
     requireTrusted(event, isTrustedSender)
     const id = z.uuid().parse(sessionId)
     const window = BrowserWindow.fromWebContents(event.sender)
-    if (window === null) throw new Error('No active window')
+    if (window === null) throw new Error(nativeCopy(getLocale()).noActiveWindow)
     const result = await dialog.showOpenDialog(window, {
-      title: 'Attach files',
+      title: nativeCopy(getLocale()).attachFiles,
       properties: ['openFile', 'multiSelections'],
     })
     if (result.canceled) return []

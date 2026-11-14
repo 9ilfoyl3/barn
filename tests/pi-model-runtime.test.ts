@@ -31,14 +31,26 @@ describe('PiModelRuntime', () => {
       name: 'Acme Gateway',
       baseUrl: 'https://gateway.example/v1',
       api: 'openai-completions',
-      models: [{
-        id: 'acme-chat',
-        name: 'Acme Chat',
-        contextWindow: 128_000,
-        maxTokens: 32_000,
-        reasoning: false,
-        input: ['text'],
-      }],
+      models: [
+        {
+          id: 'acme-chat',
+          name: 'Acme Chat',
+          contextWindow: 128_000,
+          maxTokens: 32_000,
+          reasoning: false,
+          reasoningEfforts: [],
+          input: ['text'],
+        },
+        {
+          id: 'acme-reasoner',
+          name: 'Acme Reasoner',
+          contextWindow: 128_000,
+          maxTokens: 32_000,
+          reasoning: true,
+          reasoningEfforts: ['low', 'high', 'max'],
+          input: ['text'],
+        },
+      ],
     }])
 
     expect(runtime.getProviders().some((provider) => provider.id === 'acme')).toBe(true)
@@ -46,7 +58,22 @@ describe('PiModelRuntime', () => {
       expect.objectContaining({
         id: 'acme-chat',
         providerId: 'acme',
+        reasoningEfforts: [],
+      }),
+      expect.objectContaining({
+        id: 'acme-reasoner',
+        providerId: 'acme',
+        reasoningEfforts: ['low', 'high', 'max'],
       }),
     ])
+    expect(runtime.getModel({ providerId: 'acme', modelId: 'acme-reasoner' })?.thinkingLevelMap).toMatchObject({
+      off: null,
+      minimal: null,
+      low: 'low',
+      medium: null,
+      high: 'high',
+      xhigh: null,
+      max: 'max',
+    })
   })
 })

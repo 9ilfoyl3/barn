@@ -9,18 +9,18 @@ test('renders streamdown tables and code blocks without overlapping controls', a
 
 | 字段 | 值 | 依据 |
 | --- | --- | --- |
-| 姓名 | 宫某 | 第1页 |
-| 入职日期 | 2020-11-02 | 合同起始日 |
+| 项目 | Atlas | 第1页 |
+| 截止日期 | 2026-11-02 | 项目计划 |
 
 需要您确认的问题（按影响排序）
 
-1. 缺工号
-2. 缺组织单元
+1. 缺负责人
+2. 缺预算确认
 
 \`\`\`json
 {
-  "employeeNo": "E1001",
-  "displayName": "宫某"
+  "project": "Atlas",
+  "owner": "待确认"
 }
 \`\`\`
 `
@@ -34,6 +34,7 @@ test('renders streamdown tables and code blocks without overlapping controls', a
       ...Object.fromEntries(Object.entries(process.env).filter((entry): entry is [string, string] => entry[1] !== undefined)),
       ELECTRON_DISABLE_SECURITY_WARNINGS: 'true',
       BARN_USER_DATA_DIR: userData,
+      BARN_UI_LANGUAGE: 'en',
     },
   })
 
@@ -52,6 +53,7 @@ test('renders streamdown tables and code blocks without overlapping controls', a
           contextWindow: 128_000,
           maxTokens: 8_000,
           reasoning: false,
+          reasoningEfforts: [],
           input: ['text'],
         }],
       })
@@ -61,7 +63,7 @@ test('renders streamdown tables and code blocks without overlapping controls', a
 
     await page.getByRole('button', { name: /New session/i }).click()
     const composer = page.getByLabel('Message Barn')
-    await composer.fill('Render the extracted employee information.')
+    await composer.fill('Render the extracted project information.')
     await composer.press('Enter')
 
     await expect(page.locator('.markdown-table-wrap')).toBeVisible({ timeout: 15_000 })

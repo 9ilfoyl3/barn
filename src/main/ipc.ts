@@ -1,6 +1,6 @@
 import { ipcMain, type IpcMainInvokeEvent } from 'electron'
 import { z } from 'zod'
-import type { CustomProviderConfig, ModelTestInput } from '../shared/models'
+import { REASONING_EFFORTS, type CustomProviderConfig, type ModelTestInput } from '../shared/models'
 import type { ModelService } from './models/model-service'
 
 const customModelSchema = z.object({
@@ -9,6 +9,7 @@ const customModelSchema = z.object({
   contextWindow: z.number().int().positive().max(10_000_000),
   maxTokens: z.number().int().positive().max(1_000_000),
   reasoning: z.boolean(),
+  reasoningEfforts: z.array(z.enum(REASONING_EFFORTS)).default(['low', 'medium', 'high']),
   input: z.array(z.enum(['text', 'image'])).min(1),
 })
 
@@ -25,6 +26,8 @@ export function registerModelIpc(
   isTrustedSender: (event: IpcMainInvokeEvent) => boolean,
 ): void {
   ipcMain.handle('models:get-snapshot', guard(isTrustedSender, () => models.getSnapshot()))
+
+  ipcMain.handle('models:get-configured-models', guard(isTrustedSender, () => models.getConfiguredModels()))
 
   ipcMain.handle('models:get-models', guard(isTrustedSender, (_event, providerId: unknown) => {
     return models.getModels(z.string().min(1).parse(providerId))
@@ -46,6 +49,7 @@ export function registerModelIpc(
     const parsed = z.object({
       providerId: z.string().min(1),
       modelId: z.string().min(1),
+      reasoningEffort: z.enum(REASONING_EFFORTS).optional(),
     }).parse(input)
     return models.setDefault(parsed)
   }))

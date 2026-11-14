@@ -4,9 +4,8 @@ import { join } from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
 import { ToolService } from '../../src/main/tools/tool-service'
 import type { ShellService } from '../../src/main/sandbox/shell-service'
-import type { HrClient } from '../../src/main/cloud/hr-client'
 
-async function createService(hrClient?: HrClient): Promise<{
+async function createService(): Promise<{
   service: ToolService
   workspace: string
   output: string
@@ -23,7 +22,6 @@ async function createService(hrClient?: HrClient): Promise<{
       outputRoot: output,
       privateTempRoot: temp,
       shell: { run: vi.fn() } as unknown as ShellService,
-      ...(hrClient === undefined ? {} : { hrClient }),
     }),
     workspace,
     output,
@@ -80,105 +78,19 @@ describe('ToolService', () => {
     }])
   })
 
-  it('exposes tenant-scoped employee reads to the Agent', async () => {
-    const employee = {
-      id: 'employee-1',
-      employeeNo: 'E1001',
-      displayName: '张三',
-      status: 'active' as const,
-      orgUnit: { id: 'org-1', code: 'RD', name: '研发部' },
-      manager: { id: 'manager-1', employeeNo: 'M1001', displayName: '王经理' },
-      hireDate: '2026-10-01',
-      version: 1,
-      createdAt: '2026-10-01T00:00:00.000Z',
-      updatedAt: '2026-10-01T00:00:00.000Z',
-      maskedFields: {},
-      sensitiveRefs: {},
-    }
-    const hrClient = {
-      searchEmployees: vi.fn().mockResolvedValue({
-        employees: [employee],
-        page: 1,
-        pageSize: 25,
-        total: 1,
-        totalPages: 1,
-        hasNextPage: false,
-      }),
-      getEmployee: vi.fn().mockResolvedValue(employee),
-      getOrgUnit: vi.fn().mockResolvedValue({
-        id: 'org-1',
-        code: 'RD',
-        name: '研发部',
-        effectiveFrom: '2026-01-01',
-      }),
-      proposeLifecycleTransition: vi.fn().mockResolvedValue({
-        id: 'proposal-1',
-        employeeId: 'employee-1',
-        employeeNo: 'E1001',
-        displayName: '张三',
-        fromStatus: 'active',
-        toStatus: 'offboarding',
-        effectiveDate: '2026-11-01',
-        reason: 'Employee resignation',
-        employeeVersion: 1,
-        status: 'pending_approval',
-        proposedAt: '2026-10-28T10:00:00.000Z',
-      }),
-    } as unknown as HrClient
-    const { service } = await createService(hrClient)
-
-    const search = await service.execute('employee_search', { query: '研发部' })
-    expect(search.isError).not.toBe(true)
-    expect(search.content[0]).toMatchObject({ type: 'text', text: expect.stringContaining('E1001 · 张三 · active · 研发部') })
-    expect(hrClient.searchEmployees).toHaveBeenCalledWith(expect.objectContaining({
-      q: '研发部',
-      page: 1,
-      pageSize: 25,
-    }))
-
-    const detail = await service.execute('employee_get', { employeeId: 'employee-1' })
-    expect(detail.content[0]).toMatchObject({ type: 'text', text: expect.stringContaining('Manager: 王经理') })
-
-    const byOrg = await service.execute('employee_list_by_org', { orgUnitCode: 'RD' })
-    expect(byOrg.isError).not.toBe(true)
-    expect(hrClient.searchEmployees).toHaveBeenLastCalledWith(expect.objectContaining({
-      orgUnitCode: 'RD',
-    }))
-
-    const org = await service.execute('org_unit_get', { idOrCode: 'RD' })
-    expect(org.details).toMatchObject({ orgUnit: { code: 'RD', name: '研发部' } })
-
-    const proposal = await service.execute('lifecycle_propose_transition', {
-      employeeId: 'E1001',
-      toStatus: 'offboarding',
-      effectiveDate: '2026-11-01',
-      reason: 'Employee resignation',
-    })
-    expect(proposal.content[0]).toMatchObject({
-      type: 'text',
-      text: expect.stringContaining('Waiting for explicit user approval'),
-    })
-    expect(proposal.details).toMatchObject({ proposal: { id: 'proposal-1', status: 'pending_approval' } })
-    expect(hrClient.proposeLifecycleTransition).toHaveBeenCalledWith('E1001', {
-      toStatus: 'offboarding',
-      effectiveDate: '2026-11-01',
-      reason: 'Employee resignation',
-    })
-  })
-
   it('searches text files with bounded results', async () => {
     const { service, workspace } = await createService()
     await mkdir(join(workspace, 'docs'))
-    await writeFile(join(workspace, 'docs', 'employees.txt'), '张三 产品部\n李四 研发部\n张三 产品部')
+    await writeFile(join(workspace, 'docs', 'notes.txt'), 'alpha beta\nbeta gamma\nalpha beta')
 
     const result = await service.execute('search_files', {
       path: '.',
-      query: '张三',
+      query: 'alpha',
     })
 
     expect(result.content).toEqual([{
       type: 'text',
-      text: 'docs/employees.txt:1:张三 产品部\ndocs/employees.txt:3:张三 产品部',
+      text: 'docs/notes.txt:1:alpha beta\ndocs/notes.txt:3:alpha beta',
     }])
   })
 })

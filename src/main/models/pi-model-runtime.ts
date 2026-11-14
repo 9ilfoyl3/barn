@@ -1,5 +1,6 @@
 import {
   createProvider,
+  getSupportedThinkingLevels,
   type Api,
   type CredentialStore,
   type AssistantMessageEventStream,
@@ -12,10 +13,12 @@ import { anthropicMessagesApi } from '@earendil-works/pi-ai/api/anthropic-messag
 import { openAICompletionsApi } from '@earendil-works/pi-ai/api/openai-completions.lazy'
 import { openAIResponsesApi } from '@earendil-works/pi-ai/api/openai-responses.lazy'
 import { builtinModels } from '@earendil-works/pi-ai/providers/all'
-import type {
-  CustomProviderConfig,
-  ModelDescriptor,
-  ModelSelection,
+import {
+  REASONING_EFFORTS,
+  type CustomProviderConfig,
+  type ModelDescriptor,
+  type ModelSelection,
+  type ReasoningEffort,
 } from '../../shared/models'
 
 const zeroCost = {
@@ -36,7 +39,7 @@ export class PiModelRuntime {
         attribution: {
           name: 'Barn Desktop',
           url: 'https://barn.local',
-          categories: ['hrbp-agent'],
+          categories: ['personal-agent'],
         },
       },
     })
@@ -118,6 +121,9 @@ function buildCustomProvider(config: CustomProviderConfig): Provider {
       provider: config.id,
       baseUrl: config.baseUrl,
       reasoning: model.reasoning,
+      ...(model.reasoning && model.reasoningEfforts.length > 0
+        ? { thinkingLevelMap: customThinkingLevelMap(config.api, model.reasoningEfforts) }
+        : {}),
       input: model.input,
       cost: zeroCost,
       contextWindow: model.contextWindow,
@@ -134,8 +140,26 @@ function toDescriptor(model: Model<Api>): ModelDescriptor {
     providerId: model.provider,
     api: model.api,
     reasoning: model.reasoning,
+    reasoningEfforts: model.reasoning
+      ? getSupportedThinkingLevels(model).filter(isReasoningEffort)
+      : [],
     contextWindow: model.contextWindow,
     maxTokens: model.maxTokens,
     input: [...model.input],
   }
+}
+
+function customThinkingLevelMap(
+  api: CustomProviderConfig['api'],
+  efforts: readonly ReasoningEffort[],
+): Record<ReasoningEffort | 'off', string | null> {
+  const map = Object.fromEntries(
+    REASONING_EFFORTS.map((effort) => [effort, efforts.includes(effort) ? effort : null]),
+  ) as Record<ReasoningEffort, string | null>
+  if (api === 'anthropic-messages' && map.minimal === 'minimal') map.minimal = 'low'
+  return { off: null, ...map }
+}
+
+function isReasoningEffort(value: string): value is ReasoningEffort {
+  return (REASONING_EFFORTS as readonly string[]).includes(value)
 }

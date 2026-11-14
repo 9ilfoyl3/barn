@@ -3,10 +3,14 @@ import '@fontsource-variable/jetbrains-mono'
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 import { App } from './App'
+import { TooltipProvider } from './components/ui/tooltip'
+import './i18n'
 import './styles.css'
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    <App />
+    <TooltipProvider delayDuration={350} skipDelayDuration={120}>
+      <App />
+    </TooltipProvider>
   </React.StrictMode>,
 )

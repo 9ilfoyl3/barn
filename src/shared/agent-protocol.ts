@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import type { ModelDescriptor, ModelSelection } from './models'
+import { REASONING_EFFORTS, type ModelDescriptor, type ModelSelection } from './models'
 
 export const modelSelectionSchema: z.ZodType<ModelSelection> = z.object({
   providerId: z.string().min(1),
@@ -12,6 +12,7 @@ export const modelDescriptorSchema: z.ZodType<ModelDescriptor> = z.object({
   providerId: z.string().min(1),
   api: z.string().min(1),
   reasoning: z.boolean(),
+  reasoningEfforts: z.array(z.enum(REASONING_EFFORTS)),
   contextWindow: z.number().int().positive(),
   maxTokens: z.number().int().positive(),
   input: z.array(z.enum(['text', 'image'])).min(1),
@@ -21,6 +22,7 @@ export const workerSessionSeedSchema = z.object({
   sessionId: z.string().min(1),
   messages: z.array(z.unknown()),
   model: modelDescriptorSchema,
+  reasoningEffort: z.enum(REASONING_EFFORTS).optional(),
 })
 
 export type WorkerSessionSeed = z.infer<typeof workerSessionSeedSchema>

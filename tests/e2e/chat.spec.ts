@@ -27,6 +27,7 @@ test('streams a multi-turn conversation through the Agent Worker', async () => {
       ...inheritedEnv,
       ELECTRON_DISABLE_SECURITY_WARNINGS: 'true',
       BARN_USER_DATA_DIR: userData,
+      BARN_UI_LANGUAGE: 'en',
     },
   })
 
@@ -45,6 +46,7 @@ test('streams a multi-turn conversation through the Agent Worker', async () => {
           contextWindow: 128_000,
           maxTokens: 8_000,
           reasoning: false,
+          reasoningEfforts: [],
           input: ['text'],
         }],
       })
@@ -73,7 +75,7 @@ test('streams a multi-turn conversation through the Agent Worker', async () => {
     await composer.press('Enter')
 
     await expect(page.getByText('Barn reply 1').last()).toBeVisible({ timeout: 15_000 })
-    await expect(page.getByRole('main').getByText('Hello', { exact: true })).toBeVisible()
+    await expect(page.getByLabel('User message').getByText('Hello', { exact: true })).toBeVisible()
     await expect(page.locator('.message-attachment')).toContainText('contract.pdf')
     await expect(page.locator('.message-attachment')).not.toContainText(attachmentId)
     await expect(page.getByText(/Context \d+%/)).toBeVisible()
@@ -84,8 +86,275 @@ test('streams a multi-turn conversation through the Agent Worker', async () => {
     await composer.fill('Second turn')
     await composer.press('Enter')
     await expect(page.getByText('Barn reply 2').last()).toBeVisible({ timeout: 15_000 })
-    await expect(page.getByRole('main').getByText('Second turn', { exact: true })).toBeVisible()
+    await expect(page.getByLabel('User message').getByText('Second turn', { exact: true })).toBeVisible()
     await page.screenshot({ path: 'test-results/barn-desktop-chat.png', fullPage: true })
+  } finally {
+    await app.close()
+    await new Promise<void>((resolve, reject) => server.close((error) => error === undefined ? resolve() : reject(error)))
+  }
+})
+
+test('selects a configured model and reasoning effort from the composer', async () => {
+  const requests: Array<Record<string, unknown>> = []
+  const server = await startMockModelServer(() => 'Reasoning reply', requests)
+  const address = server.address()
+  if (address === null || typeof address === 'string') throw new Error('Mock server did not bind')
+  const baseUrl = `http://127.0.0.1:${address.port}/v1`
+  const userData = await mkdtemp(join(tmpdir(), 'barn-desktop-picker-e2e-'))
+  const inheritedEnv = Object.fromEntries(
+    Object.entries(process.env).filter((entry): entry is [string, string] => entry[1] !== undefined),
+  )
+  const app = await electron.launch({
+    args: ['.'],
+    env: {
+      ...inheritedEnv,
+      ELECTRON_DISABLE_SECURITY_WARNINGS: 'true',
+      BARN_USER_DATA_DIR: userData,
+      BARN_UI_LANGUAGE: 'en',
+    },
+  })
+
+  try {
+    const page = await app.firstWindow()
+    await page.waitForLoadState('domcontentloaded')
+    await page.evaluate(async (url) => {
+      await window.barn.models.saveCustomProvider({
+        id: 'reasoning-provider',
+        name: 'Reasoning Provider',
+        baseUrl: url,
+        api: 'openai-completions',
+        models: [
+          {
+            id: 'reasoning-model',
+            name: 'Reasoning Model',
+            contextWindow: 128_000,
+            maxTokens: 8_000,
+            reasoning: true,
+            reasoningEfforts: ['low', 'high', 'max'],
+            input: ['text'],
+          },
+          {
+            id: 'fast-model',
+            name: 'Fast Model',
+            contextWindow: 64_000,
+            maxTokens: 4_000,
+            reasoning: false,
+            reasoningEfforts: [],
+            input: ['text'],
+          },
+        ],
+      })
+      await window.barn.models.saveCredential({
+        providerId: 'reasoning-provider',
+        apiKey: 'test-key',
+      })
+      await window.barn.models.setDefault({
+        providerId: 'reasoning-provider',
+        modelId: 'reasoning-model',
+        reasoningEffort: 'high',
+      })
+    }, baseUrl)
+    await page.reload()
+    await page.waitForLoadState('domcontentloaded')
+
+    await page.locator('.composer-model').click()
+    await expect(page.locator('.model-popover')).toHaveClass(/open/)
+    await expect(page.locator('.model-picker-menu-row')).toHaveCount(2)
+    await expect(page.locator('.model-picker-menu-row.active')).toHaveCount(0)
+    await expect(page.locator('.model-picker-submenu')).toHaveCount(0)
+    const menu = page.locator('.model-picker-menu')
+    await page.waitForTimeout(300)
+    const initialMenuBox = await menu.boundingBox()
+    if (initialMenuBox === null) throw new Error('Model picker menu did not render')
+    await page.locator('.model-picker-menu-row').first().hover()
+    await expect(page.locator('.model-picker-submenu')).toBeVisible()
+    const modelSubmenuMotion = await page.locator('.model-picker-submenu').evaluate((element) => {
+      const style = getComputedStyle(element)
+      return {
+        className: element.className,
+        animationName: style.animationName,
+        animationDuration: Number.parseFloat(style.animationDuration),
+      }
+    })
+    expect(modelSubmenuMotion.className).toContain('secondary-menu')
+    expect(modelSubmenuMotion.animationName).toContain('secondary-menu-enter')
+    expect(modelSubmenuMotion.animationDuration).toBeGreaterThan(0)
+    await expect(page.getByText('Choose model', { exact: true })).toBeVisible()
+    await expect(page.locator('.model-picker-submenu input')).toHaveCount(0)
+    await expect(page.locator('.model-option small')).toHaveCount(0)
+    await expect(page.locator('.model-option')).toHaveCount(2)
+    await expect(page.getByRole('option', { name: /Reasoning Model/ })).toBeVisible()
+    await expect(page.getByRole('option', { name: /Fast Model/ })).toBeVisible()
+    await page.screenshot({ path: 'test-results/barn-model-list.png', fullPage: true })
+    expect(await menu.boundingBox()).toEqual(initialMenuBox)
+    const pickerClipping = await page.evaluate(() => ({
+      surfaceOverflow: getComputedStyle(document.querySelector('.conversation-surface')!).overflow,
+      bodyOverflow: getComputedStyle(document.querySelector('.workspace-body')!).overflow,
+    }))
+    expect(pickerClipping).toEqual({ surfaceOverflow: 'visible', bodyOverflow: 'visible' })
+    const pickerMotion = await page.locator('.model-popover').evaluate((element) => {
+      const style = getComputedStyle(element)
+      return {
+        property: style.transitionProperty,
+        duration: Number.parseFloat(style.transitionDuration),
+      }
+    })
+    expect(pickerMotion.property).toContain('opacity')
+    expect(pickerMotion.property).toContain('transform')
+    expect(pickerMotion.duration).toBeGreaterThan(0)
+
+    await page.locator('.model-picker-menu-row').nth(1).hover()
+    const effortSlider = page.getByRole('slider', { name: 'Effort' })
+    await expect(effortSlider).toBeVisible()
+    await expect(page.locator('.effort-card-icon')).toHaveCount(0)
+    await expect(page.locator('.effort-card').getByText('Effort', { exact: true })).toHaveCount(0)
+    const effortLayout = await page.locator('.effort-card').evaluate((element) => {
+      const panel = element.closest('.model-picker-submenu')!.getBoundingClientRect()
+      const header = element.querySelector('.effort-card-header')!.getBoundingClientRect()
+      const model = element.querySelector('.effort-card-model')!.getBoundingClientRect()
+      const slider = element.querySelector('.effort-slider')!.getBoundingClientRect()
+      const title = element.querySelector('.effort-card-title')!.getBoundingClientRect()
+      return {
+        topInset: header.top - panel.top,
+        headerToModel: model.top - header.bottom,
+        modelToSlider: slider.top - model.bottom,
+        bottomInset: panel.bottom - slider.bottom,
+        titleCenterOffset: Math.abs((title.left + title.right) / 2 - (header.left + header.right) / 2),
+        modelCenterOffset: Math.abs((model.left + model.right) / 2 - (slider.left + slider.right) / 2),
+      }
+    })
+    expect(effortLayout.topInset).toBeGreaterThanOrEqual(8)
+    expect(effortLayout.headerToModel).toBeGreaterThanOrEqual(6)
+    expect(effortLayout.modelToSlider).toBeGreaterThanOrEqual(8)
+    expect(effortLayout.bottomInset).toBeGreaterThanOrEqual(6)
+    expect(effortLayout.titleCenterOffset).toBeLessThan(1)
+    expect(effortLayout.modelCenterOffset).toBeLessThan(1)
+    expect(await menu.boundingBox()).toEqual(initialMenuBox)
+    const panelLayout = await page.evaluate(() => {
+      const panel = document.querySelector('.model-picker-submenu')!.getBoundingClientRect()
+      const submenu = document.querySelector<HTMLElement>('.model-picker-submenu')!
+      const menuRect = document.querySelector('.model-picker-menu')!.getBoundingClientRect()
+      return {
+        panelLeft: panel.left,
+        panelRight: panel.right,
+        panelWidth: panel.width,
+        menuLeft: menuRect.left,
+        menuRight: menuRect.right,
+        side: submenu.dataset.side,
+        viewportWidth: window.innerWidth,
+      }
+    })
+    const expectedSide = panelLayout.viewportWidth - panelLayout.menuRight - 12
+      >= panelLayout.panelWidth + 8
+      ? 'right'
+      : 'left'
+    expect(panelLayout.side).toBe(expectedSide)
+    if (expectedSide === 'right') {
+      expect(panelLayout.panelLeft).toBeGreaterThan(panelLayout.menuRight)
+    } else {
+      expect(panelLayout.panelRight).toBeLessThan(panelLayout.menuLeft)
+    }
+    expect(panelLayout.panelWidth).toBeCloseTo(252, 0)
+    expect(panelLayout.panelRight).toBeLessThanOrEqual(panelLayout.viewportWidth)
+    expect(panelLayout.panelLeft).toBeGreaterThanOrEqual(0)
+    const sliderBox = await effortSlider.boundingBox()
+    if (sliderBox === null) throw new Error('Effort slider did not render')
+    await page.mouse.click(sliderBox.x + 2, sliderBox.y + sliderBox.height / 2)
+    await expect(page.locator('.effort-card-title strong')).toContainText('Low')
+    await expect(page.locator('.composer-model')).toContainText('Low')
+    await page.waitForTimeout(260)
+    const minSliderGeometry = await page.evaluate(() => {
+      const track = document.querySelector('.effort-slider')!.getBoundingClientRect()
+      const thumb = document.querySelector('.effort-slider-thumb')!.getBoundingClientRect()
+      return {
+        top: thumb.top - track.top,
+        bottom: track.bottom - thumb.bottom,
+        left: thumb.left - track.left,
+      }
+    })
+    expect(minSliderGeometry.top).toBeCloseTo(4, 1)
+    expect(minSliderGeometry.bottom).toBeCloseTo(4, 1)
+    expect(minSliderGeometry.left).toBeCloseTo(4, 1)
+    await page.mouse.click(sliderBox.x + sliderBox.width * 0.52, sliderBox.y + sliderBox.height / 2)
+    await expect(page.locator('.effort-card-title strong')).toContainText('High')
+    const mediumFillGeometry = await page.evaluate(() => {
+      const track = document.querySelector('.effort-slider')!.getBoundingClientRect()
+      const fill = document.querySelector('.effort-slider-fill')!.getBoundingClientRect()
+      const fillStyle = getComputedStyle(document.querySelector('.effort-slider-fill')!)
+      const passedDots = document.querySelectorAll('.effort-slider-dot.passed')
+      const currentDot = passedDots[passedDots.length - 1]?.getBoundingClientRect()
+      return {
+        trackWidth: track.width,
+        fillWidth: fill.width,
+        fillHeight: fill.height,
+        dotRight: currentDot?.right ?? Number.NaN,
+        fillRight: fill.right,
+        radius: Number.parseFloat(fillStyle.borderRadius),
+        transform: fillStyle.transform,
+      }
+    })
+    expect(mediumFillGeometry.fillWidth).toBeGreaterThan(0)
+    expect(mediumFillGeometry.fillWidth).toBeLessThan(mediumFillGeometry.trackWidth)
+    expect(mediumFillGeometry.fillRight - mediumFillGeometry.dotRight).toBeGreaterThanOrEqual(3.5)
+    expect(mediumFillGeometry.radius).toBeGreaterThanOrEqual(mediumFillGeometry.fillHeight / 2)
+    expect(mediumFillGeometry.transform).toBe('none')
+    await page.screenshot({ path: 'test-results/barn-effort-medium.png', fullPage: true })
+    await page.mouse.move(sliderBox.x + sliderBox.width * 0.96, sliderBox.y + sliderBox.height / 2)
+    await page.mouse.down()
+    await page.mouse.move(sliderBox.x + sliderBox.width * 0.98, sliderBox.y + sliderBox.height / 2, { steps: 4 })
+    await page.mouse.up()
+    await expect(page.locator('.effort-card-title strong')).toContainText('Max')
+    await expect(effortSlider).toHaveAttribute('aria-valuetext', 'Max')
+    await expect(page.locator('.composer-model')).toContainText('Max')
+    await page.waitForTimeout(260)
+    const sliderGeometry = await page.evaluate(() => {
+      const track = document.querySelector('.effort-slider')!.getBoundingClientRect()
+      const thumb = document.querySelector('.effort-slider-thumb')!.getBoundingClientRect()
+      const fill = document.querySelector('.effort-slider-fill')!.getBoundingClientRect()
+      return {
+        top: thumb.top - track.top,
+        right: track.right - thumb.right,
+        bottom: track.bottom - thumb.bottom,
+        fillWidth: fill.width,
+        trackWidth: track.width,
+      }
+    })
+    expect(sliderGeometry.top).toBeCloseTo(4, 1)
+    expect(sliderGeometry.right).toBeCloseTo(4, 1)
+    expect(sliderGeometry.bottom).toBeCloseTo(4, 1)
+    expect(sliderGeometry.fillWidth).toBeCloseTo(sliderGeometry.trackWidth, 1)
+    await page.screenshot({ path: 'test-results/barn-model-picker.png', fullPage: true })
+
+    await page.keyboard.press('Escape')
+    await expect(page.locator('.model-popover')).not.toHaveClass(/open/)
+    await page.evaluate(() => {
+      const picker = document.querySelector<HTMLElement>('.model-picker')!
+      picker.style.transform = 'translateX(-420px)'
+    })
+    await page.locator('.composer-model').click()
+    await page.locator('.model-picker-menu-row').nth(1).hover()
+    await expect(page.locator('.model-picker-submenu')).toHaveAttribute('data-side', 'right')
+    const rightPlacement = await page.evaluate(() => {
+      const panel = document.querySelector('.model-picker-submenu')!.getBoundingClientRect()
+      const menuRect = document.querySelector('.model-picker-menu')!.getBoundingClientRect()
+      return { panelLeft: panel.left, menuRight: menuRect.right }
+    })
+    expect(rightPlacement.panelLeft).toBeGreaterThan(rightPlacement.menuRight)
+    await page.keyboard.press('Escape')
+    await page.evaluate(() => {
+      document.querySelector<HTMLElement>('.model-picker')!.style.transform = ''
+    })
+    const composer = page.getByLabel('Message Barn')
+    await composer.fill('Use max effort')
+    await composer.press('Enter')
+    await expect(page.getByText('Reasoning reply')).toBeVisible({ timeout: 15_000 })
+
+    expect(requests).toHaveLength(1)
+    expect(requests[0]).toMatchObject({
+      model: 'reasoning-model',
+      reasoning_effort: 'max',
+      stream: true,
+    })
   } finally {
     await app.close()
     await new Promise<void>((resolve, reject) => server.close((error) => error === undefined ? resolve() : reject(error)))
@@ -106,6 +375,7 @@ test('interleaves live thinking, tools, and content in event order', async () =>
       ...inheritedEnv,
       ELECTRON_DISABLE_SECURITY_WARNINGS: 'true',
       BARN_USER_DATA_DIR: userData,
+      BARN_UI_LANGUAGE: 'en',
     },
   })
 
@@ -124,6 +394,7 @@ test('interleaves live thinking, tools, and content in event order', async () =>
           contextWindow: 128_000,
           maxTokens: 8_000,
           reasoning: false,
+          reasoningEfforts: [],
           input: ['text'],
         }],
       })
@@ -141,7 +412,7 @@ test('interleaves live thinking, tools, and content in event order', async () =>
       .locator('.live-turn .conversation-part')
       .evaluateAll((parts) => parts.map((part) => part.getAttribute('data-part'))))
       .toEqual(['tool-group', 'thinking'])
-    await expect(page.locator('.live-turn .tool-group-summary')).toContainText('已查看目录')
+    await expect(page.locator('.live-turn .tool-group-summary')).toContainText('Listed a directory')
 
     mock.release()
     await expect(page.getByText('The workspace looks good.', { exact: true })).toBeVisible({ timeout: 15_000 })
@@ -151,7 +422,7 @@ test('interleaves live thinking, tools, and content in event order', async () =>
     expect(finalParts).toEqual(['tool-group', 'thinking', 'text'])
 
     const toolGroup = page.locator('.chat-message.assistant .tool-group')
-    await expect(toolGroup.locator('.tool-group-summary')).toContainText('已查看目录')
+    await expect(toolGroup.locator('.tool-group-summary')).toContainText('Listed a directory')
     await expect(toolGroup.locator('.tool-row')).toHaveCount(0)
     await toolGroup.locator('.tool-group-summary').click()
     await expect(toolGroup.locator('.tool-row')).toHaveCount(1)
@@ -173,14 +444,20 @@ test('interleaves live thinking, tools, and content in event order', async () =>
   }
 })
 
-async function startMockModelServer(nextReply: () => string): Promise<Server> {
+async function startMockModelServer(
+  nextReply: () => string,
+  requests: Array<Record<string, unknown>> = [],
+): Promise<Server> {
   const server = createServer((request, response) => {
     if (request.method !== 'POST' || request.url !== '/v1/chat/completions') {
       response.writeHead(404).end()
       return
     }
-    request.resume()
+    let body = ''
+    request.setEncoding('utf8')
+    request.on('data', (chunk: string) => { body += chunk })
     request.on('end', () => {
+      if (body.length > 0) requests.push(JSON.parse(body) as Record<string, unknown>)
       const text = nextReply()
       response.writeHead(200, {
         'content-type': 'text/event-stream',

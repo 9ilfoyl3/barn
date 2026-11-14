@@ -116,6 +116,7 @@ const model = {
   providerId: 'openai',
   api: 'openai-responses',
   reasoning: false,
+  reasoningEfforts: [],
   contextWindow: 128_000,
   maxTokens: 8_000,
   input: ['text' as const],

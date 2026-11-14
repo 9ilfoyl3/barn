@@ -5,12 +5,14 @@ import type {
   SimpleStreamOptions,
 } from '@earendil-works/pi-ai'
 import { normalizeContext } from '@earendil-works/pi-ai/utils/transcript'
-import type {
-  CustomProviderConfig,
-  ModelConfigSnapshot,
-  ModelDescriptor,
-  ModelSelection,
-  ModelTestResult,
+import {
+  resolveReasoningEffort,
+  type CustomProviderConfig,
+  type ModelConfigSnapshot,
+  type ModelDescriptor,
+  type ModelSelection,
+  type ModelTestResult,
+  type SetDefaultModelInput,
 } from '../../shared/models'
 import { EncryptedCredentialStore } from './credential-store'
 import { ElectronSecretCodec } from './electron-secret-codec'
@@ -56,8 +58,21 @@ export class ModelService {
     return {
       providers: providers.toSorted((a, b) => a.name.localeCompare(b.name)),
       ...(settings.defaultModel === undefined ? {} : { defaultModel: settings.defaultModel }),
+      ...(settings.defaultReasoningEffort === undefined
+        ? {}
+        : { defaultReasoningEffort: settings.defaultReasoningEffort }),
       modelSettingsVersion: 1,
     }
+  }
+
+  async getConfiguredModels(): Promise<ModelDescriptor[]> {
+    const providers = await Promise.all(this.runtime.getProviders().map(async (provider) => ({
+      provider,
+      configured: (await this.runtime.checkAuth(provider.id)).configured,
+    })))
+    return providers
+      .filter((entry) => entry.configured)
+      .flatMap((entry) => this.runtime.getModels(entry.provider.id))
   }
 
   async getModels(providerId: string): Promise<ModelDescriptor[]> {
@@ -162,10 +177,18 @@ export class ModelService {
     return this.getSnapshot()
   }
 
-  async setDefault(selection: ModelSelection): Promise<ModelConfigSnapshot> {
-    const model = this.runtime.getModel(selection)
-    if (model === undefined) throw new Error('Selected model is not available')
-    await this.settings.setDefault(selection)
+  async setDefault(input: SetDefaultModelInput): Promise<ModelConfigSnapshot> {
+    const selection: ModelSelection = {
+      providerId: input.providerId,
+      modelId: input.modelId,
+    }
+    const descriptor = this.runtime.getModelDescriptor(selection)
+    if (descriptor === undefined) throw new Error('Selected model is not available')
+    const reasoningEffort = resolveReasoningEffort(
+      input.reasoningEffort,
+      descriptor.reasoningEfforts,
+    )
+    await this.settings.setDefault(selection, reasoningEffort)
     return this.getSnapshot()
   }
 

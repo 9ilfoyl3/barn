@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import {
   Check,
   ChevronLeft,
@@ -10,14 +11,18 @@ import {
   Trash2,
   X,
 } from 'lucide-react'
-import type {
-  CustomProviderApi,
-  CustomModelConfig,
-  CustomProviderConfig,
-  ModelConfigSnapshot,
-  ModelDescriptor,
-  ModelInput,
-  ModelTestResult,
+import { TooltipButton } from './components/TooltipButton'
+import {
+  REASONING_EFFORTS,
+  resolveReasoningEffort,
+  type CustomProviderApi,
+  type CustomModelConfig,
+  type CustomProviderConfig,
+  type ModelConfigSnapshot,
+  type ModelDescriptor,
+  type ModelInput,
+  type ModelTestResult,
+  type ReasoningEffort,
 } from '../shared/models'
 
 interface ModelSettingsProps {
@@ -27,6 +32,7 @@ interface ModelSettingsProps {
 }
 
 export function ModelSettings({ snapshot, onSnapshot, onClose }: ModelSettingsProps) {
+  const { t } = useTranslation()
   const [query, setQuery] = useState('')
   const [selectedProviderId, setSelectedProviderId] = useState<string>()
   const [models, setModels] = useState<ModelDescriptor[]>([])
@@ -72,7 +78,7 @@ export function ModelSettings({ snapshot, onSnapshot, onClose }: ModelSettingsPr
         if (active) setModels(value)
       })
       .catch((reason: unknown) => {
-        if (active) setError(errorMessage(reason))
+        if (active) setError(errorMessage(reason, t))
       })
       .finally(() => {
         if (active) setBusy(false)
@@ -94,7 +100,7 @@ export function ModelSettings({ snapshot, onSnapshot, onClose }: ModelSettingsPr
       setApiKey('')
       onSnapshot(next)
     } catch (reason) {
-      setError(errorMessage(reason))
+      setError(errorMessage(reason, t))
     } finally {
       setBusy(false)
     }
@@ -107,7 +113,7 @@ export function ModelSettings({ snapshot, onSnapshot, onClose }: ModelSettingsPr
     try {
       onSnapshot(await window.barn.models.deleteCredential(selectedProviderId))
     } catch (reason) {
-      setError(errorMessage(reason))
+      setError(errorMessage(reason, t))
     } finally {
       setBusy(false)
     }
@@ -115,15 +121,21 @@ export function ModelSettings({ snapshot, onSnapshot, onClose }: ModelSettingsPr
 
   async function chooseDefault(modelId: string): Promise<void> {
     if (selectedProviderId === undefined) return
+    const model = models.find((entry) => entry.id === modelId)
+    const preferredEffort = snapshot?.defaultModel?.providerId === selectedProviderId
+      && snapshot.defaultModel.modelId === modelId
+      ? snapshot.defaultReasoningEffort
+      : undefined
     setBusy(true)
     setError(undefined)
     try {
       onSnapshot(await window.barn.models.setDefault({
         providerId: selectedProviderId,
         modelId,
+        reasoningEffort: resolveReasoningEffort(preferredEffort, model?.reasoningEfforts ?? []),
       }))
     } catch (reason) {
-      setError(errorMessage(reason))
+      setError(errorMessage(reason, t))
     } finally {
       setBusy(false)
     }
@@ -137,7 +149,7 @@ export function ModelSettings({ snapshot, onSnapshot, onClose }: ModelSettingsPr
         ? undefined
         : { providerId: selectedProvider.id, modelId: models[0].id }
     if (selection === undefined) {
-      setNotice({ kind: 'error', message: 'Select a model before testing.' })
+      setNotice({ kind: 'error', message: t('settings.selectModelFirst') })
       return
     }
     setTesting(true)
@@ -145,10 +157,10 @@ export function ModelSettings({ snapshot, onSnapshot, onClose }: ModelSettingsPr
     try {
       const result = await window.barn.models.testModel(selection)
       setNotice(result.ok
-        ? { kind: 'ok', message: `Connection succeeded in ${result.latencyMs} ms: ${result.text ?? 'OK'}` }
-        : { kind: 'error', message: result.error ?? 'Connection failed' })
+        ? { kind: 'ok', message: t('settings.connectionSucceededMs', { latency: result.latencyMs, text: result.text ?? 'OK' }) }
+        : { kind: 'error', message: result.error ?? t('settings.connectionFailed') })
     } catch (reason) {
-      setNotice({ kind: 'error', message: errorMessage(reason) })
+      setNotice({ kind: 'error', message: errorMessage(reason, t) })
     } finally {
       setTesting(false)
     }
@@ -164,7 +176,7 @@ export function ModelSettings({ snapshot, onSnapshot, onClose }: ModelSettingsPr
       onSnapshot(next)
       setSelectedProviderId(undefined)
     } catch (reason) {
-      setError(errorMessage(reason))
+      setError(errorMessage(reason, t))
     } finally {
       setBusy(false)
     }
@@ -176,17 +188,17 @@ export function ModelSettings({ snapshot, onSnapshot, onClose }: ModelSettingsPr
         className="settings-panel"
         role="dialog"
         aria-modal="true"
-        aria-label="Model settings"
+        aria-label={t('settings.label')}
         onMouseDown={(event) => event.stopPropagation()}
       >
         <header className="settings-header">
           <div>
-            <span>Desktop configuration</span>
-            <h2>Models</h2>
+            <span>{t('settings.desktopConfiguration')}</span>
+            <h2>{t('settings.title')}</h2>
           </div>
-          <button className="icon-button" type="button" title="Close settings" onClick={onClose}>
+          <TooltipButton className="icon-button" label={t('settings.close')} onClick={onClose}>
             <X size={18} />
-          </button>
+          </TooltipButton>
         </header>
 
         {error !== undefined && <div className="settings-error" role="alert">{error}</div>}
@@ -219,8 +231,8 @@ export function ModelSettings({ snapshot, onSnapshot, onClose }: ModelSettingsPr
               void window.barn.models.getModels(providerId).then(setModels).catch(() => undefined)
               if (testResult !== undefined) {
                 setNotice(testResult.ok
-                  ? { kind: 'ok', message: `Connection succeeded in ${testResult.latencyMs} ms.` }
-                  : { kind: 'error', message: testResult.error ?? 'Connection test failed' })
+                  ? { kind: 'ok', message: t('settings.connectionSucceeded', { latency: testResult.latencyMs }) }
+                  : { kind: 'error', message: testResult.error ?? t('settings.connectionTestFailed') })
               }
             }}
           />
@@ -232,8 +244,8 @@ export function ModelSettings({ snapshot, onSnapshot, onClose }: ModelSettingsPr
                 <input
                   value={query}
                   onChange={(event) => setQuery(event.target.value)}
-                  placeholder="Search providers"
-                  aria-label="Search providers"
+                  placeholder={t('settings.searchProviders')}
+                  aria-label={t('settings.searchProviders')}
                 />
               </div>
               <div className="provider-list">
@@ -247,46 +259,46 @@ export function ModelSettings({ snapshot, onSnapshot, onClose }: ModelSettingsPr
                     <span className={provider.configured ? 'provider-dot configured' : 'provider-dot'} />
                     <span className="provider-copy">
                       <strong>{provider.name}</strong>
-                      <small>{provider.kind === 'custom' ? 'Custom endpoint' : provider.id}</small>
+                      <small>{provider.kind === 'custom' ? t('settings.customEndpoint') : provider.id}</small>
                     </span>
                     <span className="provider-count">{provider.modelCount}</span>
                   </button>
                 ))}
-                {providers.length === 0 && <p className="muted-row">No matching providers</p>}
+                {providers.length === 0 && <p className="muted-row">{t('settings.noMatchingProviders')}</p>}
               </div>
               <button className="secondary-button full-width" type="button" onClick={() => {
                 setEditingProviderId(undefined)
                 setCreating(true)
               }}>
                 <Plus size={15} />
-                Add provider
+                {t('settings.addProvider')}
               </button>
             </div>
 
             <div className="provider-detail">
               {selectedProvider === undefined ? (
-                <div className="detail-empty">Select a provider</div>
+                <div className="detail-empty">{t('settings.selectProvider')}</div>
               ) : (
                 <>
                   <div className="detail-heading">
                     <div>
-                      <span>{selectedProvider.kind === 'custom' ? 'Custom provider' : 'Built-in provider'}</span>
+                      <span>{selectedProvider.kind === 'custom' ? t('settings.customProvider') : t('settings.builtInProvider')}</span>
                       <h3>{selectedProvider.name}</h3>
                     </div>
                     <div className={selectedProvider.configured ? 'status-pill ready' : 'status-pill'}>
                       {selectedProvider.configured ? <Check size={13} /> : <KeyRound size={13} />}
-                      {selectedProvider.configured ? 'Configured' : 'Needs key'}
+                      {selectedProvider.configured ? t('settings.configured') : t('settings.needsKey')}
                     </div>
                   </div>
 
-                  <label className="field-label" htmlFor="api-key">API key</label>
+                  <label className="field-label" htmlFor="api-key">{t('settings.apiKey')}</label>
                   <div className="secret-row">
                     <input
                       id="api-key"
                       type="password"
                       value={apiKey}
                       onChange={(event) => setApiKey(event.target.value)}
-                      placeholder={selectedProvider.configured ? 'Replace stored key' : 'Enter provider key'}
+                      placeholder={selectedProvider.configured ? t('settings.replaceStoredKey') : t('settings.enterProviderKey')}
                       autoComplete="off"
                     />
                     <button
@@ -295,15 +307,15 @@ export function ModelSettings({ snapshot, onSnapshot, onClose }: ModelSettingsPr
                       disabled={apiKey.trim().length === 0 || busy}
                       onClick={() => void saveCredential()}
                     >
-                      Save
+                      {t('common.save')}
                     </button>
                   </div>
                   {selectedProvider.configured && (
                     <div className="credential-meta">
-                      <span>{selectedProvider.authSource ?? 'Stored securely'}</span>
+                      <span>{selectedProvider.authSource ?? t('settings.storedSecurely')}</span>
                       <button type="button" onClick={() => void deleteCredential()}>
                         <Trash2 size={13} />
-                        Remove key
+                        {t('settings.removeKey')}
                       </button>
                     </div>
                   )}
@@ -312,8 +324,8 @@ export function ModelSettings({ snapshot, onSnapshot, onClose }: ModelSettingsPr
 
                   <div className="detail-section-heading">
                     <div>
-                      <span>Default model</span>
-                      <strong>{snapshot?.defaultModel?.modelId ?? 'Not selected'}</strong>
+                      <span>{t('settings.defaultModel')}</span>
+                      <strong>{snapshot?.defaultModel?.modelId ?? t('settings.notSelected')}</strong>
                     </div>
                     <button
                       className="secondary-button compact"
@@ -322,7 +334,7 @@ export function ModelSettings({ snapshot, onSnapshot, onClose }: ModelSettingsPr
                       onClick={() => void testConnection()}
                     >
                       {testing ? <LoaderCircle className="spin" size={13} /> : <Sparkles size={13} />}
-                      Test connection
+                      {t('settings.testConnection')}
                     </button>
                   </div>
 
@@ -343,13 +355,13 @@ export function ModelSettings({ snapshot, onSnapshot, onClose }: ModelSettingsPr
                           </span>
                           <span className="model-facts">
                             {formatContext(model.contextWindow)}
-                            {model.reasoning && <em>Reasoning</em>}
+                            {model.reasoning && <em>{t('settings.reasoning')}</em>}
                             {active && <Check size={15} />}
                           </span>
                         </button>
                       )
                     })}
-                    {models.length === 0 && !busy && <p className="muted-row">No models listed</p>}
+                    {models.length === 0 && !busy && <p className="muted-row">{t('settings.noModels')}</p>}
                   </div>
 
                   {selectedProvider.kind === 'custom' && (
@@ -363,11 +375,11 @@ export function ModelSettings({ snapshot, onSnapshot, onClose }: ModelSettingsPr
                           setEditingProviderId(selectedProvider.id)
                         }}
                       >
-                        Edit provider
+                        {t('settings.editProvider')}
                       </button>
                       <button className="danger-button" type="button" onClick={() => void removeCustomProvider()}>
                         <Trash2 size={14} />
-                        Delete custom provider
+                        {t('settings.deleteCustomProvider')}
                       </button>
                     </div>
                   )}
@@ -397,6 +409,7 @@ interface EditableModel {
   contextWindow: string
   maxTokens: string
   reasoning: boolean
+  reasoningEfforts: ReasoningEffort[]
   input: ModelInput[]
 }
 
@@ -419,6 +432,7 @@ function CustomProviderForm({
   onCancel,
   onSaved,
 }: CustomProviderFormProps) {
+  const { t } = useTranslation()
   const initialModels = initialProvider?.models ?? []
   const [id, setId] = useState(initialProvider?.id ?? '')
   const [name, setName] = useState(initialProvider?.name ?? '')
@@ -440,6 +454,7 @@ function CustomProviderForm({
       && Number(model.contextWindow) > 0
       && Number(model.maxTokens) > 0
       && model.input.length > 0
+      && (!model.reasoning || model.reasoningEfforts.length > 0)
   })
   const canSave = !busy
     && name.trim().length > 0
@@ -452,19 +467,20 @@ function CustomProviderForm({
     setError(undefined)
     try {
       const providerId = mode === 'edit' ? initialProvider?.id : (id.trim() || slugify(name))
-      if (providerId === undefined) throw new Error('Provider ID is required')
+      if (providerId === undefined) throw new Error(t('settings.providerIdRequired'))
       const models: CustomModelConfig[] = draftModels.map((model) => ({
         id: model.id.trim(),
         name: model.name.trim() || model.id.trim(),
         contextWindow: Number(model.contextWindow),
         maxTokens: Number(model.maxTokens),
         reasoning: model.reasoning,
+        reasoningEfforts: model.reasoning ? model.reasoningEfforts : [],
         input: model.input,
       }))
       const selectedModelId = models.some((model) => model.id === defaultModelId)
         ? defaultModelId
         : models[0]?.id
-      if (selectedModelId === undefined) throw new Error('At least one model is required')
+      if (selectedModelId === undefined) throw new Error(t('settings.atLeastOneModel'))
 
       let snapshot = await window.barn.models.saveCustomProvider({
         id: providerId,
@@ -479,9 +495,11 @@ function CustomProviderForm({
       const defaultStillExists = initialDefaultModelId === undefined
         || models.some((model) => model.id === initialDefaultModelId)
       if (makeDefault || !defaultStillExists) {
+        const selectedModel = models.find((model) => model.id === selectedModelId)
         snapshot = await window.barn.models.setDefault({
           providerId,
           modelId: selectedModelId,
+          reasoningEffort: resolveReasoningEffort(undefined, selectedModel?.reasoningEfforts ?? []),
         })
       }
       const testResult = testAfterSave
@@ -489,7 +507,7 @@ function CustomProviderForm({
         : undefined
       onSaved(snapshot, providerId, testResult)
     } catch (reason) {
-      setError(errorMessage(reason))
+      setError(errorMessage(reason, t))
     } finally {
       setBusy(false)
     }
@@ -506,6 +524,7 @@ function CustomProviderForm({
       contextWindow: Number(ARK_PRESET.contextWindow),
       maxTokens: Number(ARK_PRESET.maxTokens),
       reasoning: false,
+      reasoningEfforts: [],
       input: ['text'],
     })
     setDraftModels([model])
@@ -519,6 +538,7 @@ function CustomProviderForm({
       contextWindow: 128_000,
       maxTokens: 32_000,
       reasoning: false,
+      reasoningEfforts: [],
       input: ['text'],
     })
     setDraftModels((current) => [...current, model])
@@ -543,6 +563,16 @@ function CustomProviderForm({
     if (removed?.id === defaultModelId) setDefaultModelId(next[0]?.id ?? '')
   }
 
+  function toggleReasoningEffort(key: string, effort: ReasoningEffort): void {
+    setDraftModels((current) => current.map((model) => {
+      if (model.key !== key) return model
+      const reasoningEfforts = model.reasoningEfforts.includes(effort)
+        ? model.reasoningEfforts.filter((entry) => entry !== effort)
+        : [...model.reasoningEfforts, effort]
+      return { ...model, reasoningEfforts }
+    }))
+  }
+
   function toggleInput(key: string, value: ModelInput): void {
     setDraftModels((current) => current.map((model) => {
       if (model.key !== key) return model
@@ -558,23 +588,23 @@ function CustomProviderForm({
       <div className="custom-provider-scroll">
         <button className="back-button" type="button" onClick={onCancel}>
           <ChevronLeft size={15} />
-          Providers
+          {t('settings.providers')}
         </button>
         <div className="form-heading">
-          <span>{mode === 'edit' ? 'Provider configuration' : 'Provider setup'}</span>
-          <h3>{mode === 'edit' ? `Edit ${initialProvider?.name ?? 'provider'}` : 'Add a model provider'}</h3>
+          <span>{mode === 'edit' ? t('settings.providerConfiguration') : t('settings.providerSetup')}</span>
+          <h3>{mode === 'edit' ? t('settings.editProviderTitle', { name: initialProvider?.name ?? t('settings.customProvider') }) : t('settings.addProviderTitle')}</h3>
         </div>
         {error !== undefined && <div className="settings-error">{error}</div>}
         {mode === 'create' && (
           <button className="preset-card ark" type="button" onClick={applyArkPreset}>
-            <span>Quick setup</span>
+            <span>{t('settings.quickSetup')}</span>
             <strong>Volcengine Ark</strong>
             <small>Responses API · DeepSeek V4.1 Flash</small>
           </button>
         )}
         <div className="form-grid">
           <label>
-            <span>Provider ID</span>
+            <span>{t('settings.providerId')}</span>
             <input
               value={id}
               readOnly={mode === 'edit'}
@@ -583,15 +613,15 @@ function CustomProviderForm({
             />
           </label>
           <label>
-            <span>Display name</span>
+            <span>{t('settings.displayName')}</span>
             <input value={name} onChange={(event) => setName(event.target.value)} placeholder="Acme Gateway" />
           </label>
           <label className="span-two">
-            <span>Base URL</span>
+            <span>{t('settings.baseUrl')}</span>
             <input value={baseUrl} onChange={(event) => setBaseUrl(event.target.value)} placeholder="https://gateway.example/v1" />
           </label>
           <label className="span-two">
-            <span>Protocol</span>
+            <span>{t('settings.protocol')}</span>
             <select value={api} onChange={(event) => setApi(event.target.value as CustomProviderApi)}>
               <option value="openai-completions">OpenAI Chat Completions</option>
               <option value="openai-responses">OpenAI Responses</option>
@@ -599,12 +629,12 @@ function CustomProviderForm({
             </select>
           </label>
           <label className="span-two">
-            <span>API key</span>
+            <span>{t('settings.apiKey')}</span>
             <input
               type="password"
               value={apiKey}
               onChange={(event) => setApiKey(event.target.value)}
-              placeholder={providerConfigured ? 'Leave blank to keep the stored key' : 'Paste the provider API key'}
+              placeholder={providerConfigured ? t('settings.leaveBlankForStoredKey') : t('settings.pasteProviderKey')}
               autoComplete="off"
             />
           </label>
@@ -612,12 +642,12 @@ function CustomProviderForm({
 
         <div className="model-editor-heading">
           <div>
-            <span>Model configuration</span>
-            <strong>{draftModels.length} {draftModels.length === 1 ? 'model' : 'models'}</strong>
+            <span>{t('settings.modelConfiguration')}</span>
+            <strong>{t('common.models', { count: draftModels.length })}</strong>
           </div>
           <button className="secondary-button compact" type="button" onClick={addModel}>
             <Plus size={13} />
-            Add model
+            {t('settings.addModel')}
           </button>
         </div>
 
@@ -625,44 +655,76 @@ function CustomProviderForm({
           {draftModels.map((model, index) => (
             <section className="model-editor-card" key={model.key}>
               <div className="model-editor-card-header">
-                <span>Model {index + 1}</span>
-                <button
+                <span>{t('settings.modelNumber', { number: index + 1 })}</span>
+                <TooltipButton
                   className="icon-button danger"
-                  type="button"
-                  title="Remove model"
+                  label={t('settings.removeModel')}
                   disabled={draftModels.length <= 1}
                   onClick={() => removeModel(model.key)}
                 >
                   <Trash2 size={14} />
-                </button>
+                </TooltipButton>
               </div>
               <div className="model-editor-grid">
                 <label>
-                  <span>Model ID</span>
+                  <span>{t('settings.modelId')}</span>
                   <input value={model.id} onChange={(event) => updateModel(model.key, { id: event.target.value })} placeholder="model-id" />
                 </label>
                 <label>
-                  <span>Model name</span>
-                  <input value={model.name} onChange={(event) => updateModel(model.key, { name: event.target.value })} placeholder="Model name" />
+                  <span>{t('settings.modelName')}</span>
+                  <input value={model.name} onChange={(event) => updateModel(model.key, { name: event.target.value })} placeholder={t('settings.modelName')} />
                 </label>
                 <label>
-                  <span>Context window</span>
+                  <span>{t('settings.contextWindow')}</span>
                   <input inputMode="numeric" value={model.contextWindow} onChange={(event) => updateModel(model.key, { contextWindow: event.target.value })} />
                 </label>
                 <label>
-                  <span>Max output</span>
+                  <span>{t('settings.maxOutput')}</span>
                   <input inputMode="numeric" value={model.maxTokens} onChange={(event) => updateModel(model.key, { maxTokens: event.target.value })} />
                 </label>
                 <div className="option-row span-two">
                   <label className="check-row">
-                    <input type="checkbox" checked={model.reasoning} onChange={(event) => updateModel(model.key, { reasoning: event.target.checked })} />
-                    Reasoning model
+                    <input
+                      type="checkbox"
+                      checked={model.reasoning}
+                      onChange={(event) => updateModel(model.key, {
+                        reasoning: event.target.checked,
+                        reasoningEfforts: event.target.checked
+                          ? model.reasoningEfforts.length > 0
+                            ? model.reasoningEfforts
+                            : ['low', 'medium', 'high']
+                          : [],
+                      })}
+                    />
+                    {t('settings.reasoningModel')}
                   </label>
                   <label className="check-row">
                     <input type="checkbox" checked={model.input.includes('image')} onChange={() => toggleInput(model.key, 'image')} />
-                    Image input
+                    {t('settings.imageInput')}
                   </label>
                 </div>
+                {model.reasoning && (
+                  <div className="effort-config span-two">
+                    <span>{t('settings.supportedEfforts')}</span>
+                    <div className="effort-config-options">
+                      {REASONING_EFFORTS.map((effort) => {
+                        const active = model.reasoningEfforts.includes(effort)
+                        return (
+                          <button
+                            className={active ? 'effort-config-option active' : 'effort-config-option'}
+                            type="button"
+                            key={effort}
+                            aria-pressed={active}
+                            onClick={() => toggleReasoningEffort(model.key, effort)}
+                          >
+                            <span />
+                            {t(`settings.efforts.${effort}`)}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )}
               </div>
             </section>
           ))}
@@ -670,11 +732,11 @@ function CustomProviderForm({
 
         <div className="form-grid">
           <label className="span-two">
-            <span>Default model</span>
+            <span>{t('settings.defaultModel')}</span>
             <select value={defaultModelId} onChange={(event) => setDefaultModelId(event.target.value)}>
               {draftModels.map((model) => (
                 <option value={model.id} key={model.key} disabled={model.id.trim().length === 0}>
-                  {model.name || model.id || 'Unnamed model'}
+                  {model.name || model.id || t('settings.unnamedModel')}
                 </option>
               ))}
             </select>
@@ -682,17 +744,17 @@ function CustomProviderForm({
           <div className="span-two option-row">
             <label className="check-row">
               <input type="checkbox" checked={makeDefault} onChange={(event) => setMakeDefault(event.target.checked)} />
-              Use as default model
+              {t('settings.useAsDefault')}
             </label>
             <label className="check-row">
               <input type="checkbox" checked={testAfterSave} onChange={(event) => setTestAfterSave(event.target.checked)} />
-              Test connection after saving
+              {t('settings.testAfterSave')}
             </label>
           </div>
         </div>
       </div>
       <div className="form-actions">
-        <button className="secondary-button" type="button" onClick={onCancel}>Cancel</button>
+        <button className="secondary-button" type="button" onClick={onCancel}>{t('common.cancel')}</button>
         <button
           className="primary-button"
           type="button"
@@ -700,7 +762,7 @@ function CustomProviderForm({
           onClick={() => void save()}
         >
           {busy && <LoaderCircle className="spin" size={14} />}
-          {busy ? 'Configuring…' : mode === 'edit' ? 'Save changes' : 'Save and test'}
+          {busy ? t('settings.configuring') : mode === 'edit' ? t('settings.saveChanges') : t('settings.saveAndTest')}
         </button>
       </div>
     </div>
@@ -715,6 +777,7 @@ function toEditableModel(model: CustomModelConfig): EditableModel {
     contextWindow: String(model.contextWindow),
     maxTokens: String(model.maxTokens),
     reasoning: model.reasoning,
+    reasoningEfforts: [...model.reasoningEfforts],
     input: [...model.input],
   }
 }
@@ -724,8 +787,8 @@ function formatContext(tokens: number): string {
   return `${Math.round(tokens / 1_000)}K`
 }
 
-function errorMessage(reason: unknown): string {
-  return reason instanceof Error ? reason.message : 'Model operation failed'
+function errorMessage(reason: unknown, t: ReturnType<typeof useTranslation>['t']): string {
+  return reason instanceof Error ? reason.message : t('settings.modelOperationFailed')
 }
 
 function slugify(value: string): string {
@@ -752,6 +815,7 @@ function providerConfigFrom(
       contextWindow: model.contextWindow,
       maxTokens: model.maxTokens,
       reasoning: model.reasoning,
+      reasoningEfforts: model.reasoningEfforts,
       input: model.input,
     })),
   }

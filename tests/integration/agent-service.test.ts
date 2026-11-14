@@ -7,8 +7,6 @@ import { describe, expect, it, vi } from 'vitest'
 import type { HostToWorkerMessage, WorkerToHostMessage } from '../../src/shared/agent-protocol'
 import type { ModelSelection, SessionLiveEvent } from '../../src/shared/models'
 import type { ModelService } from '../../src/main/models/model-service'
-import { EmployeeIntakeStore } from '../../src/main/intake/employee-intake-store'
-import { HrClient } from '../../src/main/cloud/hr-client'
 import { AesGcmEventCipher } from '../../src/main/session/event-cipher'
 import { SessionStore } from '../../src/main/session/session-store'
 import { ToolService } from '../../src/main/tools/tool-service'
@@ -92,6 +90,7 @@ function fakeModels(): ModelService {
       providerId: 'openai',
       api: 'openai-responses',
       reasoning: false,
+      reasoningEfforts: [],
       contextWindow: 128_000,
       maxTokens: 8_000,
       input: ['text'],
@@ -133,8 +132,7 @@ describe('AgentService integration', () => {
       privateTempRoot: temp,
       shell: { run: vi.fn() } as unknown as ShellService,
     })
-    const intake = new EmployeeIntakeStore(sessions)
-    const agent = new AgentService(supervisor, fakeModels(), sessions, tools, intake, new HrClient(async () => 'test-token'))
+    const agent = new AgentService(supervisor, fakeModels(), sessions, tools)
     const statuses: string[] = []
     const liveEvents: SessionLiveEvent[] = []
     agent.onLiveEvent((event) => {

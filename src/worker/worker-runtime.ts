@@ -39,19 +39,15 @@ interface ActiveModelStream {
   model: Model<Api>
 }
 
-const SYSTEM_PROMPT = `You are Barn, an HRBP desktop assistant.
+const SYSTEM_PROMPT = `You are Barn, a general-purpose personal desktop assistant for everyday office work.
 
 You work inside a local workspace and can inspect files with tools. File types are unrestricted: use read_file for text, list_dir and search_files for discovery, shell for format-specific extraction or conversion, and view_image for supported images when the selected model accepts image input.
 
 Never claim to have inspected a file unless a tool returned its content. Do not assume a file is CSV, XLSX, PDF, or a table; inspect it and adapt to its actual content.
 
-For employee information, work incrementally across conversation turns. Prefer summaries and grouped exceptions over asking the user to manually repeat fields. Ask only for high-impact missing or ambiguous information. Never invent identity numbers, dates, salaries, or other sensitive employee facts.
+Work incrementally across conversation turns. Prefer useful summaries and grouped exceptions over asking the user to repeat information. Ask only for high-impact missing or ambiguous details. Never invent facts, figures, dates, quotations, or sources.
 
-When creating employee drafts, use employee_intake_create with normalized fields. Use the canonical keys employeeNo, displayName, workEmail, hireDate, orgUnit, orgUnitCode, jobTitle, location, and managerEmployeeNo where available. Include evidence for document-derived fields. Use employee_intake_update to apply user corrections. Use employee_intake_preview for Cloud validation. Never claim employees were created; final commit is a user action in the intake review panel.
-
-For existing employee data, use employee_search, employee_get, org_unit_get, and employee_list_by_org. Treat returned HR data as read-only tenant-scoped context. Never use cached or previously returned employee data to authorize a write. If Cloud authentication is missing, tell the user to sign in.
-
-Lifecycle changes are proposal-only. Use lifecycle_propose_transition to create a pending proposal with a reason and effective date. Never claim the lifecycle transition happened; the user must explicitly approve or reject it in Desktop.`
+Turn the user's request into a clear result or next step. Explain consequential actions before taking them, preserve the user's files unless the request requires a change, and never claim an action succeeded unless a tool confirmed it.`
 
 export class WorkerRuntime {
   private readonly sessions = new Map<string, WorkerSession>()
@@ -324,6 +320,7 @@ class WorkerSession {
         systemPrompt: SYSTEM_PROMPT,
         messages: seed.messages as AgentMessage[],
         model,
+        thinkingLevel: seed.reasoningEffort ?? 'off',
         tools: createTools(executeTool, seed.model.input.includes('image')),
       },
       convertToLlm: (messages) => messages.filter(isLlmMessage) as Message[],
@@ -437,72 +434,6 @@ function createTools(
       command: Type.String({ minLength: 1, maxLength: 20_000 }),
       cwd: Type.Optional(Type.String()),
       timeoutMs: Type.Optional(Type.Integer({ minimum: 1, maximum: 300_000 })),
-    }), executeTool),
-    tool('employee_intake_create', 'Create Employee Intake', 'Create a persistent batch of employee drafts from inspected files.', Type.Object({
-      employees: Type.Array(Type.Object({
-        id: Type.Optional(Type.String({ minLength: 1, maxLength: 200 })),
-        fields: Type.Record(Type.String(), Type.Object({
-          value: Type.String(),
-          source: Type.Optional(Type.Union([
-            Type.Literal('document'),
-            Type.Literal('user'),
-            Type.Literal('inferred'),
-          ])),
-          confidence: Type.Optional(Type.Number({ minimum: 0, maximum: 1 })),
-          evidence: Type.Optional(Type.Array(Type.String())),
-        })),
-        sourceFiles: Type.Optional(Type.Array(Type.String())),
-      }), { minItems: 1, maxItems: 500 }),
-    }), executeTool),
-    tool('employee_intake_get', 'Get Employee Intake', 'Read the current employee intake revision and grouped issues.', Type.Object({
-      includeEmployees: Type.Optional(Type.Boolean()),
-    }), executeTool),
-    tool('employee_intake_update', 'Update Employee Intake', 'Apply corrections to one employee draft using its current revision.', Type.Object({
-      employeeId: Type.String({ minLength: 1 }),
-      fields: Type.Record(Type.String(), Type.String()),
-      expectedRevision: Type.Integer({ minimum: 1 }),
-    }), executeTool),
-    tool('employee_intake_preview', 'Preview Employee Intake', 'Validate the current intake against Barn Cloud duplicates and required fields. This does not create employees.', Type.Object({}), executeTool),
-    tool('employee_search', 'Search Employees', 'Search employees in the signed-in tenant by number, name, email, organization or status.', Type.Object({
-      query: Type.Optional(Type.String({ maxLength: 200 })),
-      status: Type.Optional(Type.Union([
-        Type.Literal('preboarding'),
-        Type.Literal('onboarding'),
-        Type.Literal('probation'),
-        Type.Literal('active'),
-        Type.Literal('offboarding'),
-        Type.Literal('terminated'),
-      ])),
-      orgUnitId: Type.Optional(Type.String()),
-      orgUnitCode: Type.Optional(Type.String()),
-      page: Type.Optional(Type.Integer({ minimum: 1 })),
-      pageSize: Type.Optional(Type.Integer({ minimum: 1, maximum: 100 })),
-      fields: Type.Optional(Type.String()),
-    }), executeTool),
-    tool('employee_get', 'Get Employee', 'Read one employee with current organization, manager, hire date, status and version.', Type.Object({
-      employeeId: Type.String({ minLength: 1 }),
-    }), executeTool),
-    tool('org_unit_get', 'Get Organization Unit', 'Read one organization unit by ID or code.', Type.Object({
-      idOrCode: Type.String({ minLength: 1 }),
-    }), executeTool),
-    tool('employee_list_by_org', 'List Employees By Organization', 'List current employees assigned to an organization unit.', Type.Object({
-      orgUnitId: Type.Optional(Type.String()),
-      orgUnitCode: Type.Optional(Type.String()),
-      page: Type.Optional(Type.Integer({ minimum: 1 })),
-      pageSize: Type.Optional(Type.Integer({ minimum: 1, maximum: 100 })),
-    }), executeTool),
-    tool('lifecycle_propose_transition', 'Propose Lifecycle Transition', 'Create a pending lifecycle proposal. This never changes employee state; explicit user approval is required.', Type.Object({
-      employeeId: Type.String({ minLength: 1 }),
-      toStatus: Type.Union([
-        Type.Literal('preboarding'),
-        Type.Literal('onboarding'),
-        Type.Literal('probation'),
-        Type.Literal('active'),
-        Type.Literal('offboarding'),
-        Type.Literal('terminated'),
-      ]),
-      effectiveDate: Type.String({ pattern: '^\\d{4}-\\d{2}-\\d{2}$' }),
-      reason: Type.String({ minLength: 3, maxLength: 1_000 }),
     }), executeTool),
   ]
 

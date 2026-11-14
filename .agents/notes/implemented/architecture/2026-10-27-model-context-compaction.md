@@ -4,7 +4,7 @@ Status: implemented
 
 ## Problem
 
-Long HRBP sessions contain many user turns, large file reads, search results, shell output, and repeated tool loops. The full encrypted Session history must remain available, but sending all of it to every model request eventually exceeds the provider context window and increases cost and latency.
+Long personal-Agent sessions contain many user turns, large file reads, search results, shell output, and repeated tool loops. The full encrypted Session history must remain available, but sending all of it to every model request eventually exceeds the provider context window and increases cost and latency.
 
 ## Decision
 
@@ -24,7 +24,7 @@ Persistent Session history remains complete and encrypted. Compaction affects on
 
 **Send the full persistent transcript on every request.** Rejected because it eventually overflows model context and scales cost with total session age.
 
-**Summarize all history with another model call.** Rejected for the first implementation because it adds cost, latency, and a second model data path. Deterministic compaction is safer and predictable for HR data.
+**Summarize all history with another model call.** Rejected for the first implementation because it adds cost, latency, and a second model data path. Deterministic compaction is safer and predictable for local work data.
 
 **Delete old Session events.** Rejected because users need full replay and auditability locally.
 

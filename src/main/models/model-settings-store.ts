@@ -1,11 +1,13 @@
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { z } from 'zod'
-import type {
-  CustomModelConfig,
-  CustomProviderConfig,
-  ModelSelection,
-  ModelSettings,
+import {
+  REASONING_EFFORTS,
+  type CustomModelConfig,
+  type CustomProviderConfig,
+  type ModelSelection,
+  type ModelSettings,
+  type ReasoningEffort,
 } from '../../shared/models'
 
 const selectionSchema = z.object({
@@ -13,14 +15,21 @@ const selectionSchema = z.object({
   modelId: z.string().min(1),
 })
 
+const reasoningEffortSchema = z.enum(REASONING_EFFORTS)
+const legacyReasoningEfforts: ReasoningEffort[] = ['low', 'medium', 'high']
+
 const customModelSchema: z.ZodType<CustomModelConfig> = z.object({
   id: z.string().min(1),
   name: z.string().min(1),
   contextWindow: z.number().int().positive(),
   maxTokens: z.number().int().positive(),
   reasoning: z.boolean(),
+  reasoningEfforts: z.array(reasoningEffortSchema).optional(),
   input: z.array(z.enum(['text', 'image'])).min(1),
-})
+}).transform((model) => ({
+  ...model,
+  reasoningEfforts: normalizeReasoningEfforts(model.reasoning, model.reasoningEfforts),
+}))
 
 const customProviderSchema: z.ZodType<CustomProviderConfig> = z.object({
   id: z.string().regex(/^[a-z0-9][a-z0-9-]*$/),
@@ -33,6 +42,7 @@ const customProviderSchema: z.ZodType<CustomProviderConfig> = z.object({
 const settingsSchema: z.ZodType<ModelSettings> = z.object({
   version: z.literal(1),
   defaultModel: selectionSchema.optional(),
+  defaultReasoningEffort: reasoningEffortSchema.optional(),
   customProviders: z.array(customProviderSchema),
 })
 
@@ -58,10 +68,14 @@ export class ModelSettingsStore {
     }
   }
 
-  async setDefault(selection: ModelSelection): Promise<ModelSettings> {
+  async setDefault(
+    selection: ModelSelection,
+    reasoningEffort?: ReasoningEffort,
+  ): Promise<ModelSettings> {
     return this.update((current) => ({
       ...current,
       defaultModel: selectionSchema.parse(selection),
+      ...(reasoningEffort === undefined ? { defaultReasoningEffort: undefined } : { defaultReasoningEffort: reasoningEffort }),
     }))
   }
 
@@ -83,7 +97,9 @@ export class ModelSettingsStore {
         : current.defaultModel
       return {
         ...current,
-        ...(defaultModel === undefined ? { defaultModel: undefined } : { defaultModel }),
+        ...(defaultModel === undefined
+          ? { defaultModel: undefined, defaultReasoningEffort: undefined }
+          : { defaultModel }),
         customProviders: current.customProviders.filter((entry) => entry.id !== providerId),
       }
     })
@@ -105,4 +121,14 @@ function isNotFound(error: unknown): boolean {
   return error instanceof Error
     && 'code' in error
     && error.code === 'ENOENT'
+}
+
+function normalizeReasoningEfforts(
+  reasoning: boolean,
+  efforts: readonly ReasoningEffort[] | undefined,
+): ReasoningEffort[] {
+  if (!reasoning) return []
+  if (efforts === undefined || efforts.length === 0) return [...legacyReasoningEfforts]
+  const selected = new Set(efforts)
+  return REASONING_EFFORTS.filter((effort) => selected.has(effort))
 }

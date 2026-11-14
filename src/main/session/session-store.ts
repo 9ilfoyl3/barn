@@ -63,7 +63,7 @@ export class SessionStore {
     this.pruneEmptySessions()
   }
 
-  createSession(title = 'New HRBP session', sessionId: string = randomUUID()): SessionSummary {
+  createSession(title = 'New session', sessionId: string = randomUUID()): SessionSummary {
     const now = new Date().toISOString()
     const session: SessionSummary = {
       id: sessionId,
@@ -79,7 +79,7 @@ export class SessionStore {
     return session
   }
 
-  ensureSession(sessionId: string, title = 'New HRBP session'): SessionSummary {
+  ensureSession(sessionId: string, title = 'New session'): SessionSummary {
     const row = this.database.prepare(`
       SELECT id, title, status, created_at, updated_at
       FROM sessions WHERE id = ?

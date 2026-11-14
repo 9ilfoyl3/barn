@@ -1,47 +1,31 @@
 import { useEffect, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Streamdown, type Components } from 'streamdown'
 import 'streamdown/styles.css'
 import {
-  Bell,
   Brain,
   CheckCircle2,
   ChevronRight,
   CircleX,
-  ClipboardList,
-  Command,
-  FolderKanban,
-  LogIn,
-  LogOut,
-  CornerDownLeft,
+  ArrowUp,
+  ChevronDown,
+  FileSearch,
+  FileText,
+  FolderOpen,
+  Search,
+  Wrench,
   LoaderCircle,
   PanelLeft,
   Paperclip,
   Plus,
-  RefreshCw,
-  Settings2,
-  SlidersHorizontal,
   Sparkles,
   Square,
   Terminal,
   UserRound,
-  Users,
   X,
 } from 'lucide-react'
 import type {
   AttachmentDescriptor,
-  AuthState,
-  EmployeeIntake,
-  EmployeeIntakeCommitResult,
-  EmployeeDetail,
-  EmployeeIntakePreview,
-  EmployeeSearchInput,
-  EmployeeSearchResult,
-  LifecycleCaseSearchInput,
-  LifecycleCaseSearchResult,
-  LifecycleCaseStatus,
-  LifecycleProposal,
-  LifecycleTaskUpdateInput,
-  HrNotification,
   ModelConfigSnapshot,
   RuntimeCapabilities,
   SessionLiveEvent,
@@ -49,9 +33,10 @@ import type {
 } from '../shared/models'
 import { attachmentDisplayName } from '../shared/attachments'
 import { ModelSettings } from './ModelSettings'
-import { EmployeeIntakePanel } from './EmployeeIntakePanel'
-import { WorkspaceDrawer } from './WorkspaceDrawer'
-import { LifecycleProposalDialog } from './LifecycleProposalDialog'
+import { ModelPicker } from './ModelPicker'
+import { LanguagePicker } from './LanguagePicker'
+import { initializeAppLanguage } from './i18n'
+import { TooltipButton } from './components/TooltipButton'
 import {
   applyLiveEvent,
   groupConversationParts,
@@ -71,8 +56,11 @@ const STREAMDOWN_COMPONENTS: Components = {
 }
 
 export function App() {
+  const { t, i18n } = useTranslation()
+  const dateLocale = i18n.language === 'zh-CN' ? 'zh-CN' : 'en-US'
   const [snapshot, setSnapshot] = useState<ModelConfigSnapshot>()
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [modelSelectionBusy, setModelSelectionBusy] = useState(false)
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [sessions, setSessions] = useState<SessionSummary[]>([])
   const [activeSessionId, setActiveSessionId] = useState<string>()
@@ -83,45 +71,36 @@ export function App() {
   const [liveParts, setLiveParts] = useState<ConversationPart[]>([])
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<string>()
-  const [intake, setIntake] = useState<EmployeeIntake>()
-  const [intakePanelOpen, setIntakePanelOpen] = useState(false)
-  const [intakePreview, setIntakePreview] = useState<EmployeeIntakePreview>()
-  const [intakeCommitResult, setIntakeCommitResult] = useState<EmployeeIntakeCommitResult>()
-  const [intakeBusy, setIntakeBusy] = useState(false)
-  const [intakeError, setIntakeError] = useState<string>()
-  const [workspaceMode, setWorkspaceMode] = useState<'workspace' | 'employees' | 'lifecycle'>()
-  const [employeeResult, setEmployeeResult] = useState<EmployeeSearchResult>()
-  const [employeeQuery, setEmployeeQuery] = useState<EmployeeSearchInput>({ page: 1, pageSize: 25 })
-  const [employeeDetail, setEmployeeDetail] = useState<EmployeeDetail>()
-  const [employeeDetailLoading, setEmployeeDetailLoading] = useState(false)
-  const [lifecycleResult, setLifecycleResult] = useState<LifecycleCaseSearchResult>()
-  const [lifecycleStatus, setLifecycleStatus] = useState<'' | LifecycleCaseStatus>('')
-  const [lifecycleLoading, setLifecycleLoading] = useState(false)
-  const [lifecycleProposal, setLifecycleProposal] = useState<LifecycleProposal>()
-  const [lifecycleBusy, setLifecycleBusy] = useState(false)
-  const [lifecycleError, setLifecycleError] = useState<string>()
-  const [lifecycleNotice, setLifecycleNotice] = useState<string>()
-  const lifecycleDecisionKeyRef = useRef<string | undefined>(undefined)
-  const [workspaceLoading, setWorkspaceLoading] = useState(false)
-  const [workspaceError, setWorkspaceError] = useState<string>()
   const [contextStatus, setContextStatus] = useState<{ tokens: number; budget: number; compacted: boolean }>()
-  const [authState, setAuthState] = useState<AuthState>({ status: 'loading' })
-  const [authBusy, setAuthBusy] = useState(false)
   const [accountOpen, setAccountOpen] = useState(false)
-  const [notifications, setNotifications] = useState<HrNotification[]>([])
-  const [notificationOpen, setNotificationOpen] = useState(false)
-  const [notificationLoading, setNotificationLoading] = useState(false)
+  const [sessionSearchOpen, setSessionSearchOpen] = useState(false)
+  const [sessionQuery, setSessionQuery] = useState('')
   const listRef = useRef<HTMLDivElement>(null)
+  const sessionSearchInputRef = useRef<HTMLInputElement>(null)
+  const accountAreaRef = useRef<HTMLDivElement>(null)
+  const accountTriggerRef = useRef<HTMLButtonElement>(null)
   const activeSessionIdRef = useRef<string | undefined>(undefined)
   const draftSessionIdRef = useRef<string | undefined>(undefined)
-  const lifecycleProposalIdRef = useRef<string | undefined>(undefined)
 
   useEffect(() => {
-    void window.barn.auth.getState().then(setAuthState).catch(() => setAuthState({ status: 'unauthenticated' }))
-    const unsubscribeAuth = window.barn.auth.onStateChanged(setAuthState)
+    if (!sessionSearchOpen) {
+      sessionSearchInputRef.current?.blur()
+      return
+    }
+    const frame = requestAnimationFrame(() => sessionSearchInputRef.current?.focus())
+    return () => cancelAnimationFrame(frame)
+  }, [sessionSearchOpen])
+
+  useEffect(() => {
+    void initializeAppLanguage()
+    const applyTheme = (state: { shouldUseDarkColors: boolean }): void => {
+      document.documentElement.dataset.theme = state.shouldUseDarkColors ? 'dark' : 'light'
+    }
+    void window.barn.theme.getState().then(applyTheme).catch(() => undefined)
+    const unsubscribeTheme = window.barn.theme.onChange(applyTheme)
     void window.barn.models.getSnapshot()
       .then(setSnapshot)
-      .catch((reason: unknown) => setError(errorMessage(reason)))
+      .catch((reason: unknown) => setError(errorMessage(reason, t)))
     void window.barn.sessions.list()
       .then((value) => {
         setSessions(value)
@@ -129,38 +108,50 @@ export function App() {
         activeSessionIdRef.current = initialSessionId
         setActiveSessionId(initialSessionId)
       })
-      .catch((reason: unknown) => setError(errorMessage(reason)))
+      .catch((reason: unknown) => setError(errorMessage(reason, t)))
     void window.barn.getCapabilities()
       .then(setCapabilities)
-      .catch((reason: unknown) => setError(errorMessage(reason)))
-    return unsubscribeAuth
+      .catch((reason: unknown) => setError(errorMessage(reason, t)))
+    return () => {
+      unsubscribeTheme()
+    }
   }, [])
 
   useEffect(() => {
-    if (authState.status === 'authenticated') {
-      void loadNotifications()
-    } else if (authState.status === 'unauthenticated') {
-      setNotifications([])
-      setNotificationOpen(false)
-    }
-  }, [authState.status])
+    if (!accountOpen) return
 
-  useEffect(() => {
-    if (!notificationOpen || authState.status !== 'authenticated') return
-    const timer = window.setInterval(() => void loadNotifications(), 2_000)
-    return () => window.clearInterval(timer)
-  }, [notificationOpen, authState.status])
+    const closeOnOutsidePointer = (event: PointerEvent): void => {
+      const target = event.target
+      if (!(target instanceof Node)) return
+      const targetElement = target instanceof Element ? target : target.parentElement
+      const insideAccount = accountAreaRef.current?.contains(target) ?? false
+      const insideLanguageMenu = targetElement?.closest('.language-submenu') !== null
+      if (accountOpen && !insideAccount && !insideLanguageMenu) setAccountOpen(false)
+    }
+
+    const closeOnEscape = (event: KeyboardEvent): void => {
+      if (event.key !== 'Escape') return
+      if (document.querySelector('.language-submenu') !== null) return
+      event.preventDefault()
+      if (accountOpen) {
+        setAccountOpen(false)
+        accountTriggerRef.current?.focus()
+      }
+    }
+
+    document.addEventListener('pointerdown', closeOnOutsidePointer)
+    document.addEventListener('keydown', closeOnEscape)
+    return () => {
+      document.removeEventListener('pointerdown', closeOnOutsidePointer)
+      document.removeEventListener('keydown', closeOnEscape)
+    }
+  }, [accountOpen])
 
   useEffect(() => {
     activeSessionIdRef.current = activeSessionId
     setMessages([])
     setLiveParts([])
     setAttachments([])
-    setIntake(undefined)
-    setIntakePanelOpen(false)
-    setIntakePreview(undefined)
-    setIntakeCommitResult(undefined)
-    setIntakeError(undefined)
     setContextStatus(undefined)
     if (activeSessionId === undefined) return
     void loadSession(activeSessionId)
@@ -177,15 +168,10 @@ export function App() {
 
   async function loadSession(sessionId: string): Promise<void> {
     try {
-      const [events, currentIntake] = await Promise.all([
-        window.barn.sessions.getEvents(sessionId),
-        window.barn.sessions.getIntake(sessionId),
-      ])
+      const events = await window.barn.sessions.getEvents(sessionId)
       setMessages(messagesFromEvents(events))
-      setIntake(currentIntake)
-      setIntakePanelOpen(currentIntake !== undefined)
     } catch (reason) {
-      setError(errorMessage(reason))
+      setError(errorMessage(reason, t))
     }
   }
 
@@ -194,29 +180,6 @@ export function App() {
     if (event.type === 'session.updated') {
       setSessions((current) => upsertSession(current, event.session))
       if (event.session.id === sessionId) void loadSession(sessionId)
-      return
-    }
-    if (event.type === 'intake.updated') {
-      if (event.sessionId === sessionId) {
-        setIntake(event.intake)
-        setIntakePanelOpen(true)
-        setIntakeError(undefined)
-        if (event.intake.status !== 'committed') {
-          setIntakePreview(undefined)
-          setIntakeCommitResult(undefined)
-        }
-      }
-      return
-    }
-    if (event.type === 'lifecycle.proposal') {
-      if (event.sessionId === sessionId) {
-        if (lifecycleProposalIdRef.current !== event.proposal.id) {
-          lifecycleProposalIdRef.current = event.proposal.id
-          lifecycleDecisionKeyRef.current = crypto.randomUUID()
-        }
-        setLifecycleProposal(event.proposal)
-        setLifecycleError(undefined)
-      }
       return
     }
     if (event.sessionId !== sessionId) return
@@ -246,7 +209,7 @@ export function App() {
       if (event.status !== 'running') {
         setLiveParts([])
         void loadSession(sessionId)
-        if (event.status === 'failed') setError(event.error ?? 'The agent run failed')
+        if (event.status === 'failed') setError(event.error ?? t('conversation.runFailed'))
       }
     }
   }
@@ -259,11 +222,6 @@ export function App() {
     setLiveParts([])
     setInput('')
     setAttachments([])
-    setIntake(undefined)
-    setIntakePanelOpen(false)
-    setIntakePreview(undefined)
-    setIntakeCommitResult(undefined)
-    setIntakeError(undefined)
     setContextStatus(undefined)
     setPending(false)
     setError(undefined)
@@ -271,7 +229,7 @@ export function App() {
 
   async function sendPrompt(): Promise<void> {
     const text = input.trim()
-    if (text.length === 0 || pending) return
+    if (text.length === 0 || pending || modelSelectionBusy) return
     const isNewSession = activeSessionId === undefined
     const sessionId = activeSessionId ?? draftSessionId()
 
@@ -295,241 +253,7 @@ export function App() {
     } catch (reason) {
       if (isNewSession) activeSessionIdRef.current = undefined
       setPending(false)
-      setError(errorMessage(reason))
-    }
-  }
-
-  async function login(): Promise<void> {
-    setAuthBusy(true)
-    setError(undefined)
-    try {
-      const state = await window.barn.auth.login()
-      setAuthState(state)
-      setAccountOpen(false)
-    } catch (reason) {
-      setError(errorMessage(reason))
-    } finally {
-      setAuthBusy(false)
-    }
-  }
-
-  async function logout(): Promise<void> {
-    setAuthBusy(true)
-    try {
-      setAuthState(await window.barn.auth.logout())
-      setAccountOpen(false)
-      setWorkspaceMode(undefined)
-      setEmployeeResult(undefined)
-      setEmployeeDetail(undefined)
-      setLifecycleResult(undefined)
-      setLifecycleStatus('')
-      setLifecycleProposal(undefined)
-      setLifecycleError(undefined)
-      setLifecycleNotice(undefined)
-      lifecycleDecisionKeyRef.current = undefined
-      lifecycleProposalIdRef.current = undefined
-      setNotifications([])
-      setNotificationOpen(false)
-      setEmployeeQuery({ page: 1, pageSize: 25 })
-    } catch (reason) {
-      setError(errorMessage(reason))
-    } finally {
-      setAuthBusy(false)
-    }
-  }
-
-  function requireCloudLogin(): boolean {
-    if (authState.status === 'authenticated') return true
-    setAccountOpen(true)
-    setError('Sign in to Barn Cloud to access employee data.')
-    return false
-  }
-
-  async function loadEmployees(searchInput: EmployeeSearchInput = employeeQuery): Promise<void> {
-    setWorkspaceLoading(true)
-    setWorkspaceError(undefined)
-    try {
-      const normalized = { ...searchInput, page: searchInput.page ?? 1, pageSize: searchInput.pageSize ?? 25 }
-      const result = await window.barn.hr.searchEmployees(normalized)
-      setEmployeeQuery(normalized)
-      setEmployeeResult(result)
-    } catch (reason) {
-      setWorkspaceError(errorMessage(reason))
-    } finally {
-      setWorkspaceLoading(false)
-    }
-  }
-
-  async function openEmployee(employeeId: string): Promise<void> {
-    setEmployeeDetailLoading(true)
-    try {
-      setEmployeeDetail(await window.barn.hr.getEmployee(employeeId))
-    } catch (reason) {
-      setWorkspaceError(errorMessage(reason))
-    } finally {
-      setEmployeeDetailLoading(false)
-    }
-  }
-
-  async function loadLifecycleCases(caseInput: LifecycleCaseSearchInput = {
-    status: lifecycleStatus === '' ? undefined : lifecycleStatus,
-    page: 1,
-    pageSize: 25,
-  }): Promise<void> {
-    setLifecycleLoading(true)
-    setWorkspaceError(undefined)
-    try {
-      const result = await window.barn.hr.listLifecycleCases(caseInput)
-      setLifecycleResult(result)
-      setLifecycleStatus(result.cases.length === 0 && caseInput.status === undefined ? '' : (caseInput.status ?? ''))
-    } catch (reason) {
-      setWorkspaceError(errorMessage(reason))
-    } finally {
-      setLifecycleLoading(false)
-    }
-  }
-
-  function openWorkspace(mode: 'workspace' | 'employees' | 'lifecycle'): void {
-    setWorkspaceMode(mode)
-    setIntakePanelOpen(false)
-    if (mode !== 'workspace' && !requireCloudLogin()) return
-    if (mode === 'employees') {
-      setEmployeeDetail(undefined)
-      void loadEmployees({ page: 1, pageSize: employeeQuery.pageSize ?? 25 })
-      return
-    }
-    if (mode === 'lifecycle') {
-      setEmployeeDetail(undefined)
-      void loadLifecycleCases({ status: lifecycleStatus === '' ? undefined : lifecycleStatus, page: 1, pageSize: 25 })
-      return
-    }
-    setEmployeeDetail(undefined)
-  }
-
-  async function updateIntakeEmployee(employeeId: string, fields: Record<string, string>): Promise<void> {
-    if (activeSessionId === undefined || intake === undefined) return
-    setIntakeError(undefined)
-    try {
-      const next = await window.barn.sessions.updateIntakeEmployee({
-        sessionId: activeSessionId,
-        employeeId,
-        fields,
-        expectedRevision: intake.revision,
-      })
-      setIntake(next)
-      setIntakePreview(undefined)
-      setIntakeCommitResult(undefined)
-    } catch (reason) {
-      setIntakeError(errorMessage(reason))
-    }
-  }
-
-  async function previewIntake(): Promise<void> {
-    if (activeSessionId === undefined || !requireCloudLogin()) return
-    setIntakeBusy(true)
-    setIntakeError(undefined)
-    try {
-      setIntakePreview(await window.barn.sessions.previewIntake(activeSessionId))
-    } catch (reason) {
-      setIntakeError(errorMessage(reason))
-    } finally {
-      setIntakeBusy(false)
-    }
-  }
-
-  async function commitIntake(): Promise<void> {
-    if (activeSessionId === undefined || intakePreview === undefined || !requireCloudLogin()) return
-    const employeeIds = intakePreview.rows
-      .filter((row) => row.status === 'ready')
-      .map((row) => row.employeeId)
-    if (employeeIds.length === 0) return
-    setIntakeBusy(true)
-    setIntakeError(undefined)
-    try {
-      const result = await window.barn.sessions.commitIntake({
-        sessionId: activeSessionId,
-        previewId: intakePreview.previewId,
-        previewHash: intakePreview.previewHash,
-        employeeIds,
-      })
-      setIntakeCommitResult(result)
-      void loadEmployees({ page: 1, pageSize: employeeQuery.pageSize ?? 25 })
-    } catch (reason) {
-      setIntakeError(errorMessage(reason))
-    } finally {
-      setIntakeBusy(false)
-    }
-  }
-
-  async function decideLifecycleProposal(decision: 'approve' | 'reject'): Promise<void> {
-    if (lifecycleProposal === undefined) return
-    const idempotencyKey = lifecycleDecisionKeyRef.current ?? crypto.randomUUID()
-    lifecycleDecisionKeyRef.current = idempotencyKey
-    setLifecycleBusy(true)
-    setLifecycleError(undefined)
-    try {
-      const result = await window.barn.hr.decideLifecycleProposal(lifecycleProposal.id, {
-        decision,
-        idempotencyKey,
-      })
-      setLifecycleProposal(undefined)
-      lifecycleDecisionKeyRef.current = undefined
-      setLifecycleNotice(decision === 'reject'
-        ? 'Lifecycle proposal rejected.'
-        : result.proposal.status === 'approved'
-          ? `Transition scheduled for ${result.proposal.effectiveDate}.`
-          : `Lifecycle transition committed: ${result.employee.status}.`)
-      if (employeeDetail?.id === result.employee.id) {
-        setEmployeeDetail(await window.barn.hr.getEmployee(result.employee.id))
-      }
-      void loadEmployees()
-      void loadLifecycleCases({
-        status: lifecycleStatus === '' ? undefined : lifecycleStatus,
-        page: lifecycleResult?.page ?? 1,
-        pageSize: lifecycleResult?.pageSize ?? 25,
-      })
-    } catch (reason) {
-      setLifecycleError(errorMessage(reason))
-    } finally {
-      setLifecycleBusy(false)
-    }
-  }
-
-  async function loadNotifications(): Promise<void> {
-    setNotificationLoading(true)
-    try {
-      setNotifications(await window.barn.hr.listNotifications())
-    } catch (reason) {
-      setError(errorMessage(reason))
-    } finally {
-      setNotificationLoading(false)
-    }
-  }
-
-  async function readNotification(notification: HrNotification): Promise<void> {
-    if (notification.readAt !== undefined) return
-    try {
-      const updated = await window.barn.hr.markNotificationRead(notification.id)
-      setNotifications((current) => current.map((item) => item.id === updated.id ? updated : item))
-    } catch (reason) {
-      setError(errorMessage(reason))
-    }
-  }
-
-  async function updateLifecycleTask(
-    caseId: string,
-    taskId: string,
-    taskInput: LifecycleTaskUpdateInput,
-  ): Promise<void> {
-    try {
-      await window.barn.hr.updateLifecycleTask(caseId, taskId, taskInput)
-      await loadLifecycleCases({
-        status: lifecycleStatus === '' ? undefined : lifecycleStatus,
-        page: lifecycleResult?.page ?? 1,
-        pageSize: lifecycleResult?.pageSize ?? 25,
-      })
-    } catch (reason) {
-      setWorkspaceError(errorMessage(reason))
+      setError(errorMessage(reason, t))
     }
   }
 
@@ -539,7 +263,7 @@ export function App() {
     try {
       await window.barn.sessions.cancel(sessionId)
     } catch (reason) {
-      setError(errorMessage(reason))
+      setError(errorMessage(reason, t))
     }
   }
 
@@ -549,18 +273,17 @@ export function App() {
       const selected = await window.barn.sessions.attach(sessionId)
       setAttachments((current) => [...current, ...selected])
     } catch (reason) {
-      setError(errorMessage(reason))
+      setError(errorMessage(reason, t))
     }
   }
 
   const activeSession = sessions.find((session) => session.id === activeSessionId)
-  const defaultProvider = snapshot?.providers.find(
-    (provider) => provider.id === snapshot.defaultModel?.providerId,
-  )
-  const modelLabel = snapshot?.defaultModel?.modelId ?? 'Choose model'
-  const providerLabel = defaultProvider?.name ?? 'No provider'
   const commandKey = window.barn.platform === 'darwin' ? '⌘' : 'Ctrl'
   const running = pending || activeSession?.status === 'running'
+  const visibleSessions = sessionQuery.trim() === ''
+    ? sessions
+    : sessions.filter((session) => session.title.toLocaleLowerCase().includes(sessionQuery.trim().toLocaleLowerCase()))
+  const conversationTitle = activeSession?.title ?? t('conversation.newSession')
 
   function draftSessionId(): string {
     draftSessionIdRef.current ??= crypto.randomUUID()
@@ -572,6 +295,7 @@ export function App() {
     window.barn.platform === 'darwin' ? 'platform-darwin' : '',
     sidebarOpen ? '' : 'sidebar-collapsed',
   ].filter(Boolean).join(' ')
+  const workspaceShellClassName = 'workspace-shell'
 
   return (
     <div className={appShellClassName}>
@@ -581,17 +305,17 @@ export function App() {
         aria-hidden={!sidebarOpen}
       >
         <div className="sidebar-content">
-          <button
-            className="icon-button sidebar-toggle sidebar-toggle-sidebar"
-            type="button"
-            title="Hide sidebar"
-            aria-label="Hide sidebar"
-            aria-controls="app-sidebar"
-            aria-expanded={sidebarOpen}
-            onClick={() => setSidebarOpen(false)}
-          >
-            <PanelLeft size={17} />
-          </button>
+          <div className="sidebar-titlebar">
+            <TooltipButton
+              className="icon-button sidebar-toggle sidebar-toggle-sidebar"
+              label={t('sidebar.hide')}
+              aria-controls="app-sidebar"
+              aria-expanded={sidebarOpen}
+              onClick={() => setSidebarOpen(false)}
+            >
+              <PanelLeft size={16} />
+            </TooltipButton>
+          </div>
 
           <div className="sidebar-top">
             <div className="brand-lockup">
@@ -599,422 +323,357 @@ export function App() {
                 <span />
                 <span />
               </div>
-              <div>
-                <strong>Barn</strong>
-                <span>People workspace</span>
-              </div>
+              <strong>Barn</strong>
+            </div>
+            <div
+              id="session-search-field"
+              className={sessionSearchOpen ? 'session-search open' : 'session-search'}
+              role="search"
+              aria-label={t('sidebar.filterSessions')}
+              aria-hidden={!sessionSearchOpen}
+            >
+              <input
+                ref={sessionSearchInputRef}
+                type="search"
+                aria-label={t('sidebar.filterSessions')}
+                placeholder={t('sidebar.searchSessions')}
+                tabIndex={sessionSearchOpen ? 0 : -1}
+                value={sessionQuery}
+                onChange={(event) => setSessionQuery(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key !== 'Escape') return
+                  setSessionSearchOpen(false)
+                  setSessionQuery('')
+                }}
+              />
+              {sessionQuery.length > 0 && (
+                <TooltipButton label={t('sidebar.clearSearch')} onClick={() => setSessionQuery('')}>
+                  <X size={12} />
+                </TooltipButton>
+              )}
+            </div>
+            <div className="sidebar-actions">
+              <TooltipButton
+                className={sessionSearchOpen ? 'icon-button active session-search-trigger' : 'icon-button session-search-trigger'}
+                label={sessionSearchOpen ? t('sidebar.closeSearch') : t('sidebar.searchSessions')}
+                aria-controls="session-search-field"
+                aria-expanded={sessionSearchOpen}
+                onClick={() => {
+                  setSessionSearchOpen(!sessionSearchOpen)
+                  if (sessionSearchOpen) setSessionQuery('')
+                }}
+              >
+                <Search size={15} />
+              </TooltipButton>
             </div>
           </div>
 
           <button className="new-session-button" type="button" onClick={startNewSession}>
-          <Plus size={16} />
-          New session
-          <kbd>{commandKey} N</kbd>
-        </button>
+            <Plus size={15} />
+            <span>{t('sidebar.newSession')}</span>
+            <kbd>{commandKey} N</kbd>
+          </button>
 
-        <nav className="session-nav" aria-label="Sessions">
-          <div className="nav-label">
-            <span>Recent</span>
-            <span>{sessions.length}</span>
-          </div>
-          {sessions.length === 0 ? (
-            <div className="empty-session-list">
-              <Sparkles size={18} />
-              <p>No sessions yet</p>
+          <nav className="session-nav" aria-label={t('sidebar.sessions')}>
+            <div className="nav-label">
+              <span>{t('sidebar.sessions')}</span>
+              <span>{visibleSessions.length}</span>
             </div>
-          ) : (
-            <div className="session-list">
-              {sessions.map((session) => (
-                <button
-                  className={session.id === activeSessionId ? 'session-row active' : 'session-row'}
-                  type="button"
-                  key={session.id}
-                  onClick={() => {
-                    activeSessionIdRef.current = session.id
-                    setActiveSessionId(session.id)
-                  }}
-                >
-                  <span>{session.title}</span>
-                  <small>{formatSessionTime(session.updatedAt)}</small>
-                </button>
-              ))}
-            </div>
-          )}
-        </nav>
-
-        <div className="sidebar-footer">
-          <button className="footer-row" type="button">
-            <Command size={16} />
-            Commands
-            <span>{commandKey} K</span>
-          </button>
-          <button className="footer-row" type="button" onClick={() => openWorkspace('employees')}>
-            <Users size={16} />
-            Employees
-          </button>
-          <button className="footer-row" type="button" onClick={() => openWorkspace('lifecycle')}>
-            <ClipboardList size={16} />
-            Lifecycle
-          </button>
-          <button className="footer-row" type="button" onClick={() => setSettingsOpen(true)}>
-            <Settings2 size={16} />
-            Models
-          </button>
-          <div className="account-area">
-            <button
-              className="account-row"
-              type="button"
-              onClick={() => {
-                if (authState.status === 'authenticated') setAccountOpen((current) => !current)
-                else void login()
-              }}
-            >
-              <span className="account-avatar">
-                {authState.status === 'authenticated'
-                  ? initials(authState.user?.name ?? '')
-                  : <UserRound size={14} />}
-              </span>
-              <span className="account-copy">
-                <strong>{authState.status === 'authenticated' ? authState.user?.name : authBusy ? 'Waiting for browser' : 'Sign in'}</strong>
-                <small>{authState.status === 'authenticated' ? authState.user?.email : 'Barn Cloud account'}</small>
-              </span>
-              {authState.status === 'authenticated' ? <LogOut size={14} /> : <LogIn size={14} />}
-            </button>
-            {accountOpen && authState.status === 'authenticated' && (
-              <div className="account-popover">
-                <div>
-                  <span>Tenant</span>
-                  <strong>{authState.user?.tenantName}</strong>
-                  <small>{authState.user?.roles.join(', ')}</small>
-                </div>
-                <button type="button" disabled={authBusy} onClick={() => void logout()}>
-                  <LogOut size={13} />
-                  Sign out
-                </button>
+            {visibleSessions.length === 0 ? (
+              <div className="empty-session-list">
+                <Sparkles size={16} />
+                <p>{sessionQuery.trim() === '' ? t('sidebar.noSessions') : t('sidebar.noSearchResults')}</p>
+              </div>
+            ) : (
+              <div className="session-list">
+                {visibleSessions.map((session) => (
+                  <button
+                    className={session.id === activeSessionId ? 'session-row active' : 'session-row'}
+                    type="button"
+                    key={session.id}
+                    onClick={() => {
+                      activeSessionIdRef.current = session.id
+                      setActiveSessionId(session.id)
+                      if (session.id === activeSessionId) void loadSession(session.id)
+                    }}
+                  >
+                    <span>{session.title}</span>
+                    <small>{formatSessionTime(session.updatedAt, dateLocale)}</small>
+                  </button>
+                ))}
               </div>
             )}
+          </nav>
+
+          <div className="sidebar-footer">
+            <div ref={accountAreaRef} className="account-area">
+              <button
+                ref={accountTriggerRef}
+                className="account-row"
+                type="button"
+                aria-controls="account-panel"
+                aria-expanded={accountOpen}
+                aria-haspopup="menu"
+                onClick={() => {
+                  setAccountOpen(!accountOpen)
+                }}
+              >
+                <span className="account-avatar">
+                  <UserRound size={14} />
+                </span>
+                <span className="account-copy">
+                  <strong>{t('sidebar.localAgent')}</strong>
+                  <small>{t('sidebar.localWorkspace')}</small>
+                </span>
+                <ChevronRight size={14} />
+              </button>
+              <div
+                id="account-panel"
+                className={accountOpen ? 'account-popover open' : 'account-popover'}
+                role="menu"
+                aria-label={t('sidebar.accountMenu')}
+                aria-hidden={!accountOpen}
+                inert={!accountOpen}
+              >
+                <div className="account-summary">
+                  <span>{t('sidebar.workspace')}</span>
+                  <strong>{t('sidebar.localWorkspace')}</strong>
+                  <small>{t('sidebar.localOnly')}</small>
+                </div>
+                <button
+                  className="account-menu-item"
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    setAccountOpen(false)
+                    setSettingsOpen(true)
+                  }}
+                >
+                  <Wrench size={14} />
+                  <span>{t('sidebar.models')}</span>
+                  <ChevronRight className="account-menu-chevron" size={13} />
+                </button>
+                <LanguagePicker />
+              </div>
+            </div>
           </div>
-        </div>
         </div>
       </aside>
 
+      <div className={workspaceShellClassName}>
       <main className="workspace">
         <header className="workspace-header">
           {!sidebarOpen && (
-            <button
+            <TooltipButton
               className="icon-button sidebar-toggle sidebar-toggle-header"
-              type="button"
-              title="Show sidebar"
-              aria-label="Show sidebar"
+              label={t('sidebar.show')}
               aria-controls="app-sidebar"
               aria-expanded={sidebarOpen}
               onClick={() => setSidebarOpen(true)}
             >
-              <PanelLeft size={17} />
-            </button>
+              <PanelLeft size={16} />
+            </TooltipButton>
           )}
-          <button className="model-trigger" type="button" onClick={() => setSettingsOpen(true)}>
-            <span className="model-status-dot" />
-            <span>
-              <small>{providerLabel}</small>
-              <strong>{modelLabel}</strong>
-            </span>
-            <SlidersHorizontal size={15} />
-          </button>
-          {intake !== undefined && !intakePanelOpen && (
-            <button className="review-draft-trigger" type="button" onClick={() => setIntakePanelOpen(true)}>
-              <ClipboardList size={14} />
-              Review draft
-              <span>{intake.employees.length}</span>
-            </button>
-          )}
-          <button className="workspace-trigger" type="button" onClick={() => openWorkspace('workspace')}>
-            <FolderKanban size={14} />
-            Workspace
-          </button>
-          {authState.status === 'authenticated' && (
-            <div className="notification-area">
-              <button
-                className="notification-trigger"
-                type="button"
-                aria-label="Notifications"
-                onClick={() => {
-                  setNotificationOpen((current) => !current)
-                  if (!notificationOpen) void loadNotifications()
-                }}
-              >
-                <Bell size={15} />
-                {notifications.filter((notification) => notification.readAt === undefined).length > 0 && (
-                  <span>{notifications.filter((notification) => notification.readAt === undefined).length}</span>
-                )}
-              </button>
-              {notificationOpen && (
-                <div className="notification-popover">
-                  <header>
-                    <strong>Notifications</strong>
-                    <button type="button" onClick={() => void loadNotifications()}>
-                      {notificationLoading ? <LoaderCircle className="spin" size={12} /> : <RefreshCw size={12} />}
-                    </button>
-                  </header>
-                  {notifications.length === 0 ? (
-                    <p>No notifications yet.</p>
-                  ) : notifications.map((notification) => (
-                    <button
-                      className={notification.readAt === undefined ? 'notification-row unread' : 'notification-row'}
-                      type="button"
-                      key={notification.id}
-                      onClick={() => void readNotification(notification)}
-                    >
-                      <strong>{notification.title}</strong>
-                      <span>{notification.body}</span>
-                      <small>{formatNotificationTime(notification.createdAt)}</small>
-                    </button>
-                  ))}
-                </div>
-              )}
+          <div className="workspace-header-title">
+            <div className="workspace-header-copy">
+              <h1 title={conversationTitle}>{conversationTitle}</h1>
             </div>
-          )}
-          <div className={authState.status === 'authenticated' ? 'local-badge authenticated' : 'local-badge'}>
-            <span />
-            {authState.status === 'authenticated' ? authState.user?.tenantName ?? 'Barn Cloud' : 'Local mode'}
           </div>
+          <div className="workspace-header-actions" />
         </header>
 
-        {lifecycleNotice !== undefined && (
-          <div className="lifecycle-notice" role="status">
-            <CheckCircle2 size={13} />
-            <span>{lifecycleNotice}</span>
-            <button type="button" aria-label="Dismiss lifecycle notice" onClick={() => setLifecycleNotice(undefined)}>
-              <X size={12} />
-            </button>
-          </div>
-        )}
-
-        <div className={intake === undefined || !intakePanelOpen ? 'workspace-body' : 'workspace-body with-intake'}>
-        <section className={messages.length === 0 && liveParts.length === 0 ? 'conversation-surface empty-conversation' : 'conversation-surface chat-surface'}>
-          {messages.length === 0 && liveParts.length === 0 ? (
-            <div className="welcome-block">
-              <div className="welcome-kicker">HRBP workspace</div>
-              <h1>What needs attention?</h1>
-              <p>
-                Attach a roster, policy, or employee document and work through it with Barn.
-                Files are read locally through the sandboxed tools.
-              </p>
-            </div>
-          ) : (
-            <div className="message-list" ref={listRef}>
-              {messages.map((message) => (
-                <article
-                  aria-label={message.role === 'user' ? 'User message' : 'Barn message'}
-                  className={`chat-message ${message.role}${message.isError ? ' error' : ''}`}
-                  key={message.key}
-                >
-                  <ConversationParts
-                    parts={message.parts}
-                    role={message.role}
-                    keyPrefix={message.key}
-                  />
-                  {message.role === 'user' && message.attachments.length > 0 && (
-                    <div className="message-attachments">
-                      {message.attachments.map((file) => {
-                        const name = attachmentDisplayName(file)
-                        return (
-                          <span className="message-attachment" key={`${message.key}:${file.path}`} title={name}>
-                            <Paperclip size={11} />
-                            <span>{name}</span>
-                            {file.size > 0 && <small>{formatFileSize(file.size)}</small>}
-                          </span>
-                        )
-                      })}
-                    </div>
-                  )}
-                </article>
-              ))}
-              {liveParts.length > 0 && (
-                <article className="chat-message assistant streaming live-turn" aria-label="Barn message">
-                  <ConversationParts
-                    parts={liveParts}
-                    role="assistant"
-                    keyPrefix="live"
-                  />
-                </article>
-              )}
-            </div>
-          )}
-
-          {error !== undefined && (
-            <div className="error-banner" role="alert">
-              {error}
-            </div>
-          )}
-
-          <div className="composer">
-            {attachments.length > 0 && (
-              <div className="attachment-row">
-                {attachments.map((file) => {
-                  const name = attachmentDisplayName(file)
-                  return (
-                    <span className="attachment-chip" key={file.path}>
-                      <Paperclip size={11} />
-                      {name}
-                      <button
-                        type="button"
-                        aria-label={`Remove ${name}`}
-                        onClick={() => setAttachments((current) => current.filter((item) => item.path !== file.path))}
-                      >
-                        <X size={11} />
-                      </button>
-                    </span>
-                  )
-                })}
+        <div className="workspace-body">
+          <section className={messages.length === 0 && liveParts.length === 0 ? 'conversation-surface empty-conversation' : 'conversation-surface chat-surface'}>
+            {messages.length === 0 && liveParts.length === 0 ? (
+              <div className="empty-center">
+                <div className="welcome-mark" aria-hidden="true">
+                  <Sparkles size={20} />
+                </div>
+                <div className="welcome-kicker">{t('conversation.welcomeKicker')}</div>
+                <h1>{t('conversation.title')}</h1>
+                <p>
+                  {t('conversation.subtitle')}
+                </p>
+                <div className="action-grid">
+                  <button type="button" onClick={() => setInput(t('conversation.summarizePrompt'))}>
+                    <span className="action-icon blue"><FileText size={17} /></span>
+                    <span>{t('conversation.summarizeFiles')}</span>
+                  </button>
+                  <button type="button" onClick={() => setInput(t('conversation.draftPrompt'))}>
+                    <span className="action-icon violet"><Sparkles size={17} /></span>
+                    <span>{t('conversation.draftContent')}</span>
+                  </button>
+                  <button type="button" onClick={() => setInput(t('conversation.inspectFilesPrompt'))}>
+                    <span className="action-icon green"><FileSearch size={17} /></span>
+                    <span>{t('conversation.inspectFiles')}</span>
+                  </button>
+                  <button type="button" onClick={() => setInput(t('conversation.organizePrompt'))}>
+                    <span className="action-icon orange"><FolderOpen size={17} /></span>
+                    <span>{t('conversation.organizeFiles')}</span>
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="message-list" ref={listRef}>
+                {messages.map((message) => (
+                  <article
+                    aria-label={message.role === 'user' ? t('conversation.userMessage') : t('conversation.barnMessage')}
+                    className={`chat-message ${message.role}${message.isError ? ' error' : ''}`}
+                    key={message.key}
+                  >
+                    <ConversationParts
+                      parts={message.parts}
+                      role={message.role}
+                      keyPrefix={message.key}
+                    />
+                    {message.role === 'user' && message.attachments.length > 0 && (
+                      <div className="message-attachments">
+                        {message.attachments.map((file) => {
+                          const name = attachmentDisplayName(file)
+                          return (
+                            <span className="message-attachment" key={`${message.key}:${file.path}`} title={name}>
+                              <Paperclip size={11} />
+                              <span>{name}</span>
+                              {file.size > 0 && <small>{formatFileSize(file.size)}</small>}
+                            </span>
+                          )
+                        })}
+                      </div>
+                    )}
+                  </article>
+                ))}
+                {liveParts.length > 0 && (
+                  <article className="chat-message assistant streaming live-turn" aria-label={t('conversation.barnMessage')}>
+                    <ConversationParts
+                      parts={liveParts}
+                      role="assistant"
+                      keyPrefix="live"
+                    />
+                  </article>
+                )}
               </div>
             )}
-            <textarea
-              aria-label="Message Barn"
-              placeholder="Ask Barn to build employee records from one or more files..."
-              rows={4}
-              value={input}
-              onChange={(event) => setInput(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter' && !event.shiftKey) {
-                  event.preventDefault()
-                  void sendPrompt()
-                }
-              }}
-            />
-            <div className="composer-toolbar">
-              <div className="composer-hints">
-                <button className="context-chip" type="button" onClick={() => void attachFiles()}>
-                  <Paperclip size={14} />
-                  Attach files
-                </button>
+
+            {error !== undefined && (
+              <div className="error-banner" role="alert">
+                {error}
               </div>
-              {running ? (
-                <button className="send-button cancel" type="button" title="Stop response" onClick={() => void cancelRun()}>
-                  <Square size={14} />
-                </button>
-              ) : (
-                <button className="send-button" type="button" title="Send message" onClick={() => void sendPrompt()}>
-                  <CornerDownLeft size={16} />
-                </button>
-              )}
-            </div>
-          </div>
+            )}
 
-          {messages.length === 0 && (
-            <div className="suggestion-row">
-              <button type="button" onClick={() => setInput('Build employee records from these files.')}>
-                Build employee records
+            <div className="composer-dock">
+              <button className="composer-project" type="button" onClick={() => setSettingsOpen(true)}>
+                <Sparkles size={13} />
+                <span>{t('sidebar.localAgent')}</span>
+                <ChevronDown size={12} />
               </button>
-              <button type="button" onClick={() => setInput('Review this employee roster and summarize any missing information.')}>
-                Review a roster
-              </button>
-              <button type="button" onClick={() => setInput('Inspect the attached files and tell me what you found.')}>
-                Inspect files
-              </button>
+              <div className="composer">
+                {attachments.length > 0 && (
+                  <div className="attachment-row">
+                    {attachments.map((file) => {
+                      const name = attachmentDisplayName(file)
+                      return (
+                        <span className="attachment-chip" key={file.path}>
+                          <Paperclip size={11} />
+                          {name}
+                          <TooltipButton
+                            label={t('conversation.removeAttachment', { name })}
+                            onClick={() => setAttachments((current) => current.filter((item) => item.path !== file.path))}
+                          >
+                            <X size={11} />
+                          </TooltipButton>
+                        </span>
+                      )
+                    })}
+                  </div>
+                )}
+                <textarea
+                  aria-label={t('conversation.messageBarn')}
+                  placeholder={t('conversation.placeholder')}
+                  rows={2}
+                  value={input}
+                  onChange={(event) => setInput(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' && !event.shiftKey) {
+                      event.preventDefault()
+                      void sendPrompt()
+                    }
+                  }}
+                />
+                <div className="composer-toolbar">
+                  <div className="composer-hints">
+                    <button
+                      className="context-chip"
+                      type="button"
+                      aria-label={t('conversation.attachFiles')}
+                      onClick={() => void attachFiles()}
+                    >
+                      <Plus size={15} />
+                      <span>{t('conversation.attach')}</span>
+                    </button>
+                    <span className="composer-mode">
+                      <span className="composer-mode-dot" />
+                      {t('conversation.localWorkspace')}
+                    </span>
+                  </div>
+                  <div className="composer-actions">
+                    <ModelPicker
+                      snapshot={snapshot}
+                      onSnapshot={setSnapshot}
+                      onConfigure={() => setSettingsOpen(true)}
+                      onOpenChange={(open) => {
+                        if (open) {
+                          setAccountOpen(false)
+                        }
+                      }}
+                      onBusyChange={setModelSelectionBusy}
+                    />
+                    {running ? (
+                      <TooltipButton
+                        className="send-button cancel"
+                        label={t('conversation.stopResponse')}
+                        onClick={() => void cancelRun()}
+                      >
+                        <Square size={14} />
+                      </TooltipButton>
+                    ) : (
+                      <TooltipButton
+                        className="send-button"
+                        label={t('conversation.sendMessage')}
+                        disabled={modelSelectionBusy}
+                        onClick={() => void sendPrompt()}
+                      >
+                        <ArrowUp size={16} />
+                      </TooltipButton>
+                    )}
+                  </div>
+                </div>
+              </div>
             </div>
-          )}
-        </section>
+          </section>
 
-        {intake !== undefined && intakePanelOpen && (
-          <EmployeeIntakePanel
-            intake={intake}
-            preview={intakePreview}
-            commitResult={intakeCommitResult}
-            busy={intakeBusy}
-            error={intakeError}
-            onPreview={() => void previewIntake()}
-            onCommit={() => void commitIntake()}
-            onUpdate={updateIntakeEmployee}
-            onClose={() => setIntakePanelOpen(false)}
-          />
-        )}
         </div>
 
         <footer className="workspace-footer">
-          <span>Model calls and file tools run on this device.</span>
+          <span>{t('footer.localRuntime')}</span>
           <span>
             {capabilities === undefined
-              ? 'Checking local capabilities'
+              ? t('footer.checkingCapabilities')
               : capabilities.shell.available
-                ? `Shell sandbox: ${capabilities.shell.backend}`
-                : 'Shell sandbox unavailable'}
+                ? t('footer.shellSandbox', { backend: capabilities.shell.backend })
+                : t('footer.shellUnavailable')}
             {' · '}
-            {snapshot === undefined ? 'Loading providers' : `${snapshot.providers.length} providers`}
+            {snapshot === undefined ? t('footer.loadingProviders') : t('common.providers', { count: snapshot.providers.length })}
             {contextStatus !== undefined && (
               <>
                 {' · '}
-                Context {Math.min(100, Math.round(contextStatus.tokens / contextStatus.budget * 100))}%
-                {contextStatus.compacted ? ' · compacted' : ''}
+                {t('footer.context', { percent: Math.min(100, Math.round(contextStatus.tokens / contextStatus.budget * 100)) })}
+                {contextStatus.compacted ? ` · ${t('footer.compacted')}` : ''}
               </>
             )}
           </span>
         </footer>
       </main>
-
-      {workspaceMode !== undefined && (
-        <WorkspaceDrawer
-          mode={workspaceMode}
-          intake={intake}
-          employeeResult={employeeResult}
-          employeeDetail={employeeDetail}
-          lifecycleResult={lifecycleResult}
-          lifecycleStatus={lifecycleStatus}
-          lifecycleLoading={lifecycleLoading}
-          detailLoading={employeeDetailLoading}
-          loading={workspaceLoading}
-          error={workspaceError}
-          onMode={(mode) => {
-            setWorkspaceMode(mode)
-            setEmployeeDetail(undefined)
-            if (mode === 'lifecycle') {
-              void loadLifecycleCases({ status: lifecycleStatus === '' ? undefined : lifecycleStatus, page: 1, pageSize: 25 })
-            }
-          }}
-          onRefresh={() => {
-            if (workspaceMode === 'lifecycle') void loadLifecycleCases()
-            else void loadEmployees()
-          }}
-          onSearch={(searchInput) => void loadEmployees({ ...searchInput, page: 1, pageSize: employeeQuery.pageSize ?? 25 })}
-          onPage={(page) => void loadEmployees({ ...employeeQuery, page })}
-          onSelectEmployee={(employeeId) => void openEmployee(employeeId)}
-          onLifecycleStatus={(status) => {
-            setLifecycleStatus(status)
-            void loadLifecycleCases({ status: status === '' ? undefined : status, page: 1, pageSize: 25 })
-          }}
-          onLifecyclePage={(page) => void loadLifecycleCases({
-            status: lifecycleStatus === '' ? undefined : lifecycleStatus,
-            page,
-            pageSize: lifecycleResult?.pageSize ?? 25,
-          })}
-          onUpdateTask={(caseId, taskId, taskInput) => void updateLifecycleTask(caseId, taskId, taskInput)}
-          onReviewProposal={(proposal) => {
-            lifecycleDecisionKeyRef.current = crypto.randomUUID()
-            lifecycleProposalIdRef.current = undefined
-            setLifecycleProposal(proposal)
-            setLifecycleError(undefined)
-          }}
-          onClose={() => {
-            setWorkspaceMode(undefined)
-            setEmployeeDetail(undefined)
-          }}
-        />
-      )}
-
-      {lifecycleProposal !== undefined && (
-        <LifecycleProposalDialog
-          proposal={lifecycleProposal}
-          busy={lifecycleBusy}
-          error={lifecycleError}
-          onDecision={(decision) => void decideLifecycleProposal(decision)}
-          onClose={() => {
-            setLifecycleProposal(undefined)
-            setLifecycleError(undefined)
-            lifecycleDecisionKeyRef.current = undefined
-            lifecycleProposalIdRef.current = undefined
-          }}
-        />
-      )}
+      </div>
 
       {settingsOpen && (
         <ModelSettings
@@ -1028,6 +687,7 @@ export function App() {
 }
 
 function ToolGroup({ tools }: { tools: ToolCallView[] }) {
+  const { t } = useTranslation()
   const running = tools.find((tool) => tool.status === 'running')
   const isRunning = running !== undefined
   const hasError = tools.some((tool) => tool.status === 'error')
@@ -1050,7 +710,7 @@ function ToolGroup({ tools }: { tools: ToolCallView[] }) {
           {running === undefined && hasError && <CircleX size={13} />}
           {running === undefined && !hasError && <Terminal size={13} />}
         </span>
-        <span className="tool-group-label">{toolGroupLabel(tools)}</span>
+        <span className="tool-group-label">{toolGroupLabel(tools, t)}</span>
         <ChevronRight className="tool-chevron" size={13} />
       </button>
       {open && (
@@ -1063,6 +723,7 @@ function ToolGroup({ tools }: { tools: ToolCallView[] }) {
 }
 
 function ToolRow({ tool }: { tool: ToolCallView }) {
+  const { t } = useTranslation()
   return (
     <details className={`tool-row ${tool.status}`} data-part="tool">
       <summary>
@@ -1071,7 +732,7 @@ function ToolRow({ tool }: { tool: ToolCallView }) {
           {tool.status === 'success' && <CheckCircle2 size={12} />}
           {tool.status === 'error' && <CircleX size={12} />}
         </span>
-        <span className="tool-row-label">{toolActionLabel(tool.name)}</span>
+        <span className="tool-row-label">{toolActionLabel(tool.name, t)}</span>
         <ChevronRight className="tool-chevron" size={12} />
       </summary>
       <div className="tool-detail-scroll">
@@ -1085,36 +746,29 @@ function ToolRow({ tool }: { tool: ToolCallView }) {
   )
 }
 
-function toolGroupLabel(tools: ToolCallView[]): string {
+function toolGroupLabel(tools: ToolCallView[], t: ReturnType<typeof useTranslation>['t']): string {
   const running = tools.find((tool) => tool.status === 'running')
   if (running !== undefined) {
     const command = toolCommand(running)
-    return command === undefined ? `正在${toolActionLabel(running.name).replace(/^已/, '')}` : `正在运行 ${truncate(command, 72)}`
+    return command === undefined
+      ? t('tools.running', { label: toolActionLabel(running.name, t) })
+      : t('tools.runningCommand', { command: truncate(command, 72) })
   }
-  if (tools.length === 1) return toolActionLabel(tools[0]?.name ?? '')
-  if (tools.every((tool) => tool.name === 'shell')) return `运行了 ${tools.length} 条命令`
-  if (tools.every((tool) => tool.name === 'read_file')) return `已读取 ${tools.length} 个文件`
-  const labels = [...new Set(tools.map((tool) => toolActionLabel(tool.name)))]
+  if (tools.length === 1) return toolActionLabel(tools[0]?.name ?? '', t)
+  if (tools.every((tool) => tool.name === 'shell')) return t('tools.ranCommands', { count: tools.length })
+  if (tools.every((tool) => tool.name === 'read_file')) return t('tools.readFiles', { count: tools.length })
+  const labels = [...new Set(tools.map((tool) => toolActionLabel(tool.name, t)))]
   return labels.join(' · ')
 }
 
-function toolActionLabel(name: string): string {
+function toolActionLabel(name: string, t: ReturnType<typeof useTranslation>['t']): string {
   switch (name) {
-    case 'shell': return '运行了命令'
-    case 'read_file': return '已读取文件'
-    case 'list_dir': return '已查看目录'
-    case 'search_files': return '已搜索文件'
-    case 'view_image': return '已查看图像'
-    case 'employee_intake_create': return '已创建员工草稿'
-    case 'employee_intake_get': return '已读取员工草稿'
-    case 'employee_intake_update': return '已更新员工草稿'
-    case 'employee_intake_preview': return '已校验员工草稿'
-    case 'employee_list_by_org': return '已查询员工'
-    case 'employee_search': return '已搜索员工'
-    case 'employee_get': return '已读取员工'
-    case 'org_unit_get': return '已读取组织单元'
-    case 'lifecycle_propose_transition': return '已创建流程提议'
-    default: return `已运行 ${name}`
+    case 'shell': return t('tools.shell')
+    case 'read_file': return t('tools.readFile')
+    case 'list_dir': return t('tools.listDir')
+    case 'search_files': return t('tools.searchFiles')
+    case 'view_image': return t('tools.viewImage')
+    default: return t('tools.ranTool', { name })
   }
 }
 
@@ -1161,6 +815,7 @@ function ConversationParts({
   role: ChatMessage['role']
   keyPrefix: string
 }) {
+  const { t } = useTranslation()
   const displayParts = groupConversationParts(parts)
   return (
     <div className="conversation-parts">
@@ -1175,7 +830,7 @@ function ConversationParts({
             >
               <summary>
                 <Brain size={12} />
-                <span>{part.streaming === true ? 'Thinking' : 'Thought process'}</span>
+                <span>{part.streaming === true ? t('conversation.thinking') : t('conversation.thoughtProcess')}</span>
               </summary>
               <div className="thinking-copy" aria-live={part.streaming === true ? 'polite' : undefined}>
                 {part.text}
@@ -1224,18 +879,12 @@ function upsertSession(current: SessionSummary[], session: SessionSummary): Sess
   return [session, ...next].toSorted((a, b) => b.updatedAt.localeCompare(a.updatedAt))
 }
 
-function errorMessage(reason: unknown): string {
-  return reason instanceof Error ? reason.message : 'Something went wrong'
+function errorMessage(reason: unknown, t: ReturnType<typeof useTranslation>['t']): string {
+  return reason instanceof Error ? reason.message : t('conversation.somethingWentWrong')
 }
 
-function formatNotificationTime(value: string): string {
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return value
-  return date.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
-}
-
-function formatSessionTime(value: string): string {
-  return new Intl.DateTimeFormat(undefined, {
+function formatSessionTime(value: string, locale: string): string {
+  return new Intl.DateTimeFormat(locale, {
     month: 'short',
     day: 'numeric',
   }).format(new Date(value))
@@ -1245,8 +894,4 @@ function formatFileSize(bytes: number): string {
   if (bytes < 1_024) return `${bytes} B`
   if (bytes < 1_024 * 1_024) return `${Math.round(bytes / 1_024)} KB`
   return `${Math.round(bytes / (1_024 * 1_024) * 10) / 10} MB`
-}
-
-function initials(value: string): string {
-  return value.trim().split(/\s+/).map((part) => part[0]).join('').slice(0, 2).toUpperCase() || 'B'
 }

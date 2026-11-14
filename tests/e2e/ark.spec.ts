@@ -20,19 +20,26 @@ test('configures Volcengine Ark and completes a Responses API call', async () =>
       ...inheritedEnv,
       ELECTRON_DISABLE_SECURITY_WARNINGS: 'true',
       BARN_USER_DATA_DIR: userData,
+      BARN_UI_LANGUAGE: 'en',
     },
   })
 
   try {
     const page = await app.firstWindow()
     await page.waitForLoadState('domcontentloaded')
-    await page.getByRole('button', { name: /Models/i }).click()
+    await page.locator('.account-row').click()
+    await page.getByRole('menuitem', { name: /Models/i }).click()
     await page.getByRole('button', { name: 'Add provider' }).click()
     await page.getByRole('button', { name: /Volcengine Ark/i }).click()
     const reasoningCheckbox = page.getByLabel('Reasoning model')
     const checkboxBox = await reasoningCheckbox.boundingBox()
     expect(checkboxBox?.width ?? 100).toBeLessThanOrEqual(20)
     expect(checkboxBox?.height ?? 100).toBeLessThanOrEqual(20)
+    await reasoningCheckbox.check()
+    await expect(page.locator('.effort-config-option')).toHaveCount(6)
+    await expect(page.getByRole('button', { name: 'High', exact: true })).toHaveAttribute('aria-pressed', 'true')
+    await page.getByRole('button', { name: 'Max', exact: true }).click()
+    await expect(page.getByRole('button', { name: 'Max', exact: true })).toHaveAttribute('aria-pressed', 'true')
     await page.getByLabel('Base URL').fill(baseUrl)
     await page.screenshot({ path: 'test-results/barn-ark-form.png', fullPage: true })
     await page.getByLabel('API key').fill('test-ark-key')
@@ -71,13 +78,36 @@ test('configures Volcengine Ark and completes a Responses API call', async () =>
       id: model.id,
       name: model.name,
       contextWindow: model.contextWindow,
+      reasoning: model.reasoning,
+      reasoningEfforts: model.reasoningEfforts,
     }))).toEqual([
-      { id: 'deepseek-v4-1-flash-261017', name: 'DeepSeek V4.1 Flash Edited', contextWindow: 131_072 },
-      { id: 'deepseek-lite', name: 'DeepSeek Lite', contextWindow: 65_536 },
+      {
+        id: 'deepseek-v4-1-flash-261017',
+        name: 'DeepSeek V4.1 Flash Edited',
+        contextWindow: 131_072,
+        reasoning: true,
+        reasoningEfforts: ['low', 'medium', 'high', 'max'],
+      },
+      {
+        id: 'deepseek-lite',
+        name: 'DeepSeek Lite',
+        contextWindow: 65_536,
+        reasoning: false,
+        reasoningEfforts: [],
+      },
     ])
     await page.screenshot({ path: 'test-results/barn-ark-edit.png', fullPage: true })
 
     await page.getByRole('button', { name: 'Close settings' }).click()
+    await expect(page.locator('.composer-model')).toContainText('DeepSeek V4.1 Flash Edited')
+    await page.locator('.composer-model').click()
+    await expect(page.locator('.model-picker-submenu')).toHaveCount(0)
+    await page.locator('.model-picker-menu-row').first().hover()
+    await expect(page.getByRole('option', { name: /DeepSeek Lite/ })).toBeVisible()
+    await page.locator('.model-picker-menu-row').nth(1).hover()
+    await expect(page.getByRole('slider', { name: 'Effort' })).toBeVisible()
+    await expect(page.locator('.effort-slider-dot')).toHaveCount(4)
+    await page.keyboard.press('Escape')
     await page.getByRole('button', { name: /New session/i }).click()
     const composer = page.getByLabel('Message Barn')
     await composer.fill('Hello Ark')

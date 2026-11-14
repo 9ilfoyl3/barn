@@ -19,8 +19,8 @@ describe('SessionStore', () => {
     const session = store.createSession('Review probation case')
     store.append(session.id, [{
       type: 'message/user',
-      data: { text: 'Employee E1001 needs a probation review.' },
-      actor: { kind: 'user', id: 'hrbp-1' },
+      data: { text: 'Summarize the attached project notes.' },
+      actor: { kind: 'user', id: 'desktop-user' },
     }, {
       type: 'message/assistant',
       data: { text: 'I will prepare the review.' },
@@ -29,7 +29,7 @@ describe('SessionStore', () => {
     const events = store.read(session.id)
     expect(events.map((event) => event.seq)).toEqual([1, 2])
     expect(events[0]?.data).toEqual({
-      text: 'Employee E1001 needs a probation review.',
+      text: 'Summarize the attached project notes.',
     })
     expect(store.listSessions()[0]).toEqual(expect.objectContaining({
       id: session.id,

@@ -1,11 +1,8 @@
 import { mkdir } from 'node:fs/promises'
 import { join } from 'node:path'
-import { app, BrowserWindow, shell, type IpcMainInvokeEvent } from 'electron'
+import { app, BrowserWindow, nativeTheme, shell, type IpcMainInvokeEvent } from 'electron'
 import { registerModelIpc } from './ipc'
 import { ModelService } from './models/model-service'
-import { ElectronSecretCodec } from './models/electron-secret-codec'
-import { AuthService } from './auth/auth-service'
-import { registerAuthIpc } from './auth/auth-ipc'
 import { registerRuntimeIpc } from './platform/runtime-ipc'
 import { ShellService } from './sandbox/shell-service'
 import { loadOrCreateDeviceDataKey } from './session/device-data-key'
@@ -14,13 +11,10 @@ import { registerSessionIpc } from './session/session-ipc'
 import { SessionStore } from './session/session-store'
 import { scrubbedShellEnvironment } from './sandbox/environment'
 import { ToolService } from './tools/tool-service'
-import { EmployeeIntakeStore } from './intake/employee-intake-store'
-import { HrClient } from './cloud/hr-client'
-import { HrReadCache } from './cloud/hr-read-cache'
-import { registerHrIpc } from './cloud/hr-ipc'
 import { AgentService } from './worker/agent-service'
 import { createElectronWorkerTransport } from './worker/electron-worker-transport'
 import { WorkerSupervisor } from './worker/worker-supervisor'
+import { nativeLocale } from './platform/native-locale'
 
 if (process.env.BARN_USER_DATA_DIR !== undefined) {
   app.setPath('userData', process.env.BARN_USER_DATA_DIR)
@@ -33,23 +27,26 @@ let mainWindow: BrowserWindow | undefined
 let modelService: ModelService | undefined
 let sessionStore: SessionStore | undefined
 let agentService: AgentService | undefined
-let authService: AuthService | undefined
 const shellService = new ShellService()
+
+function windowBackgroundColor(): string {
+  return nativeTheme.shouldUseDarkColors ? '#181817' : '#fbfbfa'
+}
 
 async function createWindow(): Promise<void> {
   const window = new BrowserWindow({
-    width: 1320,
-    height: 860,
+    width: 1440,
+    height: 900,
     minWidth: 980,
     minHeight: 680,
     show: false,
     ...(process.platform === 'darwin'
       ? {
           titleBarStyle: 'hiddenInset' as const,
-          trafficLightPosition: { x: 14, y: 15 },
+          trafficLightPosition: { x: 14, y: 21 },
         }
       : {}),
-    backgroundColor: '#111311',
+    backgroundColor: windowBackgroundColor(),
     webPreferences: {
       preload: join(__dirname, '../preload/index.cjs'),
       contextIsolation: true,
@@ -91,38 +88,12 @@ function trustedSender(event: IpcMainInvokeEvent): boolean {
 }
 
 void app.whenReady().then(async () => {
+  nativeTheme.on('updated', () => mainWindow?.setBackgroundColor(windowBackgroundColor()))
   const userData = app.getPath('userData')
   modelService = new ModelService(app.getPath('userData'))
   await modelService.initialize()
   const deviceKey = await loadOrCreateDeviceDataKey(join(userData, 'sessions', 'device-key.bin'))
   const deviceCipher = new AesGcmEventCipher(deviceKey)
-  const hrReadCache = new HrReadCache(
-    join(userData, 'accounts'),
-    deviceCipher,
-    {
-      ttlMs: Number.parseInt(process.env.BARN_HR_CACHE_TTL_MS ?? '300000', 10),
-    },
-  )
-  authService = new AuthService({
-    userDataDirectory: app.getPath('userData'),
-    baseUrl: process.env.BARN_AUTH_BASE_URL ?? 'http://127.0.0.1:3100',
-    clientId: process.env.BARN_AUTH_CLIENT_ID ?? 'barn-desktop',
-    codec: new ElectronSecretCodec(),
-    openExternal: (url) => shell.openExternal(url),
-    onLogout: () => hrReadCache.clear(),
-  })
-  await authService.initialize()
-  authService.onStateChanged((state) => {
-    if (state.status === 'authenticated' && state.user !== undefined) {
-      void hrReadCache.activate({ userId: state.user.id, tenantId: state.user.tenantId })
-    } else if (state.status === 'unauthenticated') {
-      void hrReadCache.clear()
-    }
-  })
-  const initialAuthState = authService.getState()
-  if (initialAuthState.status === 'authenticated' && initialAuthState.user !== undefined) {
-    await hrReadCache.activate({ userId: initialAuthState.user.id, tenantId: initialAuthState.user.tenantId })
-  }
   sessionStore = new SessionStore(
     join(userData, 'sessions', 'sessions.db'),
     deviceCipher,
@@ -137,25 +108,11 @@ void app.whenReady().then(async () => {
     mkdir(outputRoot, { recursive: true, mode: 0o700 }),
     mkdir(privateTempRoot, { recursive: true, mode: 0o700 }),
   ])
-  const intakeStore = new EmployeeIntakeStore(sessionStore)
-  const hrClient = new HrClient(
-    () => authService?.getAccessToken() ?? Promise.reject(new Error('Sign in required')),
-    undefined,
-    {
-      cache: hrReadCache,
-      getAuthScope: () => {
-        const user = authService?.getState().user
-        return user === undefined ? undefined : { userId: user.id, tenantId: user.tenantId }
-      },
-    },
-  )
   const tools = new ToolService({
     workspaceRoot,
     outputRoot,
     privateTempRoot,
     shell: shellService,
-    intake: intakeStore,
-    hrClient,
   })
   const supervisor = new WorkerSupervisor({
     createTransport: () => createElectronWorkerTransport(
@@ -163,13 +120,11 @@ void app.whenReady().then(async () => {
       scrubbedShellEnvironment(process.env, privateTempRoot),
     ),
   })
-  agentService = new AgentService(supervisor, modelService, sessionStore, tools, intakeStore, hrClient)
+  agentService = new AgentService(supervisor, modelService, sessionStore, tools)
   await agentService.start()
   registerModelIpc(modelService, trustedSender)
-  registerAuthIpc(authService, trustedSender)
-  registerHrIpc(hrClient, trustedSender)
-  registerSessionIpc(sessionStore, agentService, join(workspaceRoot, 'attachments'), trustedSender)
-  registerRuntimeIpc(shellService, trustedSender)
+  registerSessionIpc(sessionStore, agentService, join(workspaceRoot, 'attachments'), trustedSender, () => nativeLocale())
+  registerRuntimeIpc(shellService, trustedSender, () => nativeLocale())
   await createWindow()
 
   app.on('activate', () => {
@@ -184,7 +139,6 @@ app.on('window-all-closed', () => {
 app.on('before-quit', () => {
   void agentService?.stop()
   agentService = undefined
-  authService = undefined
   sessionStore?.close()
   sessionStore = undefined
 })

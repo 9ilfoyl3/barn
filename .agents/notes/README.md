@@ -2,6 +2,10 @@
 
 Agent Notes record durable decisions that code and package documentation cannot carry: the problem, the chosen mechanism, rejected alternatives, consequences, and remaining risks.
 
+## Product Context
+
+Barn Desktop is a general-purpose personal local Agent for everyday office work. It is designed for ordinary users, including people with no prior Agent experience. Notes should use role-neutral office examples and should not turn one specialized workflow into a product-wide assumption. The current product direction is recorded in [General-purpose personal local Agent](proposed/feature/2026-11-13-general-purpose-personal-local-agent.md).
+
 ## Layout
 
 Every note uses `{lifecycle}/{class}/yyyy-mm-dd-topic-title.md`.
@@ -25,7 +29,7 @@ Do not create an index. Search the tree.
 
 ## When To Write
 
-Write a note for a lasting decision about Desktop architecture, model providers, credentials, Agent lifecycle, sandboxing, persistence, protocol, or security. Local presentation and mechanical edits are exempt.
+Write a note for a lasting decision about product positioning, Desktop architecture, model providers, credentials, Agent lifecycle, sandboxing, persistence, protocol, or security. Local presentation and mechanical edits are exempt.
 
 Before writing, search for an existing owner. Update that note rather than duplicating the decision. A note never changes into a different decision; supersede it and cross-link both notes.
 
