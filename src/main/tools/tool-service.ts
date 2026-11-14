@@ -1,7 +1,7 @@
 import { isUtf8 } from 'node:buffer'
 import { realpathSync } from 'node:fs'
 import { readFile, realpath, stat } from 'node:fs/promises'
-import { extname, isAbsolute, relative, resolve, sep } from 'node:path'
+import { dirname, extname, isAbsolute, relative, resolve, sep } from 'node:path'
 import { z } from 'zod'
 import type { ToolExecutionResult } from '../../shared/agent-protocol'
 import type { ShellService } from '../sandbox/shell-service'
@@ -15,6 +15,12 @@ import {
   searchWorkspaceContents,
 } from './workspace-search'
 import { isDeniedPath } from './workspace-path-policy'
+import {
+  editFileInput,
+  editWorkspaceFile,
+  writeFileInput,
+  writeWorkspaceFile,
+} from './workspace-editing'
 
 const readFileInput = z.object({
   path: z.string().min(1),
@@ -34,6 +40,8 @@ const shellInput = z.object({
 
 const TOOL_INPUTS = {
   read_file: readFileInput,
+  write_file: writeFileInput,
+  edit_file: editFileInput,
   list_dir: listDirInput,
   search_files: searchFilesInput,
   find_files: findFilesInput,
@@ -79,6 +87,10 @@ export class ToolService {
       switch (toolName) {
         case 'read_file':
           return await this.readFile(args as z.infer<typeof readFileInput>, roots, workingRoot)
+        case 'write_file':
+          return await this.writeFile(args as z.infer<typeof writeFileInput>, roots, workingRoot)
+        case 'edit_file':
+          return await this.editFile(args as z.infer<typeof editFileInput>, roots, workingRoot)
         case 'list_dir':
           return await this.listDirectory(args as z.infer<typeof listDirInput>, roots, workingRoot)
         case 'search_files':
@@ -141,6 +153,24 @@ export class ToolService {
         truncated: endLine < lines.length,
       },
     }
+  }
+
+  private async writeFile(
+    input: z.infer<typeof writeFileInput>,
+    roots: string[],
+    defaultRoot: string,
+  ): Promise<ToolExecutionResult> {
+    const path = await this.safeWritablePath(input.path, roots, defaultRoot)
+    return writeWorkspaceFile(path, input.content)
+  }
+
+  private async editFile(
+    input: z.infer<typeof editFileInput>,
+    roots: string[],
+    defaultRoot: string,
+  ): Promise<ToolExecutionResult> {
+    const path = await this.safeExistingPath(input.path, roots, defaultRoot)
+    return editWorkspaceFile(path, input.edits)
   }
 
   private async listDirectory(
@@ -238,6 +268,31 @@ export class ToolService {
     return canonical
   }
 
+  private async safeWritablePath(input: string, roots: string[], defaultRoot: string): Promise<string> {
+    const candidate = isAbsolute(input) ? resolve(input) : resolve(defaultRoot, input)
+    this.assertAllowed(candidate, roots)
+    const ancestor = await this.nearestExistingAncestor(candidate)
+    const canonicalAncestor = await realpath(ancestor)
+    const canonical = resolve(canonicalAncestor, relative(ancestor, candidate))
+    this.assertAllowed(canonical, roots)
+    return canonical
+  }
+
+  private async nearestExistingAncestor(path: string): Promise<string> {
+    let current = path
+    while (true) {
+      try {
+        await stat(current)
+        return current
+      } catch (error) {
+        if (!isMissingPath(error)) throw error
+        const parent = dirname(current)
+        if (parent === current) throw error
+        current = parent
+      }
+    }
+  }
+
   private assertAllowed(path: string, roots: string[]): void {
     if (isDeniedPath(path)) throw new Error('Access to this path is denied')
     const allowed = roots.some((root) => {
@@ -261,7 +316,12 @@ function imageMimeType(path: string): string | undefined {
   }
 }
 
-
+function isMissingPath(error: unknown): boolean {
+  return typeof error === 'object'
+    && error !== null
+    && 'code' in error
+    && error.code === 'ENOENT'
+}
 
 function errorResult(message: string): ToolExecutionResult {
   return {

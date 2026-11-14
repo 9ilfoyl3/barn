@@ -942,6 +942,8 @@ function toolActionLabel(name: string, t: ReturnType<typeof useTranslation>['t']
   switch (name) {
     case 'shell': return t('tools.shell')
     case 'read_file': return t('tools.readFile')
+    case 'write_file': return t('tools.writeFile')
+    case 'edit_file': return t('tools.editFile')
     case 'list_dir': return t('tools.listDir')
     case 'search_files': return t('tools.searchFiles')
     case 'find_files': return t('tools.findFiles')
