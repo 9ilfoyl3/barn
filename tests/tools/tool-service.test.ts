@@ -1,6 +1,6 @@
 import { mkdir, mkdtemp, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { dirname, join, sep } from 'node:path'
+import { dirname, join } from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
 import { ToolService } from '../../src/main/tools/tool-service'
 import type { ShellService } from '../../src/main/sandbox/shell-service'
@@ -106,7 +106,7 @@ describe('ToolService', () => {
 
     expect(result.content).toEqual([{
       type: 'text',
-      text: `docs${sep}notes.txt:1:alpha beta\ndocs${sep}notes.txt:3:alpha beta`,
+      text: 'docs/notes.txt:1:alpha beta\ndocs/notes.txt:3:alpha beta',
     }])
   })
 
