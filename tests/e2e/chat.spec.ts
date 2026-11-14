@@ -179,13 +179,9 @@ test('selects a working directory and attaches a folder', async () => {
     const composerAlignment = await page.evaluate(() => {
       const workspace = document.querySelector('.composer-project')!.getBoundingClientRect()
       const composer = document.querySelector('.composer')!.getBoundingClientRect()
-      return {
-        centerOffset: (workspace.top + workspace.bottom) / 2 - composer.top,
-        workspaceCenter: (workspace.top + workspace.bottom) / 2,
-        composerTop: composer.top,
-      }
+      return { bottomGap: composer.top - workspace.bottom }
     })
-    expect(Math.abs(composerAlignment.centerOffset)).toBeLessThanOrEqual(2)
+    expect(composerAlignment.bottomGap).toBeCloseTo(8, 0)
     await page.screenshot({ path: 'test-results/barn-composer-directory.png', fullPage: true })
 
     const composer = page.getByLabel('Message Barn')
