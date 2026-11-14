@@ -8,7 +8,14 @@ import type { TaskService } from '../tasks/task-service'
 import { PermissionStore } from './permission-store'
 
 /** Evaluates safety policy and keeps approval decisions outside model-controlled content. */
+export interface ApprovalResolution {
+  approval: ApprovalRequest
+  decision: 'approved' | 'denied'
+}
+
 export class PermissionService {
+  private readonly resolutionListeners = new Set<(resolution: ApprovalResolution) => void>()
+
   constructor(
     private readonly store: PermissionStore,
     private readonly tasks: Pick<TaskService, 'get' | 'requestApproval' | 'updateStatus'>,
@@ -59,7 +66,13 @@ export class PermissionService {
         // An approval remains a valid audit record even if its Task was deleted or finished elsewhere.
       }
     }
+    for (const listener of this.resolutionListeners) listener({ approval, decision })
     return approval
+  }
+
+  onResolved(listener: (resolution: ApprovalResolution) => void): () => void {
+    this.resolutionListeners.add(listener)
+    return () => this.resolutionListeners.delete(listener)
   }
 }
 
