@@ -9,12 +9,10 @@ import {
   CircleX,
   ArrowUp,
   ChevronDown,
-  FilePlus,
   FileSearch,
   FileText,
   Folder,
   FolderOpen,
-  FolderPlus,
   FolderSearch,
   Inbox,
   Search,
@@ -27,6 +25,7 @@ import {
   Square,
   Stethoscope,
   Terminal,
+  Trash2,
   UserRound,
   X,
 } from 'lucide-react'
@@ -330,12 +329,27 @@ export function App() {
     }
   }
 
-  async function attachFiles(kind: 'files' | 'folder'): Promise<void> {
+  async function attachFiles(): Promise<void> {
     const sessionId = activeSessionId ?? draftSessionId()
     try {
-      const selected = await window.barn.sessions.attach(sessionId, kind)
+      const selected = await window.barn.sessions.attach(sessionId)
       setAttachments((current) => [...current, ...selected])
       setAttachMenuOpen(false)
+    } catch (reason) {
+      setError(errorMessage(reason, t))
+    }
+  }
+
+  async function clearWorkingDirectory(): Promise<void> {
+    if (workingDirectory === undefined) return
+    try {
+      if (activeSessionId === undefined) {
+        setWorkingDirectory(undefined)
+        return
+      }
+      const session = await window.barn.sessions.clearWorkingDirectory(activeSessionId)
+      setWorkingDirectory(undefined)
+      setSessions((current) => upsertSession(current, session))
     } catch (reason) {
       setError(errorMessage(reason, t))
     }
@@ -696,16 +710,34 @@ export function App() {
             )}
 
             <div className="composer-dock">
-              <button
-                className="composer-project"
-                type="button"
-                title={workingDirectory ?? t('conversation.managedWorkspace')}
-                onClick={() => void chooseWorkingDirectory()}
-              >
-                <Folder size={13} />
-                <span>{workingDirectoryLabel}</span>
-                <ChevronDown size={12} />
-              </button>
+              <div className="composer-project">
+                {workingDirectory === undefined ? (
+                  <span className="composer-project-icon">
+                    <Folder size={13} />
+                  </span>
+                ) : (
+                  <button
+                    className="composer-project-icon composer-project-delete"
+                    type="button"
+                    aria-label={t('conversation.clearWorkingDirectory')}
+                    title={t('conversation.clearWorkingDirectory')}
+                    onClick={() => void clearWorkingDirectory()}
+                  >
+                    <Folder className="folder-icon" size={13} />
+                    <Trash2 className="delete-icon" size={13} />
+                  </button>
+                )}
+                <button
+                  className="composer-project-picker"
+                  type="button"
+                  title={workingDirectory ?? t('conversation.managedWorkspace')}
+                  aria-label={t('conversation.chooseWorkingDirectory')}
+                  onClick={() => void chooseWorkingDirectory()}
+                >
+                  <span>{workingDirectoryLabel}</span>
+                  <ChevronDown size={12} />
+                </button>
+              </div>
               <div className="composer">
                 {attachments.length > 0 && (
                   <div className="attachment-row">
@@ -752,18 +784,21 @@ export function App() {
                         <Plus size={15} />
                         <span>{t('conversation.attach')}</span>
                       </button>
-                      {attachMenuOpen && (
-                        <div className="attach-menu" role="menu" aria-label={t('conversation.attachMenu')}>
-                          <button type="button" role="menuitem" onClick={() => void attachFiles('files')}>
-                            <FilePlus size={14} />
-                            <span>{t('conversation.addFiles')}</span>
-                          </button>
-                          <button type="button" role="menuitem" onClick={() => void attachFiles('folder')}>
-                            <FolderPlus size={14} />
-                            <span>{t('conversation.addFolder')}</span>
+                      <div
+                        className={`model-popover composer-add-popover${attachMenuOpen ? ' open' : ''}`}
+                        role="dialog"
+                        aria-label={t('conversation.attachMenu')}
+                        aria-hidden={!attachMenuOpen}
+                        inert={!attachMenuOpen}
+                      >
+                        <div className="model-picker-menu composer-add-menu" role="menu" aria-label={t('conversation.attachMenu')}>
+                          <div className="composer-add-label">{t('conversation.addMenuTitle')}</div>
+                          <button type="button" role="menuitem" onClick={() => void attachFiles()}>
+                            <Paperclip size={15} />
+                            <span>{t('conversation.filesAndFolders')}</span>
                           </button>
                         </div>
-                      )}
+                      </div>
                     </div>
                   </div>
                   <div className="composer-actions">

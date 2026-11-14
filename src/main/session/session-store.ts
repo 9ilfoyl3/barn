@@ -232,6 +232,15 @@ export class SessionStore {
     return this.getSession(sessionId)
   }
 
+  clearWorkingDirectory(sessionId: string): SessionSummary {
+    const updatedAt = new Date().toISOString()
+    const result = this.database.prepare(`
+      UPDATE sessions SET working_directory = NULL, updated_at = ? WHERE id = ?
+    `).run(updatedAt, sessionId)
+    if (result.changes === 0) throw new Error(`Unknown session: ${sessionId}`)
+    return this.getSession(sessionId)
+  }
+
   updateTitle(sessionId: string, title: string): SessionSummary {
     const updatedAt = new Date().toISOString()
     const result = this.database.prepare(`

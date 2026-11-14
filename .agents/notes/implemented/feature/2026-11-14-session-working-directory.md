@@ -17,9 +17,9 @@ When a working directory is present:
 - Shell uses it as `cwd` and as the workspace-write sandbox root;
 - the model prompt includes the current working directory.
 
-Attachment selection is now a small menu with `Add files` and `Add folder`. Folders are recursively copied into the Session attachment directory, stored in the transcript as directory attachments, and displayed with folder icons.
+Attachment selection now reuses the same floating-layer transition and elevation system as the model picker. The menu has one primary `Files and folders` action, matching the Codex-style Add menu and leaving room for future add actions. Folders are recursively copied into the Session attachment directory, stored in the transcript as directory attachments, and displayed with folder icons.
 
-The previous green-dot `Local workspace` label beside Attach is removed. The working-directory chip carries that context instead.
+The previous green-dot `Local workspace` label beside Attach is removed. The working-directory chip carries that context instead. Its folder icon becomes a delete affordance on hover; clicking clears the current working directory. The chip is vertically centered on the composer border.
 
 ## Alternatives considered
 
@@ -27,7 +27,7 @@ The previous green-dot `Local workspace` label beside Attach is removed. The wor
 
 **Copy the working directory into Barn instead of using it in place.** Rejected because the user explicitly asked for a current working directory, and copying would break ordinary folder workflows.
 
-**Open separate file and folder dialogs from one button without a menu.** Rejected because native dialogs cannot reliably select files and directories together across platforms.
+**Open separate file and folder dialogs from one button without a menu.** Rejected because it would expose implementation categories instead of one extensible Add surface. The single Files and folders action uses the platform-native picker.
 
 **Store only the working directory in renderer state.** Rejected because tool execution happens in the main process and the choice must survive restart.
 

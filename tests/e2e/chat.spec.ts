@@ -67,7 +67,7 @@ test('streams a multi-turn conversation through the Agent Worker', async () => {
     await page.getByRole('button', { name: /New session/i }).click()
     await expect(page.locator('.session-row')).toHaveCount(0)
     await page.getByRole('button', { name: 'Attach', exact: true }).click()
-    await page.getByRole('menuitem', { name: 'Add files' }).click()
+    await page.getByRole('menuitem', { name: 'Files and folders' }).click()
     await expect(page.locator('.attachment-chip')).toContainText('contract.pdf')
     expect(await page.evaluate(() => window.barn.sessions.list())).toHaveLength(0)
 
@@ -151,7 +151,7 @@ test('selects a working directory and attaches a folder', async () => {
         if (options.title === 'Choose current working directory') {
           return { canceled: false, filePaths: [paths.working] }
         }
-        if (options.title === 'Attach a folder') {
+        if (options.title === 'Add files and folders') {
           return { canceled: false, filePaths: [paths.attachment] }
         }
         return { canceled: true, filePaths: [] }
@@ -161,8 +161,31 @@ test('selects a working directory and attaches a folder', async () => {
     await page.getByRole('button', { name: 'Choose working folder' }).click()
     await expect(page.locator('.composer-project')).toContainText('selected-project')
     await page.getByRole('button', { name: 'Attach', exact: true }).click()
-    await page.getByRole('menuitem', { name: 'Add folder' }).click()
+    const addPopover = page.locator('.composer-add-popover')
+    await expect(addPopover).toHaveClass(/open/)
+    const addPopoverMotion = await addPopover.evaluate((element) => {
+      const style = getComputedStyle(element)
+      return { transitionProperty: style.transitionProperty, zIndex: style.zIndex }
+    })
+    expect(addPopoverMotion.transitionProperty).toContain('opacity')
+    expect(addPopoverMotion.transitionProperty).toContain('transform')
+    expect(Number(addPopoverMotion.zIndex)).toBeGreaterThanOrEqual(18)
+    await page.waitForTimeout(250)
+    await page.screenshot({ path: 'test-results/barn-composer-add-menu.png', fullPage: true })
+    await page.getByRole('menuitem', { name: 'Files and folders' }).click()
     await expect(page.locator('.attachment-chip')).toContainText('reference-folder')
+    await expect(addPopover).not.toHaveClass(/open/)
+    await page.waitForTimeout(250)
+    const composerAlignment = await page.evaluate(() => {
+      const workspace = document.querySelector('.composer-project')!.getBoundingClientRect()
+      const composer = document.querySelector('.composer')!.getBoundingClientRect()
+      return {
+        centerOffset: (workspace.top + workspace.bottom) / 2 - composer.top,
+        workspaceCenter: (workspace.top + workspace.bottom) / 2,
+        composerTop: composer.top,
+      }
+    })
+    expect(Math.abs(composerAlignment.centerOffset)).toBeLessThanOrEqual(2)
     await page.screenshot({ path: 'test-results/barn-composer-directory.png', fullPage: true })
 
     const composer = page.getByLabel('Message Barn')
@@ -180,6 +203,12 @@ test('selects a working directory and attaches a folder', async () => {
     })
     const attachmentPath = (userEvent.data as { attachments: Array<{ path: string }> }).attachments[0]!.path
     expect(await readFile(join(attachmentPath, 'reference.txt'), 'utf8')).toBe('reference folder content')
+
+    await page.locator('.composer-project').hover()
+    await expect(page.locator('.composer-project .delete-icon')).toBeVisible()
+    await page.getByRole('button', { name: 'Clear current working directory' }).click()
+    await expect.poll(async () => page.evaluate(async () => (await window.barn.sessions.list())[0]?.workingDirectory))
+      .toBeUndefined()
   } finally {
     await app.close()
     await new Promise<void>((resolve, reject) => server.close((error) => error === undefined ? resolve() : reject(error)))
@@ -250,11 +279,11 @@ test('selects a configured model and reasoning effort from the composer', async 
     await page.waitForLoadState('domcontentloaded')
 
     await page.locator('.composer-model').click()
-    await expect(page.locator('.model-popover')).toHaveClass(/open/)
+    await expect(page.locator('#composer-model-picker')).toHaveClass(/open/)
     await expect(page.locator('.model-picker-menu-row')).toHaveCount(2)
     await expect(page.locator('.model-picker-menu-row.active')).toHaveCount(0)
     await expect(page.locator('.model-picker-submenu')).toHaveCount(0)
-    const menu = page.locator('.model-picker-menu')
+    const menu = page.locator('#composer-model-picker .model-picker-menu')
     await page.waitForTimeout(300)
     const initialMenuBox = await menu.boundingBox()
     if (initialMenuBox === null) throw new Error('Model picker menu did not render')
@@ -284,7 +313,7 @@ test('selects a configured model and reasoning effort from the composer', async 
       bodyOverflow: getComputedStyle(document.querySelector('.workspace-body')!).overflow,
     }))
     expect(pickerClipping).toEqual({ surfaceOverflow: 'visible', bodyOverflow: 'visible' })
-    const pickerMotion = await page.locator('.model-popover').evaluate((element) => {
+    const pickerMotion = await page.locator('#composer-model-picker').evaluate((element) => {
       const style = getComputedStyle(element)
       return {
         property: style.transitionProperty,
@@ -325,7 +354,7 @@ test('selects a configured model and reasoning effort from the composer', async 
     const panelLayout = await page.evaluate(() => {
       const panel = document.querySelector('.model-picker-submenu')!.getBoundingClientRect()
       const submenu = document.querySelector<HTMLElement>('.model-picker-submenu')!
-      const menuRect = document.querySelector('.model-picker-menu')!.getBoundingClientRect()
+      const menuRect = document.querySelector('#composer-model-picker .model-picker-menu')!.getBoundingClientRect()
       return {
         panelLeft: panel.left,
         panelRight: panel.right,
@@ -418,7 +447,7 @@ test('selects a configured model and reasoning effort from the composer', async 
     await page.screenshot({ path: 'test-results/barn-model-picker.png', fullPage: true })
 
     await page.keyboard.press('Escape')
-    await expect(page.locator('.model-popover')).not.toHaveClass(/open/)
+    await expect(page.locator('#composer-model-picker')).not.toHaveClass(/open/)
     await page.evaluate(() => {
       const picker = document.querySelector<HTMLElement>('.model-picker')!
       picker.style.transform = 'translateX(-420px)'
@@ -428,7 +457,7 @@ test('selects a configured model and reasoning effort from the composer', async 
     await expect(page.locator('.model-picker-submenu')).toHaveAttribute('data-side', 'right')
     const rightPlacement = await page.evaluate(() => {
       const panel = document.querySelector('.model-picker-submenu')!.getBoundingClientRect()
-      const menuRect = document.querySelector('.model-picker-menu')!.getBoundingClientRect()
+      const menuRect = document.querySelector('#composer-model-picker .model-picker-menu')!.getBoundingClientRect()
       return { panelLeft: panel.left, menuRight: menuRect.right }
     })
     expect(rightPlacement.panelLeft).toBeGreaterThan(rightPlacement.menuRight)

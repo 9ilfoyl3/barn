@@ -57,25 +57,18 @@ export function registerSessionIpc(
     return agent.cancel(z.string().min(1).parse(sessionId))
   })
 
-  ipcMain.handle('sessions:attach', async (event, input: unknown) => {
+  ipcMain.handle('sessions:attach', async (event, sessionId: unknown) => {
     requireTrusted(event, isTrustedSender)
-    const parsed = z.object({
-      sessionId: z.uuid(),
-      kind: z.enum(['files', 'folder']).default('files'),
-    }).parse(input)
+    const id = z.uuid().parse(sessionId)
     const window = BrowserWindow.fromWebContents(event.sender)
     if (window === null) throw new Error(nativeCopy(getLocale()).noActiveWindow)
     const result = await dialog.showOpenDialog(window, {
-      title: parsed.kind === 'folder'
-        ? nativeCopy(getLocale()).attachFolder
-        : nativeCopy(getLocale()).attachFiles,
-      properties: parsed.kind === 'folder'
-        ? ['openDirectory', 'multiSelections']
-        : ['openFile', 'multiSelections'],
+      title: nativeCopy(getLocale()).attachFilesAndFolders,
+      properties: ['openFile', 'openDirectory', 'multiSelections'],
     })
     if (result.canceled) return []
 
-    const sessionDirectory = join(attachmentsRoot, parsed.sessionId)
+    const sessionDirectory = join(attachmentsRoot, id)
     await mkdir(sessionDirectory, { recursive: true, mode: 0o700 })
     return Promise.all(result.filePaths.map(async (sourcePath) => {
       const name = basename(sourcePath)
@@ -111,6 +104,11 @@ export function registerSessionIpc(
     const info = await stat(parsed.workingDirectory)
     if (!info.isDirectory()) throw new Error('Working directory must be a directory')
     return agent.setWorkingDirectory(parsed.sessionId, parsed.workingDirectory)
+  })
+
+  ipcMain.handle('sessions:clear-working-directory', (event, sessionId: unknown) => {
+    requireTrusted(event, isTrustedSender)
+    return agent.clearWorkingDirectory(z.string().min(1).parse(sessionId))
   })
 
   agent.onLiveEvent((liveEvent) => {

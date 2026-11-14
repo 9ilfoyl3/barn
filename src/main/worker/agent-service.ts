@@ -105,6 +105,12 @@ export class AgentService {
     return session
   }
 
+  clearWorkingDirectory(sessionId: string): SessionSummary {
+    const session = this.sessions.clearWorkingDirectory(sessionId)
+    this.emit({ type: 'session.updated', session })
+    return session
+  }
+
   getEvents(sessionId: string): SessionTimelineEvent[] {
     this.sessions.getSession(sessionId)
     return this.sessions.read(sessionId)
