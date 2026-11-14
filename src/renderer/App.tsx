@@ -44,6 +44,7 @@ import { ModelPicker } from './ModelPicker'
 import { LanguagePicker } from './LanguagePicker'
 import { SourceSettings } from './SourceSettings'
 import { DiagnosticsSettings } from './DiagnosticsSettings'
+import { AttachmentStrip } from './AttachmentStrip'
 import './composer-workspace.css'
 import { TaskCenter } from './TaskCenter'
 import { initializeAppLanguage } from './i18n'
@@ -740,23 +741,10 @@ export function App() {
               </div>
               <div className="composer">
                 {attachments.length > 0 && (
-                  <div className="attachment-row">
-                    {attachments.map((file) => {
-                      const name = attachmentDisplayName(file)
-                      return (
-                        <span className="attachment-chip" key={file.path}>
-                          {file.kind === 'directory' ? <Folder size={11} /> : <Paperclip size={11} />}
-                          {name}
-                          <TooltipButton
-                            label={t('conversation.removeAttachment', { name })}
-                            onClick={() => setAttachments((current) => current.filter((item) => item.path !== file.path))}
-                          >
-                            <X size={11} />
-                          </TooltipButton>
-                        </span>
-                      )
-                    })}
-                  </div>
+                  <AttachmentStrip
+                    files={attachments}
+                    onRemove={(path) => setAttachments((current) => current.filter((item) => item.path !== path))}
+                  />
                 )}
                 <textarea
                   aria-label={t('conversation.messageBarn')}

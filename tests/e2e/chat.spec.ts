@@ -68,7 +68,7 @@ test('streams a multi-turn conversation through the Agent Worker', async () => {
     await expect(page.locator('.session-row')).toHaveCount(0)
     await page.getByRole('button', { name: 'Attach', exact: true }).click()
     await page.getByRole('menuitem', { name: 'Files and folders' }).click()
-    await expect(page.locator('.attachment-chip')).toContainText('contract.pdf')
+    await expect(page.locator('.attachment-card.attachment-pdf')).toContainText('contract.pdf')
     expect(await page.evaluate(() => window.barn.sessions.list())).toHaveLength(0)
 
     const composer = page.getByLabel('Message Barn')
@@ -104,12 +104,18 @@ test('selects a working directory and attaches a folder', async () => {
   const userData = await mkdtemp(join(tmpdir(), 'barn-desktop-workspace-e2e-'))
   const workingDirectory = join(userData, 'selected-project')
   const attachmentFolder = join(userData, 'reference-folder')
+  const pdfPath = join(userData, 'document.pdf')
+  const imagePath = join(userData, 'preview.png')
+  const textPath = join(userData, 'notes.md')
   await Promise.all([
     mkdir(workingDirectory, { recursive: true }),
     mkdir(attachmentFolder, { recursive: true }),
   ])
   await writeFile(join(workingDirectory, 'notes.txt'), 'working directory notes')
   await writeFile(join(attachmentFolder, 'reference.txt'), 'reference folder content')
+  await writeFile(pdfPath, '%PDF-1.4 test')
+  await writeFile(imagePath, Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=', 'base64'))
+  await writeFile(textPath, '# Project notes\n\nReview the attached material before the meeting.\n')
   const inheritedEnv = Object.fromEntries(
     Object.entries(process.env).filter((entry): entry is [string, string] => entry[1] !== undefined),
   )
@@ -152,11 +158,11 @@ test('selects a working directory and attaches a folder', async () => {
           return { canceled: false, filePaths: [paths.working] }
         }
         if (options.title === 'Add files and folders') {
-          return { canceled: false, filePaths: [paths.attachment] }
+          return { canceled: false, filePaths: [paths.attachment, paths.pdf, paths.image, paths.text] }
         }
         return { canceled: true, filePaths: [] }
       }) as typeof dialog.showOpenDialog
-    }, { working: workingDirectory, attachment: attachmentFolder })
+    }, { working: workingDirectory, attachment: attachmentFolder, pdf: pdfPath, image: imagePath, text: textPath })
 
     await page.getByRole('button', { name: 'Choose working folder' }).click()
     await expect(page.locator('.composer-project')).toContainText('selected-project')
@@ -173,7 +179,11 @@ test('selects a working directory and attaches a folder', async () => {
     await page.waitForTimeout(250)
     await page.screenshot({ path: 'test-results/barn-composer-add-menu.png', fullPage: true })
     await page.getByRole('menuitem', { name: 'Files and folders' }).click()
-    await expect(page.locator('.attachment-chip')).toContainText('reference-folder')
+    await expect(page.locator('.attachment-card.attachment-folder')).toContainText('reference-folder')
+    await expect(page.locator('.attachment-card.attachment-pdf')).toContainText('document.pdf')
+    await expect(page.locator('.attachment-card.attachment-image img')).toHaveAttribute('src', /^data:image\/png;base64,/)
+    await expect(page.locator('.attachment-card.attachment-text .attachment-text-preview')).toContainText('Project notes')
+    await expect(page.locator('.attachment-card')).toHaveCount(4)
     await expect(addPopover).not.toHaveClass(/open/)
     await page.waitForTimeout(250)
     const composerAlignment = await page.evaluate(() => {
@@ -195,9 +205,15 @@ test('selects a working directory and attaches a folder', async () => {
     const userEvent = events.find((event) => event.type === 'agent.message' && event.actor.kind === 'user')
     if (userEvent === undefined) throw new Error('User attachment event was not stored')
     expect(userEvent.data).toMatchObject({
-      attachments: [expect.objectContaining({ kind: 'directory', name: 'reference-folder' })],
+      attachments: expect.arrayContaining([
+        expect.objectContaining({ kind: 'directory', name: 'reference-folder' }),
+        expect.objectContaining({ kind: 'file', name: 'document.pdf' }),
+        expect.objectContaining({ kind: 'file', name: 'preview.png' }),
+        expect.objectContaining({ kind: 'file', name: 'notes.md' }),
+      ]),
     })
-    const attachmentPath = (userEvent.data as { attachments: Array<{ path: string }> }).attachments[0]!.path
+    const attachmentPath = (userEvent.data as { attachments: Array<{ path: string; name: string }> })
+      .attachments.find((attachment) => attachment.name === 'reference-folder')!.path
     expect(await readFile(join(attachmentPath, 'reference.txt'), 'utf8')).toBe('reference folder content')
 
     await page.locator('.composer-project').hover()
