@@ -95,6 +95,29 @@ describe('conversation timeline', () => {
     expect(parts[5]).toMatchObject({ type: 'text', text: 'a roster.', streaming: true })
   })
 
+  it('hides synthetic abort errors while keeping partial text from a user stop', () => {
+    const events: SessionTimelineEvent[] = [
+      timelineEvent('event-user', 1, {
+        message: { role: 'user', content: 'Explain the workflow' },
+      }),
+      timelineEvent('event-legacy-abort', 2, {
+        message: { role: 'assistant', content: [{ type: 'text', text: 'Request aborted' }], stopReason: 'error' },
+      }),
+      timelineEvent('event-partial-abort', 3, {
+        message: { role: 'assistant', content: [{ type: 'text', text: 'The workflow starts by' }], stopReason: 'aborted' },
+      }),
+    ]
+
+    const messages = messagesFromEvents(events)
+
+    expect(messages).toHaveLength(2)
+    expect(messages[1]).toMatchObject({
+      role: 'assistant',
+      isError: false,
+      parts: [{ type: 'text', text: 'The workflow starts by' }],
+    })
+  })
+
 
   it('groups only consecutive tool calls into one display row', () => {
     const display = groupConversationParts([

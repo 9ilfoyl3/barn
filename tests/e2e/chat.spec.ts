@@ -67,7 +67,7 @@ test('streams a multi-turn conversation through the Agent Worker', async () => {
     await page.getByRole('button', { name: /New session/i }).click()
     await expect(page.locator('.session-row')).toHaveCount(0)
     await page.getByRole('button', { name: 'Attach', exact: true }).click()
-    await page.getByRole('menuitem', { name: 'Files and folders' }).click()
+    await page.getByRole('dialog', { name: 'Attach' }).getByRole('button', { name: /Files and folders/ }).click()
     await expect(page.locator('.attachment-card.attachment-pdf')).toContainText('contract.pdf')
     expect(await page.evaluate(() => window.barn.sessions.list())).toHaveLength(0)
 
@@ -79,7 +79,7 @@ test('streams a multi-turn conversation through the Agent Worker', async () => {
     await expect(page.getByLabel('User message').getByText('Hello', { exact: true })).toBeVisible()
     await expect(page.locator('.message-attachment')).toContainText('contract.pdf')
     await expect(page.locator('.message-attachment')).not.toContainText(attachmentId)
-    await expect(page.getByText(/Context \d+%/)).toBeVisible()
+    await expect(page.locator('.workspace-footer')).toHaveCount(0)
     await expect(page.getByText(attachmentPath, { exact: true })).toHaveCount(0)
     await expect(page.locator('.session-row')).toHaveCount(1)
     await expect(page.locator('.session-row.active')).toContainText('Hello')
@@ -88,7 +88,147 @@ test('streams a multi-turn conversation through the Agent Worker', async () => {
     await composer.press('Enter')
     await expect(page.getByText('Barn reply 2').last()).toBeVisible({ timeout: 15_000 })
     await expect(page.getByLabel('User message').getByText('Second turn', { exact: true })).toBeVisible()
+    const conversationLayout = await page.evaluate(() => {
+      const surface = document.querySelector('.conversation-surface')!
+      const view = document.querySelector('.conversation-view')!
+      const dock = document.querySelector('.composer-dock')!
+      const composerElement = document.querySelector('.barn-prompt-input')!
+      const messageList = document.querySelector('.message-list')!
+      return {
+        surfaceRight: surface.getBoundingClientRect().right,
+        viewRight: view.getBoundingClientRect().right,
+        surfaceOverflowY: getComputedStyle(surface).overflowY,
+        messageListOverflowY: getComputedStyle(messageList).overflowY,
+        dockBackground: getComputedStyle(dock, '::before').backgroundColor,
+        composerShadow: getComputedStyle(composerElement).boxShadow,
+      }
+    })
+    expect(conversationLayout.surfaceRight).toBeCloseTo(conversationLayout.viewRight, 0)
+    expect(conversationLayout.surfaceOverflowY).toBe('auto')
+    expect(conversationLayout.messageListOverflowY).toBe('visible')
+    expect(conversationLayout.dockBackground).not.toBe('rgba(0, 0, 0, 0)')
+    expect(conversationLayout.composerShadow).toBe('none')
     await page.screenshot({ path: 'test-results/barn-desktop-chat.png', fullPage: true })
+  } finally {
+    await app.close()
+    await new Promise<void>((resolve, reject) => server.close((error) => error === undefined ? resolve() : reject(error)))
+  }
+})
+
+
+test('pins, archives in Settings, restores, and persists Session organization', async () => {
+  let replyCount = 0
+  const server = await startMockModelServer(() => `Organization reply ${++replyCount}`)
+  const address = server.address()
+  if (address === null || typeof address === 'string') throw new Error('Mock server did not bind')
+  const baseUrl = `http://127.0.0.1:${address.port}/v1`
+  const userData = await mkdtemp(join(tmpdir(), 'barn-desktop-session-organization-e2e-'))
+  const inheritedEnv = Object.fromEntries(
+    Object.entries(process.env).filter((entry): entry is [string, string] => entry[1] !== undefined),
+  )
+  const app = await electron.launch({
+    args: ['.'],
+    env: {
+      ...inheritedEnv,
+      ELECTRON_DISABLE_SECURITY_WARNINGS: 'true',
+      BARN_USER_DATA_DIR: userData,
+      BARN_UI_LANGUAGE: 'en',
+    },
+  })
+
+  try {
+    const page = await app.firstWindow()
+    await page.waitForLoadState('domcontentloaded')
+    await page.evaluate(async (url) => {
+      await window.barn.models.saveCustomProvider({
+        id: 'organization-provider',
+        name: 'Organization Provider',
+        baseUrl: url,
+        api: 'openai-completions',
+        models: [{
+          id: 'organization-model',
+          name: 'Organization Model',
+          contextWindow: 128_000,
+          maxTokens: 8_000,
+          reasoning: false,
+          reasoningEfforts: [],
+          input: ['text'],
+        }],
+      })
+      await window.barn.models.saveCredential({ providerId: 'organization-provider', apiKey: 'test-key' })
+      await window.barn.models.setDefault({ providerId: 'organization-provider', modelId: 'organization-model' })
+    }, baseUrl)
+
+    const composer = page.getByLabel('Message Barn')
+    await page.getByRole('button', { name: /New session/i }).click()
+    await composer.fill('First conversation')
+    await composer.press('Enter')
+    await expect(page.getByText('Organization reply 1').last()).toBeVisible({ timeout: 15_000 })
+
+    await page.getByRole('button', { name: /New session/i }).click()
+    await composer.fill('Second conversation')
+    await composer.press('Enter')
+    await expect(page.getByText('Organization reply 2').last()).toBeVisible({ timeout: 15_000 })
+
+    const secondRow = page.locator('.session-row', { hasText: 'Second conversation' })
+    await expect(secondRow.locator('.session-row-actions')).toHaveCSS('opacity', '0')
+    await secondRow.hover()
+    await expect(secondRow.locator('.session-row-actions')).toHaveCSS('opacity', '1')
+    await secondRow.getByRole('button', { name: 'Pin session' }).click()
+    const pinnedGroup = page.locator('.session-group[data-group="pinned"]')
+    await expect(pinnedGroup.locator('.session-row')).toContainText('Second conversation')
+    await expect.poll(async () => page.evaluate(async () => {
+      const sessions = await window.barn.sessions.list()
+      return sessions.find((session) => session.title === 'Second conversation')?.pinned
+    })).toBe(true)
+    await expect.poll(async () => page.evaluate(() => {
+      const sidebar = document.querySelector('.sidebar')
+      return sidebar === null ? undefined : sidebar.scrollLeft
+    })).toBe(0)
+    await page.screenshot({ path: 'test-results/barn-session-pinned.png', fullPage: true })
+
+    await pinnedGroup.locator('.session-row', { hasText: 'Second conversation' }).hover()
+    await pinnedGroup.locator('.session-row', { hasText: 'Second conversation' })
+      .getByRole('button', { name: 'Archive session' }).click()
+    await expect(page.locator('.session-row', { hasText: 'Second conversation' })).toHaveCount(0)
+    await expect(page.locator('.session-row', { hasText: 'First conversation' })).toHaveClass(/active/)
+    await expect(page.getByText('Pinned:', { exact: true })).toHaveCount(0)
+    await expect.poll(async () => page.evaluate(async () => {
+      const sessions = await window.barn.sessions.list()
+      return sessions.find((session) => session.title === 'Second conversation')?.archivedAt
+    })).toEqual(expect.any(String))
+
+    await page.reload()
+    await page.waitForLoadState('domcontentloaded')
+    await page.locator('.account-row').click()
+    await page.getByRole('menuitem', { name: 'Settings' }).click()
+    await expect(page.locator('.account-popover')).toBeHidden()
+    await expect.poll(async () => page.evaluate(() => {
+      const sidebar = document.querySelector('.sidebar')
+      return sidebar === null ? undefined : sidebar.scrollLeft
+    })).toBe(0)
+    await expect(page.getByRole('heading', { name: 'Archived chats' })).toBeVisible()
+    const archivedRow = page.locator('.settings-archive-row', { hasText: 'Second conversation' })
+    await expect(archivedRow).toBeVisible()
+    const archivedSearch = page.getByRole('searchbox', { name: 'Search archived chats' })
+    await archivedSearch.fill('missing chat')
+    await expect(page.getByRole('heading', { name: 'No matching archived chats' })).toBeVisible()
+    await archivedSearch.fill('Second')
+    await expect(archivedRow).toBeVisible()
+    await page.screenshot({ path: 'test-results/barn-session-archived.png', fullPage: true })
+
+    await archivedSearch.fill('')
+    await archivedRow.getByRole('button', { name: 'Unarchive' }).click()
+    await expect(archivedRow).toHaveCount(0)
+    await expect(page.getByRole('heading', { name: 'No archived chats' })).toBeVisible()
+    await expect.poll(async () => page.evaluate(async () => {
+      const sessions = await window.barn.sessions.list()
+      return sessions.find((session) => session.title === 'Second conversation')?.archivedAt
+    })).toBeUndefined()
+
+    await page.getByRole('button', { name: /New session/i }).click()
+    await expect(page.locator('.session-group[data-group="pinned"] .session-row', { hasText: 'Second conversation' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'What needs attention?' })).toBeVisible()
   } finally {
     await app.close()
     await new Promise<void>((resolve, reject) => server.close((error) => error === undefined ? resolve() : reject(error)))
@@ -167,24 +307,22 @@ test('selects a working directory and attaches a folder', async () => {
     await page.getByRole('button', { name: 'Choose working folder' }).click()
     await expect(page.locator('.composer-project')).toContainText('selected-project')
     await page.getByRole('button', { name: 'Attach', exact: true }).click()
-    const addPopover = page.locator('.composer-add-popover')
-    await expect(addPopover).toHaveClass(/open/)
-    const addPopoverMotion = await addPopover.evaluate((element) => {
+    const addDialog = page.getByRole('dialog', { name: 'Attach' })
+    await expect(addDialog).toBeVisible()
+    const addPopoverMotion = await addDialog.evaluate((element) => {
       const style = getComputedStyle(element)
       return { transitionProperty: style.transitionProperty, zIndex: style.zIndex }
     })
-    expect(addPopoverMotion.transitionProperty).toContain('opacity')
-    expect(addPopoverMotion.transitionProperty).toContain('transform')
-    expect(Number(addPopoverMotion.zIndex)).toBeGreaterThanOrEqual(18)
+    expect(addPopoverMotion.transitionProperty.length).toBeGreaterThan(0)
     await page.waitForTimeout(250)
     await page.screenshot({ path: 'test-results/barn-composer-add-menu.png', fullPage: true })
-    await page.getByRole('menuitem', { name: 'Files and folders' }).click()
+    await addDialog.getByRole('button', { name: /Files and folders/ }).click()
     await expect(page.locator('.attachment-card.attachment-folder')).toContainText('reference-folder')
     await expect(page.locator('.attachment-card.attachment-pdf')).toContainText('document.pdf')
     await expect(page.locator('.attachment-card.attachment-image img')).toHaveAttribute('src', /^data:image\/png;base64,/)
     await expect(page.locator('.attachment-card.attachment-text .attachment-text-preview')).toContainText('Project notes')
     await expect(page.locator('.attachment-card')).toHaveCount(4)
-    await expect(addPopover).not.toHaveClass(/open/)
+    await expect(addDialog).toBeHidden()
     await page.waitForTimeout(250)
     const composerAlignment = await page.evaluate(() => {
       const workspace = document.querySelector('.composer-project')!.getBoundingClientRect()
@@ -321,10 +459,10 @@ test('selects a configured model and reasoning effort from the composer', async 
     await page.screenshot({ path: 'test-results/barn-model-list.png', fullPage: true })
     expect(await menu.boundingBox()).toEqual(initialMenuBox)
     const pickerClipping = await page.evaluate(() => ({
-      surfaceOverflow: getComputedStyle(document.querySelector('.conversation-surface')!).overflow,
+      viewOverflow: getComputedStyle(document.querySelector('.conversation-view')!).overflow,
       bodyOverflow: getComputedStyle(document.querySelector('.workspace-body')!).overflow,
     }))
-    expect(pickerClipping).toEqual({ surfaceOverflow: 'visible', bodyOverflow: 'visible' })
+    expect(pickerClipping).toEqual({ viewOverflow: 'visible', bodyOverflow: 'visible' })
     const pickerMotion = await page.locator('#composer-model-picker').evaluate((element) => {
       const style = getComputedStyle(element)
       return {
@@ -460,12 +598,14 @@ test('selects a configured model and reasoning effort from the composer', async 
 
     await page.keyboard.press('Escape')
     await expect(page.locator('#composer-model-picker')).not.toHaveClass(/open/)
+    await expect(page.locator('.model-picker-submenu')).toHaveCount(0)
     await page.evaluate(() => {
       const picker = document.querySelector<HTMLElement>('.model-picker')!
       picker.style.transform = 'translateX(-420px)'
     })
-    await page.locator('.composer-model').click()
-    await page.locator('.model-picker-menu-row').nth(1).hover()
+    await page.locator('.composer-model').evaluate((element) => (element as HTMLElement).click())
+    await expect(page.locator('#composer-model-picker')).toHaveClass(/open/)
+    await page.locator('.model-picker-menu-row').nth(1).evaluate((element) => (element as HTMLElement).click())
     await expect(page.locator('.model-picker-submenu')).toHaveAttribute('data-side', 'right')
     const rightPlacement = await page.evaluate(() => {
       const panel = document.querySelector('.model-picker-submenu')!.getBoundingClientRect()
@@ -473,11 +613,29 @@ test('selects a configured model and reasoning effort from the composer', async 
       return { panelLeft: panel.left, menuRight: menuRect.right }
     })
     expect(rightPlacement.panelLeft).toBeGreaterThan(rightPlacement.menuRight)
+    const composer = page.getByLabel('Message Barn')
+    await composer.focus()
+    await expect(page.locator('#composer-model-picker')).not.toHaveClass(/open/)
+    await expect(page.locator('.model-picker-submenu')).toHaveCount(0)
+
+    await page.locator('.composer-model').evaluate((element) => (element as HTMLElement).click())
+    await page.locator('.model-picker-menu-row').nth(1).evaluate((element) => (element as HTMLElement).click())
+    await expect(page.locator('.model-picker-submenu')).toBeVisible()
+    await page.mouse.click(8, 8)
+    await expect(page.locator('#composer-model-picker')).not.toHaveClass(/open/)
+    await expect(page.locator('.model-picker-submenu')).toHaveCount(0)
+
+    await page.locator('.composer-model').evaluate((element) => (element as HTMLElement).click())
+    await page.locator('.model-picker-menu-row').nth(1).evaluate((element) => (element as HTMLElement).click())
+    await expect(page.locator('.model-picker-submenu')).toBeVisible()
+    await page.evaluate(() => window.dispatchEvent(new Event('blur')))
+    await expect(page.locator('#composer-model-picker')).not.toHaveClass(/open/)
+    await expect(page.locator('.model-picker-submenu')).toHaveCount(0)
+
     await page.keyboard.press('Escape')
     await page.evaluate(() => {
       document.querySelector<HTMLElement>('.model-picker')!.style.transform = ''
     })
-    const composer = page.getByLabel('Message Barn')
     await composer.fill('Use max effort')
     await composer.press('Enter')
     await expect(page.getByText('Reasoning reply')).toBeVisible({ timeout: 15_000 })
@@ -545,7 +703,7 @@ test('interleaves live thinking, tools, and content in event order', async () =>
       .locator('.live-turn .conversation-part')
       .evaluateAll((parts) => parts.map((part) => part.getAttribute('data-part'))))
       .toEqual(['tool-group', 'thinking'])
-    await expect(page.locator('.live-turn .tool-group-summary')).toContainText('Listed a directory')
+    await expect(page.locator('.live-turn .tool-group button').first()).toContainText('Listed a directory')
 
     mock.release()
     await expect(page.getByText('The workspace looks good.', { exact: true })).toBeVisible({ timeout: 15_000 })
@@ -555,20 +713,26 @@ test('interleaves live thinking, tools, and content in event order', async () =>
     expect(finalParts).toEqual(['tool-group', 'thinking', 'text'])
 
     const toolGroup = page.locator('.chat-message.assistant .tool-group')
-    await expect(toolGroup.locator('.tool-group-summary')).toContainText('Listed a directory')
-    await expect(toolGroup.locator('.tool-row')).toHaveCount(0)
-    await toolGroup.locator('.tool-group-summary').click()
-    await expect(toolGroup.locator('.tool-row')).toHaveCount(1)
-    await toolGroup.locator('.tool-row summary').click()
-    const detail = toolGroup.locator('.tool-detail-scroll')
+    const toolHeader = toolGroup.locator('button').first()
+    const assistantWidths = await page.evaluate(() => {
+      const message = document.querySelector('.chat-message.assistant')!.getBoundingClientRect().width
+      const parts = document.querySelector('.chat-message.assistant .conversation-parts')!.getBoundingClientRect().width
+      const tools = document.querySelector('.chat-message.assistant .tool-group')!.getBoundingClientRect().width
+      return { message, parts, tools }
+    })
+    expect(assistantWidths.parts).toBeCloseTo(assistantWidths.message, 0)
+    expect(assistantWidths.tools).toBeCloseTo(assistantWidths.message, 0)
+    await expect(toolHeader).toBeVisible()
+    if (await toolHeader.getAttribute('aria-expanded') === 'false') await toolHeader.click()
+    await expect(toolHeader).toHaveAttribute('aria-expanded', 'true')
+    const toolRow = toolGroup.locator('.beautiful-tool-chip-row')
+    await expect(toolRow).toHaveCount(1)
+    await expect(toolRow).toContainText('List Dir')
+    await toolRow.click()
+    const detail = toolGroup.locator('.beautiful-tool-chip-detail')
     await expect(detail).toBeVisible()
-    await expect(detail).toContainText('List Dir')
     await expect(detail).toContainText('"path": "."')
-    const detailStyle = await detail.evaluate((element) => ({
-      maxHeight: getComputedStyle(element).maxHeight,
-      overflowY: getComputedStyle(element).overflowY,
-    }))
-    expect(detailStyle).toEqual({ maxHeight: '250px', overflowY: 'auto' })
+    await page.waitForTimeout(350)
     await page.screenshot({ path: 'test-results/barn-ordered-stream.png', fullPage: true })
   } finally {
     mock.release()

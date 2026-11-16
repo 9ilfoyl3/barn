@@ -1,4 +1,5 @@
 import {
+  useCallback,
   useEffect,
   useMemo,
   useRef,
@@ -102,6 +103,13 @@ export function ModelPicker({
       ? t('modelPicker.notSelected')
       : t('modelPicker.notSupported')
     : t(`settings.efforts.${activeEffort}`)
+  const closePicker = useCallback((): void => {
+    setOpen(false)
+    setSection(undefined)
+    setPreviewEffort(undefined)
+    onOpenChange?.(false)
+  }, [onOpenChange])
+
   useEffect(() => {
     let active = true
     setLoading(true)
@@ -131,21 +139,31 @@ export function ModelPicker({
     const closeOnOutsidePointer = (event: globalThis.PointerEvent): void => {
       if (rootRef.current?.contains(event.target as Node) === true) return
       if (submenuRef.current?.contains(event.target as Node) === true) return
-      setOpen(false)
-      onOpenChange?.(false)
+      closePicker()
+    }
+    const closeOnOutsideFocus = (event: globalThis.FocusEvent): void => {
+      if (rootRef.current?.contains(event.target as Node) === true) return
+      if (submenuRef.current?.contains(event.target as Node) === true) return
+      closePicker()
+    }
+    const closeOnWindowBlur = (): void => {
+      closePicker()
     }
     const closeOnEscape = (event: globalThis.KeyboardEvent): void => {
       if (event.key !== 'Escape') return
-      setOpen(false)
-      onOpenChange?.(false)
+      closePicker()
     }
     document.addEventListener('pointerdown', closeOnOutsidePointer)
+    document.addEventListener('focusin', closeOnOutsideFocus)
     document.addEventListener('keydown', closeOnEscape)
+    window.addEventListener('blur', closeOnWindowBlur)
     return () => {
       document.removeEventListener('pointerdown', closeOnOutsidePointer)
+      document.removeEventListener('focusin', closeOnOutsideFocus)
       document.removeEventListener('keydown', closeOnEscape)
+      window.removeEventListener('blur', closeOnWindowBlur)
     }
-  }, [onOpenChange, open])
+  }, [closePicker, open])
 
   useEffect(() => {
     if (optimisticEffort === undefined) return
@@ -286,7 +304,7 @@ export function ModelPicker({
 
         <SecondaryMenu
           ref={submenuRef}
-          open={section !== undefined}
+          open={open && section !== undefined}
           anchor={menuRef}
           className={`model-picker-submenu ${section}`}
           key={section}
