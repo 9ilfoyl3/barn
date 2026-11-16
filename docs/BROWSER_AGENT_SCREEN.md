@@ -13,7 +13,7 @@ Barn Desktop includes a local built-in browser and a visible Agent Screen inside
 ## Browser capabilities
 
 - URL navigation, back, forward, reload, title, loading state, and address normalization.
-- Multiple tabs: create, select, close, and list.
+- Multiple tabs: create, select, close, list, and restore after restart.
 - Semantic observation of page text and interactive elements with stable refs.
 - Actions: click, type, select, press, hover, scroll, and wait.
 - Bounded visible-text extraction.
@@ -50,6 +50,7 @@ The Worker never receives raw DevTools access. The Host executes fixed, typed br
 - Consequential page actions create a durable Approval. The Agent waits for approval and never executes the action after a denial.
 - Downloads use a unique filename in the configured Downloads directory.
 - The renderer receives typed browser state and capture data only. Website DOM is not injected into the Barn renderer.
+- Browser tab URLs and titles persist in a mode-0600 JSON file; cookies and site storage remain in Electron's dedicated browser session, not this file.
 
 ## Agent Computer provider boundary
 
@@ -68,7 +69,6 @@ Hallmark's sloplint passes the browser and Agent Screen component scope with `Fl
 ## Known gaps
 
 - Cross-origin iframe and Shadow DOM coverage is not complete.
-- Browser tabs are not restored after an application restart.
 - Agent Screen currently refreshes from page captures rather than a continuous WebRTC stream.
 - Secure VM and host Computer Use are not implemented or bundled.
 - A Chrome extension for the user's existing profile is not implemented.
