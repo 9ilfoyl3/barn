@@ -12,7 +12,7 @@ import { MemoryStore } from '../memory/memory-store'
 
 export type SessionStatus = SessionSummary['status']
 
-export const CURRENT_SCHEMA_VERSION = 3
+export const CURRENT_SCHEMA_VERSION = 4
 
 export interface NewSessionEvent {
   type: string
@@ -71,6 +71,9 @@ export class SessionStore {
         id TEXT PRIMARY KEY,
         title TEXT NOT NULL,
         status TEXT NOT NULL,
+        has_unread_result INTEGER NOT NULL DEFAULT 0,
+        pinned INTEGER NOT NULL DEFAULT 0,
+        archived_at TEXT,
         working_directory TEXT,
         last_seq INTEGER NOT NULL DEFAULT 0,
         created_at TEXT NOT NULL,
@@ -190,20 +193,22 @@ export class SessionStore {
       id: sessionId,
       title,
       status: 'idle',
+      hasUnreadResult: false,
+      pinned: false,
       createdAt: now,
       updatedAt: now,
     }
     if (workingDirectory !== undefined) session.workingDirectory = workingDirectory
     this.database.prepare(`
-      INSERT INTO sessions (id, title, status, working_directory, last_seq, created_at, updated_at)
-      VALUES (?, ?, ?, ?, 0, ?, ?)
+      INSERT INTO sessions (id, title, status, has_unread_result, pinned, archived_at, working_directory, last_seq, created_at, updated_at)
+      VALUES (?, ?, ?, 0, 0, NULL, ?, 0, ?, ?)
     `).run(session.id, session.title, session.status, session.workingDirectory ?? null, now, now)
     return session
   }
 
   ensureSession(sessionId: string, title = 'New session', workingDirectory?: string): SessionSummary {
     const row = this.database.prepare(`
-      SELECT id, title, status, working_directory, created_at, updated_at
+      SELECT id, title, status, has_unread_result, pinned, archived_at, working_directory, created_at, updated_at
       FROM sessions WHERE id = ?
     `).get(sessionId) as SessionRow | undefined
     return row === undefined ? this.createSession(title, sessionId, workingDirectory) : toSessionSummary(row)
@@ -211,7 +216,7 @@ export class SessionStore {
 
   getSession(sessionId: string): SessionSummary {
     const row = this.database.prepare(`
-      SELECT id, title, status, working_directory, created_at, updated_at
+      SELECT id, title, status, has_unread_result, pinned, archived_at, working_directory, created_at, updated_at
       FROM sessions WHERE id = ?
     `).get(sessionId) as SessionRow | undefined
     if (row === undefined) throw new Error(`Unknown session: ${sessionId}`)
@@ -223,6 +228,40 @@ export class SessionStore {
     const result = this.database.prepare(`
       UPDATE sessions SET status = ?, updated_at = ? WHERE id = ?
     `).run(status, updatedAt, sessionId)
+    if (result.changes === 0) throw new Error(`Unknown session: ${sessionId}`)
+    return this.getSession(sessionId)
+  }
+
+  markResultUnread(sessionId: string): SessionSummary {
+    const result = this.database.prepare(`
+      UPDATE sessions SET has_unread_result = 1 WHERE id = ?
+    `).run(sessionId)
+    if (result.changes === 0) throw new Error(`Unknown session: ${sessionId}`)
+    return this.getSession(sessionId)
+  }
+
+  markResultRead(sessionId: string): SessionSummary {
+    const result = this.database.prepare(`
+      UPDATE sessions SET has_unread_result = 0 WHERE id = ?
+    `).run(sessionId)
+    if (result.changes === 0) throw new Error(`Unknown session: ${sessionId}`)
+    return this.getSession(sessionId)
+  }
+
+  setPinned(sessionId: string, pinned: boolean): SessionSummary {
+    const result = this.database.prepare(`
+      UPDATE sessions SET pinned = ? WHERE id = ?
+    `).run(pinned ? 1 : 0, sessionId)
+    if (result.changes === 0) throw new Error(`Unknown session: ${sessionId}`)
+    return this.getSession(sessionId)
+  }
+
+  setArchived(sessionId: string, archived: boolean): SessionSummary {
+    const result = this.database.prepare(`
+      UPDATE sessions
+      SET archived_at = ?, has_unread_result = CASE WHEN ? = 1 THEN 0 ELSE has_unread_result END
+      WHERE id = ?
+    `).run(archived ? new Date().toISOString() : null, archived ? 1 : 0, sessionId)
     if (result.changes === 0) throw new Error(`Unknown session: ${sessionId}`)
     return this.getSession(sessionId)
   }
@@ -263,14 +302,20 @@ export class SessionStore {
 
   listSessions(): SessionSummary[] {
     const rows = this.database.prepare(`
-      SELECT id, title, status, working_directory, created_at, updated_at
+      SELECT id, title, status, has_unread_result, pinned, archived_at, working_directory, created_at, updated_at
       FROM sessions
       WHERE last_seq > 0
-      ORDER BY updated_at DESC
+      ORDER BY
+        CASE WHEN archived_at IS NULL THEN 0 ELSE 1 END,
+        pinned DESC,
+        updated_at DESC
     `).all() as Array<{
       id: string
       title: string
       status: string
+      has_unread_result: number
+      pinned: number
+      archived_at: string | null
       working_directory: string | null
       created_at: string
       updated_at: string
@@ -384,6 +429,9 @@ export class SessionStore {
     const columns = new Set((this.database.prepare('PRAGMA table_info(sessions)').all() as Array<{ name: string }>)
       .map((column) => column.name))
     if (!columns.has('working_directory')) this.database.exec('ALTER TABLE sessions ADD COLUMN working_directory TEXT')
+    if (!columns.has('has_unread_result')) this.database.exec('ALTER TABLE sessions ADD COLUMN has_unread_result INTEGER NOT NULL DEFAULT 0')
+    if (!columns.has('pinned')) this.database.exec('ALTER TABLE sessions ADD COLUMN pinned INTEGER NOT NULL DEFAULT 0')
+    if (!columns.has('archived_at')) this.database.exec('ALTER TABLE sessions ADD COLUMN archived_at TEXT')
   }
 
   private pruneEmptySessions(): void {
@@ -405,6 +453,9 @@ interface SessionRow {
   id: string
   title: string
   status: string
+  has_unread_result: number
+  pinned: number
+  archived_at: string | null
   working_directory: string | null
   created_at: string
   updated_at: string
@@ -415,9 +466,12 @@ function toSessionSummary(row: SessionRow): SessionSummary {
     id: row.id,
     title: row.title,
     status: normalizeStatus(row.status),
+    hasUnreadResult: row.has_unread_result === 1,
+    pinned: row.pinned === 1,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   }
+  if (row.archived_at !== null) session.archivedAt = row.archived_at
   if (row.working_directory !== null) session.workingDirectory = row.working_directory
   return session
 }

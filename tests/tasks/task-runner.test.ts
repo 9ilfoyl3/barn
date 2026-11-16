@@ -109,6 +109,8 @@ describe('TaskRunner', () => {
         id: running.sessionId!,
         title: 'Analyze the files',
         status: 'failed',
+        hasUnreadResult: true,
+        pinned: false,
         createdAt: running.createdAt,
         updatedAt: running.updatedAt,
       },

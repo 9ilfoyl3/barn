@@ -53,6 +53,9 @@ const sessions: SessionBridge = {
   chooseDirectory: () => ipcRenderer.invoke('sessions:choose-directory') as Promise<string | undefined>,
   setWorkingDirectory: (sessionId: string, workingDirectory: string) => ipcRenderer.invoke('sessions:set-working-directory', { sessionId, workingDirectory }),
   clearWorkingDirectory: (sessionId: string) => ipcRenderer.invoke('sessions:clear-working-directory', sessionId),
+  markRead: (sessionId: string) => ipcRenderer.invoke('sessions:mark-read', sessionId),
+  setPinned: (sessionId: string, pinned: boolean) => ipcRenderer.invoke('sessions:set-pinned', { sessionId, pinned }),
+  setArchived: (sessionId: string, archived: boolean) => ipcRenderer.invoke('sessions:set-archived', { sessionId, archived }),
   getAttachmentPreview: (path: string) => ipcRenderer.invoke('sessions:attachment-preview', path),
   onEvent: (listener: (event: SessionLiveEvent) => void) => {
     const handler = (_event: Electron.IpcRendererEvent, liveEvent: SessionLiveEvent): void => listener(liveEvent)

@@ -113,6 +113,23 @@ export function registerSessionIpc(
     return agent.clearWorkingDirectory(z.string().min(1).parse(sessionId))
   })
 
+  ipcMain.handle('sessions:mark-read', (event, sessionId: unknown) => {
+    requireTrusted(event, isTrustedSender)
+    return agent.markRead(z.string().min(1).parse(sessionId))
+  })
+
+  ipcMain.handle('sessions:set-pinned', (event, input: unknown) => {
+    requireTrusted(event, isTrustedSender)
+    const parsed = z.object({ sessionId: z.string().min(1), pinned: z.boolean() }).strict().parse(input)
+    return sessions.setPinned(parsed.sessionId, parsed.pinned)
+  })
+
+  ipcMain.handle('sessions:set-archived', (event, input: unknown) => {
+    requireTrusted(event, isTrustedSender)
+    const parsed = z.object({ sessionId: z.string().min(1), archived: z.boolean() }).strict().parse(input)
+    return sessions.setArchived(parsed.sessionId, parsed.archived)
+  })
+
   ipcMain.handle('sessions:attachment-preview', async (event, input: unknown) => {
     requireTrusted(event, isTrustedSender)
     const path = await realpath(z.string().min(1).max(4_000).parse(input))
