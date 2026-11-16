@@ -54,6 +54,7 @@ const browser: BrowserBridge = {
   newTab: (url?: string) => ipcRenderer.invoke('browser:new-tab', url),
   activateTab: (tabId: string) => ipcRenderer.invoke('browser:activate-tab', tabId),
   closeTab: (tabId: string) => ipcRenderer.invoke('browser:close-tab', tabId),
+  revealDownload: (downloadId: string) => ipcRenderer.invoke('browser:reveal-download', downloadId),
   back: () => ipcRenderer.invoke('browser:back'),
   forward: () => ipcRenderer.invoke('browser:forward'),
   reload: () => ipcRenderer.invoke('browser:reload'),

@@ -69,6 +69,9 @@ test('opens a real browser split and swaps it with the agent screen', async () =
     })
     await page.screenshot({ path: 'test-results/barn-agent-screen-live.png', fullPage: true })
 
+    await expect(page.evaluate(() => window.barn.browser.navigate('file:///etc/passwd'))).rejects.toThrow(/not allowed/i)
+    await expect(page.evaluate(() => window.barn.browser.navigate('http://169.254.169.254/latest/meta-data'))).rejects.toThrow(/not allowed/i)
+
     await agentScreen.locator('.agent-screen-kit-media-wrap').hover()
     await agentScreen.getByRole('button', { name: 'Open screen' }).click()
     await expect(page.getByTestId('browser-panel')).toBeVisible()

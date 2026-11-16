@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { ArrowLeft, ArrowRight, Globe2, LoaderCircle, Plus, RotateCw, X } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Download, Globe2, LoaderCircle, Plus, RotateCw, X } from 'lucide-react'
 import type { BrowserState } from '../shared/models'
 
 export interface BrowserPanelProps {
@@ -12,9 +12,10 @@ export interface BrowserPanelProps {
   onNewTab: () => Promise<void>
   onActivateTab: (tabId: string) => Promise<void>
   onCloseTab: (tabId: string) => Promise<void>
+  onRevealDownload: (downloadId: string) => Promise<void>
 }
 
-export function BrowserPanel({ state, onBack, onClose, onForward, onNavigate, onReload, onNewTab, onActivateTab, onCloseTab }: BrowserPanelProps) {
+export function BrowserPanel({ state, onBack, onClose, onForward, onNavigate, onReload, onNewTab, onActivateTab, onCloseTab, onRevealDownload }: BrowserPanelProps) {
   const viewportRef = useRef<HTMLDivElement>(null)
   const [address, setAddress] = useState(state.url === 'about:blank' ? '' : state.url)
   const [submitting, setSubmitting] = useState(false)
@@ -106,6 +107,18 @@ export function BrowserPanel({ state, onBack, onClose, onForward, onNavigate, on
         <button className="browser-new-tab" type="button" aria-label="New tab" onClick={() => void onNewTab()}>
           <Plus size={14} />
         </button>
+        {state.downloads[0] !== undefined && (
+          <button
+            className="browser-download-button"
+            type="button"
+            aria-label="Show latest download"
+            title={`${state.downloads[0].filename} · ${state.downloads[0].state}`}
+            onClick={() => void onRevealDownload(state.downloads[0]!.id)}
+          >
+            <Download size={14} />
+            <span>{state.downloads.filter((download) => download.state === 'completed').length}</span>
+          </button>
+        )}
       </div>
 
       <div className="browser-toolbar">

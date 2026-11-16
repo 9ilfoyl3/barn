@@ -45,6 +45,10 @@ export function registerBrowserIpc(
     const browser = requireTrusted(event)
     return browser.closeTab(tabIdSchema.parse(rawTabId))
   })
+  ipcMain.handle('browser:reveal-download', (event, rawDownloadId: unknown) => {
+    const browser = requireTrusted(event)
+    return browser.revealDownload(tabIdSchema.parse(rawDownloadId))
+  })
   ipcMain.handle('browser:back', (event) => requireTrusted(event).back())
   ipcMain.handle('browser:forward', (event) => requireTrusted(event).forward())
   ipcMain.handle('browser:reload', (event) => requireTrusted(event).reload())

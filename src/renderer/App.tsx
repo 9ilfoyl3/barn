@@ -108,6 +108,7 @@ export function App() {
     canGoBack: false,
     canGoForward: false,
     tabs: [],
+    downloads: [],
   })
   const [agentScreenPreview, setAgentScreenPreview] = useState<string>()
   const listRef = useRef<HTMLElement>(null)
@@ -500,6 +501,14 @@ export function App() {
   async function activateBrowserTab(tabId: string): Promise<void> {
     try {
       setBrowserState(await window.barn.browser.activateTab(tabId))
+    } catch (reason) {
+      setError(errorMessage(reason, t))
+    }
+  }
+
+  async function revealBrowserDownload(downloadId: string): Promise<void> {
+    try {
+      await window.barn.browser.revealDownload(downloadId)
     } catch (reason) {
       setError(errorMessage(reason, t))
     }
@@ -1062,6 +1071,7 @@ export function App() {
           onNewTab={newBrowserTab}
           onActivateTab={activateBrowserTab}
           onCloseTab={closeBrowserTab}
+          onRevealDownload={revealBrowserDownload}
         />
       )}
       </div>
