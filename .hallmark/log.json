@@ -1,5 +1,61 @@
 [
  {
+  "shape": "app screen",
+  "theme": "barn-native",
+  "axes": [
+   "personal menu settings route",
+   "searchable archived chats",
+   "project-grouped restore list"
+  ],
+  "hero": "none",
+  "nav": "existing sidebar plus settings section rail",
+  "footer": "existing account footer",
+  "imagery": "none",
+  "photos": [],
+  "entry": "Settings from the personal menu",
+  "fingerprint": "barn-settings-archived-chats-2026-11-16",
+  "sections": [
+   "settings navigation",
+   "archived chats heading",
+   "archive search",
+   "project groups",
+   "archived chat rows"
+  ],
+  "signature": "archived conversations leave the active sidebar and return through a focused settings surface",
+  "waived": [],
+  "prompt": "Add a Settings menu to the personal menu that opens an archived-chat management page; flatten sidebar groups into Pinned and Recent and remove the purple pin prefix",
+  "date": "2026-11-16",
+  "mode": "build"
+ },
+ {
+  "shape": "app screen",
+  "theme": "barn-native",
+  "axes": [
+   "pinned session group",
+   "recoverable archive",
+   "read-only archived composer"
+  ],
+  "hero": "none",
+  "nav": "existing sidebar",
+  "footer": "existing workspace footer",
+  "imagery": "none",
+  "photos": [],
+  "entry": "Session list organization controls",
+  "fingerprint": "barn-session-organization-2026-11-16",
+  "sections": [
+   "session search",
+   "pinned sessions",
+   "recent sessions",
+   "archived sessions",
+   "archived composer state"
+  ],
+  "signature": "pinned sessions rise into a quiet group while archive stays recoverable in the same sidebar",
+  "waived": [],
+  "prompt": "Implement pinned and archived sessions with a complete interaction chain and audit the UI UX with Hallmark",
+  "date": "2026-11-16",
+  "mode": "build"
+ },
+ {
   "shape": "component",
   "theme": "barn-native",
   "axes": [

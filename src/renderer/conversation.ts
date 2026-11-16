@@ -126,6 +126,7 @@ export function messagesFromEvents(events: SessionTimelineEvent[]): ChatMessage[
       continue
     }
     if (message.role !== 'assistant') continue
+    if (isCancelledAssistantMessage(message)) continue
 
     let target = messages.at(-1)
     if (target?.role !== 'assistant') {
@@ -223,6 +224,13 @@ function contentText(content: unknown): string {
     if (item.type === 'image') return ['[image]']
     return []
   }).join('\n')
+}
+
+function isCancelledAssistantMessage(message: Record<string, unknown>): boolean {
+  if (message.stopReason === 'error' && contentText(message.content).trim() === 'Request aborted') return true
+  if (message.stopReason !== 'aborted') return false
+  if (typeof message.content === 'string') return message.content.trim().length === 0
+  return Array.isArray(message.content) && message.content.length === 0
 }
 
 function attachmentList(value: unknown): AttachmentDescriptor[] {

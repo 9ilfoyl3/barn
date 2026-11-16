@@ -28,7 +28,7 @@ test('renders loading placeholders and office document previews', async () => {
     }, files)
 
     await page.getByRole('button', { name: 'Attach', exact: true }).click()
-    await page.getByRole('menuitem', { name: 'Files and folders' }).click()
+    await page.getByRole('button', { name: /Files and folders/ }).click()
     const strip = page.locator('.attachment-strip')
     await expect(strip).toBeVisible()
     await expect(page.locator('.attachment-card')).toHaveCount(4)

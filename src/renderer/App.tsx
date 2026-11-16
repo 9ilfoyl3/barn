@@ -1,13 +1,10 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Streamdown, type Components } from 'streamdown'
 import 'streamdown/styles.css'
 import {
-  Brain,
-  CheckCircle2,
+  Archive,
   ChevronRight,
-  CircleX,
-  ArrowUp,
   ChevronDown,
   FileSearch,
   FileText,
@@ -16,15 +13,14 @@ import {
   FolderSearch,
   Inbox,
   Search,
+  Settings2,
   Wrench,
-  LoaderCircle,
   PanelLeft,
   Paperclip,
+  Pin,
   Plus,
   Sparkles,
-  Square,
   Stethoscope,
-  Terminal,
   Trash2,
   UserRound,
   X,
@@ -32,7 +28,6 @@ import {
 import type {
   AttachmentDescriptor,
   ModelConfigSnapshot,
-  RuntimeCapabilities,
   SessionLiveEvent,
   SessionSummary,
   Task,
@@ -44,11 +39,15 @@ import { ModelPicker } from './ModelPicker'
 import { LanguagePicker } from './LanguagePicker'
 import { SourceSettings } from './SourceSettings'
 import { DiagnosticsSettings } from './DiagnosticsSettings'
+import { SettingsPage } from './SettingsPage'
 import { AttachmentStrip } from './AttachmentStrip'
 import './composer-workspace.css'
 import { TaskCenter } from './TaskCenter'
 import { initializeAppLanguage } from './i18n'
 import { TooltipButton } from './components/TooltipButton'
+import { MessageBubble, MessageBubbleGroup } from '@/components/beui/components/agents/message-bubble'
+import { PromptInput } from '@/components/beui/components/agents/prompt-input'
+import ToolChips, { type ToolStep } from '@/components/beautiful-ui/original/primitives/ToolChips'
 import {
   applyLiveEvent,
   groupConversationParts,
@@ -68,8 +67,7 @@ const STREAMDOWN_COMPONENTS: Components = {
 }
 
 export function App() {
-  const { t, i18n } = useTranslation()
-  const dateLocale = i18n.language === 'zh-CN' ? 'zh-CN' : 'en-US'
+  const { t } = useTranslation()
   const [snapshot, setSnapshot] = useState<ModelConfigSnapshot>()
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [sourceSettingsOpen, setSourceSettingsOpen] = useState(false)
@@ -78,27 +76,25 @@ export function App() {
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [sessions, setSessions] = useState<SessionSummary[]>([])
   const [activeSessionId, setActiveSessionId] = useState<string>()
-  const [capabilities, setCapabilities] = useState<RuntimeCapabilities>()
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [input, setInput] = useState('')
   const [attachments, setAttachments] = useState<AttachmentDescriptor[]>([])
   const [workingDirectory, setWorkingDirectory] = useState<string>()
-  const [attachMenuOpen, setAttachMenuOpen] = useState(false)
   const [liveParts, setLiveParts] = useState<ConversationPart[]>([])
   const [pending, setPending] = useState(false)
+  const [stopping, setStopping] = useState(false)
   const [error, setError] = useState<string>()
-  const [contextStatus, setContextStatus] = useState<{ tokens: number; budget: number; compacted: boolean }>()
   const [accountOpen, setAccountOpen] = useState(false)
   const [sessionSearchOpen, setSessionSearchOpen] = useState(false)
   const [sessionQuery, setSessionQuery] = useState('')
-  const [view, setView] = useState<'conversation' | 'tasks'>('conversation')
+  const [announcement, setAnnouncement] = useState('')
+  const [view, setView] = useState<'conversation' | 'tasks' | 'settings'>('conversation')
   const [tasks, setTasks] = useState<Task[]>([])
   const [tasksLoading, setTasksLoading] = useState(true)
   const [taskError, setTaskError] = useState<string>()
-  const listRef = useRef<HTMLDivElement>(null)
+  const listRef = useRef<HTMLElement>(null)
   const sessionSearchInputRef = useRef<HTMLInputElement>(null)
   const accountAreaRef = useRef<HTMLDivElement>(null)
-  const attachAreaRef = useRef<HTMLDivElement>(null)
   const accountTriggerRef = useRef<HTMLButtonElement>(null)
   const activeSessionIdRef = useRef<string | undefined>(undefined)
   const draftSessionIdRef = useRef<string | undefined>(undefined)
@@ -125,7 +121,7 @@ export function App() {
     void window.barn.sessions.list()
       .then((value) => {
         setSessions(value)
-        const initialSessionId = value[0]?.id
+        const initialSessionId = value.find((session) => session.archivedAt === undefined)?.id
         activeSessionIdRef.current = initialSessionId
         setActiveSessionId(initialSessionId)
       })
@@ -138,9 +134,6 @@ export function App() {
       .catch((reason: unknown) => setTaskError(errorMessage(reason, t)))
       .finally(() => setTasksLoading(false))
     const unsubscribeTasks = window.barn.tasks.onEvent(handleTaskEvent)
-    void window.barn.getCapabilities()
-      .then(setCapabilities)
-      .catch((reason: unknown) => setError(errorMessage(reason, t)))
     return () => {
       unsubscribeTheme()
       unsubscribeTasks()
@@ -182,7 +175,7 @@ export function App() {
     setMessages([])
     setLiveParts([])
     setAttachments([])
-    setContextStatus(undefined)
+    setStopping(false)
     if (activeSessionId === undefined) return
     void loadSession(activeSessionId)
   }, [activeSessionId])
@@ -194,22 +187,16 @@ export function App() {
   }, [activeSessionId, sessions])
 
   useEffect(() => {
-    if (!attachMenuOpen) return
-    const close = (event: PointerEvent): void => {
-      const target = event.target
-      if (!(target instanceof Node)) return
-      if (!(attachAreaRef.current?.contains(target) ?? false)) setAttachMenuOpen(false)
-    }
-    const closeOnEscape = (event: KeyboardEvent): void => {
-      if (event.key === 'Escape') setAttachMenuOpen(false)
-    }
-    document.addEventListener('pointerdown', close)
-    document.addEventListener('keydown', closeOnEscape)
-    return () => {
-      document.removeEventListener('pointerdown', close)
-      document.removeEventListener('keydown', closeOnEscape)
-    }
-  }, [attachMenuOpen])
+    if (activeSessionId === undefined) return
+    const session = sessions.find((item) => item.id === activeSessionId)
+    if (session?.hasUnreadResult !== true) return
+    setSessions((current) => current.map((item) => (
+      item.id === activeSessionId ? { ...item, hasUnreadResult: false } : item
+    )))
+    void window.barn.sessions.markRead(activeSessionId)
+      .then((updated) => setSessions((current) => upsertSession(current, updated)))
+      .catch((reason: unknown) => setError(errorMessage(reason, t)))
+  }, [activeSessionId, sessions])
 
   useEffect(() => {
     return window.barn.sessions.onEvent(handleLiveEvent)
@@ -239,15 +226,15 @@ export function App() {
     const sessionId = activeSessionIdRef.current
     if (event.type === 'session.updated') {
       setSessions((current) => upsertSession(current, event.session))
-      if (event.session.id === sessionId) void loadSession(sessionId)
+      if (event.session.id === sessionId) {
+        setPending(event.session.status === 'running')
+        if (event.session.status !== 'running') setStopping(false)
+        void loadSession(sessionId)
+      }
       return
     }
     if (event.sessionId !== sessionId) return
 
-    if (event.type === 'context.updated') {
-      setContextStatus({ tokens: event.tokens, budget: event.budget, compacted: event.compacted })
-      return
-    }
     if (event.type === 'assistant.delta') {
       setLiveParts((current) => applyLiveEvent(current, event))
       return
@@ -267,6 +254,7 @@ export function App() {
     if (event.type === 'run.status') {
       setPending(event.status === 'running')
       if (event.status !== 'running') {
+        setStopping(false)
         setLiveParts([])
         void loadSession(sessionId)
         if (event.status === 'failed') setError(event.error ?? t('conversation.runFailed'))
@@ -284,14 +272,14 @@ export function App() {
     setInput('')
     setAttachments([])
     setWorkingDirectory(undefined)
-    setContextStatus(undefined)
     setPending(false)
+    setStopping(false)
     setError(undefined)
   }
 
   async function sendPrompt(): Promise<void> {
     const text = input.trim()
-    if (text.length === 0 || pending || modelSelectionBusy) return
+    if (text.length === 0 || pending || modelSelectionBusy || activeSession?.archivedAt !== undefined) return
     const isNewSession = activeSessionId === undefined
     const sessionId = activeSessionId ?? draftSessionId()
 
@@ -301,6 +289,7 @@ export function App() {
       activeSessionIdRef.current = sessionId
       setActiveSessionId(sessionId)
       setPending(true)
+      setStopping(false)
       setError(undefined)
       setLiveParts([])
       setInput('')
@@ -322,10 +311,12 @@ export function App() {
 
   async function cancelRun(): Promise<void> {
     const sessionId = activeSessionId ?? activeSessionIdRef.current
-    if (sessionId === undefined) return
+    if (sessionId === undefined || stopping) return
+    setStopping(true)
     try {
       await window.barn.sessions.cancel(sessionId)
     } catch (reason) {
+      setStopping(false)
       setError(errorMessage(reason, t))
     }
   }
@@ -335,7 +326,6 @@ export function App() {
     try {
       const selected = await window.barn.sessions.attach(sessionId)
       setAttachments((current) => [...current, ...selected])
-      setAttachMenuOpen(false)
     } catch (reason) {
       setError(errorMessage(reason, t))
     }
@@ -372,17 +362,67 @@ export function App() {
     }
   }
 
+  async function setSessionPinned(session: SessionSummary, pinned: boolean): Promise<void> {
+    keepSessionSidebarAnchored()
+    try {
+      const updated = await window.barn.sessions.setPinned(session.id, pinned)
+      setSessions((current) => upsertSession(current, updated))
+      setAnnouncement(pinned ? t('sidebar.sessionPinned') : t('sidebar.sessionUnpinned'))
+    } catch (reason) {
+      setError(errorMessage(reason, t))
+    }
+  }
+
+  async function archiveSession(sessionId: string): Promise<void> {
+    keepSessionSidebarAnchored()
+    try {
+      const updated = await window.barn.sessions.setArchived(sessionId, true)
+      setSessions((current) => upsertSession(current, updated))
+      if (activeSessionId === sessionId) {
+        const fallback = sortSessions(sessions.filter((session) => (
+          session.id !== sessionId && session.archivedAt === undefined
+        )))[0]
+        if (fallback === undefined) startNewSession()
+        else openSession(fallback.id)
+      }
+      setAnnouncement(t('sidebar.sessionArchived'))
+    } catch (reason) {
+      setError(errorMessage(reason, t))
+    }
+  }
+
+  async function unarchiveSession(sessionId: string): Promise<void> {
+    keepSessionSidebarAnchored()
+    try {
+      const updated = await window.barn.sessions.setArchived(sessionId, false)
+      setSessions((current) => upsertSession(current, updated))
+      setAnnouncement(t('appSettings.unarchived'))
+    } catch (reason) {
+      setError(errorMessage(reason, t))
+    }
+  }
+
   const activeSession = sessions.find((session) => session.id === activeSessionId)
   const commandKey = window.barn.platform === 'darwin' ? '⌘' : 'Ctrl'
   const running = pending || activeSession?.status === 'running'
-  const visibleSessions = sessionQuery.trim() === ''
-    ? sessions
-    : sessions.filter((session) => session.title.toLocaleLowerCase().includes(sessionQuery.trim().toLocaleLowerCase()))
+  const activeSessions = sortSessions(sessions.filter((session) => session.archivedAt === undefined))
+  const archivedSessions = sortSessions(sessions.filter((session) => session.archivedAt !== undefined))
+  const normalizedSessionQuery = sessionQuery.trim().toLocaleLowerCase()
+  const visibleSessions = normalizedSessionQuery === ''
+    ? activeSessions
+    : activeSessions.filter((session) => session.title.toLocaleLowerCase().includes(normalizedSessionQuery))
+  const pinnedSessions = visibleSessions.filter((session) => session.pinned)
+  const recentSessions = visibleSessions.filter((session) => !session.pinned)
+  const activeSessionIsArchived = activeSession?.archivedAt !== undefined
   const conversationTitle = activeSession?.title ?? t('conversation.newSession')
   const workingDirectoryLabel = workingDirectory === undefined
     ? t('conversation.chooseWorkingDirectory')
     : workingDirectory.split(/[\\/]/).filter(Boolean).at(-1) ?? workingDirectory
-  const workspaceTitle = view === 'tasks' ? t('tasks.title') : conversationTitle
+  const workspaceTitle = view === 'tasks'
+    ? t('tasks.title')
+    : view === 'settings'
+      ? t('sidebar.settings')
+      : conversationTitle
   const needsYouCount = tasks.filter((task) => ['proposed', 'waiting', 'failed'].includes(task.status)).length
 
   function openSession(sessionId: string): void {
@@ -394,6 +434,19 @@ export function App() {
   function draftSessionId(): string {
     draftSessionIdRef.current ??= crypto.randomUUID()
     return draftSessionIdRef.current
+  }
+
+  function renderSessionRows(items: SessionSummary[]) {
+    return items.map((session) => (
+      <SessionRow
+        active={view === 'conversation' && session.id === activeSessionId}
+        key={session.id}
+        onArchive={() => void archiveSession(session.id)}
+        onOpen={() => openSession(session.id)}
+        onTogglePinned={() => void setSessionPinned(session, !session.pinned)}
+        session={session}
+      />
+    ))
   }
 
   const appShellClassName = [
@@ -491,34 +544,41 @@ export function App() {
           </button>
 
           <nav className="session-nav" aria-label={t('sidebar.sessions')}>
-            <div className="nav-label">
-              <span>{t('sidebar.sessions')}</span>
-              <span>{visibleSessions.length}</span>
+            <div className="session-list">
+              {pinnedSessions.length > 0 && (
+                <>
+                  <div className="nav-label">
+                    <span>{t('sidebar.pinned')}</span>
+                    <span>{pinnedSessions.length}</span>
+                  </div>
+                  <div className="session-group" data-group="pinned">
+                    {renderSessionRows(pinnedSessions)}
+                  </div>
+                </>
+              )}
+              <div className="nav-label session-recent-label">
+                <span>{t('sidebar.recent')}</span>
+                <span>{recentSessions.length}</span>
+              </div>
+              {recentSessions.length > 0 && (
+                <div className="session-group" data-group="recent">
+                  {renderSessionRows(recentSessions)}
+                </div>
+              )}
+              {visibleSessions.length === 0 && (
+                <div className="empty-session-list">
+                  <Sparkles size={16} />
+                  <p>
+                    {sessionQuery.trim() !== ''
+                      ? t('sidebar.noSearchResults')
+                      : t('sidebar.noSessions')}
+                  </p>
+                </div>
+              )}
             </div>
-            {visibleSessions.length === 0 ? (
-              <div className="empty-session-list">
-                <Sparkles size={16} />
-                <p>{sessionQuery.trim() === '' ? t('sidebar.noSessions') : t('sidebar.noSearchResults')}</p>
-              </div>
-            ) : (
-              <div className="session-list">
-                {visibleSessions.map((session) => (
-                  <button
-                    className={view === 'conversation' && session.id === activeSessionId ? 'session-row active' : 'session-row'}
-                    type="button"
-                    key={session.id}
-                    onClick={() => {
-                      openSession(session.id)
-                      if (session.id === activeSessionId) void loadSession(session.id)
-                    }}
-                  >
-                    <span>{session.title}</span>
-                    <small>{formatSessionTime(session.updatedAt, dateLocale)}</small>
-                  </button>
-                ))}
-              </div>
-            )}
           </nav>
+
+          <div className="visually-hidden" role="status" aria-live="polite">{announcement}</div>
 
           <div className="sidebar-footer">
             <div ref={accountAreaRef} className="account-area">
@@ -555,6 +615,20 @@ export function App() {
                   <strong>{t('sidebar.localWorkspace')}</strong>
                   <small>{t('sidebar.localOnly')}</small>
                 </div>
+                <button
+                  className="account-menu-item"
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    setAccountOpen(false)
+                    keepSessionSidebarAnchored()
+                    setView('settings')
+                  }}
+                >
+                  <Settings2 size={14} />
+                  <span>{t('sidebar.settings')}</span>
+                  <ChevronRight className="account-menu-chevron" size={13} />
+                </button>
                 <button
                   className="account-menu-item"
                   type="button"
@@ -624,7 +698,12 @@ export function App() {
         </header>
 
         <div className="workspace-body">
-          {view === 'tasks' ? (
+          {view === 'settings' ? (
+            <SettingsPage
+              sessions={archivedSessions}
+              onUnarchive={(sessionId) => unarchiveSession(sessionId)}
+            />
+          ) : view === 'tasks' ? (
             <TaskCenter
               tasks={tasks}
               loading={tasksLoading}
@@ -633,220 +712,190 @@ export function App() {
               onError={setTaskError}
             />
           ) : (
-          <section className={messages.length === 0 && liveParts.length === 0 ? 'conversation-surface empty-conversation' : 'conversation-surface chat-surface'}>
-            {messages.length === 0 && liveParts.length === 0 ? (
-              <div className="empty-center">
-                <div className="welcome-mark" aria-hidden="true">
-                  <Sparkles size={20} />
-                </div>
-                <div className="welcome-kicker">{t('conversation.welcomeKicker')}</div>
-                <h1>{t('conversation.title')}</h1>
-                <p>
-                  {t('conversation.subtitle')}
-                </p>
-                <div className="action-grid">
-                  <button type="button" onClick={() => setInput(t('conversation.summarizePrompt'))}>
-                    <span className="action-icon blue"><FileText size={17} /></span>
-                    <span>{t('conversation.summarizeFiles')}</span>
-                  </button>
-                  <button type="button" onClick={() => setInput(t('conversation.draftPrompt'))}>
-                    <span className="action-icon violet"><Sparkles size={17} /></span>
-                    <span>{t('conversation.draftContent')}</span>
-                  </button>
-                  <button type="button" onClick={() => setInput(t('conversation.inspectFilesPrompt'))}>
-                    <span className="action-icon green"><FileSearch size={17} /></span>
-                    <span>{t('conversation.inspectFiles')}</span>
-                  </button>
-                  <button type="button" onClick={() => setInput(t('conversation.organizePrompt'))}>
-                    <span className="action-icon orange"><FolderOpen size={17} /></span>
-                    <span>{t('conversation.organizeFiles')}</span>
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <div className="message-list" ref={listRef}>
-                {messages.map((message) => (
-                  <article
-                    aria-label={message.role === 'user' ? t('conversation.userMessage') : t('conversation.barnMessage')}
-                    className={`chat-message ${message.role}${message.isError ? ' error' : ''}`}
-                    key={message.key}
-                  >
-                    <ConversationParts
-                      parts={message.parts}
-                      role={message.role}
-                      keyPrefix={message.key}
-                    />
-                    {message.role === 'user' && message.attachments.length > 0 && (
-                      <div className="message-attachments">
-                        {message.attachments.map((file) => {
-                          const name = attachmentDisplayName(file)
-                          return (
-                            <span className="message-attachment" key={`${message.key}:${file.path}`} title={name}>
-                              {file.kind === 'directory' ? <Folder size={11} /> : <Paperclip size={11} />}
-                              <span>{name}</span>
-                              {file.size > 0 && <small>{formatFileSize(file.size)}</small>}
-                            </span>
-                          )
-                        })}
-                      </div>
-                    )}
-                  </article>
-                ))}
-                {liveParts.length > 0 && (
-                  <article className="chat-message assistant streaming live-turn" aria-label={t('conversation.barnMessage')}>
-                    <ConversationParts
-                      parts={liveParts}
-                      role="assistant"
-                      keyPrefix="live"
-                    />
-                  </article>
-                )}
-              </div>
-            )}
-
-            {error !== undefined && (
-              <div className="error-banner" role="alert">
-                {error}
-              </div>
-            )}
-
-            <div className="composer-dock">
-              <div className="composer-project">
-                {workingDirectory === undefined ? (
-                  <span className="composer-project-icon">
-                    <Folder size={13} />
-                  </span>
-                ) : (
-                  <button
-                    className="composer-project-icon composer-project-delete"
-                    type="button"
-                    aria-label={t('conversation.clearWorkingDirectory')}
-                    title={t('conversation.clearWorkingDirectory')}
-                    onClick={() => void clearWorkingDirectory()}
-                  >
-                    <Folder className="folder-icon" size={13} />
-                    <Trash2 className="delete-icon" size={13} />
-                  </button>
-                )}
-                <button
-                  className="composer-project-picker"
-                  type="button"
-                  title={workingDirectory ?? t('conversation.managedWorkspace')}
-                  aria-label={t('conversation.chooseWorkingDirectory')}
-                  onClick={() => void chooseWorkingDirectory()}
-                >
-                  <span>{workingDirectoryLabel}</span>
-                  <ChevronDown size={12} />
-                </button>
-              </div>
-              <div className="composer">
-                {attachments.length > 0 && (
-                  <AttachmentStrip
-                    files={attachments}
-                    onRemove={(path) => setAttachments((current) => current.filter((item) => item.path !== path))}
-                  />
-                )}
-                <textarea
-                  aria-label={t('conversation.messageBarn')}
-                  placeholder={t('conversation.placeholder')}
-                  rows={2}
-                  value={input}
-                  onChange={(event) => setInput(event.target.value)}
-                  onKeyDown={(event) => {
-                    if (event.key === 'Enter' && !event.shiftKey) {
-                      event.preventDefault()
-                      void sendPrompt()
-                    }
-                  }}
-                />
-                <div className="composer-toolbar">
-                  <div className="composer-hints">
-                    <div className="attach-control" ref={attachAreaRef}>
-                      <button
-                        className={attachMenuOpen ? 'context-chip active' : 'context-chip'}
-                        type="button"
-                        aria-label={t('conversation.attach')}
-                        aria-expanded={attachMenuOpen}
-                        onClick={() => setAttachMenuOpen((current) => !current)}
-                      >
-                        <Plus size={15} />
-                        <span>{t('conversation.attach')}</span>
+            <div className="conversation-view">
+              <section
+                ref={listRef}
+                className={messages.length === 0 && liveParts.length === 0 && !running ? 'conversation-surface empty-conversation' : 'conversation-surface chat-surface'}
+              >
+                {messages.length === 0 && liveParts.length === 0 && !running ? (
+                  <div className="empty-center">
+                    <div className="welcome-mark" aria-hidden="true">
+                      <Sparkles size={20} />
+                    </div>
+                    <div className="welcome-kicker">{t('conversation.welcomeKicker')}</div>
+                    <h1>{t('conversation.title')}</h1>
+                    <p>
+                      {t('conversation.subtitle')}
+                    </p>
+                    <div className="action-grid">
+                      <button type="button" onClick={() => setInput(t('conversation.summarizePrompt'))}>
+                        <span className="action-icon blue"><FileText size={17} /></span>
+                        <span>{t('conversation.summarizeFiles')}</span>
                       </button>
-                      <div
-                        className={`model-popover composer-add-popover${attachMenuOpen ? ' open' : ''}`}
-                        role="dialog"
-                        aria-label={t('conversation.attachMenu')}
-                        aria-hidden={!attachMenuOpen}
-                        inert={!attachMenuOpen}
-                      >
-                        <div className="model-picker-menu composer-add-menu" role="menu" aria-label={t('conversation.attachMenu')}>
-                          <div className="composer-add-label">{t('conversation.addMenuTitle')}</div>
-                          <button type="button" role="menuitem" onClick={() => void attachFiles()}>
-                            <Paperclip size={15} />
-                            <span>{t('conversation.filesAndFolders')}</span>
-                          </button>
-                        </div>
-                      </div>
+                      <button type="button" onClick={() => setInput(t('conversation.draftPrompt'))}>
+                        <span className="action-icon violet"><Sparkles size={17} /></span>
+                        <span>{t('conversation.draftContent')}</span>
+                      </button>
+                      <button type="button" onClick={() => setInput(t('conversation.inspectFilesPrompt'))}>
+                        <span className="action-icon green"><FileSearch size={17} /></span>
+                        <span>{t('conversation.inspectFiles')}</span>
+                      </button>
+                      <button type="button" onClick={() => setInput(t('conversation.organizePrompt'))}>
+                        <span className="action-icon orange"><FolderOpen size={17} /></span>
+                        <span>{t('conversation.organizeFiles')}</span>
+                      </button>
                     </div>
                   </div>
-                  <div className="composer-actions">
-                    <ModelPicker
-                      snapshot={snapshot}
-                      onSnapshot={setSnapshot}
-                      onConfigure={() => setSettingsOpen(true)}
-                      onOpenChange={(open) => {
-                        if (open) {
-                          setAccountOpen(false)
-                        }
-                      }}
-                      onBusyChange={setModelSelectionBusy}
-                    />
-                    {running ? (
-                      <TooltipButton
-                        className="send-button cancel"
-                        label={t('conversation.stopResponse')}
-                        onClick={() => void cancelRun()}
+                ) : (
+                  <MessageBubbleGroup className="message-list" spacing="default">
+                    {messages.map((message) => (
+                      <MessageBubble
+                        aria-label={message.role === 'user' ? t('conversation.userMessage') : t('conversation.barnMessage')}
+                        align={message.role === 'user' ? 'end' : 'start'}
+                        className={`chat-message ${message.role}${message.isError ? ' error' : ''}`}
+                        key={message.key}
+                        role="article"
+                        variant="ghost"
                       >
-                        <Square size={14} />
-                      </TooltipButton>
-                    ) : (
-                      <TooltipButton
-                        className="send-button"
-                        label={t('conversation.sendMessage')}
-                        disabled={modelSelectionBusy}
-                        onClick={() => void sendPrompt()}
+                        <ConversationParts
+                          parts={message.parts}
+                          role={message.role}
+                          keyPrefix={message.key}
+                        />
+                        {message.role === 'user' && message.attachments.length > 0 && (
+                          <div className="message-attachments">
+                            {message.attachments.map((file) => {
+                              const name = attachmentDisplayName(file)
+                              return (
+                                <span className="message-attachment" key={`${message.key}:${file.path}`} title={name}>
+                                  {file.kind === 'directory' ? <Folder size={11} /> : <Paperclip size={11} />}
+                                  <span>{name}</span>
+                                  {file.size > 0 && <small>{formatFileSize(file.size)}</small>}
+                                </span>
+                              )
+                            })}
+                          </div>
+                        )}
+                      </MessageBubble>
+                    ))}
+                    {running && liveParts.length === 0 && (
+                      <MessageBubble
+                        aria-label={t('conversation.barnMessage')}
+                        className="chat-message assistant live-turn"
+                        role="article"
+                        variant="ghost"
                       >
-                        <ArrowUp size={16} />
-                      </TooltipButton>
+                        <PendingThinking />
+                      </MessageBubble>
                     )}
+                    {liveParts.length > 0 && (
+                      <MessageBubble
+                        aria-label={t('conversation.barnMessage')}
+                        className="chat-message assistant streaming live-turn"
+                        role="article"
+                        variant="ghost"
+                      >
+                        <ConversationParts
+                          parts={liveParts}
+                          role="assistant"
+                          keyPrefix="live"
+                        />
+                      </MessageBubble>
+                    )}
+                  </MessageBubbleGroup>
+                )}
+
+                {error !== undefined && (
+                  <div className="error-banner" role="alert">
+                    {error}
                   </div>
+                )}
+              </section>
+
+              <div className="composer-dock">
+                <div className="composer-project">
+                  {workingDirectory === undefined ? (
+                    <span className="composer-project-icon">
+                      <Folder size={13} />
+                    </span>
+                  ) : (
+                    <button
+                      className="composer-project-icon composer-project-delete"
+                      type="button"
+                      disabled={activeSessionIsArchived}
+                      aria-label={t('conversation.clearWorkingDirectory')}
+                      title={t('conversation.clearWorkingDirectory')}
+                      onClick={() => void clearWorkingDirectory()}
+                    >
+                      <Folder className="folder-icon" size={13} />
+                      <Trash2 className="delete-icon" size={13} />
+                    </button>
+                  )}
+                  <button
+                    className="composer-project-picker"
+                    type="button"
+                    disabled={activeSessionIsArchived}
+                    title={workingDirectory ?? t('conversation.managedWorkspace')}
+                    aria-label={t('conversation.chooseWorkingDirectory')}
+                    onClick={() => void chooseWorkingDirectory()}
+                  >
+                    <span>{workingDirectoryLabel}</span>
+                    <ChevronDown size={12} />
+                  </button>
+                </div>
+                <div className="composer composer-agents">
+                  {attachments.length > 0 && (
+                    <AttachmentStrip
+                      files={attachments}
+                      onRemove={(path) => setAttachments((current) => current.filter((item) => item.path !== path))}
+                    />
+                  )}
+                  <PromptInput
+                    addActionLabel={t('conversation.attach')}
+                    actions={[{
+                      value: 'attach',
+                      label: t('conversation.filesAndFolders'),
+                      description: t('conversation.addMenuTitle'),
+                      icon: <Paperclip size={15} />,
+                    }]}
+                    aria-label={t('conversation.messageBarn')}
+                    className="barn-prompt-input"
+                    disabled={modelSelectionBusy || activeSessionIsArchived}
+                    leadingAction={(
+                      <ModelPicker
+                        snapshot={snapshot}
+                        onSnapshot={setSnapshot}
+                        onConfigure={() => setSettingsOpen(true)}
+                        onOpenChange={(open) => {
+                          if (open) setAccountOpen(false)
+                        }}
+                        onBusyChange={setModelSelectionBusy}
+                      />
+                    )}
+                    loading={running}
+                    maxRows={8}
+                    minRows={2}
+                    onAction={(action) => {
+                      if (action === 'attach') void attachFiles()
+                    }}
+                    onStop={() => void cancelRun()}
+                    onSubmit={() => void sendPrompt()}
+                    onValueChange={setInput}
+                    placeholder={activeSessionIsArchived
+                      ? t('conversation.archivedPlaceholder')
+                      : t('conversation.placeholder')}
+                    sendLabel={t('conversation.sendMessage')}
+                    stopLabel={t('conversation.stopResponse')}
+                    stopping={stopping}
+                    stoppingLabel={t('conversation.stoppingResponse')}
+                    value={input}
+                  />
                 </div>
               </div>
             </div>
-          </section>
           )}
 
         </div>
-
-        <footer className="workspace-footer">
-          <span>{t('footer.localRuntime')}</span>
-          <span>
-            {capabilities === undefined
-              ? t('footer.checkingCapabilities')
-              : capabilities.shell.available
-                ? t('footer.shellSandbox', { backend: capabilities.shell.backend })
-                : t('footer.shellUnavailable')}
-            {' · '}
-            {snapshot === undefined ? t('footer.loadingProviders') : t('common.providers', { count: snapshot.providers.length })}
-            {contextStatus !== undefined && (
-              <>
-                {' · '}
-                {t('footer.context', { percent: Math.min(100, Math.round(contextStatus.tokens / contextStatus.budget * 100)) })}
-                {contextStatus.compacted ? ` · ${t('footer.compacted')}` : ''}
-              </>
-            )}
-          </span>
-        </footer>
       </main>
       </div>
 
@@ -866,60 +915,24 @@ export function App() {
 function ToolGroup({ tools }: { tools: ToolCallView[] }) {
   const { t } = useTranslation()
   const running = tools.find((tool) => tool.status === 'running')
-  const isRunning = running !== undefined
-  const hasError = tools.some((tool) => tool.status === 'error')
-  const [open, setOpen] = useState(isRunning)
+  const [expanded, setExpanded] = useState(running !== undefined)
+  const steps = tools.map((tool) => toolChipStep(tool))
 
   useEffect(() => {
-    if (isRunning) setOpen(true)
-  }, [isRunning])
+    if (running !== undefined) setExpanded(true)
+  }, [running])
 
   return (
-    <div className={`tool-group${open ? ' open' : ''}`}>
-      <button
-        aria-expanded={open}
-        className={`tool-group-summary${hasError ? ' error' : running !== undefined ? ' running' : ''}`}
-        type="button"
-        onClick={() => setOpen((current) => !current)}
-      >
-        <span className="tool-group-icon">
-          {running !== undefined && <LoaderCircle className="spin" size={13} />}
-          {running === undefined && hasError && <CircleX size={13} />}
-          {running === undefined && !hasError && <Terminal size={13} />}
-        </span>
-        <span className="tool-group-label">{toolGroupLabel(tools, t)}</span>
-        <ChevronRight className="tool-chevron" size={13} />
-      </button>
-      {open && (
-        <div className="tool-group-list">
-          {tools.map((tool) => <ToolRow key={tool.id} tool={tool} />)}
-        </div>
-      )}
-    </div>
-  )
-}
-
-function ToolRow({ tool }: { tool: ToolCallView }) {
-  const { t } = useTranslation()
-  return (
-    <details className={`tool-row ${tool.status}`} data-part="tool">
-      <summary>
-        <span className="tool-row-status">
-          {tool.status === 'running' && <LoaderCircle className="spin" size={12} />}
-          {tool.status === 'success' && <CheckCircle2 size={12} />}
-          {tool.status === 'error' && <CircleX size={12} />}
-        </span>
-        <span className="tool-row-label">{toolActionLabel(tool.name, t)}</span>
-        <ChevronRight className="tool-chevron" size={12} />
-      </summary>
-      <div className="tool-detail-scroll">
-        <div className="tool-detail-title">{toolDisplayName(tool.name)}</div>
-        {tool.arguments.length > 0 && <pre>{toolArgumentsText(tool)}</pre>}
-        {tool.output !== undefined && tool.output.length > 0 && (
-          <pre className="tool-detail-output">{tool.output.slice(0, 8_000)}</pre>
-        )}
-      </div>
-    </details>
+    <ToolChips
+      className="barn-tool-chips tool-group"
+      diffLines={{}}
+      diffs={[]}
+      expanded={expanded}
+      labels={{ header: toolGroupLabel(tools, t) }}
+      onOpenChange={setExpanded}
+      steps={steps}
+      visibleStepCount={tools.length}
+    />
   )
 }
 
@@ -936,6 +949,39 @@ function toolGroupLabel(tools: ToolCallView[], t: ReturnType<typeof useTranslati
   if (tools.every((tool) => tool.name === 'read_file')) return t('tools.readFiles', { count: tools.length })
   const labels = [...new Set(tools.map((tool) => toolActionLabel(tool.name, t)))]
   return labels.join(' · ')
+}
+
+function toolChipStep(tool: ToolCallView): ToolStep {
+  const action = tool.name === 'shell'
+    ? 'run'
+    : tool.name === 'write_file' || tool.name === 'edit_file'
+      ? 'edit'
+      : 'read'
+  const argumentsText = toolArgumentsText(tool)
+  const output = tool.output?.slice(0, 8_000) ?? ''
+  const detail = [argumentsText, output]
+    .filter((value) => value.length > 0)
+    .map((text) => ({ text }))
+
+  return {
+    id: tool.id,
+    icon: action === 'run' ? 'run' : action === 'edit' ? 'write' : 'read',
+    label: toolDisplayName(tool.name),
+    chip: toolThinkingTarget(tool),
+    mono: true,
+    detailMono: true,
+    detail,
+    status: tool.status === 'running' ? 'running' : tool.status === 'error' ? 'error' : 'complete',
+  }
+}
+
+function toolThinkingTarget(tool: ToolCallView): string {
+  const parsed = toolArgumentsRecord(tool)
+  for (const key of ['command', 'path', 'file_path', 'directory', 'folder', 'pattern', 'query', 'cwd']) {
+    const value = parsed?.[key]
+    if (typeof value === 'string' && value.trim().length > 0) return truncate(value.trim(), 72)
+  }
+  return toolDisplayName(tool.name)
 }
 
 function toolActionLabel(name: string, t: ReturnType<typeof useTranslation>['t']): string {
@@ -989,6 +1035,77 @@ function truncate(value: string, maxLength: number): string {
   return value.length <= maxLength ? value : `${value.slice(0, maxLength - 1)}…`
 }
 
+type ThinkingConversationPart = Extract<ConversationPart, { type: 'thinking' }>
+
+function PendingThinking() {
+  const { t } = useTranslation()
+  const [expanded, setExpanded] = useState(true)
+  return (
+    <div role="status" aria-live="polite">
+      <ToolChips
+        className="barn-tool-chips agent-thinking-pending"
+        diffLines={{}}
+        diffs={[]}
+        expanded={expanded}
+        labels={{ header: t('conversation.thinking') }}
+        onOpenChange={setExpanded}
+        steps={[{
+          id: 'pending',
+          icon: 'think',
+          label: t('conversation.thinking'),
+          chip: t('conversation.working'),
+          mono: false,
+          detailMono: false,
+          detail: [],
+          status: 'running',
+        }]}
+        visibleStepCount={1}
+      />
+    </div>
+  )
+}
+
+function ThinkingBlock({ part }: { part: ThinkingConversationPart }) {
+  const { t } = useTranslation()
+  const streaming = part.streaming === true
+  const [expanded, setExpanded] = useState(streaming)
+  const [rowOpen, setRowOpen] = useState(streaming)
+
+  useEffect(() => {
+    setExpanded(streaming)
+    setRowOpen(streaming)
+  }, [streaming])
+
+  const reasoning = part.text.trim()
+  const steps: ToolStep[] = [{
+    id: 'reasoning',
+    icon: 'think',
+    label: t('conversation.thoughtProcess'),
+    chip: reasoning.length === 0 ? t('conversation.working') : truncate(reasoning.replaceAll(/\s+/g, ' '), 96),
+    mono: false,
+    detailMono: false,
+    detail: reasoning.length === 0 ? [] : [{ text: part.text }],
+    status: streaming ? 'running' : 'complete',
+  }]
+
+  return (
+    <div className="conversation-part" data-part="thinking">
+      <ToolChips
+        className="barn-tool-chips agent-thinking-state"
+        diffLines={{}}
+        diffs={[]}
+        expanded={expanded}
+        expandedRowIds={rowOpen ? ['reasoning'] : []}
+        labels={{ header: streaming ? t('conversation.thinking') : t('conversation.thoughtProcess') }}
+        onOpenChange={setExpanded}
+        onRowOpenChange={(_, open) => setRowOpen(open)}
+        steps={steps}
+        visibleStepCount={1}
+      />
+    </div>
+  )
+}
+
 function ConversationParts({
   parts,
   role,
@@ -998,28 +1115,12 @@ function ConversationParts({
   role: ChatMessage['role']
   keyPrefix: string
 }) {
-  const { t } = useTranslation()
   const displayParts = groupConversationParts(parts)
   return (
     <div className="conversation-parts">
       {displayParts.map((part, index) => {
         if (part.type === 'thinking') {
-          return (
-            <details
-              className={`conversation-part thinking-block${part.streaming === true ? ' streaming' : ''}`}
-              data-part="thinking"
-              key={`${keyPrefix}:thinking:${index}`}
-              open={part.streaming === true ? true : undefined}
-            >
-              <summary>
-                <Brain size={12} />
-                <span>{part.streaming === true ? t('conversation.thinking') : t('conversation.thoughtProcess')}</span>
-              </summary>
-              <div className="thinking-copy" aria-live={part.streaming === true ? 'polite' : undefined}>
-                {part.text}
-              </div>
-            </details>
-          )
+          return <ThinkingBlock key={`${keyPrefix}:thinking:${index}`} part={part} />
         }
         if (part.type === 'tool-group') {
           return (
@@ -1059,7 +1160,24 @@ function ConversationParts({
 
 function upsertSession(current: SessionSummary[], session: SessionSummary): SessionSummary[] {
   const next = current.filter((item) => item.id !== session.id)
-  return [session, ...next].toSorted((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+  return sortSessions([session, ...next])
+}
+
+function sortSessions(current: SessionSummary[]): SessionSummary[] {
+  return current.toSorted((a, b) => {
+    const archivedOrder = Number(a.archivedAt !== undefined) - Number(b.archivedAt !== undefined)
+    if (archivedOrder !== 0) return archivedOrder
+    const pinnedOrder = Number(b.pinned) - Number(a.pinned)
+    if (pinnedOrder !== 0) return pinnedOrder
+    return b.updatedAt.localeCompare(a.updatedAt)
+  })
+}
+
+function keepSessionSidebarAnchored(): void {
+  requestAnimationFrame(() => {
+    const sidebar = document.getElementById('app-sidebar')
+    if (sidebar !== null) sidebar.scrollLeft = 0
+  })
 }
 
 function upsertTask(current: Task[], task: Task): Task[] {
@@ -1070,11 +1188,105 @@ function errorMessage(reason: unknown, t: ReturnType<typeof useTranslation>['t']
   return reason instanceof Error ? reason.message : t('conversation.somethingWentWrong')
 }
 
-function formatSessionTime(value: string, locale: string): string {
-  return new Intl.DateTimeFormat(locale, {
-    month: 'short',
-    day: 'numeric',
-  }).format(new Date(value))
+interface SessionRowProps {
+  session: SessionSummary
+  active: boolean
+  onOpen: () => void
+  onTogglePinned: () => void
+  onArchive: () => void
+}
+
+function SessionRow({
+  session,
+  active,
+  onOpen,
+  onTogglePinned,
+  onArchive,
+}: SessionRowProps) {
+  const { t } = useTranslation()
+  const statusLabel = session.status === 'running'
+    ? t('sidebar.sessionRunning')
+    : session.status === 'failed'
+      ? t('sidebar.sessionFailed')
+      : t('sidebar.sessionComplete')
+  const className = [
+    'session-row',
+    active ? 'active' : '',
+    session.pinned ? 'pinned' : '',
+  ].filter(Boolean).join(' ')
+
+  return (
+    <div className={className} data-session-id={session.id}>
+      <button
+        className="session-row-main"
+        type="button"
+        aria-current={active ? 'page' : undefined}
+        onClick={onOpen}
+      >
+        <SessionRowTitle title={session.title} />
+      </button>
+      {(session.status === 'running' || session.hasUnreadResult) && (
+        <span
+          className={`session-row-status ${session.status}`}
+          role="status"
+          aria-label={statusLabel}
+          title={statusLabel}
+        >
+          {session.status === 'running'
+            ? <span className="session-row-status-spinner" />
+            : <span className="session-row-status-dot" />}
+        </span>
+      )}
+      <div className="session-row-actions">
+        <TooltipButton
+          className="session-row-action"
+          label={session.pinned ? t('sidebar.unpinSession') : t('sidebar.pinSession')}
+          tooltipSide="top"
+          aria-pressed={session.pinned}
+          onClick={onTogglePinned}
+        >
+          <Pin size={13} fill={session.pinned ? 'currentColor' : 'none'} />
+        </TooltipButton>
+        <TooltipButton
+          className="session-row-action"
+          label={t('sidebar.archiveSession')}
+          tooltipSide="top"
+          onClick={onArchive}
+        >
+          <Archive size={13} />
+        </TooltipButton>
+      </div>
+    </div>
+  )
+}
+
+function SessionRowTitle({ title }: { title: string }) {
+  const viewportRef = useRef<HTMLSpanElement>(null)
+
+  useLayoutEffect(() => {
+    const viewport = viewportRef.current
+    const content = viewport?.firstElementChild
+    if (!viewport || !(content instanceof HTMLElement)) return
+
+    const measure = (): void => {
+      const distance = Math.max(0, content.scrollWidth - viewport.clientWidth)
+      viewport.toggleAttribute('data-scrollable', distance > 1)
+      viewport.style.setProperty('--session-title-shift', `${distance}px`)
+      viewport.style.setProperty('--session-title-duration', `${Math.min(7, Math.max(2.6, distance / 32 + 2.6))}s`)
+    }
+
+    measure()
+    const observer = new ResizeObserver(measure)
+    observer.observe(viewport)
+    observer.observe(content)
+    return () => observer.disconnect()
+  }, [title])
+
+  return (
+    <span ref={viewportRef} className="session-title" title={title}>
+      <span className="session-title-text">{title}</span>
+    </span>
+  )
 }
 
 function formatFileSize(bytes: number): string {

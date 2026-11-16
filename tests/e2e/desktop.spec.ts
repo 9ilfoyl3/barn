@@ -50,7 +50,7 @@ test('opens the Desktop workspace and model configuration', async () => {
     await window.getByRole('heading', { name: 'What needs attention?' }).click()
     await expect(accountPopover).toBeHidden()
     await expect(accountTrigger).toHaveAttribute('aria-expanded', 'false')
-    await expect(window.getByText(/Shell sandbox:/)).toBeVisible()
+    await expect(window.locator('.workspace-footer')).toHaveCount(0)
     if (process.platform === 'darwin') {
       const titlebarLayout = await window.evaluate(() => {
         const sidebarTitlebar = document.querySelector('.sidebar-titlebar')!.getBoundingClientRect()
