@@ -20,6 +20,7 @@ Barn Desktop includes a local built-in browser and a visible Agent Screen inside
 - Screenshot capture for visual verification.
 - File input upload from the authorized workspace.
 - Managed downloads with status and reveal-in-folder support.
+- Consequential form submissions and downloads pause for an inline approval bar before continuing.
 - Popup windows open as Barn browser tabs.
 - Persistent cookies and browser profile through the dedicated Electron session partition.
 
@@ -46,6 +47,7 @@ The Worker never receives raw DevTools access. The Host executes fixed, typed br
 - Loopback development hosts are allowed; unspecified, private, link-local, carrier-grade NAT, and IPv6 local ranges are blocked by default.
 - Browser permissions for camera, microphone, geolocation, notifications, and similar capabilities are denied.
 - Uploads resolve real paths and must remain inside the Session working directory or managed Barn roots.
+- Consequential page actions create a durable Approval. The Agent waits for approval and never executes the action after a denial.
 - Downloads use a unique filename in the configured Downloads directory.
 - The renderer receives typed browser state and capture data only. Website DOM is not injected into the Barn renderer.
 
@@ -59,10 +61,13 @@ Runtime capabilities advertise three Agent Computer providers:
 
 The provider boundary keeps Secure VM and host Computer Use from changing the Browser and Agent Screen contracts.
 
+## Visual verification
+
+Hallmark's sloplint passes the browser and Agent Screen component scope with `Floor 0`, `Reflex 0 open`, and one documented waiver for the below-fold video-poster check. Real Electron screenshots cover the browser split, approval state, download/upload states, and the collapsed Agent Screen. The Hallmark render tier does not attach directly to an Electron `WebContentsView`, so the static tier and real Electron captures are used together.
+
 ## Known gaps
 
 - Cross-origin iframe and Shadow DOM coverage is not complete.
-- External side-effect submissions still need durable approval integration.
 - Browser tabs are not restored after an application restart.
 - Agent Screen currently refreshes from page captures rather than a continuous WebRTC stream.
 - Secure VM and host Computer Use are not implemented or bundled.

@@ -1,3 +1,13 @@
+/* Hallmark · component: browser workspace · genre: modern-minimal · theme: barn-native · built: the project · redesign: polish · v2.0.0 */
+/* Hallmark · pre-emit critique: P4 H4 E4 S4 R4 V4 · weakest: E, native page chrome and approvals must stay legible at narrow split widths · used Barn tokens, explicit states, and 4px spacing */
+
+:root {
+  --browser-preview-shadow: 0 18px 50px light-dark(rgba(28, 28, 24, 0.12), rgba(0, 0, 0, 0.32));
+  --browser-media-scrim: light-dark(rgb(0 0 0 / 0.08), rgb(0 0 0 / 0.28));
+}
+/* Hallmark · finish-review: in-thread · Floor 0 · Reflex 0 open · 1 waived (28b) · render: Electron capture */
+
+
 .workspace-shell.browser-open {
   grid-template-columns: minmax(320px, 1fr) clamp(360px, 50%, 760px);
 }
@@ -35,7 +45,7 @@
   gap: 12px;
   border-bottom: 1px solid color-mix(in srgb, var(--line) 78%, transparent);
   background: color-mix(in srgb, var(--canvas) 92%, transparent);
-  padding: 0 14px 0 18px;
+  padding: 0 16px 0 20px;
   -webkit-app-region: drag;
 }
 
@@ -47,7 +57,7 @@
 .browser-address,
 .browser-panel-heading {
   min-width: 0;
-  gap: 10px;
+  gap: 12px;
 }
 
 .browser-panel-icon {
@@ -66,20 +76,16 @@
   min-width: 0;
   flex-direction: column;
   align-items: flex-start;
-  gap: 1px;
-}
-
-.browser-panel-title-copy > span:first-child {
-  color: var(--text);
-  font-size: 12px;
-  font-weight: 620;
+  gap: 4px;
+  line-height: 1.1;
 }
 
 .browser-page-title {
   overflow: hidden;
   max-width: min(42vw, 420px);
-  color: var(--text-faint);
-  font-size: 10px;
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 620;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -103,12 +109,34 @@
   color: var(--text);
 }
 
+.browser-panel-close:focus-visible,
+.browser-toolbar button:focus-visible,
+.browser-tab-select:focus-visible,
+.browser-tab-close:focus-visible,
+.browser-new-tab:focus-visible,
+.browser-download-button:focus-visible,
+.browser-approval-actions button:focus-visible,
+.browser-address:focus-within {
+  outline: 2px solid color-mix(in srgb, var(--accent) 72%, transparent);
+  outline-offset: 2px;
+}
+
+.browser-panel-close:active,
+.browser-toolbar button:active:not(:disabled),
+.browser-tab-select:active,
+.browser-tab-close:active,
+.browser-new-tab:active,
+.browser-download-button:active,
+.browser-approval-actions button:active {
+  transform: translateY(1px);
+}
+
 .browser-tab-strip {
   display: flex;
   grid-row: 2;
   min-width: 0;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   overflow: hidden;
   border-bottom: 1px solid var(--line);
   background: color-mix(in srgb, var(--canvas) 94%, var(--panel));
@@ -153,7 +181,7 @@
   height: 100%;
   flex: 1 1 auto;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   border: 0;
   background: transparent;
   padding: 0 4px 0 8px;
@@ -239,7 +267,7 @@
   place-items: center;
   border-radius: 999px;
   background: var(--accent);
-  padding: 0 3px;
+  padding: 0 4px;
   color: white;
   font-size: 8px;
   line-height: 1;
@@ -260,7 +288,7 @@
   gap: 16px;
   border-bottom: 1px solid color-mix(in srgb, var(--warning) 30%, var(--line));
   background: color-mix(in srgb, var(--warning) 8%, var(--canvas));
-  padding: 9px 12px;
+  padding: 8px 12px;
 }
 
 .browser-approval-copy {
@@ -285,7 +313,7 @@
 .browser-approval-actions {
   display: flex;
   flex: 0 0 auto;
-  gap: 6px;
+  gap: 8px;
 }
 
 .browser-approval-actions button {
@@ -293,7 +321,7 @@
   border: 1px solid var(--line-strong);
   border-radius: 7px;
   background: var(--panel);
-  padding: 0 10px;
+  padding: 0 12px;
   color: var(--text);
   cursor: pointer;
   font-size: 10px;
@@ -314,10 +342,10 @@
 }
 
 .browser-toolbar {
-  gap: 6px;
+  gap: 8px;
   border-bottom: 1px solid var(--line);
   background: color-mix(in srgb, var(--canvas) 96%, var(--panel));
-  padding: 0 10px;
+  padding: 0 12px;
 }
 
 .browser-toolbar button {
@@ -339,20 +367,21 @@
 }
 
 .browser-toolbar button:disabled {
+  border-color: var(--line);
+  background: var(--disabled-surface);
   color: var(--text-faint);
   cursor: default;
-  opacity: 0.42;
 }
 
 .browser-address {
   min-width: 0;
   height: 32px;
   flex: 1 1 auto;
-  gap: 7px;
+  gap: 8px;
   border: 1px solid var(--line);
   border-radius: 8px;
   background: var(--panel);
-  padding: 0 10px;
+  padding: 0 12px;
   color: var(--text-faint);
   box-shadow: var(--card-shadow);
 }
@@ -398,7 +427,7 @@
   height: 100%;
   place-content: center;
   justify-items: center;
-  gap: 10px;
+  gap: 12px;
   color: var(--text-faint);
   font-size: 12px;
 }
@@ -419,7 +448,7 @@
 }
 
 .agent-screen-live {
-  box-shadow: 0 18px 50px light-dark(rgba(28, 28, 24, 0.12), rgba(0, 0, 0, 0.32));
+  box-shadow: var(--browser-preview-shadow);
 }
 
 @keyframes agent-screen-enter {
@@ -432,5 +461,23 @@
 @media (max-width: 1040px) {
   .workspace-shell.browser-open {
     grid-template-columns: minmax(300px, 1fr) minmax(360px, 48%);
+  }
+}
+
+
+@media (prefers-reduced-motion: reduce) {
+  .workspace-shell > .browser-panel,
+  .agent-screen,
+  .browser-spinner,
+  .browser-panel-close:active,
+  .browser-toolbar button:active:not(:disabled),
+  .browser-tab-select:active,
+  .browser-tab-close:active,
+  .browser-new-tab:active,
+  .browser-download-button:active,
+  .browser-approval-actions button:active {
+    animation: none;
+    transform: none;
+    transition: none;
   }
 }

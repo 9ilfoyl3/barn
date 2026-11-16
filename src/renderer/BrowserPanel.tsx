@@ -69,7 +69,6 @@ export function BrowserPanel({ state, onBack, onClose, onForward, onNavigate, on
         <div className="browser-panel-heading">
           <span className="browser-panel-icon" aria-hidden="true"><Globe2 size={15} /></span>
           <div className="browser-panel-title-copy">
-            <span>Browser</span>
             <span className="browser-page-title" title={state.title || 'New tab'}>
               {state.title || 'New tab'}
             </span>

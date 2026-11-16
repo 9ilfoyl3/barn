@@ -3,6 +3,39 @@
   "shape": "app screen",
   "theme": "barn-native",
   "axes": [
+   "right-side browser split",
+   "inline action approval",
+   "agent screen handoff"
+  ],
+  "hero": "none",
+  "nav": "existing shell plus browser toggle",
+  "footer": "existing account footer",
+  "imagery": "real browser captures",
+  "photos": [],
+  "entry": "Browser button in workspace header",
+  "fingerprint": "barn-browser-agent-screen-2026-11-17",
+  "sections": [
+   "browser header",
+   "tab strip",
+   "action approval",
+   "address and navigation",
+   "native browser viewport",
+   "agent screen preview"
+  ],
+  "signature": "the browser and agent screen trade the same workspace edge without leaving the conversation",
+  "waived": [
+   "28b"
+  ],
+  "prompt": "Continue browser and agent screen implementation and validate the visual system with Hallmark",
+  "date": "2026-11-17",
+  "mode": "redesign",
+  "depth": "polish",
+  "scope": "app"
+ },
+ {
+  "shape": "app screen",
+  "theme": "barn-native",
+  "axes": [
    "personal menu settings route",
    "searchable archived chats",
    "project-grouped restore list"
