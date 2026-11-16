@@ -54,6 +54,58 @@ describe('SessionStore', () => {
     reopened.close()
   })
 
+  it('persists unread results until the Session is opened', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'barn-session-store-'))
+    const path = pathForSessions(directory)
+    const key = randomBytes(32)
+    const store = new SessionStore(path, new AesGcmEventCipher(key))
+    await store.initialize()
+    const session = store.createSession('Unread result')
+    store.append(session.id, [{ type: 'message/user', data: { text: 'Run in the background' } }])
+
+    expect(store.getSession(session.id).hasUnreadResult).toBe(false)
+    expect(store.markResultUnread(session.id).hasUnreadResult).toBe(true)
+    store.close()
+
+    const reopened = new SessionStore(path, new AesGcmEventCipher(key))
+    await reopened.initialize()
+    expect(reopened.getSession(session.id).hasUnreadResult).toBe(true)
+    expect(reopened.markResultRead(session.id).hasUnreadResult).toBe(false)
+    reopened.close()
+  })
+
+  it('persists pinned and archived Session organization', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'barn-session-store-'))
+    const path = pathForSessions(directory)
+    const key = randomBytes(32)
+    const store = new SessionStore(path, new AesGcmEventCipher(key))
+    await store.initialize()
+
+    const pinned = store.createSession('Pinned conversation')
+    const recent = store.createSession('Recent conversation')
+    const archived = store.createSession('Archived conversation')
+    for (const session of [pinned, recent, archived]) {
+      store.append(session.id, [{ type: 'message/user', data: { text: session.title } }])
+    }
+
+    store.setPinned(pinned.id, true)
+    store.markResultUnread(archived.id)
+    const archivedSession = store.setArchived(archived.id, true)
+    expect(archivedSession.archivedAt).toEqual(expect.any(String))
+    expect(archivedSession.hasUnreadResult).toBe(false)
+    expect(archivedSession.pinned).toBe(false)
+    expect(store.listSessions().map((session) => session.id)).toEqual([pinned.id, recent.id, archived.id])
+    store.close()
+
+    const reopened = new SessionStore(path, new AesGcmEventCipher(key))
+    await reopened.initialize()
+    const sessions = reopened.listSessions()
+    expect(sessions.find((session) => session.id === pinned.id)?.pinned).toBe(true)
+    expect(sessions.find((session) => session.id === archived.id)?.archivedAt).toEqual(expect.any(String))
+    expect(sessions.map((session) => session.id)).toEqual([pinned.id, recent.id, archived.id])
+    reopened.close()
+  })
+
   it('recovers sessions left running after an interrupted app shutdown', async () => {
     const directory = await mkdtemp(join(tmpdir(), 'barn-session-store-'))
     const store = new SessionStore(pathForSessions(directory), new AesGcmEventCipher(randomBytes(32)))

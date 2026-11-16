@@ -119,6 +119,12 @@ export class AgentService {
     return session
   }
 
+  markRead(sessionId: string): SessionSummary {
+    const session = this.sessions.markResultRead(sessionId)
+    this.emit({ type: 'session.updated', session })
+    return session
+  }
+
   getEvents(sessionId: string): SessionTimelineEvent[] {
     this.sessions.getSession(sessionId)
     return this.sessions.read(sessionId)
@@ -167,6 +173,9 @@ export class AgentService {
       case 'run.status': {
         const status = message.status === 'cancelled' ? 'idle' : message.status
         this.sessions.updateStatus(message.sessionId, status)
+        if (message.status === 'idle' || message.status === 'failed') {
+          this.sessions.markResultUnread(message.sessionId)
+        }
         this.emit({
           type: 'run.status',
           sessionId: message.sessionId,
@@ -218,6 +227,7 @@ export class AgentService {
     for (const sessionId of this.openSessions.keys()) {
       try {
         this.sessions.updateStatus(sessionId, 'failed')
+        this.sessions.markResultUnread(sessionId)
         this.emit({ type: 'session.updated', session: this.sessions.getSession(sessionId) })
       } catch {
         // The session may have been deleted while the Worker was running.

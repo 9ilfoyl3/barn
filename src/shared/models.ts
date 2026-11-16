@@ -390,6 +390,9 @@ export interface SessionSummary {
   id: string
   title: string
   status: 'idle' | 'running' | 'failed'
+  hasUnreadResult: boolean
+  pinned: boolean
+  archivedAt?: string
   workingDirectory?: string
   createdAt: string
   updatedAt: string
@@ -485,6 +488,9 @@ export interface SessionBridge {
   chooseDirectory(): Promise<string | undefined>
   setWorkingDirectory(sessionId: string, workingDirectory: string): Promise<SessionSummary>
   clearWorkingDirectory(sessionId: string): Promise<SessionSummary>
+  markRead(sessionId: string): Promise<SessionSummary>
+  setPinned(sessionId: string, pinned: boolean): Promise<SessionSummary>
+  setArchived(sessionId: string, archived: boolean): Promise<SessionSummary>
   getAttachmentPreview(path: string): Promise<AttachmentPreview | undefined>
   onEvent(listener: (event: SessionLiveEvent) => void): () => void
 }
