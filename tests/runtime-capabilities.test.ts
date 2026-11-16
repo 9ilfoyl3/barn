@@ -12,5 +12,14 @@ describe('runtime capabilities', () => {
     } else {
       expect(capabilities.shell.available).toBe(false)
     }
+    expect(capabilities.agentComputer.defaultProvider).toBe('built-in-browser')
+    expect(capabilities.agentComputer.providers.find((provider) => provider.id === 'built-in-browser')).toMatchObject({
+      available: true,
+      isolation: 'browser-session',
+    })
+    expect(capabilities.agentComputer.providers.find((provider) => provider.id === 'secure-vm')).toMatchObject({
+      available: false,
+      isolation: 'virtual-machine',
+    })
   })
 })
