@@ -221,6 +221,7 @@ void app.whenReady().then(async () => {
     localSourceService,
     userData,
     () => getRuntimeCapabilities(shellService),
+    () => browserService,
   )
   registerDiagnosticsIpc(diagnosticsService, trustedSender)
   memoryExtractionService = new MemoryExtractionService(sessionStore, modelService)
