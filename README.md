@@ -28,6 +28,8 @@ Tasks are the durable user-facing unit of work. A Session is the execution trans
 
 Interactive model calls are made by the Desktop with the user's configured provider. The Desktop owns its provider catalog, credentials, default model, and reasoning-effort settings.
 
+Barn also provides a local built-in browser and an Agent Screen. The browser runs in a dedicated Electron session, supports tabs, semantic page observation and actions, uploads, downloads, and visible user takeover through the right-side split. The Agent Screen collapses while the browser is open and returns with a real page capture when it closes. Browser and future Secure VM / host Computer Use surfaces share a provider capability boundary without bundling a VM image into the default application. See [Browser and Agent Screen](docs/BROWSER_AGENT_SCREEN.md).
+
 ## Internationalization
 
 Desktop UI supports English and Simplified Chinese. Other languages fall back to English. The language picker persists the selected language locally and keeps the document `lang` attribute in sync. If no preference has been saved, Desktop follows the operating system's preferred language. `BARN_UI_LANGUAGE=en|zh-CN` can override detection for tests or controlled deployments. Electron-native strings such as the attachment picker follow the same effective locale.

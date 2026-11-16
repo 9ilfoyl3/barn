@@ -1,0 +1,93 @@
+# Browser and Agent Screen
+
+Barn Desktop includes a local built-in browser and a visible Agent Screen inside the conversation workspace.
+
+## Current surface
+
+- The top-right Browser button opens a right-side split.
+- The browser uses an Electron `WebContentsView` with a dedicated persistent session partition.
+- While the browser is open, the Agent Screen collapses. Closing the browser restores the Agent Screen preview.
+- The Agent Screen is based on the MIT Agents Kit `AgentScreen` source with local attribution and controls.
+- The preview is captured from the real browser page, not a generated mock.
+
+## Browser capabilities
+
+- URL navigation, back, forward, reload, title, loading state, and address normalization.
+- Multiple tabs: create, select, close, and list.
+- Semantic observation of page text and interactive elements with stable refs.
+- Actions: click, type, select, press, hover, scroll, and wait.
+- Bounded visible-text extraction.
+- Screenshot capture for visual verification.
+- File input upload from the authorized workspace.
+- Managed downloads with status and reveal-in-folder support.
+- Popup windows open as Barn browser tabs.
+- Persistent cookies and browser profile through the dedicated Electron session partition.
+
+## Agent tools
+
+The Agent Worker can call:
+
+```text
+browser_open
+browser_observe
+browser_act
+browser_tab
+browser_read
+browser_upload
+browser_screenshot
+```
+
+The Worker never receives raw DevTools access. The Host executes fixed, typed browser operations. File input upload uses Chromium DevTools Protocol internally only after the Host resolves and authorizes the file path.
+
+## Security boundary
+
+- Only `http:`, `https:`, and `about:blank` are allowed.
+- `file:`, `javascript:`, and other schemes are rejected.
+- Loopback development hosts are allowed; unspecified, private, link-local, carrier-grade NAT, and IPv6 local ranges are blocked by default.
+- Browser permissions for camera, microphone, geolocation, notifications, and similar capabilities are denied.
+- Uploads resolve real paths and must remain inside the Session working directory or managed Barn roots.
+- Downloads use a unique filename in the configured Downloads directory.
+- The renderer receives typed browser state and capture data only. Website DOM is not injected into the Barn renderer.
+
+## Agent Computer provider boundary
+
+Runtime capabilities advertise three Agent Computer providers:
+
+- `built-in-browser`: available now, browser-session isolation.
+- `secure-vm`: unavailable until a signed, on-demand VM runtime exists.
+- `host-computer`: unavailable until OS screen-capture, accessibility, input, and approval flows exist.
+
+The provider boundary keeps Secure VM and host Computer Use from changing the Browser and Agent Screen contracts.
+
+## Known gaps
+
+- Cross-origin iframe and Shadow DOM coverage is not complete.
+- External side-effect submissions still need durable approval integration.
+- Browser tabs are not restored after an application restart.
+- Agent Screen currently refreshes from page captures rather than a continuous WebRTC stream.
+- Secure VM and host Computer Use are not implemented or bundled.
+- A Chrome extension for the user's existing profile is not implemented.
+
+## Verification
+
+Real Electron e2e covers:
+
+- opening and closing the split;
+- Browser/Agent Screen mutual exclusion;
+- real native browser content and captures;
+- tab creation, switching, and closing;
+- semantic observation, form fill, and submit;
+- upload of an authorized workspace file;
+- managed download to the configured Downloads directory;
+- rejection of dangerous and metadata addresses.
+
+Run:
+
+```sh
+pnpm typecheck
+pnpm lint
+pnpm test
+pnpm docs:check
+pnpm security:check
+pnpm exec playwright test --workers=1
+```
