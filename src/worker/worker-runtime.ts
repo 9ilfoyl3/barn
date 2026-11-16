@@ -563,6 +563,11 @@ function createTools(
   tools.push(tool('browser_read', 'Read Browser Page', 'Read bounded visible text from the current page when the compact observation is insufficient.', Type.Object({
     maxChars: Type.Optional(Type.Integer({ minimum: 500, maximum: 50_000 })),
   }), executeTool))
+  tools.push(tool('browser_tab', 'Manage Browser Tabs', 'List, create, select, or close browser tabs. Use select before acting on another tab.', Type.Object({
+    action: Type.Union([Type.Literal('list'), Type.Literal('new'), Type.Literal('select'), Type.Literal('close')]),
+    url: Type.Optional(Type.String({ minLength: 1, maxLength: 20_000 })),
+    tabId: Type.Optional(Type.String({ minLength: 1, maxLength: 64 })),
+  }), executeTool))
   if (supportsImages) {
     tools.push(tool('browser_screenshot', 'Browser Screenshot', 'Capture the visible browser page as an image for visual verification. Use only when semantic observation is insufficient.', Type.Object({}), executeTool))
   }

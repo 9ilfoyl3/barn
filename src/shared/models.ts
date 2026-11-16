@@ -485,6 +485,14 @@ export interface BrowserBounds {
   height: number
 }
 
+export interface BrowserTabState {
+  id: string
+  title: string
+  url: string
+  loading: boolean
+  active: boolean
+}
+
 export interface BrowserState {
   open: boolean
   visible: boolean
@@ -493,6 +501,8 @@ export interface BrowserState {
   loading: boolean
   canGoBack: boolean
   canGoForward: boolean
+  activeTabId?: string | undefined
+  tabs: BrowserTabState[]
   error?: string | undefined
 }
 
@@ -506,6 +516,9 @@ export interface BrowserBridge {
   open(url?: string): Promise<BrowserState>
   close(): Promise<BrowserState>
   navigate(url: string): Promise<BrowserState>
+  newTab(url?: string): Promise<BrowserState>
+  activateTab(tabId: string): Promise<BrowserState>
+  closeTab(tabId: string): Promise<BrowserState>
   back(): Promise<BrowserState>
   forward(): Promise<BrowserState>
   reload(): Promise<BrowserState>

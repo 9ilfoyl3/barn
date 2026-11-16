@@ -8,7 +8,7 @@
   min-height: 0;
   grid-column: 2;
   grid-row: 1;
-  grid-template-rows: var(--workspace-header-height) 48px minmax(0, 1fr);
+  grid-template-rows: var(--workspace-header-height) 38px 48px minmax(0, 1fr);
   overflow: hidden;
   border-left: 1px solid var(--line);
   background: var(--canvas);
@@ -93,6 +93,117 @@
 }
 
 .browser-panel-close:hover {
+  border-color: var(--line);
+  background: var(--panel);
+  color: var(--text);
+}
+
+.browser-tab-strip {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 6px;
+  overflow: hidden;
+  border-bottom: 1px solid var(--line);
+  background: color-mix(in srgb, var(--canvas) 94%, var(--panel));
+  padding: 4px 8px;
+}
+
+.browser-tab-list {
+  display: flex;
+  min-width: 0;
+  flex: 1 1 auto;
+  gap: 4px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.browser-tab-list::-webkit-scrollbar {
+  display: none;
+}
+
+.browser-tab {
+  display: flex;
+  min-width: 120px;
+  max-width: 210px;
+  height: 28px;
+  flex: 0 1 190px;
+  align-items: center;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  color: var(--text-faint);
+}
+
+.browser-tab.active {
+  border-color: var(--line);
+  background: var(--panel);
+  color: var(--text);
+  box-shadow: var(--card-shadow);
+}
+
+.browser-tab-select {
+  display: flex;
+  min-width: 0;
+  height: 100%;
+  flex: 1 1 auto;
+  align-items: center;
+  gap: 6px;
+  border: 0;
+  background: transparent;
+  padding: 0 4px 0 8px;
+  color: inherit;
+  cursor: pointer;
+  font-size: 10px;
+}
+
+.browser-tab-select span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.browser-tab-select svg {
+  flex: 0 0 auto;
+}
+
+.browser-tab-close {
+  display: grid;
+  width: 22px;
+  height: 22px;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--text-faint);
+  cursor: pointer;
+  opacity: 0;
+}
+
+.browser-tab:hover .browser-tab-close,
+.browser-tab.active .browser-tab-close {
+  opacity: 1;
+}
+
+.browser-tab-close:hover {
+  background: color-mix(in srgb, var(--text) 8%, transparent);
+  color: var(--text);
+}
+
+.browser-new-tab {
+  display: grid;
+  width: 26px;
+  height: 26px;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-faint);
+  cursor: pointer;
+}
+
+.browser-new-tab:hover {
   border-color: var(--line);
   background: var(--panel);
   color: var(--text);
