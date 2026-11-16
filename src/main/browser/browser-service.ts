@@ -4,7 +4,7 @@ import { basename, extname, join } from 'node:path'
 import { app, BrowserWindow, session, shell, WebContentsView, type DownloadItem } from 'electron'
 import type { BrowserBounds, BrowserDownloadState, BrowserLiveEvent, BrowserState, BrowserTabState } from '../../shared/models'
 import { isAllowedBrowserUrl, normalizeBrowserUrl } from './browser-policy'
-import { collectPageSnapshot, performPageActions, readPageText, type PageAction, type PageSnapshot } from './page-script'
+import { classifyPageActions, collectPageSnapshot, performPageActions, readPageText, type PageAction, type PageSnapshot } from './page-script'
 
 const browserPartition = 'persist:barn-agent-browser'
 
@@ -186,6 +186,11 @@ export class BrowserService {
   async readText(maxChars: number): Promise<ReturnType<typeof readPageText>> {
     this.requireOpen()
     return this.executePageFunction(readPageText, maxChars)
+  }
+
+  async classifyActions(actions: PageAction[]): Promise<{ consequential: boolean; summary: string; details: string }> {
+    this.requireOpen()
+    return this.executePageFunction(classifyPageActions, actions)
   }
 
   async performActions(actions: PageAction[]): Promise<{ performed: number; url: string; title: string }> {

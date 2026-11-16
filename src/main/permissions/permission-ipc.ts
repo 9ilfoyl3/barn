@@ -1,4 +1,4 @@
-import { ipcMain, type IpcMainInvokeEvent } from 'electron'
+import { BrowserWindow, ipcMain, type IpcMainInvokeEvent } from 'electron'
 import { z } from 'zod'
 import type { PermissionService } from './permission-service'
 
@@ -26,6 +26,12 @@ export function registerPermissionIpc(
   permissions: PermissionService,
   isTrustedSender: (event: IpcMainInvokeEvent) => boolean,
 ): void {
+  permissions.onChange((approval) => {
+    for (const window of BrowserWindow.getAllWindows()) {
+      if (!window.isDestroyed()) window.webContents.send('approvals:event', approval)
+    }
+  })
+
   ipcMain.handle('permissions:get-policy', (event) => {
     requireTrusted(event, isTrustedSender)
     return permissions.getPolicy()

@@ -54,6 +54,10 @@ test('downloads through the built-in browser into the configured Downloads folde
     const composer = page.getByLabel('Message Barn')
     await composer.fill('Download the report from the local page.')
     await composer.press('Enter')
+    const approval = page.getByRole('alertdialog', { name: 'Browser action approval' })
+    await expect(approval).toBeVisible({ timeout: 15_000 })
+    await expect(approval).toContainText('Start a browser download')
+    await approval.getByRole('button', { name: 'Approve browser action' }).click()
     await expect(page.getByText('Download completed.').last()).toBeVisible({ timeout: 20_000 })
     await expect.poll(async () => page.evaluate(() => window.barn.browser.getState().then((state) => state.downloads[0]?.state))).toBe('completed')
 

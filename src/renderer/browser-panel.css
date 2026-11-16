@@ -8,7 +8,7 @@
   min-height: 0;
   grid-column: 2;
   grid-row: 1;
-  grid-template-rows: var(--workspace-header-height) 38px 48px minmax(0, 1fr);
+  grid-template-rows: var(--workspace-header-height) 38px 0 48px minmax(0, 1fr);
   overflow: hidden;
   border-left: 1px solid var(--line);
   background: var(--canvas);
@@ -22,8 +22,13 @@
   }
 }
 
+.workspace-shell > .browser-panel.has-approval {
+  grid-template-rows: var(--workspace-header-height) 38px auto 48px minmax(0, 1fr);
+}
+
 .browser-panel-header {
   display: flex;
+  grid-row: 1;
   min-width: 0;
   align-items: center;
   justify-content: space-between;
@@ -100,6 +105,7 @@
 
 .browser-tab-strip {
   display: flex;
+  grid-row: 2;
   min-width: 0;
   align-items: center;
   gap: 6px;
@@ -245,6 +251,68 @@
   color: var(--text);
 }
 
+.browser-approval-bar {
+  display: flex;
+  grid-row: 3;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  border-bottom: 1px solid color-mix(in srgb, var(--warning) 30%, var(--line));
+  background: color-mix(in srgb, var(--warning) 8%, var(--canvas));
+  padding: 9px 12px;
+}
+
+.browser-approval-copy {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.browser-approval-copy strong {
+  font-size: 11px;
+  font-weight: 620;
+}
+
+.browser-approval-copy span {
+  overflow: hidden;
+  color: var(--text-dim);
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.browser-approval-actions {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 6px;
+}
+
+.browser-approval-actions button {
+  min-height: 28px;
+  border: 1px solid var(--line-strong);
+  border-radius: 7px;
+  background: var(--panel);
+  padding: 0 10px;
+  color: var(--text);
+  cursor: pointer;
+  font-size: 10px;
+}
+
+.browser-approval-actions button:hover {
+  background: var(--panel-raised);
+}
+
+.browser-approval-actions .is-deny {
+  color: var(--danger);
+}
+
+.browser-approval-actions .is-approve {
+  border-color: color-mix(in srgb, var(--accent) 35%, var(--line));
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
 .browser-toolbar {
   gap: 6px;
   border-bottom: 1px solid var(--line);
@@ -318,6 +386,7 @@
 
 .browser-viewport {
   position: relative;
+  grid-row: 5;
   min-width: 0;
   min-height: 0;
   overflow: hidden;

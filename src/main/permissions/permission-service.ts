@@ -15,6 +15,7 @@ export interface ApprovalResolution {
 
 export class PermissionService {
   private readonly resolutionListeners = new Set<(resolution: ApprovalResolution) => void>()
+  private readonly changeListeners = new Set<(approval: ApprovalRequest) => void>()
 
   constructor(
     private readonly store: PermissionStore,
@@ -37,6 +38,7 @@ export class PermissionService {
       return { decision: 'denied', reason: `${input.kind} is blocked by your safety settings.` }
     }
     const approval = this.store.createApproval(input)
+    this.emitChange(approval)
     if (input.taskId !== undefined) {
       this.tasks.requestApproval(input.taskId, approval.id, input.summary)
     }
@@ -66,6 +68,7 @@ export class PermissionService {
         // An approval remains a valid audit record even if its Task was deleted or finished elsewhere.
       }
     }
+    this.emitChange(approval)
     for (const listener of this.resolutionListeners) listener({ approval, decision })
     return approval
   }
@@ -73,6 +76,47 @@ export class PermissionService {
   onResolved(listener: (resolution: ApprovalResolution) => void): () => void {
     this.resolutionListeners.add(listener)
     return () => this.resolutionListeners.delete(listener)
+  }
+  onChange(listener: (approval: ApprovalRequest) => void): () => void {
+    this.changeListeners.add(listener)
+    return () => this.changeListeners.delete(listener)
+  }
+
+  waitForDecision(
+    approvalId: string,
+    signal?: AbortSignal,
+    timeoutMs = 120_000,
+  ): Promise<'approved' | 'denied'> {
+    const current = this.get(approvalId)
+    if (current.status === 'approved' || current.status === 'denied') return Promise.resolve(current.status)
+    if (signal?.aborted) return Promise.reject(new Error('Approval wait aborted'))
+    return new Promise<'approved' | 'denied'>((resolve, reject) => {
+      let timer: NodeJS.Timeout
+      const cleanup = (): void => {
+        clearTimeout(timer)
+        dispose()
+        signal?.removeEventListener('abort', abort)
+      }
+      const abort = (): void => {
+        cleanup()
+        reject(new Error('Approval wait aborted'))
+      }
+      const dispose = this.onResolved(({ approval, decision }) => {
+        if (approval.id !== approvalId) return
+        cleanup()
+        resolve(decision)
+      })
+      timer = setTimeout(() => {
+        cleanup()
+        reject(new Error('Approval request timed out'))
+      }, timeoutMs)
+      timer.unref?.()
+      signal?.addEventListener('abort', abort, { once: true })
+    })
+  }
+
+  private emitChange(approval: ApprovalRequest): void {
+    for (const listener of this.changeListeners) listener(approval)
   }
 }
 

@@ -180,6 +180,7 @@ void app.whenReady().then(async () => {
     workspaceRoot,
     outputRoot,
     privateTempRoot,
+    getPermissions: () => permissionService,
   })
   const tools = new ToolService({
     workspaceRoot,

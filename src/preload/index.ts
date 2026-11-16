@@ -29,6 +29,7 @@ import type {
   ThemeState,
   SetDefaultModelInput,
   MemoryBridge,
+  ApprovalRequest,
   BrowserBridge,
   BrowserBounds,
   BrowserLiveEvent,
@@ -110,6 +111,11 @@ const permissions: PermissionBridge = {
 
 const approvals: ApprovalBridge = {
   listPending: () => ipcRenderer.invoke('approvals:list-pending'),
+  onChange: (listener: (approval: ApprovalRequest) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, approval: ApprovalRequest): void => listener(approval)
+    ipcRenderer.on('approvals:event', handler)
+    return () => ipcRenderer.removeListener('approvals:event', handler)
+  },
   get: (approvalId: string) => ipcRenderer.invoke('approvals:get', approvalId),
   resolve: (approvalId: string, decision: 'approved' | 'denied') => ipcRenderer.invoke('approvals:resolve', { approvalId, decision }),
 }

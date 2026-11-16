@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { ArrowLeft, ArrowRight, Download, Globe2, LoaderCircle, Plus, RotateCw, X } from 'lucide-react'
-import type { BrowserState } from '../shared/models'
+import type { ApprovalRequest, BrowserState } from '../shared/models'
 
 export interface BrowserPanelProps {
   state: BrowserState
@@ -13,9 +13,11 @@ export interface BrowserPanelProps {
   onActivateTab: (tabId: string) => Promise<void>
   onCloseTab: (tabId: string) => Promise<void>
   onRevealDownload: (downloadId: string) => Promise<void>
+  approval?: ApprovalRequest | undefined
+  onResolveApproval: (decision: 'approved' | 'denied') => Promise<void>
 }
 
-export function BrowserPanel({ state, onBack, onClose, onForward, onNavigate, onReload, onNewTab, onActivateTab, onCloseTab, onRevealDownload }: BrowserPanelProps) {
+export function BrowserPanel({ state, onBack, onClose, onForward, onNavigate, onReload, onNewTab, onActivateTab, onCloseTab, onRevealDownload, approval, onResolveApproval }: BrowserPanelProps) {
   const viewportRef = useRef<HTMLDivElement>(null)
   const [address, setAddress] = useState(state.url === 'about:blank' ? '' : state.url)
   const [submitting, setSubmitting] = useState(false)
@@ -62,7 +64,7 @@ export function BrowserPanel({ state, onBack, onClose, onForward, onNavigate, on
   }
 
   return (
-    <section className="browser-panel" data-testid="browser-panel" aria-label="Browser">
+    <section className={approval === undefined ? 'browser-panel' : 'browser-panel has-approval'} data-testid="browser-panel" aria-label="Browser">
       <header className="browser-panel-header">
         <div className="browser-panel-heading">
           <span className="browser-panel-icon" aria-hidden="true"><Globe2 size={15} /></span>
@@ -120,6 +122,23 @@ export function BrowserPanel({ state, onBack, onClose, onForward, onNavigate, on
           </button>
         )}
       </div>
+
+      {approval !== undefined && (
+        <div className="browser-approval-bar" role="alertdialog" aria-label="Browser action approval">
+          <div className="browser-approval-copy">
+            <strong>Approve browser action?</strong>
+            <span>{approval.summary}</span>
+          </div>
+          <div className="browser-approval-actions">
+            <button type="button" className="is-deny" onClick={() => void onResolveApproval('denied')}>
+              Deny
+            </button>
+            <button type="button" className="is-approve" aria-label="Approve browser action" onClick={() => void onResolveApproval('approved')}>
+              Approve
+            </button>
+          </div>
+        </div>
+      )}
 
       <div className="browser-toolbar">
         <button type="button" aria-label="Back" disabled={!state.canGoBack} onClick={() => void onBack()}>
