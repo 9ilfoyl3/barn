@@ -30,6 +30,8 @@ import { WorkerSupervisor } from './worker/worker-supervisor'
 import { nativeLocale } from './platform/native-locale'
 import { getRuntimeCapabilities } from './platform/runtime-capabilities'
 import { AlwaysOnLifecycle } from './lifecycle/always-on-lifecycle'
+import { BrowserService } from './browser/browser-service'
+import { registerBrowserIpc } from './browser/browser-ipc'
 
 if (process.env.BARN_USER_DATA_DIR !== undefined) {
   app.setPath('userData', process.env.BARN_USER_DATA_DIR)
@@ -50,6 +52,7 @@ let localSourceService: LocalSourceService | undefined
 let lifecycle: AlwaysOnLifecycle | undefined
 let diagnosticsService: DiagnosticsService | undefined
 let memoryExtractionService: MemoryExtractionService | undefined
+let browserService: BrowserService | undefined
 let maintenanceTimer: NodeJS.Timeout | undefined
 let isQuitting = false
 const shellService = new ShellService()
@@ -87,6 +90,7 @@ async function createWindow(): Promise<void> {
   })
 
   mainWindow = window
+  browserService = new BrowserService(window)
   window.once('ready-to-show', () => window.show())
   window.on('close', (event) => {
     if (isQuitting) return
@@ -94,6 +98,8 @@ async function createWindow(): Promise<void> {
     window.hide()
   })
   window.on('closed', () => {
+    browserService?.dispose()
+    browserService = undefined
     if (mainWindow === window) mainWindow = undefined
   })
 
@@ -210,6 +216,7 @@ void app.whenReady().then(async () => {
   maintenanceTimer = setInterval(() => sessionStore?.runRetention(), 24 * 60 * 60 * 1_000)
   maintenanceTimer.unref()
   registerRuntimeIpc(shellService, trustedSender, () => nativeLocale())
+  registerBrowserIpc(() => browserService, trustedSender)
   await createWindow()
   lifecycle = new AlwaysOnLifecycle({
     showWindow,
@@ -245,6 +252,8 @@ app.on('before-quit', () => {
   diagnosticsService = undefined
   memoryExtractionService?.stop()
   memoryExtractionService = undefined
+  browserService?.dispose()
+  browserService = undefined
   if (maintenanceTimer !== undefined) clearInterval(maintenanceTimer)
   maintenanceTimer = undefined
   void agentService?.stop()

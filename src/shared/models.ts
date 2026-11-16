@@ -478,6 +478,42 @@ export type AttachmentPreview =
   | { kind: 'image'; dataUrl: string }
   | { kind: 'text'; text: string; variant: 'plain' | 'pdf' | 'document' | 'presentation' | 'spreadsheet' }
 
+export interface BrowserBounds {
+  x: number
+  y: number
+  width: number
+  height: number
+}
+
+export interface BrowserState {
+  open: boolean
+  visible: boolean
+  url: string
+  title: string
+  loading: boolean
+  canGoBack: boolean
+  canGoForward: boolean
+  error?: string | undefined
+}
+
+export interface BrowserLiveEvent {
+  type: 'state'
+  state: BrowserState
+}
+
+export interface BrowserBridge {
+  getState(): Promise<BrowserState>
+  open(url?: string): Promise<BrowserState>
+  close(): Promise<BrowserState>
+  navigate(url: string): Promise<BrowserState>
+  back(): Promise<BrowserState>
+  forward(): Promise<BrowserState>
+  reload(): Promise<BrowserState>
+  setBounds(bounds: BrowserBounds): Promise<void>
+  capture(): Promise<string | undefined>
+  onEvent(listener: (event: BrowserLiveEvent) => void): () => void
+}
+
 export interface SessionBridge {
   list(): Promise<SessionSummary[]>
   create(sessionId?: string): Promise<SessionSummary>
@@ -529,6 +565,7 @@ export interface BarnBridge {
   theme: ThemeBridge
   i18n: I18nBridge
   models: ModelBridge
+  browser: BrowserBridge
   sessions: SessionBridge
   tasks: TaskBridge
   permissions: PermissionBridge

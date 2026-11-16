@@ -129,6 +129,20 @@ const en = {
   },
 
 
+  browser: {
+    open: 'Open browser',
+    close: 'Close browser',
+    title: 'Browser',
+    newTab: 'New tab',
+    address: 'Browser address',
+    back: 'Back',
+    forward: 'Forward',
+    reload: 'Reload',
+    loading: 'Loading page',
+    prompt: 'Enter a URL to start browsing',
+    agentScreen: 'Agent screen',
+    agentScreenReady: 'Browser is ready when you need it',
+  },
   memorySettings: {
     title: 'Agent memory',
     description: 'Keep stable preferences, decisions, and project context across Sessions. Memory is local and encrypted; it does not replace rules that must always apply.',
@@ -526,6 +540,20 @@ const zhCN: TranslationSchema = {
   },
 
 
+  browser: {
+    open: '打开浏览器',
+    close: '关闭浏览器',
+    title: '浏览器',
+    newTab: '新标签页',
+    address: '浏览器地址',
+    back: '后退',
+    forward: '前进',
+    reload: '刷新',
+    loading: '正在加载页面',
+    prompt: '输入网址开始浏览',
+    agentScreen: 'Agent 屏幕',
+    agentScreenReady: '需要时即可打开浏览器',
+  },
   memorySettings: {
     title: '智能助手记忆',
     description: '跨会话保留稳定的偏好、决定和项目上下文。记忆保存在本地并加密，但不能替代必须始终生效的规则。',

@@ -11,6 +11,7 @@ import {
   Folder,
   FolderOpen,
   FolderSearch,
+  Globe2,
   Inbox,
   Search,
   Settings2,
@@ -27,6 +28,7 @@ import {
 } from 'lucide-react'
 import type {
   AttachmentDescriptor,
+  BrowserState,
   ModelConfigSnapshot,
   SessionLiveEvent,
   SessionSummary,
@@ -41,7 +43,10 @@ import { SourceSettings } from './SourceSettings'
 import { DiagnosticsSettings } from './DiagnosticsSettings'
 import { SettingsPage } from './SettingsPage'
 import { AttachmentStrip } from './AttachmentStrip'
+import { AgentScreen } from './AgentScreen'
+import { BrowserPanel } from './BrowserPanel'
 import './composer-workspace.css'
+import './browser-panel.css'
 import { TaskCenter } from './TaskCenter'
 import { initializeAppLanguage } from './i18n'
 import { TooltipButton } from './components/TooltipButton'
@@ -92,6 +97,17 @@ export function App() {
   const [tasks, setTasks] = useState<Task[]>([])
   const [tasksLoading, setTasksLoading] = useState(true)
   const [taskError, setTaskError] = useState<string>()
+  const [browserOpen, setBrowserOpen] = useState(false)
+  const [browserState, setBrowserState] = useState<BrowserState>({
+    open: false,
+    visible: false,
+    url: 'about:blank',
+    title: '',
+    loading: false,
+    canGoBack: false,
+    canGoForward: false,
+  })
+  const [agentScreenPreview, setAgentScreenPreview] = useState<string>()
   const listRef = useRef<HTMLElement>(null)
   const sessionSearchInputRef = useRef<HTMLInputElement>(null)
   const accountAreaRef = useRef<HTMLDivElement>(null)
@@ -201,6 +217,30 @@ export function App() {
   useEffect(() => {
     return window.barn.sessions.onEvent(handleLiveEvent)
   }, [])
+  useEffect(() => {
+    const unsubscribe = window.barn.browser.onEvent((event) => {
+      setBrowserState(event.state)
+      setBrowserOpen(event.state.open)
+    })
+    void window.barn.browser.getState()
+      .then((state) => {
+        setBrowserState(state)
+        setBrowserOpen(state.open)
+      })
+      .catch((reason: unknown) => setError(errorMessage(reason, t)))
+    return unsubscribe
+  }, [])
+
+  useEffect(() => {
+    if (browserOpen || browserState.url === 'about:blank') return
+    const timer = setTimeout(() => {
+      void window.barn.browser.capture()
+        .then(setAgentScreenPreview)
+        .catch(() => undefined)
+    }, 320)
+    return () => clearTimeout(timer)
+  }, [browserOpen, browserState.loading, browserState.title, browserState.url])
+
 
   useEffect(() => window.barn.lifecycle.onShowTasks(() => setView('tasks')), [])
 
@@ -402,6 +442,57 @@ export function App() {
     }
   }
 
+  async function toggleBrowser(): Promise<void> {
+    try {
+      const state = browserOpen
+        ? await window.barn.browser.close()
+        : await window.barn.browser.open()
+      setBrowserState(state)
+      setBrowserOpen(state.open)
+    } catch (reason) {
+      setError(errorMessage(reason, t))
+    }
+  }
+
+  async function closeBrowser(): Promise<void> {
+    try {
+      const state = await window.barn.browser.close()
+      setBrowserState(state)
+      setBrowserOpen(false)
+    } catch (reason) {
+      setError(errorMessage(reason, t))
+    }
+  }
+
+  async function navigateBrowser(url: string): Promise<void> {
+    try {
+      const state = await window.barn.browser.navigate(url)
+      setBrowserState(state)
+    } catch (reason) {
+      setError(errorMessage(reason, t))
+      throw reason
+    }
+  }
+
+  async function browserHistory(direction: 'back' | 'forward'): Promise<void> {
+    try {
+      const state = direction === 'back'
+        ? await window.barn.browser.back()
+        : await window.barn.browser.forward()
+      setBrowserState(state)
+    } catch (reason) {
+      setError(errorMessage(reason, t))
+    }
+  }
+
+  async function reloadBrowser(): Promise<void> {
+    try {
+      setBrowserState(await window.barn.browser.reload())
+    } catch (reason) {
+      setError(errorMessage(reason, t))
+    }
+  }
+
   const activeSession = sessions.find((session) => session.id === activeSessionId)
   const commandKey = window.barn.platform === 'darwin' ? '⌘' : 'Ctrl'
   const running = pending || activeSession?.status === 'running'
@@ -454,7 +545,7 @@ export function App() {
     window.barn.platform === 'darwin' ? 'platform-darwin' : '',
     sidebarOpen ? '' : 'sidebar-collapsed',
   ].filter(Boolean).join(' ')
-  const workspaceShellClassName = 'workspace-shell'
+  const workspaceShellClassName = browserOpen ? 'workspace-shell browser-open' : 'workspace-shell'
 
   return (
     <div className={appShellClassName}>
@@ -675,7 +766,7 @@ export function App() {
         </div>
       </aside>
 
-      <div className={workspaceShellClassName}>
+      <div className={workspaceShellClassName} data-testid="workspace-shell">
       <main className="workspace">
         <header className="workspace-header">
           {!sidebarOpen && (
@@ -694,7 +785,16 @@ export function App() {
               <h1 title={workspaceTitle}>{workspaceTitle}</h1>
             </div>
           </div>
-          <div className="workspace-header-actions" />
+          <div className="workspace-header-actions">
+            <TooltipButton
+              className={browserOpen ? 'icon-button browser-toggle active' : 'icon-button browser-toggle'}
+              label={browserOpen ? t('browser.close') : t('browser.open')}
+              aria-pressed={browserOpen}
+              onClick={() => void toggleBrowser()}
+            >
+              <Globe2 size={15} />
+            </TooltipButton>
+          </div>
         </header>
 
         <div className="workspace-body">
@@ -812,6 +912,15 @@ export function App() {
                 )}
               </section>
 
+              {!browserOpen && (
+                <AgentScreen
+                  preview={agentScreenPreview}
+                  url={browserState.url}
+                  title={browserState.title}
+                  onOpenBrowser={() => void toggleBrowser()}
+                />
+              )}
+
               <div className="composer-dock">
                 <div className="composer-project">
                   {workingDirectory === undefined ? (
@@ -897,6 +1006,17 @@ export function App() {
 
         </div>
       </main>
+
+      {browserOpen && (
+        <BrowserPanel
+          state={browserState}
+          onBack={() => browserHistory('back')}
+          onClose={closeBrowser}
+          onForward={() => browserHistory('forward')}
+          onNavigate={navigateBrowser}
+          onReload={reloadBrowser}
+        />
+      )}
       </div>
 
       {settingsOpen && (

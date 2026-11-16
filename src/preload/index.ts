@@ -29,6 +29,9 @@ import type {
   ThemeState,
   SetDefaultModelInput,
   MemoryBridge,
+  BrowserBridge,
+  BrowserBounds,
+  BrowserLiveEvent,
 } from '../shared/models'
 
 const models: ModelBridge = {
@@ -41,6 +44,23 @@ const models: ModelBridge = {
   saveCustomProvider: (input: CustomProviderConfig) => ipcRenderer.invoke('models:save-custom-provider', input),
   deleteCustomProvider: (input: DeleteCustomProviderInput) => ipcRenderer.invoke('models:delete-custom-provider', input.providerId),
   testModel: (input: ModelTestInput) => ipcRenderer.invoke('models:test', input),
+}
+
+const browser: BrowserBridge = {
+  getState: () => ipcRenderer.invoke('browser:get-state'),
+  open: (url?: string) => ipcRenderer.invoke('browser:open', url),
+  close: () => ipcRenderer.invoke('browser:close'),
+  navigate: (url: string) => ipcRenderer.invoke('browser:navigate', url),
+  back: () => ipcRenderer.invoke('browser:back'),
+  forward: () => ipcRenderer.invoke('browser:forward'),
+  reload: () => ipcRenderer.invoke('browser:reload'),
+  setBounds: (bounds: BrowserBounds) => ipcRenderer.invoke('browser:set-bounds', bounds),
+  capture: () => ipcRenderer.invoke('browser:capture') as Promise<string | undefined>,
+  onEvent: (listener: (event: BrowserLiveEvent) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, liveEvent: BrowserLiveEvent): void => listener(liveEvent)
+    ipcRenderer.on('browser:event', handler)
+    return () => ipcRenderer.removeListener('browser:event', handler)
+  },
 }
 
 const sessions: SessionBridge = {
@@ -144,6 +164,7 @@ const api: BarnBridge = {
   theme,
   i18n,
   models,
+  browser,
   sessions,
   tasks,
   permissions,
