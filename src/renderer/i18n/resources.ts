@@ -143,6 +143,13 @@ const en = {
     agentScreen: 'Agent screen',
     agentScreenReady: 'Browser is ready when you need it',
     openScreen: 'Open screen',
+    tools: {
+      open: 'Opening page',
+      observe: 'Reading page',
+      act: 'Using page controls',
+      read: 'Reading visible text',
+      screenshot: 'Checking the screen',
+    },
   },
   memorySettings: {
     title: 'Agent memory',
@@ -328,6 +335,11 @@ const en = {
     memorySearch: 'Searched memory',
     memorySave: 'Saved memory',
     memoryForget: 'Forgot memory',
+    browserOpen: 'Opened a web page',
+    browserObserve: 'Observed a web page',
+    browserAct: 'Used browser controls',
+    browserRead: 'Read a web page',
+    browserScreenshot: 'Captured a web page',
     ranTool: 'Ran {{name}}',
   },
   settings: {
@@ -555,6 +567,13 @@ const zhCN: TranslationSchema = {
     agentScreen: 'Agent 屏幕',
     agentScreenReady: '需要时即可打开浏览器',
     openScreen: '打开屏幕',
+    tools: {
+      open: '正在打开页面',
+      observe: '正在读取页面',
+      act: '正在操作页面',
+      read: '正在读取可见文本',
+      screenshot: '正在检查屏幕',
+    },
   },
   memorySettings: {
     title: '智能助手记忆',
@@ -740,6 +759,11 @@ const zhCN: TranslationSchema = {
     memorySearch: '已搜索记忆',
     memorySave: '已保存记忆',
     memoryForget: '已移除记忆',
+    browserOpen: '已打开网页',
+    browserObserve: '已观察网页',
+    browserAct: '已操作浏览器',
+    browserRead: '已读取网页',
+    browserScreenshot: '已截取网页',
     ranTool: '已运行 {{name}}',
   },
   settings: {

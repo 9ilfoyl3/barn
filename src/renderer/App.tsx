@@ -44,6 +44,7 @@ import { DiagnosticsSettings } from './DiagnosticsSettings'
 import { SettingsPage } from './SettingsPage'
 import { AttachmentStrip } from './AttachmentStrip'
 import { AgentScreen } from './AgentScreen'
+import type { AgentScreenStep } from '@/components/beautiful-ui/agent-screen'
 import { BrowserPanel } from './BrowserPanel'
 import './composer-workspace.css'
 import './browser-panel.css'
@@ -509,6 +510,19 @@ export function App() {
   const workingDirectoryLabel = workingDirectory === undefined
     ? t('conversation.chooseWorkingDirectory')
     : workingDirectory.split(/[\\/]/).filter(Boolean).at(-1) ?? workingDirectory
+  const browserToolParts = [...messages.flatMap((message) => message.parts), ...liveParts]
+    .filter((part): part is Extract<ConversationPart, { type: 'tool' }> => (
+      part.type === 'tool' && part.tool.name.startsWith('browser_')
+    ))
+  const agentScreenSteps: AgentScreenStep[] = browserToolParts.slice(-6).map((part) => ({
+    id: part.tool.id,
+    label: browserToolLabel(part.tool.name, t),
+    status: part.tool.status === 'running'
+      ? 'running'
+      : part.tool.status === 'success'
+        ? 'complete'
+        : 'pending',
+  }))
   const workspaceTitle = view === 'tasks'
     ? t('tasks.title')
     : view === 'settings'
@@ -917,6 +931,7 @@ export function App() {
                   preview={agentScreenPreview}
                   url={browserState.url}
                   title={browserState.title}
+                  steps={agentScreenSteps}
                   onOpenBrowser={() => void toggleBrowser()}
                 />
               )}
@@ -1032,6 +1047,17 @@ export function App() {
   )
 }
 
+function browserToolLabel(name: string, t: ReturnType<typeof useTranslation>['t']): string {
+  switch (name) {
+    case 'browser_open': return t('browser.tools.open')
+    case 'browser_observe': return t('browser.tools.observe')
+    case 'browser_act': return t('browser.tools.act')
+    case 'browser_read': return t('browser.tools.read')
+    case 'browser_screenshot': return t('browser.tools.screenshot')
+    default: return name
+  }
+}
+
 function ToolGroup({ tools }: { tools: ToolCallView[] }) {
   const { t } = useTranslation()
   const running = tools.find((tool) => tool.status === 'running')
@@ -1097,7 +1123,7 @@ function toolChipStep(tool: ToolCallView): ToolStep {
 
 function toolThinkingTarget(tool: ToolCallView): string {
   const parsed = toolArgumentsRecord(tool)
-  for (const key of ['command', 'path', 'file_path', 'directory', 'folder', 'pattern', 'query', 'cwd']) {
+  for (const key of ['command', 'url', 'path', 'file_path', 'directory', 'folder', 'pattern', 'query', 'cwd']) {
     const value = parsed?.[key]
     if (typeof value === 'string' && value.trim().length > 0) return truncate(value.trim(), 72)
   }
@@ -1117,6 +1143,11 @@ function toolActionLabel(name: string, t: ReturnType<typeof useTranslation>['t']
     case 'memory_search': return t('tools.memorySearch')
     case 'memory_save': return t('tools.memorySave')
     case 'memory_forget': return t('tools.memoryForget')
+    case 'browser_open': return t('tools.browserOpen')
+    case 'browser_observe': return t('tools.browserObserve')
+    case 'browser_act': return t('tools.browserAct')
+    case 'browser_read': return t('tools.browserRead')
+    case 'browser_screenshot': return t('tools.browserScreenshot')
     default: return t('tools.ranTool', { name })
   }
 }

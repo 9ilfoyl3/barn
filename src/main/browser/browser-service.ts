@@ -1,6 +1,7 @@
 import { BrowserWindow, session, WebContentsView } from 'electron'
 import type { BrowserBounds, BrowserLiveEvent, BrowserState } from '../../shared/models'
 import { isAllowedBrowserUrl, normalizeBrowserUrl } from './browser-policy'
+import { collectPageSnapshot, performPageActions, readPageText, type PageAction, type PageSnapshot } from './page-script'
 
 const browserPartition = 'persist:barn-agent-browser'
 
@@ -79,6 +80,50 @@ export class BrowserService {
     return this.getState()
   }
 
+  async loadUrl(url: string): Promise<BrowserState> {
+    const view = this.ensureView()
+    this.attachView(view)
+    view.setVisible(true)
+    const normalized = normalizeBrowserUrl(url)
+    this.patch({ open: true, visible: true, url: normalized, loading: true, error: undefined })
+    await view.webContents.loadURL(normalized)
+    this.syncNavigationState()
+    this.patch({ loading: false })
+    return this.getState()
+  }
+
+  async observe(options: { textLimit: number; maxElements: number }): Promise<PageSnapshot> {
+    this.requireOpen()
+    return this.executePageFunction(collectPageSnapshot, options)
+  }
+
+  async readText(maxChars: number): Promise<ReturnType<typeof readPageText>> {
+    this.requireOpen()
+    return this.executePageFunction(readPageText, maxChars)
+  }
+
+  async performActions(actions: PageAction[]): Promise<{ performed: number; url: string; title: string }> {
+    this.requireOpen()
+    const result = await this.executePageFunction(performPageActions, actions)
+    await this.waitForIdle(5_000)
+    this.syncNavigationState()
+    return result
+  }
+
+  async capturePng(): Promise<{ data: string; mimeType: 'image/png'; width: number; height: number }> {
+    this.requireOpen()
+    const view = this.ensureView()
+    const image = await view.webContents.capturePage()
+    if (image.isEmpty()) throw new Error('Browser screen capture is empty')
+    const size = image.getSize()
+    return {
+      data: image.toPNG().toString('base64'),
+      mimeType: 'image/png',
+      width: size.width,
+      height: size.height,
+    }
+  }
+
   setBounds(bounds: BrowserBounds): void {
     const content = this.window.getContentBounds()
     const x = clamp(Math.round(bounds.x), 0, content.width)
@@ -109,6 +154,35 @@ export class BrowserService {
       // The parent window may already be gone.
     }
     if (!view.webContents.isDestroyed()) view.webContents.close()
+  }
+
+  private async executePageFunction<Arg, Result>(fn: (arg: Arg) => Result, arg: Arg): Promise<Awaited<Result>> {
+    const view = this.ensureView()
+    const code = `(${fn.toString()})(${JSON.stringify(arg)})`
+    return view.webContents.executeJavaScript(code, true) as Promise<Awaited<Result>>
+  }
+
+  private async waitForIdle(timeoutMs: number): Promise<void> {
+    if (this.state.loading !== true || this.view === undefined) return
+    const webContents = this.view.webContents
+    await new Promise<void>((resolve) => {
+      let timer: NodeJS.Timeout
+      const finish = (): void => {
+        clearTimeout(timer)
+        webContents.removeListener('did-stop-loading', finish)
+        webContents.removeListener('did-fail-load', finish)
+        resolve()
+      }
+      timer = setTimeout(finish, timeoutMs)
+      webContents.once('did-stop-loading', finish)
+      webContents.once('did-fail-load', finish)
+    })
+  }
+
+  private requireOpen(): void {
+    if (!this.state.open || this.view === undefined || this.view.webContents.isDestroyed()) {
+      throw new Error('Browser is not open. Use browser_open first.')
+    }
   }
 
   private ensureView(): WebContentsView {

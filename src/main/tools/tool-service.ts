@@ -5,6 +5,7 @@ import { dirname, extname, isAbsolute, relative, resolve, sep } from 'node:path'
 import { z } from 'zod'
 import type { ToolExecutionResult } from '../../shared/agent-protocol'
 import type { ShellService } from '../sandbox/shell-service'
+import type { BrowserToolService } from '../browser/browser-tools'
 import { resolveSandboxPolicy } from '../sandbox/policy'
 import {
   findFilesInput,
@@ -64,6 +65,7 @@ export interface ToolServiceOptions {
   privateTempRoot: string
   shell: ShellService
   memory?: MemoryService
+  browser?: BrowserToolService
 }
 
 export interface ToolExecutionContext {
@@ -85,6 +87,12 @@ export class ToolService {
     rawArgs: unknown,
     context: ToolExecutionContext = {},
   ): Promise<ToolExecutionResult> {
+    if (toolName.startsWith('browser_')) {
+      const browser = this.options.browser
+      if (browser === undefined) return errorResult('Browser tools are unavailable')
+      return browser.execute(toolName, rawArgs, context.signal)
+    }
+
     const input = TOOL_INPUTS[toolName as keyof typeof TOOL_INPUTS]
     if (input === undefined) {
       return errorResult(`Unknown tool: ${toolName}`)

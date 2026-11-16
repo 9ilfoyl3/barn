@@ -45,6 +45,8 @@ const SYSTEM_PROMPT = `You are Barn, a general-purpose personal desktop assistan
 
 You work inside a local workspace and can inspect or change files with tools. File types are unrestricted: use list_dir and find_files for discovery, search_files for content search, and read_file for text. Use write_file only for new files or complete rewrites; use edit_file for targeted changes and read the file first so each oldText is exact and unique. Use shell for format-specific extraction or conversion, and view_image for supported images when the selected model accepts image input.
 
+For websites, use browser_open to navigate, browser_observe to inspect the compact page state and stable element refs, and browser_act with those refs for click, type, select, press, hover, scroll, and wait actions. Prefer browser_observe and browser_act over screenshots. Use browser_read for larger visible text and browser_screenshot only when visual verification is necessary. The built-in browser is visible to the user and may open automatically.
+
 Never claim to have inspected a file unless a tool returned its content. Do not assume a file is CSV, XLSX, PDF, or a table; inspect it and adapt to its actual content.
 
 Work incrementally across conversation turns. Prefer useful summaries and grouped exceptions over asking the user to repeat information. Ask only for high-impact missing or ambiguous details. Never invent facts, figures, dates, quotations, or sources.
@@ -450,6 +452,37 @@ function createTools(
   executeTool: (toolName: string, args: unknown, signal?: AbortSignal) => Promise<ToolExecutionResult>,
   supportsImages: boolean,
 ): AgentTool[] {
+  const browserAction = Type.Union([
+    Type.Object({ type: Type.Literal('click'), ref: Type.String({ minLength: 1, maxLength: 32 }) }),
+    Type.Object({
+      type: Type.Literal('type'),
+      ref: Type.String({ minLength: 1, maxLength: 32 }),
+      text: Type.String({ maxLength: 100_000 }),
+      submit: Type.Optional(Type.Boolean()),
+    }),
+    Type.Object({
+      type: Type.Literal('select'),
+      ref: Type.String({ minLength: 1, maxLength: 32 }),
+      value: Type.String({ maxLength: 10_000 }),
+    }),
+    Type.Object({
+      type: Type.Literal('press'),
+      key: Type.String({ minLength: 1, maxLength: 40 }),
+      ref: Type.Optional(Type.String({ minLength: 1, maxLength: 32 })),
+    }),
+    Type.Object({ type: Type.Literal('hover'), ref: Type.String({ minLength: 1, maxLength: 32 }) }),
+    Type.Object({
+      type: Type.Literal('scroll'),
+      direction: Type.Optional(Type.Union([
+        Type.Literal('up'), Type.Literal('down'), Type.Literal('left'), Type.Literal('right'),
+      ])),
+      amount: Type.Optional(Type.Integer({ minimum: 1, maximum: 10_000 })),
+    }),
+    Type.Object({
+      type: Type.Literal('wait'),
+      ms: Type.Optional(Type.Integer({ minimum: 0, maximum: 10_000 })),
+    }),
+  ])
   const tools: AgentTool[] = [
     tool('read_file', 'Read File', 'Read a UTF-8 text file with line numbers. For binary files, use shell or view_image.', Type.Object({
       path: Type.String({ description: 'Path relative to the managed workspace or an absolute path inside it' }),
@@ -515,6 +548,23 @@ function createTools(
     tools.push(tool('view_image', 'View Image', 'Attach a local PNG, JPEG, WebP, or GIF image to the conversation.', Type.Object({
       path: Type.String({ minLength: 1 }),
     }), executeTool))
+  }
+
+  tools.push(tool('browser_open', 'Open Browser', 'Open the visible built-in browser and navigate to a URL. Follow with browser_observe before interacting.', Type.Object({
+    url: Type.String({ minLength: 1, maxLength: 20_000 }),
+  }), executeTool))
+  tools.push(tool('browser_observe', 'Observe Browser', 'Return the current page URL, title, visible text, and compact interactive elements with stable refs. Prefer this over screenshots for page-state reasoning.', Type.Object({
+    textLimit: Type.Optional(Type.Integer({ minimum: 500, maximum: 20_000 })),
+    maxElements: Type.Optional(Type.Integer({ minimum: 1, maximum: 300 })),
+  }), executeTool))
+  tools.push(tool('browser_act', 'Act In Browser', 'Perform one or more semantic browser actions using refs returned by browser_observe. Ref values are short ids such as e1.', Type.Object({
+    actions: Type.Array(browserAction, { minItems: 1, maxItems: 12 }),
+  }), executeTool))
+  tools.push(tool('browser_read', 'Read Browser Page', 'Read bounded visible text from the current page when the compact observation is insufficient.', Type.Object({
+    maxChars: Type.Optional(Type.Integer({ minimum: 500, maximum: 50_000 })),
+  }), executeTool))
+  if (supportsImages) {
+    tools.push(tool('browser_screenshot', 'Browser Screenshot', 'Capture the visible browser page as an image for visual verification. Use only when semantic observation is insufficient.', Type.Object({}), executeTool))
   }
   return tools
 }
