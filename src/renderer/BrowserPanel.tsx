@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { ArrowLeft, ArrowRight, Globe2, LoaderCircle, RotateCw, X } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Globe2, LoaderCircle, Plus, RotateCw, X } from 'lucide-react'
 import type { BrowserState } from '../shared/models'
 
 export interface BrowserPanelProps {
@@ -9,9 +9,12 @@ export interface BrowserPanelProps {
   onForward: () => Promise<void>
   onNavigate: (url: string) => Promise<void>
   onReload: () => Promise<void>
+  onNewTab: () => Promise<void>
+  onActivateTab: (tabId: string) => Promise<void>
+  onCloseTab: (tabId: string) => Promise<void>
 }
 
-export function BrowserPanel({ state, onBack, onClose, onForward, onNavigate, onReload }: BrowserPanelProps) {
+export function BrowserPanel({ state, onBack, onClose, onForward, onNavigate, onReload, onNewTab, onActivateTab, onCloseTab }: BrowserPanelProps) {
   const viewportRef = useRef<HTMLDivElement>(null)
   const [address, setAddress] = useState(state.url === 'about:blank' ? '' : state.url)
   const [submitting, setSubmitting] = useState(false)
@@ -73,6 +76,37 @@ export function BrowserPanel({ state, onBack, onClose, onForward, onNavigate, on
           <X size={16} />
         </button>
       </header>
+
+      <div className="browser-tab-strip" role="tablist" aria-label="Browser tabs">
+        <div className="browser-tab-list">
+          {state.tabs.map((tab) => (
+            <div className={tab.active ? 'browser-tab active' : 'browser-tab'} key={tab.id}>
+              <button
+                className="browser-tab-select"
+                type="button"
+                role="tab"
+                aria-selected={tab.active}
+                title={tab.title || tab.url || 'New tab'}
+                onClick={() => void onActivateTab(tab.id)}
+              >
+                {tab.loading ? <LoaderCircle className="browser-spinner" size={12} /> : <Globe2 size={12} />}
+                <span>{tab.title || (tab.url === 'about:blank' ? 'New tab' : tab.url)}</span>
+              </button>
+              <button
+                className="browser-tab-close"
+                type="button"
+                aria-label={`Close ${tab.title || 'tab'}`}
+                onClick={() => void onCloseTab(tab.id)}
+              >
+                <X size={11} />
+              </button>
+            </div>
+          ))}
+        </div>
+        <button className="browser-new-tab" type="button" aria-label="New tab" onClick={() => void onNewTab()}>
+          <Plus size={14} />
+        </button>
+      </div>
 
       <div className="browser-toolbar">
         <button type="button" aria-label="Back" disabled={!state.canGoBack} onClick={() => void onBack()}>

@@ -10,6 +10,7 @@ const boundsSchema = z.object({
 })
 
 const urlSchema = z.string().min(1).max(20_000)
+const tabIdSchema = z.string().uuid()
 
 export function registerBrowserIpc(
   getBrowser: () => BrowserService | undefined,
@@ -31,6 +32,18 @@ export function registerBrowserIpc(
   ipcMain.handle('browser:navigate', (event, rawUrl: unknown) => {
     const browser = requireTrusted(event)
     return browser.navigate(urlSchema.parse(rawUrl))
+  })
+  ipcMain.handle('browser:new-tab', (event, rawUrl?: unknown) => {
+    const browser = requireTrusted(event)
+    return browser.newTab(rawUrl === undefined ? undefined : urlSchema.parse(rawUrl))
+  })
+  ipcMain.handle('browser:activate-tab', (event, rawTabId: unknown) => {
+    const browser = requireTrusted(event)
+    return browser.activateTab(tabIdSchema.parse(rawTabId))
+  })
+  ipcMain.handle('browser:close-tab', (event, rawTabId: unknown) => {
+    const browser = requireTrusted(event)
+    return browser.closeTab(tabIdSchema.parse(rawTabId))
   })
   ipcMain.handle('browser:back', (event) => requireTrusted(event).back())
   ipcMain.handle('browser:forward', (event) => requireTrusted(event).forward())

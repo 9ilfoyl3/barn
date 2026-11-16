@@ -107,6 +107,7 @@ export function App() {
     loading: false,
     canGoBack: false,
     canGoForward: false,
+    tabs: [],
   })
   const [agentScreenPreview, setAgentScreenPreview] = useState<string>()
   const listRef = useRef<HTMLElement>(null)
@@ -481,6 +482,34 @@ export function App() {
         ? await window.barn.browser.back()
         : await window.barn.browser.forward()
       setBrowserState(state)
+    } catch (reason) {
+      setError(errorMessage(reason, t))
+    }
+  }
+
+  async function newBrowserTab(): Promise<void> {
+    try {
+      const state = await window.barn.browser.newTab()
+      setBrowserState(state)
+      setBrowserOpen(state.open)
+    } catch (reason) {
+      setError(errorMessage(reason, t))
+    }
+  }
+
+  async function activateBrowserTab(tabId: string): Promise<void> {
+    try {
+      setBrowserState(await window.barn.browser.activateTab(tabId))
+    } catch (reason) {
+      setError(errorMessage(reason, t))
+    }
+  }
+
+  async function closeBrowserTab(tabId: string): Promise<void> {
+    try {
+      const state = await window.barn.browser.closeTab(tabId)
+      setBrowserState(state)
+      setBrowserOpen(state.open)
     } catch (reason) {
       setError(errorMessage(reason, t))
     }
@@ -1030,6 +1059,9 @@ export function App() {
           onForward={() => browserHistory('forward')}
           onNavigate={navigateBrowser}
           onReload={reloadBrowser}
+          onNewTab={newBrowserTab}
+          onActivateTab={activateBrowserTab}
+          onCloseTab={closeBrowserTab}
         />
       )}
       </div>
@@ -1053,6 +1085,7 @@ function browserToolLabel(name: string, t: ReturnType<typeof useTranslation>['t'
     case 'browser_observe': return t('browser.tools.observe')
     case 'browser_act': return t('browser.tools.act')
     case 'browser_read': return t('browser.tools.read')
+    case 'browser_tab': return t('browser.tools.tabs')
     case 'browser_screenshot': return t('browser.tools.screenshot')
     default: return name
   }
@@ -1147,6 +1180,7 @@ function toolActionLabel(name: string, t: ReturnType<typeof useTranslation>['t']
     case 'browser_observe': return t('tools.browserObserve')
     case 'browser_act': return t('tools.browserAct')
     case 'browser_read': return t('tools.browserRead')
+    case 'browser_tab': return t('tools.browserTab')
     case 'browser_screenshot': return t('tools.browserScreenshot')
     default: return t('tools.ranTool', { name })
   }

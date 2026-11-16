@@ -48,6 +48,22 @@ const actInput = z.object({
   actions: z.array(actionSchema).min(1).max(12),
 })
 
+const tabInput = z.discriminatedUnion('action', [
+  z.object({ action: z.literal('list') }),
+  z.object({
+    action: z.literal('new'),
+    url: z.string().min(1).max(20_000).optional(),
+  }),
+  z.object({
+    action: z.literal('select'),
+    tabId: z.string().uuid(),
+  }),
+  z.object({
+    action: z.literal('close'),
+    tabId: z.string().uuid(),
+  }),
+])
+
 const readInput = z.object({
   maxChars: z.number().int().min(500).max(50_000).optional(),
 })
@@ -99,6 +115,27 @@ export class BrowserToolService {
           return {
             content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
             details: result,
+          }
+        }
+        case 'browser_tab': {
+          const input = tabInput.parse(rawArgs)
+          let state = browser.getState()
+          if (input.action === 'new') {
+            state = input.url === undefined ? browser.newTab() : await browser.newTabAndLoad(input.url)
+          } else if (input.action === 'select') {
+            state = browser.activateTab(input.tabId)
+          } else if (input.action === 'close') {
+            state = browser.closeTab(input.tabId)
+          }
+          return {
+            content: [{
+              type: 'text',
+              text: JSON.stringify({
+                activeTabId: state.activeTabId,
+                tabs: state.tabs,
+              }, null, 2),
+            }],
+            details: { activeTabId: state.activeTabId, tabs: state.tabs },
           }
         }
         case 'browser_read': {
