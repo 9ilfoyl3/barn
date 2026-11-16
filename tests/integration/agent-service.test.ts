@@ -155,6 +155,111 @@ describe('AgentService integration', () => {
     sessions.close()
   })
 
+  it('honors cancellation while the Worker session is still opening', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'barn-agent-cancel-start-'))
+    const workspace = join(directory, 'workspace')
+    const output = join(directory, 'output')
+    const temp = join(directory, 'temp')
+    await Promise.all([mkdir(workspace), mkdir(output), mkdir(temp)])
+
+    const sessions = new SessionStore(join(directory, 'sessions.db'), new AesGcmEventCipher(randomBytes(32)))
+    await sessions.initialize()
+    let releaseOpen: (() => void) | undefined
+    const openGate = new Promise<void>((resolve) => { releaseOpen = resolve })
+    const prompt = vi.fn(async (_sessionId: string, _text: string) => undefined)
+    const cancel = vi.fn(async (_sessionId: string) => undefined)
+    const supervisor = {
+      onMessage: () => () => undefined,
+      onStatus: () => () => undefined,
+      openSession: vi.fn(async () => openGate),
+      prompt,
+      cancel,
+    } as unknown as WorkerSupervisor
+    const tools = new ToolService({
+      workspaceRoot: workspace,
+      outputRoot: output,
+      privateTempRoot: temp,
+      shell: { run: vi.fn() } as unknown as ShellService,
+    })
+    const agent = new AgentService(supervisor, fakeModels(), sessions, tools)
+    const statuses: string[] = []
+    agent.onLiveEvent((event) => {
+      if (event.type === 'run.status') statuses.push(event.status)
+    })
+
+    const sessionId = randomUUID()
+    const starting = agent.prompt(sessionId, 'Hello')
+    await vi.waitFor(() => expect(supervisor.openSession).toHaveBeenCalled())
+    await agent.cancel(sessionId)
+    releaseOpen?.()
+    const summary = await starting
+
+    expect(prompt).not.toHaveBeenCalled()
+    expect(cancel).not.toHaveBeenCalled()
+    expect(statuses).toEqual(['cancelled'])
+    expect(summary.status).toBe('idle')
+    sessions.close()
+  })
+
+  it('forwards a Worker tool cancellation to the running Host tool', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'barn-agent-cancel-tool-'))
+    const workspace = join(directory, 'workspace')
+    const output = join(directory, 'output')
+    const temp = join(directory, 'temp')
+    await Promise.all([mkdir(workspace), mkdir(output), mkdir(temp)])
+
+    const sessions = new SessionStore(join(directory, 'sessions.db'), new AesGcmEventCipher(randomBytes(32)))
+    await sessions.initialize()
+    let workerMessage: ((message: WorkerToHostMessage) => void) | undefined
+    const supervisor = {
+      onMessage: (listener: (message: WorkerToHostMessage) => void) => {
+        workerMessage = listener
+        return () => { workerMessage = undefined }
+      },
+      onStatus: () => () => undefined,
+      post: vi.fn(),
+    } as unknown as WorkerSupervisor
+    const shellRun = vi.fn((request: { command: string; cwd: string; signal?: AbortSignal }) =>
+      new Promise((resolve) => {
+        request.signal?.addEventListener('abort', () => resolve({
+          command: request.command,
+          cwd: request.cwd,
+          exitCode: null,
+          stdout: '',
+          stderr: '',
+          timedOut: false,
+          aborted: true,
+          sandbox: { backend: 'test', mode: 'workspace-write' },
+        }), { once: true })
+      }))
+    const tools = new ToolService({
+      workspaceRoot: workspace,
+      outputRoot: output,
+      privateTempRoot: temp,
+      shell: { run: shellRun } as unknown as ShellService,
+    })
+    const agent = new AgentService(supervisor, fakeModels(), sessions, tools)
+    expect(agent).toBeDefined()
+    const sessionId = sessions.createSession('Tool cancellation', randomUUID()).id
+
+    workerMessage?.({
+      type: 'tool.execute',
+      requestId: 'worker:request:tool-1',
+      sessionId,
+      toolName: 'shell',
+      args: { command: 'sleep 10' },
+    })
+    await vi.waitFor(() => expect(shellRun).toHaveBeenCalled())
+    const signal = shellRun.mock.calls[0]?.[0].signal
+    expect(signal?.aborted).toBe(false)
+
+    workerMessage?.({ type: 'tool.cancel', requestId: 'worker:request:tool-1' })
+
+    expect(signal?.aborted).toBe(true)
+    expect(supervisor.post).not.toHaveBeenCalled()
+    sessions.close()
+  })
+
   it('runs a prompt through the Worker and persists the conversation', async () => {
     const directory = await mkdtemp(join(tmpdir(), 'barn-agent-service-'))
     const workspace = join(directory, 'workspace')

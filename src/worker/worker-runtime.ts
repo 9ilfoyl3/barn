@@ -32,11 +32,13 @@ export interface WorkerPort {
 interface PendingHostRequest {
   resolve(value: unknown): void
   reject(error: Error): void
+  cleanup(): void
 }
 
 interface ActiveModelStream {
   stream: AssistantMessageEventStream
   model: Model<Api>
+  partial?: AssistantMessage
 }
 
 const SYSTEM_PROMPT = `You are Barn, a general-purpose personal desktop assistant for everyday office work.
@@ -125,7 +127,7 @@ export class WorkerRuntime {
       if (existing?.running === true) throw new Error('Session is already running')
       const session = new WorkerSession(
         seed,
-        (toolName, args) => this.executeTool(seed.sessionId, toolName, args),
+        (toolName, args, signal) => this.executeTool(seed.sessionId, toolName, args, signal),
         (modelToUse, context, options) =>
           this.createModelStream(seed.sessionId, modelToUse, context, options),
         (runId, status, error) => this.port.postMessage({
@@ -191,13 +193,18 @@ export class WorkerRuntime {
     this.pendingHostRequests.clear()
   }
 
-  private async executeTool(sessionId: string, toolName: string, args: unknown): Promise<ToolExecutionResult> {
+  private async executeTool(
+    sessionId: string,
+    toolName: string,
+    args: unknown,
+    signal?: AbortSignal,
+  ): Promise<ToolExecutionResult> {
     const result = await this.requestHost({
       type: 'tool.execute',
       sessionId,
       toolName,
       args,
-    })
+    }, signal)
     return toolExecutionResultSchema.parse(result)
   }
 
@@ -209,16 +216,25 @@ export class WorkerRuntime {
   ): AssistantMessageEventStream {
     const requestId = `worker:model:${randomUUID()}`
     const stream = createAssistantMessageEventStream()
+    if (options?.signal?.aborted) {
+      stream.push({
+        type: 'error',
+        reason: 'aborted',
+        error: abortedAssistantMessage(model),
+      })
+      return stream
+    }
     this.modelStreams.set(requestId, { stream, model })
 
     const abort = (): void => {
-      if (!this.modelStreams.has(requestId)) return
+      const active = this.modelStreams.get(requestId)
+      if (active === undefined) return
       this.modelStreams.delete(requestId)
       this.port.postMessage({ type: 'model.abort', requestId })
       stream.push({
         type: 'error',
         reason: 'aborted',
-        error: errorMessage(model, 'Request aborted'),
+        error: abortedAssistantMessage(model, active.partial),
       })
     }
     options?.signal?.addEventListener('abort', abort, { once: true })
@@ -238,6 +254,7 @@ export class WorkerRuntime {
     const active = this.modelStreams.get(requestId)
     if (active === undefined) return
     const event = rawEvent as AssistantMessageEvent
+    if ('partial' in event) active.partial = event.partial
     active.stream.push(event)
     if (event.type === 'done' || event.type === 'error') {
       this.modelStreams.delete(requestId)
@@ -252,10 +269,24 @@ export class WorkerRuntime {
     })
   }
 
-  private requestHost(message: WorkerRequestInput): Promise<unknown> {
+  private requestHost(message: WorkerRequestInput, signal?: AbortSignal): Promise<unknown> {
     const requestId = `worker:request:${randomUUID()}`
     return new Promise<unknown>((resolve, reject) => {
-      this.pendingHostRequests.set(requestId, { resolve, reject })
+      if (signal?.aborted) {
+        reject(new Error('Operation aborted'))
+        return
+      }
+
+      const abort = (): void => {
+        if (!this.pendingHostRequests.has(requestId)) return
+        this.pendingHostRequests.delete(requestId)
+        signal?.removeEventListener('abort', abort)
+        this.port.postMessage({ type: 'tool.cancel', requestId })
+        reject(new Error('Operation aborted'))
+      }
+      const cleanup = (): void => signal?.removeEventListener('abort', abort)
+      this.pendingHostRequests.set(requestId, { resolve, reject, cleanup })
+      signal?.addEventListener('abort', abort, { once: true })
       this.port.postMessage({ ...message, requestId } as WorkerToHostMessage)
     })
   }
@@ -264,6 +295,7 @@ export class WorkerRuntime {
     const pending = this.pendingHostRequests.get(requestId)
     if (pending === undefined) return
     this.pendingHostRequests.delete(requestId)
+    pending.cleanup()
     pending.resolve(result)
   }
 
@@ -271,6 +303,7 @@ export class WorkerRuntime {
     const pending = this.pendingHostRequests.get(requestId)
     if (pending === undefined) return
     this.pendingHostRequests.delete(requestId)
+    pending.cleanup()
     pending.reject(new Error(error))
   }
 
@@ -299,7 +332,7 @@ class WorkerSession {
 
   constructor(
     private readonly seed: WorkerSessionSeed,
-    executeTool: (toolName: string, args: unknown) => Promise<ToolExecutionResult>,
+    executeTool: (toolName: string, args: unknown, signal?: AbortSignal) => Promise<ToolExecutionResult>,
     createStream: (
       model: Model<Api>,
       context: TranscriptContext,
@@ -354,7 +387,7 @@ class WorkerSession {
           reportEvent(runId, { type: 'assistant.thinking', delta: delta.delta })
         }
       } else if (event.type === 'message_end' && event.message.role !== 'user') {
-        await appendMessage(event.message)
+        if (!isEmptyAbortedMessage(event.message)) await appendMessage(event.message)
       } else if (event.type === 'tool_execution_start') {
         reportEvent(runId, {
           type: 'tool.started',
@@ -414,7 +447,7 @@ class WorkerSession {
 }
 
 function createTools(
-  executeTool: (toolName: string, args: unknown) => Promise<ToolExecutionResult>,
+  executeTool: (toolName: string, args: unknown, signal?: AbortSignal) => Promise<ToolExecutionResult>,
   supportsImages: boolean,
 ): AgentTool[] {
   const tools: AgentTool[] = [
@@ -491,7 +524,7 @@ function tool(
   label: string,
   description: string,
   parameters: ReturnType<typeof Type.Object>,
-  executeTool: (toolName: string, args: unknown) => Promise<ToolExecutionResult>,
+  executeTool: (toolName: string, args: unknown, signal?: AbortSignal) => Promise<ToolExecutionResult>,
 ): AgentTool {
   return {
     name,
@@ -499,8 +532,8 @@ function tool(
     description,
     parameters,
     executionMode: 'sequential',
-    execute: async (_toolCallId, args) => {
-      const result = await executeTool(name, args)
+    execute: async (_toolCallId, args, signal) => {
+      const result = await executeTool(name, args, signal)
       return {
         content: result.content,
         details: (result.details ?? null) as never,
@@ -572,6 +605,35 @@ function errorMessage(model: Model<Api>, message: string): AssistantMessage {
     errorMessage: message,
     timestamp: Date.now(),
   }
+}
+
+function abortedAssistantMessage(model: Model<Api>, partial?: AssistantMessage): AssistantMessage {
+  if (partial !== undefined) {
+    const { errorMessage: _errorMessage, ...rest } = partial
+    return { ...rest, stopReason: 'aborted' }
+  }
+  return {
+    role: 'assistant',
+    content: [],
+    api: model.api,
+    provider: model.provider,
+    model: model.id,
+    usage: {
+      input: 0,
+      output: 0,
+      cacheRead: 0,
+      cacheWrite: 0,
+      totalTokens: 0,
+      cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+    },
+    stopReason: 'aborted',
+    timestamp: Date.now(),
+  }
+}
+
+function isEmptyAbortedMessage(message: AgentMessage): boolean {
+  if (message.role !== 'assistant' || message.stopReason !== 'aborted') return false
+  return message.content.length === 0
 }
 
 function stripImagePayloads(message: AgentMessage): AgentMessage {

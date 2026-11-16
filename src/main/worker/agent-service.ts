@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import type { AgentMessage } from '@earendil-works/pi-agent-core'
 import { resolveReasoningEffort } from '../../shared/models'
 import type {
@@ -17,6 +18,8 @@ import type { MemoryService } from '../memory/memory-service'
 export class AgentService {
   private readonly broker: ModelStreamBroker
   private readonly openSessions = new Map<string, string>()
+  private readonly startingRuns = new Map<string, { cancelRequested: boolean }>()
+  private readonly activeTools = new Map<string, AbortController>()
   private readonly liveListeners = new Set<(event: SessionLiveEvent) => void>()
 
   constructor(
@@ -43,66 +46,84 @@ export class AgentService {
   ): Promise<SessionSummary> {
     const trimmed = text.trim()
     if (trimmed.length === 0) throw new Error('Prompt cannot be empty')
-    const snapshot = await this.models.getSnapshot()
-    const selection = snapshot.defaultModel
-    if (selection === undefined) throw new Error('Configure a default model before chatting')
-    const model = this.models.getModelDescriptor(selection)
-    if (model === undefined) throw new Error('The selected model is no longer available')
-    const reasoningEffort = resolveReasoningEffort(
-      snapshot.defaultReasoningEffort,
-      model.reasoningEfforts,
-    )
-    let session = this.sessions.ensureSession(sessionId, 'New session', workingDirectory)
-    if (workingDirectory !== undefined && session.workingDirectory !== workingDirectory) {
-      session = this.sessions.updateWorkingDirectory(sessionId, workingDirectory)
-    }
-
-    const modelKey = `${this.models.getModelFingerprint(selection)
-      ?? `${selection.providerId}:${selection.modelId}`}:${reasoningEffort ?? 'off'}`
-    if (this.openSessions.get(sessionId) !== modelKey) {
-      await this.supervisor.openSession({
-        sessionId,
-        messages: this.loadAgentMessages(sessionId),
-        model,
-        ...(reasoningEffort === undefined ? {} : { reasoningEffort }),
-      })
-      this.openSessions.set(sessionId, modelKey)
-    }
-
-    this.sessions.append(sessionId, [{
-      type: 'agent.message',
-      data: {
-        message: {
-          role: 'user',
-          content: trimmed,
-          timestamp: Date.now(),
-        },
-        attachments,
-      },
-      actor: { kind: 'user', id: 'desktop-user' },
-    }])
-    if (session.title === 'New session') {
-      this.sessions.updateTitle(sessionId, titleFromPrompt(trimmed))
-    }
-    this.sessions.updateStatus(sessionId, 'running')
-    this.emit({ type: 'session.updated', session: this.sessions.getSession(sessionId) })
-    const workingDirectoryContext = workingDirectory === undefined
-      ? ''
-      : `\n\nCurrent working directory:\n${workingDirectory}`
-    const attachmentContext = attachments.length === 0
-      ? ''
-      : `\n\nAttached files and folders:\n${attachments.map((file) => `- ${file.path}`).join('\n')}`
-    let memoryContext = ''
+    const startingRun = { cancelRequested: false }
+    this.startingRuns.set(sessionId, startingRun)
     try {
-      memoryContext = this.memory?.contextForPrompt(trimmed, workingDirectory, sessionId) ?? ''
-    } catch {
-      // Memory is an enhancement; a retrieval failure must not block the user's prompt.
+      const snapshot = await this.models.getSnapshot()
+      const selection = snapshot.defaultModel
+      if (selection === undefined) throw new Error('Configure a default model before chatting')
+      const model = this.models.getModelDescriptor(selection)
+      if (model === undefined) throw new Error('The selected model is no longer available')
+      const reasoningEffort = resolveReasoningEffort(
+        snapshot.defaultReasoningEffort,
+        model.reasoningEfforts,
+      )
+      let session = this.sessions.ensureSession(sessionId, 'New session', workingDirectory)
+      if (workingDirectory !== undefined && session.workingDirectory !== workingDirectory) {
+        session = this.sessions.updateWorkingDirectory(sessionId, workingDirectory)
+      }
+
+      const modelKey = `${this.models.getModelFingerprint(selection)
+        ?? `${selection.providerId}:${selection.modelId}`}:${reasoningEffort ?? 'off'}`
+      if (this.openSessions.get(sessionId) !== modelKey) {
+        await this.supervisor.openSession({
+          sessionId,
+          messages: this.loadAgentMessages(sessionId),
+          model,
+          ...(reasoningEffort === undefined ? {} : { reasoningEffort }),
+        })
+        this.openSessions.set(sessionId, modelKey)
+      }
+
+      this.sessions.append(sessionId, [{
+        type: 'agent.message',
+        data: {
+          message: {
+            role: 'user',
+            content: trimmed,
+            timestamp: Date.now(),
+          },
+          attachments,
+        },
+        actor: { kind: 'user', id: 'desktop-user' },
+      }])
+      if (session.title === 'New session') {
+        this.sessions.updateTitle(sessionId, titleFromPrompt(trimmed))
+      }
+
+      if (startingRun.cancelRequested) {
+        this.finishCancelledStart(sessionId)
+        return this.sessions.getSession(sessionId)
+      }
+
+      this.sessions.updateStatus(sessionId, 'running')
+      this.emit({ type: 'session.updated', session: this.sessions.getSession(sessionId) })
+      const workingDirectoryContext = workingDirectory === undefined
+        ? ''
+        : `\n\nCurrent working directory:\n${workingDirectory}`
+      const attachmentContext = attachments.length === 0
+        ? ''
+        : `\n\nAttached files and folders:\n${attachments.map((file) => `- ${file.path}`).join('\n')}`
+      let memoryContext = ''
+      try {
+        memoryContext = this.memory?.contextForPrompt(trimmed, workingDirectory, sessionId) ?? ''
+      } catch {
+        // Memory is an enhancement; a retrieval failure must not block the user's prompt.
+      }
+      await this.supervisor.prompt(sessionId, `${trimmed}${workingDirectoryContext}${attachmentContext}${memoryContext}`)
+      if (startingRun.cancelRequested) await this.supervisor.cancel(sessionId)
+      return this.sessions.getSession(sessionId)
+    } finally {
+      if (this.startingRuns.get(sessionId) === startingRun) this.startingRuns.delete(sessionId)
     }
-    await this.supervisor.prompt(sessionId, `${trimmed}${workingDirectoryContext}${attachmentContext}${memoryContext}`)
-    return this.sessions.getSession(sessionId)
   }
 
   async cancel(sessionId: string): Promise<void> {
+    const startingRun = this.startingRuns.get(sessionId)
+    if (startingRun !== undefined) {
+      startingRun.cancelRequested = true
+      return
+    }
     this.sessions.getSession(sessionId)
     await this.supervisor.cancel(sessionId)
   }
@@ -137,6 +158,8 @@ export class AgentService {
 
   async stop(): Promise<void> {
     this.broker.abortAll()
+    for (const controller of this.activeTools.values()) controller.abort()
+    this.activeTools.clear()
     await this.supervisor.stop()
   }
 
@@ -196,23 +219,35 @@ export class AgentService {
       case 'model.abort':
         this.broker.abort(message.requestId)
         return
-      case 'tool.execute':
+      case 'tool.execute': {
+        const controller = new AbortController()
+        this.activeTools.set(message.requestId, controller)
         void this.tools.execute(message.toolName, message.args, {
           workingDirectory: this.sessions.getSession(message.sessionId).workingDirectory,
           sessionId: message.sessionId,
+          signal: controller.signal,
         })
           .then((result) => {
-            this.supervisor.post({
+            if (!controller.signal.aborted) this.supervisor.post({
               type: 'request.ok',
               requestId: message.requestId,
               result,
             })
           })
-          .catch((error: unknown) => this.supervisor.post({
-            type: 'request.error',
-            requestId: message.requestId,
-            error: errorMessage(error),
-          }))
+          .catch((error: unknown) => {
+            if (!controller.signal.aborted) this.supervisor.post({
+              type: 'request.error',
+              requestId: message.requestId,
+              error: errorMessage(error),
+            })
+          })
+          .finally(() => {
+            if (this.activeTools.get(message.requestId) === controller) this.activeTools.delete(message.requestId)
+          })
+        return
+      }
+      case 'tool.cancel':
+        this.activeTools.get(message.requestId)?.abort()
         return
       case 'request.ok':
       case 'request.error':
@@ -224,6 +259,8 @@ export class AgentService {
   private handleWorkerStatus(status: WorkerSupervisorStatus): void {
     if (status.state !== 'crashed') return
     this.broker.abortAll()
+    for (const controller of this.activeTools.values()) controller.abort()
+    this.activeTools.clear()
     for (const sessionId of this.openSessions.keys()) {
       try {
         this.sessions.updateStatus(sessionId, 'failed')
@@ -234,6 +271,17 @@ export class AgentService {
       }
     }
     this.openSessions.clear()
+  }
+
+  private finishCancelledStart(sessionId: string): void {
+    this.sessions.updateStatus(sessionId, 'idle')
+    this.emit({
+      type: 'run.status',
+      sessionId,
+      runId: `host-cancelled:${randomUUID()}`,
+      status: 'cancelled',
+    })
+    this.emit({ type: 'session.updated', session: this.sessions.getSession(sessionId) })
   }
 
   private loadAgentMessages(sessionId: string): AgentMessage[] {
