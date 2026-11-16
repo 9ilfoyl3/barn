@@ -69,6 +69,7 @@ export interface ToolServiceOptions {
 export interface ToolExecutionContext {
   workingDirectory?: string | undefined
   sessionId?: string | undefined
+  signal?: AbortSignal | undefined
 }
 
 export class ToolService {
@@ -90,6 +91,7 @@ export class ToolService {
     }
 
     try {
+      context.signal?.throwIfAborted()
       const args = input.parse(rawArgs)
       const workingRoot = context.workingDirectory === undefined
         ? this.options.workspaceRoot
@@ -111,7 +113,7 @@ export class ToolService {
         case 'view_image':
           return await this.viewImage(args as z.infer<typeof viewImageInput>, roots, workingRoot)
         case 'shell':
-          return await this.runShell(args as z.infer<typeof shellInput>, workingRoot)
+          return await this.runShell(args as z.infer<typeof shellInput>, workingRoot, context.signal)
         case 'memory_search':
           return this.memorySearch(args as z.infer<typeof memorySearchInput>, workingRoot, context.sessionId)
         case 'memory_save':
@@ -290,7 +292,9 @@ export class ToolService {
   private async runShell(
     input: z.infer<typeof shellInput>,
     workingRoot: string,
+    signal?: AbortSignal,
   ): Promise<ToolExecutionResult> {
+    signal?.throwIfAborted()
     const cwd = await this.safeExistingPath(input.cwd, [workingRoot, ...this.defaultRoots], workingRoot)
     if (!(await stat(cwd)).isDirectory()) throw new Error(`Not a directory: ${input.cwd}`)
     const policy = resolveSandboxPolicy({
@@ -304,6 +308,7 @@ export class ToolService {
       command: input.command,
       cwd,
       policy,
+      ...(signal === undefined ? {} : { signal }),
     })
     const text = [
       `Exit code: ${result.exitCode ?? 'unknown'}`,

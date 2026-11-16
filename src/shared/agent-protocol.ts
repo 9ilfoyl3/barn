@@ -181,6 +181,10 @@ export const workerToHostMessageSchema = z.discriminatedUnion('type', [
     toolName: z.string().min(1),
     args: z.unknown(),
   }),
+  z.object({
+    type: z.literal('tool.cancel'),
+    requestId: z.string().min(1),
+  }),
 ])
 
 export type WorkerToHostMessage = z.infer<typeof workerToHostMessageSchema>

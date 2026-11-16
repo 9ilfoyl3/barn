@@ -13,7 +13,7 @@ class FakeHost implements WorkerPort {
   private listener: ((message: unknown) => void) | undefined
   private modelCount = 0
 
-  constructor(private readonly strategy: 'text' | 'tools' = 'text') {}
+  constructor(private readonly strategy: 'text' | 'tools' | 'hanging-tool' = 'text') {}
 
   postMessage(message: WorkerToHostMessage): void {
     this.received.push(message)
@@ -24,6 +24,7 @@ class FakeHost implements WorkerPort {
         result: true,
       })
     } else if (message.type === 'tool.execute') {
+      if (this.strategy === 'hanging-tool') return
       this.send({
         type: 'request.ok',
         requestId: message.requestId,
@@ -54,7 +55,7 @@ class FakeHost implements WorkerPort {
 
   private async respondToModel(requestId: string): Promise<void> {
     this.modelCount++
-    if (this.strategy === 'text' || this.modelCount === 2) {
+    if (this.strategy === 'text' || (this.strategy === 'tools' && this.modelCount === 2)) {
       const partial = assistant([{ type: 'text', text: 'I will inspect it.' }], 'pending')
       this.emitModelEvents(requestId, [
         { type: 'start', partial: assistant([], 'pending') },
@@ -79,6 +80,7 @@ class FakeHost implements WorkerPort {
       ])
       return
     }
+    if (this.strategy === 'hanging-tool') return
     this.emitModelEvents(requestId, [
       { type: 'start', partial: assistant([], 'pending') },
       { type: 'done', reason: 'stop', message: assistant([{ type: 'text', text: 'Done.' }], 'stop') },
@@ -225,6 +227,31 @@ describe('WorkerRuntime', () => {
         toolName: 'list_dir',
         arguments: '{"path":"."}',
       },
+    })
+  })
+
+  it('cancels an in-flight Host tool without waiting for it to finish', async () => {
+    const host = new FakeHost('hanging-tool')
+    const runtime = new WorkerRuntime(host)
+    await initialize(host, runtime)
+
+    const before = host.received.length
+    host.send({
+      type: 'session.prompt',
+      requestId: 'host:prompt-cancel-tool',
+      sessionId: 'session-1',
+      text: 'Run a long command',
+    })
+
+    await viWait(() => host.received.some((message) => message.type === 'tool.execute'))
+    const toolRequest = host.waitFor('tool.execute')
+    host.send({ type: 'session.cancel', requestId: 'host:cancel-tool', sessionId: 'session-1' })
+
+    await viWait(() => host.received.slice(before).some(
+      (message) => message.type === 'run.status' && message.status === 'cancelled',
+    ))
+    expect(host.received.find((message) => message.type === 'tool.cancel')).toMatchObject({
+      requestId: toolRequest.requestId,
     })
   })
 })
