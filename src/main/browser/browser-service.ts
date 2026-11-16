@@ -4,6 +4,7 @@ import { basename, extname, join } from 'node:path'
 import { app, BrowserWindow, session, shell, WebContentsView, type DownloadItem } from 'electron'
 import type { BrowserBounds, BrowserDownloadState, BrowserLiveEvent, BrowserState, BrowserTabState } from '../../shared/models'
 import { isAllowedBrowserUrl, normalizeBrowserUrl } from './browser-policy'
+import { BrowserSessionStore } from './browser-session-store'
 import { classifyPageActions, collectPageSnapshot, performPageActions, readPageText, type PageAction, type PageSnapshot } from './page-script'
 
 const browserPartition = 'persist:barn-agent-browser'
@@ -26,8 +27,13 @@ export class BrowserService {
   private openState = false
   private visibleState = false
   private error: string | undefined
+  private restoreAttempted = false
+  private persistTimer: NodeJS.Timeout | undefined
 
-  constructor(private readonly window: BrowserWindow) {
+  constructor(
+    private readonly window: BrowserWindow,
+    private readonly sessionStore?: BrowserSessionStore,
+  ) {
     this.browserSession.setPermissionRequestHandler((_webContents, _permission, callback) => callback(false))
     this.browserSession.setPermissionCheckHandler(() => false)
     this.browserSession.on('will-download', this.handleWillDownload)
@@ -279,6 +285,9 @@ export class BrowserService {
   }
 
   dispose(): void {
+    if (this.persistTimer !== undefined) clearTimeout(this.persistTimer)
+    this.persistTimer = undefined
+    this.persistSession()
     this.browserSession.removeListener('will-download', this.handleWillDownload)
     for (const tab of this.tabs.splice(0)) this.destroyTab(tab)
     this.activeTabId = undefined
@@ -401,9 +410,45 @@ export class BrowserService {
   private ensureTab(): BrowserTab {
     const active = this.activeTab()
     if (active !== undefined) return active
+    if (!this.restoreAttempted) {
+      this.restoreAttempted = true
+      const restored = this.restoreSession()
+      if (restored !== undefined) return restored
+    }
     const tab = this.createTab('about:blank')
     this.activeTabId = tab.id
     return tab
+  }
+
+  private restoreSession(): BrowserTab | undefined {
+    const snapshot = this.sessionStore?.read()
+    if (snapshot === undefined) return undefined
+    const validTabs = snapshot.tabs.filter((tab) => isAllowedBrowserUrl(tab.url))
+    if (validTabs.length === 0) return undefined
+    const created = validTabs.map((tab) => this.createTab(tab.url))
+    this.activeTabId = created[Math.min(snapshot.activeIndex, created.length - 1)]?.id
+    return this.activeTab()
+  }
+
+  private schedulePersist(): void {
+    if (this.sessionStore === undefined || this.persistTimer !== undefined) return
+    this.persistTimer = setTimeout(() => {
+      this.persistTimer = undefined
+      this.persistSession()
+    }, 250)
+    this.persistTimer.unref?.()
+  }
+
+  private persistSession(): void {
+    if (this.sessionStore === undefined) return
+    const tabs = this.tabs.filter((tab) => tab.url !== 'about:blank' && isAllowedBrowserUrl(tab.url))
+    if (tabs.length === 0) return
+    const activeIndex = Math.max(0, tabs.findIndex((tab) => tab.id === this.activeTabId))
+    this.sessionStore.write({
+      version: 1,
+      tabs: tabs.map((tab) => ({ url: tab.url, title: tab.title })),
+      activeIndex,
+    })
   }
 
   private activeTab(): BrowserTab | undefined {
@@ -471,6 +516,7 @@ export class BrowserService {
   }
 
   private emit(): void {
+    this.schedulePersist()
     if (this.window.isDestroyed() || this.window.webContents.isDestroyed()) return
     const event: BrowserLiveEvent = { type: 'state', state: this.getState() }
     this.window.webContents.send('browser:event', event)

@@ -33,6 +33,7 @@ import { AlwaysOnLifecycle } from './lifecycle/always-on-lifecycle'
 import { BrowserService } from './browser/browser-service'
 import { registerBrowserIpc } from './browser/browser-ipc'
 import { BrowserToolService } from './browser/browser-tools'
+import { BrowserSessionStore } from './browser/browser-session-store'
 
 if (process.env.BARN_USER_DATA_DIR !== undefined) {
   app.setPath('userData', process.env.BARN_USER_DATA_DIR)
@@ -91,7 +92,10 @@ async function createWindow(): Promise<void> {
   })
 
   mainWindow = window
-  browserService = new BrowserService(window)
+  browserService = new BrowserService(
+    window,
+    new BrowserSessionStore(join(app.getPath('userData'), 'browser-session.json')),
+  )
   window.once('ready-to-show', () => window.show())
   window.on('close', (event) => {
     if (isQuitting) return
