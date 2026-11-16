@@ -32,6 +32,7 @@ import { getRuntimeCapabilities } from './platform/runtime-capabilities'
 import { AlwaysOnLifecycle } from './lifecycle/always-on-lifecycle'
 import { BrowserService } from './browser/browser-service'
 import { registerBrowserIpc } from './browser/browser-ipc'
+import { BrowserToolService } from './browser/browser-tools'
 
 if (process.env.BARN_USER_DATA_DIR !== undefined) {
   app.setPath('userData', process.env.BARN_USER_DATA_DIR)
@@ -174,12 +175,14 @@ void app.whenReady().then(async () => {
     mkdir(privateTempRoot, { recursive: true, mode: 0o700 }),
   ])
   const memoryService = new MemoryService(sessionStore.memories)
+  const browserTools = new BrowserToolService(() => browserService)
   const tools = new ToolService({
     workspaceRoot,
     outputRoot,
     privateTempRoot,
     shell: shellService,
     memory: memoryService,
+    browser: browserTools,
   })
   const supervisor = new WorkerSupervisor({
     createTransport: () => createElectronWorkerTransport(

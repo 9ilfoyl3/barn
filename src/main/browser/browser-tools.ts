@@ -1,0 +1,144 @@
+import { z } from 'zod'
+import type { ToolExecutionResult } from '../../shared/agent-protocol'
+import type { BrowserService } from './browser-service'
+
+const openInput = z.object({
+  url: z.string().min(1).max(20_000),
+})
+
+const observeInput = z.object({
+  textLimit: z.number().int().min(500).max(20_000).optional(),
+  maxElements: z.number().int().min(1).max(300).optional(),
+})
+
+const actionSchema = z.discriminatedUnion('type', [
+  z.object({ type: z.literal('click'), ref: z.string().min(1).max(32) }),
+  z.object({
+    type: z.literal('type'),
+    ref: z.string().min(1).max(32),
+    text: z.string().max(100_000),
+    submit: z.boolean().optional(),
+  }),
+  z.object({
+    type: z.literal('select'),
+    ref: z.string().min(1).max(32),
+    value: z.string().max(10_000),
+  }),
+  z.object({
+    type: z.literal('press'),
+    key: z.string().min(1).max(40),
+    ref: z.string().min(1).max(32).optional(),
+  }),
+  z.object({
+    type: z.literal('hover'),
+    ref: z.string().min(1).max(32),
+  }),
+  z.object({
+    type: z.literal('scroll'),
+    direction: z.enum(['up', 'down', 'left', 'right']).optional(),
+    amount: z.number().int().min(1).max(10_000).optional(),
+  }),
+  z.object({
+    type: z.literal('wait'),
+    ms: z.number().int().min(0).max(10_000).optional(),
+  }),
+])
+
+const actInput = z.object({
+  actions: z.array(actionSchema).min(1).max(12),
+})
+
+const readInput = z.object({
+  maxChars: z.number().int().min(500).max(50_000).optional(),
+})
+
+export class BrowserToolService {
+  constructor(private readonly getBrowser: () => BrowserService | undefined) {}
+
+  async execute(toolName: string, rawArgs: unknown, signal?: AbortSignal): Promise<ToolExecutionResult> {
+    try {
+      signal?.throwIfAborted()
+      const browser = this.requireBrowser()
+      signal?.throwIfAborted()
+      switch (toolName) {
+        case 'browser_open': {
+          const input = openInput.parse(rawArgs)
+          const state = await browser.loadUrl(input.url)
+          return {
+            content: [{
+              type: 'text',
+              text: JSON.stringify({
+                opened: true,
+                url: state.url,
+                title: state.title,
+                loading: state.loading,
+              }, null, 2),
+            }],
+            details: state,
+          }
+        }
+        case 'browser_observe': {
+          const input = observeInput.parse(rawArgs)
+          const snapshot = await browser.observe({
+            textLimit: input.textLimit ?? 8_000,
+            maxElements: input.maxElements ?? 120,
+          })
+          return {
+            content: [{ type: 'text', text: JSON.stringify(snapshot, null, 2) }],
+            details: {
+              url: snapshot.url,
+              title: snapshot.title,
+              elementCount: snapshot.elements.length,
+              truncated: snapshot.truncated,
+            },
+          }
+        }
+        case 'browser_act': {
+          const input = actInput.parse(rawArgs)
+          const result = await browser.performActions(input.actions)
+          return {
+            content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
+            details: result,
+          }
+        }
+        case 'browser_read': {
+          const input = readInput.parse(rawArgs)
+          const page = await browser.readText(input.maxChars ?? 12_000)
+          return {
+            content: [{ type: 'text', text: JSON.stringify(page, null, 2) }],
+            details: { url: page.url, title: page.title, truncated: page.truncated },
+          }
+        }
+        case 'browser_screenshot': {
+          const capture = await browser.capturePng()
+          const state = browser.getState()
+          return {
+            content: [
+              { type: 'text', text: JSON.stringify({ url: state.url, title: state.title }) },
+              { type: 'image', data: capture.data, mimeType: capture.mimeType },
+            ],
+            details: { url: state.url, title: state.title, width: capture.width, height: capture.height },
+          }
+        }
+        default:
+          return errorResult(`Unknown browser tool: ${toolName}`)
+      }
+    } catch (error) {
+      return errorResult(error instanceof Error ? error.message : String(error))
+    }
+  }
+
+  private requireBrowser(): BrowserService {
+    const browser = this.getBrowser()
+    if (browser === undefined) throw new Error('Browser is unavailable')
+    return browser
+  }
+}
+
+function errorResult(message: string): ToolExecutionResult {
+  return {
+    content: [{ type: 'text', text: message }],
+    details: { error: message },
+    isError: true,
+  }
+}

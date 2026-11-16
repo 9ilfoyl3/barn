@@ -1,14 +1,15 @@
 import { useTranslation } from 'react-i18next'
-import { AgentScreen as AgentScreenKit } from '@/components/beautiful-ui/agent-screen'
+import { AgentScreen as AgentScreenKit, type AgentScreenStep } from '@/components/beautiful-ui/agent-screen'
 
 export interface AgentScreenProps {
   preview?: string | undefined
   url: string
   title: string
+  steps?: AgentScreenStep[] | undefined
   onOpenBrowser: () => void
 }
 
-export function AgentScreen({ preview, url, title, onOpenBrowser }: AgentScreenProps) {
+export function AgentScreen({ preview, url, title, steps, onOpenBrowser }: AgentScreenProps) {
   const { t } = useTranslation()
   const displayUrl = visibleUrl(url)
   return (
@@ -19,6 +20,7 @@ export function AgentScreen({ preview, url, title, onOpenBrowser }: AgentScreenP
         description={displayUrl}
         mediaSrc={preview}
         mediaType="image"
+        steps={steps}
         emptyLabel={t('browser.agentScreenReady')}
         loadingLabel={t('browser.loading')}
         openLabel={t('browser.openScreen')}
