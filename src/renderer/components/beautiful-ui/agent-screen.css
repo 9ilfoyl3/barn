@@ -1,3 +1,7 @@
+/* Hallmark · component: agent screen · genre: modern-minimal · theme: barn-native · built: the project · redesign: polish · v2.0.0 */
+/* Hallmark · pre-emit critique: P4 H4 E4 S4 R4 V4 · weakest: E, the embedded screen must stay legible without inventing a new shell · used Barn tokens and explicit interactive states */
+/* Hallmark · waive 28b · agent screen sits below the conversation and is never the LCP · screen media is generated from the live browser */
+
 .agent-screen-kit {
   width: 100%;
   max-width: 22rem;
@@ -8,6 +12,8 @@
   color: var(--text);
   box-shadow: var(--card-shadow);
 }
+/* Hallmark · finish-review: in-thread · Floor 0 · Reflex 0 open · 1 waived (28b) · render: Electron capture */
+
 
 .agent-screen-kit.is-expanded {
   max-width: none;
@@ -78,7 +84,7 @@
 }
 
 .agent-screen-kit-media-wrap:hover .agent-screen-kit-open-overlay {
-  background: rgb(0 0 0 / 0.2);
+  background: var(--browser-media-scrim);
 }
 
 .agent-screen-kit-button {
@@ -86,11 +92,11 @@
   min-height: 28px;
   align-items: center;
   justify-content: center;
-  gap: 6px;
+  gap: 8px;
   border: 1px solid var(--line-strong);
   border-radius: 7px;
   background: var(--panel);
-  padding: 0 9px;
+  padding: 0 8px;
   color: var(--text);
   cursor: pointer;
   font-size: 11px;
@@ -100,6 +106,29 @@
 
 .agent-screen-kit-button:hover {
   background: var(--panel-raised);
+}
+
+.agent-screen-kit-button:focus-visible,
+.agent-screen-kit-header button:focus-visible,
+.agent-screen-kit-media-wrap button:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent) 72%, transparent);
+  outline-offset: 2px;
+}
+
+.agent-screen-kit-button:active,
+.agent-screen-kit-header button:active,
+.agent-screen-kit-media-wrap button:active {
+  transform: translateY(1px);
+}
+
+.agent-screen-kit-button:disabled,
+.agent-screen-kit-header button:disabled,
+.agent-screen-kit-media-wrap button:disabled {
+  border-color: var(--line);
+  background: var(--disabled-surface);
+  color: var(--text-faint);
+  cursor: default;
+  opacity: 1;
 }
 
 .agent-screen-kit-button.is-danger {
@@ -120,7 +149,7 @@
   left: 12px;
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   border-radius: 999px;
   background: var(--danger);
   padding: 4px 8px;
@@ -135,7 +164,7 @@
   justify-content: space-between;
   gap: 12px;
   border-top: 1px solid var(--line);
-  padding: 12px 14px;
+  padding: 12px 16px;
 }
 
 .agent-screen-kit-variant {
@@ -146,9 +175,10 @@
 }
 
 .agent-screen-kit-header h2 {
-  margin: 3px 0 0;
+  margin: 4px 0 0;
   font-size: 13px;
   font-weight: 620;
+  text-wrap: balance;
 }
 
 .agent-screen-kit-description {
@@ -160,7 +190,7 @@
 .agent-screen-kit-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: 8px;
 }
 
 .agent-screen-kit-steps {
@@ -171,9 +201,9 @@
   display: flex;
   min-height: 42px;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
   border-bottom: 1px solid var(--line);
-  padding: 0 14px;
+  padding: 0 16px;
   font-size: 11px;
 }
 
@@ -193,4 +223,17 @@
   margin-left: auto;
   color: var(--text-faint);
   text-transform: capitalize;
+}
+
+
+@media (prefers-reduced-motion: reduce) {
+  .agent-screen-kit-loader.is-spinning,
+  .agent-screen-kit-step-icon.is-spinning,
+  .agent-screen-kit-button:active,
+  .agent-screen-kit-header button:active,
+  .agent-screen-kit-media-wrap button:active {
+    animation: none;
+    transform: none;
+    transition: none;
+  }
 }
