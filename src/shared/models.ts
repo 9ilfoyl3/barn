@@ -555,12 +555,25 @@ export interface SessionBridge {
   onEvent(listener: (event: SessionLiveEvent) => void): () => void
 }
 
+export interface AgentComputerProviderCapability {
+  id: 'built-in-browser' | 'secure-vm' | 'host-computer'
+  label: string
+  kind: 'browser' | 'desktop'
+  isolation: 'browser-session' | 'virtual-machine' | 'host-permissions'
+  available: boolean
+  reason?: string | undefined
+}
+
 export interface RuntimeCapabilities {
   platform: NodeJS.Platform
   shell: {
     available: boolean
     backend: string
     reason?: string
+  }
+  agentComputer: {
+    defaultProvider: 'built-in-browser' | 'secure-vm' | 'host-computer'
+    providers: AgentComputerProviderCapability[]
   }
 }
 
