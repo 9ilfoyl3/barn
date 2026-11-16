@@ -40,13 +40,6 @@
 .browser-toolbar,
 .browser-toolbar button,
 .browser-address,
-.agent-screen-header,
-.agent-screen-identity,
-.agent-screen-footer {
-  display: flex;
-  align-items: center;
-}
-
 .browser-panel-heading {
   min-width: 0;
   gap: 10px;
@@ -205,16 +198,12 @@
   z-index: 3;
   right: 24px;
   bottom: 146px;
-  display: grid;
-  width: min(334px, calc(100% - 48px));
-  overflow: hidden;
-  border: 1px solid color-mix(in srgb, var(--line-strong) 82%, transparent);
-  border-radius: 13px;
-  background: color-mix(in srgb, var(--panel) 96%, transparent);
-  box-shadow: 0 18px 50px light-dark(rgba(28, 28, 24, 0.12), rgba(0, 0, 0, 0.32));
-  -webkit-backdrop-filter: blur(20px) saturate(118%);
-  backdrop-filter: blur(20px) saturate(118%);
+  width: min(352px, calc(100% - 48px));
   animation: agent-screen-enter 260ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.agent-screen-live {
+  box-shadow: 0 18px 50px light-dark(rgba(28, 28, 24, 0.12), rgba(0, 0, 0, 0.32));
 }
 
 @keyframes agent-screen-enter {
@@ -222,98 +211,6 @@
     opacity: 0;
     transform: translateY(10px) scale(0.98);
   }
-}
-
-.agent-screen-header {
-  height: 38px;
-  justify-content: space-between;
-  padding: 0 8px 0 12px;
-}
-
-.agent-screen-identity {
-  gap: 7px;
-  color: var(--text-dim);
-  font-size: 11px;
-  font-weight: 580;
-}
-
-.agent-screen-status {
-  width: 7px;
-  height: 7px;
-  border-radius: 999px;
-  background: var(--green);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--green) 12%, transparent);
-}
-
-.agent-screen-header button {
-  display: grid;
-  width: 26px;
-  height: 26px;
-  place-items: center;
-  border: 1px solid transparent;
-  border-radius: 7px;
-  background: transparent;
-  color: var(--text-faint);
-  cursor: pointer;
-}
-
-.agent-screen-header button:hover {
-  border-color: var(--line);
-  background: var(--panel-raised);
-  color: var(--text);
-}
-
-.agent-screen-frame {
-  position: relative;
-  display: grid;
-  width: calc(100% - 12px);
-  aspect-ratio: 16 / 10;
-  place-items: center;
-  justify-self: center;
-  overflow: hidden;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background:
-    radial-gradient(circle at 50% 0, color-mix(in srgb, var(--accent) 7%, transparent), transparent 55%),
-    var(--canvas-tint);
-  color: var(--text-faint);
-  cursor: pointer;
-}
-
-.agent-screen-frame img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  object-position: top center;
-}
-
-.agent-screen-empty {
-  display: grid;
-  place-items: center;
-  gap: 8px;
-  padding: 20px;
-  font-size: 10px;
-  text-align: center;
-}
-
-.agent-screen-footer {
-  min-width: 0;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 9px 12px 11px;
-  color: var(--text-faint);
-  font-size: 9px;
-}
-
-.agent-screen-footer span {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.agent-screen-footer span:first-child {
-  color: var(--text-dim);
-  font-weight: 540;
 }
 
 @media (max-width: 1040px) {

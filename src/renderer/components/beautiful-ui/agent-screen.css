@@ -1,0 +1,196 @@
+.agent-screen-kit {
+  width: 100%;
+  max-width: 22rem;
+  overflow: hidden;
+  border: 1px solid var(--line-strong);
+  border-radius: 12px;
+  background: var(--panel);
+  color: var(--text);
+  box-shadow: var(--card-shadow);
+}
+
+.agent-screen-kit.is-expanded {
+  max-width: none;
+}
+
+.agent-screen-kit-media-wrap {
+  position: relative;
+}
+
+.agent-screen-kit-media {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  background: var(--canvas-tint);
+}
+
+.agent-screen-kit-media.is-expanded {
+  max-height: calc(100vh - 12rem);
+}
+
+.agent-screen-kit-media-inner {
+  width: 100%;
+  height: 100%;
+}
+
+.agent-screen-kit-image,
+.agent-screen-kit-video {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: var(--canvas-tint);
+  object-fit: contain;
+}
+
+.agent-screen-kit-empty {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: var(--canvas-tint);
+  color: var(--text-dim);
+  font-size: 12px;
+}
+
+.agent-screen-kit-empty-mark {
+  color: var(--text-faint);
+  font-size: 22px;
+}
+
+.agent-screen-kit-loader.is-spinning {
+  animation: agent-screen-kit-spin 900ms linear infinite;
+}
+
+@keyframes agent-screen-kit-spin {
+  to { transform: rotate(360deg); }
+}
+
+.agent-screen-kit-open-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  transition: background 160ms ease;
+}
+
+.agent-screen-kit-media-wrap:hover .agent-screen-kit-open-overlay {
+  background: rgb(0 0 0 / 0.2);
+}
+
+.agent-screen-kit-button {
+  display: inline-flex;
+  min-height: 28px;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: 1px solid var(--line-strong);
+  border-radius: 7px;
+  background: var(--panel);
+  padding: 0 9px;
+  color: var(--text);
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 560;
+  box-shadow: var(--card-shadow);
+}
+
+.agent-screen-kit-button:hover {
+  background: var(--panel-raised);
+}
+
+.agent-screen-kit-button.is-danger {
+  border-color: color-mix(in srgb, var(--danger) 45%, var(--line));
+  background: color-mix(in srgb, var(--danger) 14%, var(--panel));
+  color: var(--danger);
+}
+
+.agent-screen-kit-button.is-ghost {
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
+}
+
+.agent-screen-kit-recording {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: 999px;
+  background: var(--danger);
+  padding: 4px 8px;
+  color: white;
+  font-size: 11px;
+}
+
+.agent-screen-kit-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  border-top: 1px solid var(--line);
+  padding: 12px 14px;
+}
+
+.agent-screen-kit-variant {
+  margin: 0;
+  color: var(--text-faint);
+  font-size: 10px;
+  text-transform: capitalize;
+}
+
+.agent-screen-kit-header h2 {
+  margin: 3px 0 0;
+  font-size: 13px;
+  font-weight: 620;
+}
+
+.agent-screen-kit-description {
+  margin: 4px 0 0;
+  color: var(--text-dim);
+  font-size: 11px;
+}
+
+.agent-screen-kit-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.agent-screen-kit-steps {
+  border-top: 1px solid var(--line);
+}
+
+.agent-screen-kit-step {
+  display: flex;
+  min-height: 42px;
+  align-items: center;
+  gap: 10px;
+  border-bottom: 1px solid var(--line);
+  padding: 0 14px;
+  font-size: 11px;
+}
+
+.agent-screen-kit-step:last-child {
+  border-bottom: 0;
+}
+
+.agent-screen-kit-step-icon {
+  color: var(--text-faint);
+}
+
+.agent-screen-kit-step-icon.is-spinning {
+  animation: agent-screen-kit-spin 900ms linear infinite;
+}
+
+.agent-screen-kit-step-status {
+  margin-left: auto;
+  color: var(--text-faint);
+  text-transform: capitalize;
+}

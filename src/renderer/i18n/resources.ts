@@ -142,6 +142,7 @@ const en = {
     prompt: 'Enter a URL to start browsing',
     agentScreen: 'Agent screen',
     agentScreenReady: 'Browser is ready when you need it',
+    openScreen: 'Open screen',
   },
   memorySettings: {
     title: 'Agent memory',
@@ -553,6 +554,7 @@ const zhCN: TranslationSchema = {
     prompt: '输入网址开始浏览',
     agentScreen: 'Agent 屏幕',
     agentScreenReady: '需要时即可打开浏览器',
+    openScreen: '打开屏幕',
   },
   memorySettings: {
     title: '智能助手记忆',
