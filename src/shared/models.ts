@@ -493,6 +493,15 @@ export interface BrowserTabState {
   active: boolean
 }
 
+export interface BrowserDownloadState {
+  id: string
+  filename: string
+  path: string
+  state: 'progressing' | 'completed' | 'cancelled' | 'interrupted'
+  receivedBytes: number
+  totalBytes: number
+}
+
 export interface BrowserState {
   open: boolean
   visible: boolean
@@ -503,6 +512,7 @@ export interface BrowserState {
   canGoForward: boolean
   activeTabId?: string | undefined
   tabs: BrowserTabState[]
+  downloads: BrowserDownloadState[]
   error?: string | undefined
 }
 
@@ -519,6 +529,7 @@ export interface BrowserBridge {
   newTab(url?: string): Promise<BrowserState>
   activateTab(tabId: string): Promise<BrowserState>
   closeTab(tabId: string): Promise<BrowserState>
+  revealDownload(downloadId: string): Promise<boolean>
   back(): Promise<BrowserState>
   forward(): Promise<BrowserState>
   reload(): Promise<BrowserState>

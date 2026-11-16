@@ -1,6 +1,8 @@
 import { randomUUID } from 'node:crypto'
-import { BrowserWindow, session, WebContentsView } from 'electron'
-import type { BrowserBounds, BrowserLiveEvent, BrowserState, BrowserTabState } from '../../shared/models'
+import { existsSync, mkdirSync } from 'node:fs'
+import { basename, extname, join } from 'node:path'
+import { app, BrowserWindow, session, shell, WebContentsView, type DownloadItem } from 'electron'
+import type { BrowserBounds, BrowserDownloadState, BrowserLiveEvent, BrowserState, BrowserTabState } from '../../shared/models'
 import { isAllowedBrowserUrl, normalizeBrowserUrl } from './browser-policy'
 import { collectPageSnapshot, performPageActions, readPageText, type PageAction, type PageSnapshot } from './page-script'
 
@@ -18,6 +20,7 @@ interface BrowserTab {
 export class BrowserService {
   private readonly browserSession = session.fromPartition(browserPartition)
   private readonly tabs: BrowserTab[] = []
+  private readonly downloads: BrowserDownloadState[] = []
   private activeTabId: string | undefined
   private lastBounds: BrowserBounds | undefined
   private openState = false
@@ -27,6 +30,7 @@ export class BrowserService {
   constructor(private readonly window: BrowserWindow) {
     this.browserSession.setPermissionRequestHandler((_webContents, _permission, callback) => callback(false))
     this.browserSession.setPermissionCheckHandler(() => false)
+    this.browserSession.on('will-download', this.handleWillDownload)
   }
 
   getState(): BrowserState {
@@ -47,6 +51,7 @@ export class BrowserService {
         loading: tab.loading,
         active: tab.id === this.activeTabId,
       })),
+      downloads: this.downloads.slice(0, 10).map((download) => ({ ...download })),
       ...(this.error === undefined ? {} : { error: this.error }),
     }
   }
@@ -211,6 +216,13 @@ export class BrowserService {
     }
   }
 
+  revealDownload(downloadId: string): boolean {
+    const download = this.downloads.find((candidate) => candidate.id === downloadId)
+    if (download === undefined || !existsSync(download.path)) return false
+    shell.showItemInFolder(download.path)
+    return true
+  }
+
   setBounds(bounds: BrowserBounds): void {
     const content = this.window.getContentBounds()
     const x = clamp(Math.round(bounds.x), 0, content.width)
@@ -232,6 +244,7 @@ export class BrowserService {
   }
 
   dispose(): void {
+    this.browserSession.removeListener('will-download', this.handleWillDownload)
     for (const tab of this.tabs.splice(0)) this.destroyTab(tab)
     this.activeTabId = undefined
     this.openState = false
@@ -272,9 +285,42 @@ export class BrowserService {
     return tab
   }
 
+  private readonly handleWillDownload = (_event: Electron.Event, item: DownloadItem): void => {
+    const filename = safeDownloadFilename(item.getFilename())
+    const directory = app.getPath('downloads')
+    mkdirSync(directory, { recursive: true })
+    const path = uniqueDownloadPath(directory, filename)
+    item.setSavePath(path)
+    const download: BrowserDownloadState = {
+      id: randomUUID(),
+      filename,
+      path,
+      state: 'progressing',
+      receivedBytes: 0,
+      totalBytes: item.getTotalBytes(),
+    }
+    this.downloads.unshift(download)
+    this.downloads.splice(10)
+    const update = (): void => {
+      download.receivedBytes = item.getReceivedBytes()
+      download.totalBytes = item.getTotalBytes()
+      this.emit()
+    }
+    item.on('updated', update)
+    item.once('done', (_doneEvent, state) => {
+      download.state = state
+      update()
+    })
+    this.emit()
+  }
+
   private installTabEvents(tab: BrowserTab): void {
     const view = tab.view
-    view.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
+    view.webContents.setWindowOpenHandler((details) => {
+      if (isAllowedBrowserUrl(details.url)) void this.newTabAndLoad(details.url)
+      else this.newTab()
+      return { action: 'deny' }
+    })
     view.webContents.on('will-navigate', (event, url) => {
       if (!isAllowedBrowserUrl(url)) event.preventDefault()
     })
@@ -398,4 +444,24 @@ export class BrowserService {
 
 function clamp(value: number, minimum: number, maximum: number): number {
   return Math.max(minimum, Math.min(maximum, value))
+}
+
+function safeDownloadFilename(filename: string): string {
+  const cleaned = Array.from(basename(filename))
+    .map((character) => character.charCodeAt(0) < 32 || /[\\/:*?"<>|]/.test(character) ? '_' : character)
+    .join('')
+    .trim()
+  return (cleaned || 'download').slice(0, 180)
+}
+
+function uniqueDownloadPath(directory: string, filename: string): string {
+  const extension = extname(filename)
+  const stem = filename.slice(0, filename.length - extension.length) || 'download'
+  let candidate = join(directory, filename)
+  let index = 1
+  while (existsSync(candidate)) {
+    candidate = join(directory, `${stem}-${index}${extension}`)
+    index += 1
+  }
+  return candidate
 }

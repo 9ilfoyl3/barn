@@ -203,6 +203,42 @@
   cursor: pointer;
 }
 
+.browser-download-button {
+  position: relative;
+  display: grid;
+  width: 28px;
+  height: 26px;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-faint);
+  cursor: pointer;
+}
+
+.browser-download-button:hover {
+  border-color: var(--line);
+  background: var(--panel);
+  color: var(--text);
+}
+
+.browser-download-button span {
+  position: absolute;
+  top: -3px;
+  right: -3px;
+  display: grid;
+  min-width: 14px;
+  height: 14px;
+  place-items: center;
+  border-radius: 999px;
+  background: var(--accent);
+  padding: 0 3px;
+  color: white;
+  font-size: 8px;
+  line-height: 1;
+}
+
 .browser-new-tab:hover {
   border-color: var(--line);
   background: var(--panel);
