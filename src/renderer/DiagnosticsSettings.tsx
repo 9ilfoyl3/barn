@@ -105,7 +105,24 @@ export function DiagnosticsSettings({ onClose }: { onClose(): void }) {
                 <div><dt>{t('diagnostics.memory')}</dt><dd>{snapshot.counts.memoryEntries}</dd></div>
                 <div><dt>{t('diagnostics.automation')}</dt><dd>{t(`sourceSettings.${snapshot.automationMode}`)}</dd></div>
                 <div><dt>{t('diagnostics.shell')}</dt><dd>{snapshot.shell.available ? snapshot.shell.backend : t('footer.shellUnavailable')}</dd></div>
+                <div><dt>{t('diagnostics.browserTabs')}</dt><dd>{snapshot.browser.tabs}</dd></div>
+                <div><dt>{t('diagnostics.browserDownloads')}</dt><dd>{snapshot.browser.downloads}</dd></div>
               </dl>
+
+              <section className="diagnostics-retention" aria-labelledby="agent-computer-title">
+                <div>
+                  <h3 id="agent-computer-title">{t('diagnostics.agentComputer')}</h3>
+                  <p>{t('diagnostics.agentComputerDescription')}</p>
+                </div>
+                <dl className="diagnostics-grid">
+                  {snapshot.agentComputer.providers.map((provider) => (
+                    <div key={provider.id}>
+                      <dt>{provider.label}</dt>
+                      <dd>{provider.available ? t('diagnostics.available') : t('diagnostics.unavailable')}</dd>
+                    </div>
+                  ))}
+                </dl>
+              </section>
 
               <section className="diagnostics-retention" aria-labelledby="retention-title">
                 <div>

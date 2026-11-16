@@ -325,6 +325,14 @@ export interface DiagnosticsSnapshot {
     memoryEntries: number
   }
   automationMode: 'observe' | 'active'
+  browser: {
+    open: boolean
+    tabs: number
+    downloads: number
+  }
+  agentComputer: {
+    providers: AgentComputerProviderCapability[]
+  }
   shell: {
     available: boolean
     backend: string
