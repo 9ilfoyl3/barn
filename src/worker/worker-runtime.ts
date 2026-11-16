@@ -568,6 +568,10 @@ function createTools(
     url: Type.Optional(Type.String({ minLength: 1, maxLength: 20_000 })),
     tabId: Type.Optional(Type.String({ minLength: 1, maxLength: 64 })),
   }), executeTool))
+  tools.push(tool('browser_upload', 'Upload Browser File', 'Set a file input using a ref returned by browser_observe. The path must be inside the authorized workspace. Use browse/observe first to identify the file input.', Type.Object({
+    ref: Type.String({ pattern: '^e\\d+$', maxLength: 32 }),
+    path: Type.String({ minLength: 1, maxLength: 4_000 }),
+  }), executeTool))
   if (supportsImages) {
     tools.push(tool('browser_screenshot', 'Browser Screenshot', 'Capture the visible browser page as an image for visual verification. Use only when semantic observation is insufficient.', Type.Object({}), executeTool))
   }

@@ -1096,6 +1096,7 @@ function browserToolLabel(name: string, t: ReturnType<typeof useTranslation>['t'
     case 'browser_act': return t('browser.tools.act')
     case 'browser_read': return t('browser.tools.read')
     case 'browser_tab': return t('browser.tools.tabs')
+    case 'browser_upload': return t('browser.tools.upload')
     case 'browser_screenshot': return t('browser.tools.screenshot')
     default: return name
   }
@@ -1191,6 +1192,7 @@ function toolActionLabel(name: string, t: ReturnType<typeof useTranslation>['t']
     case 'browser_act': return t('tools.browserAct')
     case 'browser_read': return t('tools.browserRead')
     case 'browser_tab': return t('tools.browserTab')
+    case 'browser_upload': return t('tools.browserUpload')
     case 'browser_screenshot': return t('tools.browserScreenshot')
     default: return t('tools.ranTool', { name })
   }
