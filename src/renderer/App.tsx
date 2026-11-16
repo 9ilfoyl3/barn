@@ -27,6 +27,7 @@ import {
   X,
 } from 'lucide-react'
 import type {
+  ApprovalRequest,
   AttachmentDescriptor,
   BrowserState,
   ModelConfigSnapshot,
@@ -111,6 +112,7 @@ export function App() {
     downloads: [],
   })
   const [agentScreenPreview, setAgentScreenPreview] = useState<string>()
+  const [pendingApprovals, setPendingApprovals] = useState<ApprovalRequest[]>([])
   const listRef = useRef<HTMLElement>(null)
   const sessionSearchInputRef = useRef<HTMLInputElement>(null)
   const accountAreaRef = useRef<HTMLDivElement>(null)
@@ -220,6 +222,19 @@ export function App() {
   useEffect(() => {
     return window.barn.sessions.onEvent(handleLiveEvent)
   }, [])
+  useEffect(() => {
+    const upsert = (approval: ApprovalRequest): void => {
+      setPendingApprovals((current) => {
+        const rest = current.filter((entry) => entry.id !== approval.id)
+        return approval.status === 'pending' ? [approval, ...rest] : rest
+      })
+    }
+    const unsubscribe = window.barn.approvals.onChange(upsert)
+    void window.barn.approvals.listPending().then((approvals) => setPendingApprovals(approvals))
+      .catch((reason: unknown) => setError(errorMessage(reason, t)))
+    return unsubscribe
+  }, [])
+
   useEffect(() => {
     const unsubscribe = window.barn.browser.onEvent((event) => {
       setBrowserState(event.state)
@@ -506,6 +521,17 @@ export function App() {
     }
   }
 
+  async function resolveBrowserApproval(decision: 'approved' | 'denied'): Promise<void> {
+    const approval = pendingApprovals.find((entry) => entry.title === 'Approve browser action')
+    if (approval === undefined) return
+    try {
+      await window.barn.approvals.resolve(approval.id, decision)
+      setPendingApprovals((current) => current.filter((entry) => entry.id !== approval.id))
+    } catch (reason) {
+      setError(errorMessage(reason, t))
+    }
+  }
+
   async function revealBrowserDownload(downloadId: string): Promise<void> {
     try {
       await window.barn.browser.revealDownload(downloadId)
@@ -552,6 +578,7 @@ export function App() {
     .filter((part): part is Extract<ConversationPart, { type: 'tool' }> => (
       part.type === 'tool' && part.tool.name.startsWith('browser_')
     ))
+  const browserApproval = pendingApprovals.find((approval) => approval.title === 'Approve browser action')
   const agentScreenSteps: AgentScreenStep[] = browserToolParts.slice(-6).map((part) => ({
     id: part.tool.id,
     label: browserToolLabel(part.tool.name, t),
@@ -1072,6 +1099,8 @@ export function App() {
           onActivateTab={activateBrowserTab}
           onCloseTab={closeBrowserTab}
           onRevealDownload={revealBrowserDownload}
+          approval={browserApproval}
+          onResolveApproval={resolveBrowserApproval}
         />
       )}
       </div>

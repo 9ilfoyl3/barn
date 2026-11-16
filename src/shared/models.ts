@@ -382,6 +382,7 @@ export interface PermissionBridge {
 
 export interface ApprovalBridge {
   listPending(): Promise<ApprovalRequest[]>
+  onChange(listener: (approval: ApprovalRequest) => void): () => void
   get(approvalId: string): Promise<ApprovalRequest>
   resolve(approvalId: string, decision: 'approved' | 'denied'): Promise<ApprovalRequest>
 }

@@ -227,3 +227,54 @@ export async function performPageActions(actions: PageAction[]): Promise<{ perfo
   }
 }
 
+
+
+export function classifyPageActions(actions: PageAction[]): {
+  consequential: boolean
+  summary: string
+  details: string
+} {
+  const elementFor = (ref: string | undefined): HTMLElement | null => {
+    if (ref === undefined) return null
+    return document.querySelector<HTMLElement>(`[data-barn-ref="${ref.replace(/[^a-zA-Z0-9_-]/g, '')}"]`)
+  }
+  const formFor = (element: HTMLElement | null): HTMLFormElement | null => {
+    if (element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement || element instanceof HTMLSelectElement) {
+      return element.form
+    }
+    return element?.closest('form') ?? null
+  }
+
+  let submitForm: HTMLFormElement | null = null
+  let download = false
+  for (const action of actions) {
+    const element = elementFor(action.ref)
+    if (action.type === 'type' && action.submit === true) submitForm = formFor(element)
+    if (action.type === 'click') {
+      if (element instanceof HTMLButtonElement && (element.type === 'submit' || element.form !== null)) submitForm = element.form
+      if (element instanceof HTMLInputElement && (element.type === 'submit' || element.type === 'image')) submitForm = element.form
+      if (element instanceof HTMLAnchorElement && element.hasAttribute('download')) download = true
+    }
+    if (action.type === 'press' && action.key === 'Enter') {
+      const target = element ?? (document.activeElement instanceof HTMLElement ? document.activeElement : null)
+      submitForm = formFor(target)
+    }
+  }
+
+  if (download) {
+    return {
+      consequential: true,
+      summary: 'Start a browser download',
+      details: `The Agent wants to download a file from ${location.host}.`,
+    }
+  }
+  if (submitForm !== null) {
+    const formName = submitForm.getAttribute('aria-label') ?? submitForm.getAttribute('name') ?? 'a form'
+    return {
+      consequential: true,
+      summary: `Submit ${formName} on ${location.host}`,
+      details: `The Agent wants to submit ${formName} at ${location.href}. Review the page before allowing this action.`,
+    }
+  }
+  return { consequential: false, summary: '', details: '' }
+}

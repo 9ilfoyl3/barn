@@ -63,6 +63,10 @@ test('uses semantic browser tools to fill and submit a real page', async () => {
     await composer.press('Enter')
 
     await expect(page.getByTestId('browser-panel')).toBeVisible({ timeout: 15_000 })
+    const approval = page.getByRole('alertdialog', { name: 'Browser action approval' })
+    await expect(approval).toBeVisible({ timeout: 15_000 })
+    await expect(approval).toContainText('Submit a form on 127.0.0.1')
+    await approval.getByRole('button', { name: 'Approve browser action' }).click()
     await expect(page.getByText('Browser task completed.').last()).toBeVisible({ timeout: 20_000 })
     await expect.poll(async () => page.evaluate(() => window.barn.browser.getState())).toMatchObject({
       open: true,

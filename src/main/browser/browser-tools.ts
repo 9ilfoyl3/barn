@@ -5,6 +5,7 @@ import { z } from 'zod'
 import type { ToolExecutionResult } from '../../shared/agent-protocol'
 import type { BrowserService } from './browser-service'
 import { isDeniedPath } from '../tools/workspace-path-policy'
+import type { PermissionService } from '../permissions/permission-service'
 
 const openInput = z.object({
   url: z.string().min(1).max(20_000),
@@ -79,6 +80,7 @@ const readInput = z.object({
 
 export interface BrowserToolContext {
   workingDirectory?: string | undefined
+  sessionId?: string | undefined
 }
 
 export interface BrowserToolServiceOptions {
@@ -86,6 +88,7 @@ export interface BrowserToolServiceOptions {
   workspaceRoot: string
   outputRoot: string
   privateTempRoot: string
+  getPermissions: () => Pick<PermissionService, 'request' | 'waitForDecision'> | undefined
 }
 
 export class BrowserToolService {
@@ -141,10 +144,26 @@ export class BrowserToolService {
         }
         case 'browser_act': {
           const input = actInput.parse(rawArgs)
+          const classification = await browser.classifyActions(input.actions)
+          if (classification.consequential) {
+            const permissions = this.options.getPermissions()
+            if (permissions === undefined) throw new Error('Browser action approvals are unavailable')
+            const outcome = permissions.request({
+              kind: 'external-write',
+              title: 'Approve browser action',
+              summary: classification.summary,
+              details: classification.details,
+            })
+            if (outcome.decision === 'denied') return errorResult(outcome.reason)
+            if (outcome.decision === 'approval_required') {
+              const decision = await permissions.waitForDecision(outcome.approval.id, signal)
+              if (decision === 'denied') return errorResult('The browser action was denied.')
+            }
+          }
           const result = await browser.performActions(input.actions)
           return {
-            content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
-            details: result,
+            content: [{ type: 'text', text: JSON.stringify({ ...result, approval: classification.consequential ? 'approved' : 'not-required' }, null, 2) }],
+            details: { ...result, approval: classification.consequential ? 'approved' : 'not-required' },
           }
         }
         case 'browser_tab': {

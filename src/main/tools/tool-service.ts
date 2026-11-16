@@ -90,7 +90,10 @@ export class ToolService {
     if (toolName.startsWith('browser_')) {
       const browser = this.options.browser
       if (browser === undefined) return errorResult('Browser tools are unavailable')
-      return browser.execute(toolName, rawArgs, { workingDirectory: context.workingDirectory }, context.signal)
+      return browser.execute(toolName, rawArgs, {
+        workingDirectory: context.workingDirectory,
+        sessionId: context.sessionId,
+      }, context.signal)
     }
 
     const input = TOOL_INPUTS[toolName as keyof typeof TOOL_INPUTS]
