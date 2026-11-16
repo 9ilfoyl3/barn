@@ -1,6 +1,10 @@
+import { realpathSync } from 'node:fs'
+import { realpath, stat } from 'node:fs/promises'
+import { isAbsolute, relative, resolve, sep } from 'node:path'
 import { z } from 'zod'
 import type { ToolExecutionResult } from '../../shared/agent-protocol'
 import type { BrowserService } from './browser-service'
+import { isDeniedPath } from '../tools/workspace-path-policy'
 
 const openInput = z.object({
   url: z.string().min(1).max(20_000),
@@ -64,14 +68,40 @@ const tabInput = z.discriminatedUnion('action', [
   }),
 ])
 
+const uploadInput = z.object({
+  ref: z.string().regex(/^e\d+$/),
+  path: z.string().min(1).max(4_000),
+})
+
 const readInput = z.object({
   maxChars: z.number().int().min(500).max(50_000).optional(),
 })
 
-export class BrowserToolService {
-  constructor(private readonly getBrowser: () => BrowserService | undefined) {}
+export interface BrowserToolContext {
+  workingDirectory?: string | undefined
+}
 
-  async execute(toolName: string, rawArgs: unknown, signal?: AbortSignal): Promise<ToolExecutionResult> {
+export interface BrowserToolServiceOptions {
+  getBrowser: () => BrowserService | undefined
+  workspaceRoot: string
+  outputRoot: string
+  privateTempRoot: string
+}
+
+export class BrowserToolService {
+  private readonly defaultRoots: string[]
+
+  constructor(private readonly options: BrowserToolServiceOptions) {
+    this.defaultRoots = [options.workspaceRoot, options.outputRoot, options.privateTempRoot]
+      .map((root) => realpathSync.native(root))
+  }
+
+  async execute(
+    toolName: string,
+    rawArgs: unknown,
+    context: BrowserToolContext = {},
+    signal?: AbortSignal,
+  ): Promise<ToolExecutionResult> {
     try {
       signal?.throwIfAborted()
       const browser = this.requireBrowser()
@@ -146,6 +176,16 @@ export class BrowserToolService {
             details: { url: page.url, title: page.title, truncated: page.truncated },
           }
         }
+        case 'browser_upload': {
+          const input = uploadInput.parse(rawArgs)
+          const filePath = await this.resolveUploadPath(input.path, context.workingDirectory)
+          const result = await browser.setFileInput(input.ref, filePath)
+          await new Promise<void>((finish) => setTimeout(finish, 160))
+          return {
+            content: [{ type: 'text', text: JSON.stringify({ uploaded: true, ...result }, null, 2) }],
+            details: result,
+          }
+        }
         case 'browser_screenshot': {
           const capture = await browser.capturePng()
           const state = browser.getState()
@@ -165,8 +205,25 @@ export class BrowserToolService {
     }
   }
 
+  private async resolveUploadPath(input: string, workingDirectory: string | undefined): Promise<string> {
+    const defaultRoot = workingDirectory ?? this.options.workspaceRoot
+    const candidate = isAbsolute(input) ? input : resolve(defaultRoot, input)
+    const canonical = await realpath(candidate)
+    if (!(await stat(canonical)).isFile()) throw new Error(`Not a file: ${input}`)
+    if (isDeniedPath(canonical)) throw new Error('Access to this file is denied')
+    const roots = workingDirectory === undefined
+      ? this.defaultRoots
+      : [await realpath(workingDirectory), ...this.defaultRoots]
+    const allowed = roots.some((root) => {
+      const rel = relative(root, canonical)
+      return rel === '' || (!rel.startsWith(`..${sep}`) && rel !== '..' && !isAbsolute(rel))
+    })
+    if (!allowed) throw new Error('File is outside the authorized workspace')
+    return canonical
+  }
+
   private requireBrowser(): BrowserService {
-    const browser = this.getBrowser()
+    const browser = this.options.getBrowser()
     if (browser === undefined) throw new Error('Browser is unavailable')
     return browser
   }

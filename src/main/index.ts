@@ -175,7 +175,12 @@ void app.whenReady().then(async () => {
     mkdir(privateTempRoot, { recursive: true, mode: 0o700 }),
   ])
   const memoryService = new MemoryService(sessionStore.memories)
-  const browserTools = new BrowserToolService(() => browserService)
+  const browserTools = new BrowserToolService({
+    getBrowser: () => browserService,
+    workspaceRoot,
+    outputRoot,
+    privateTempRoot,
+  })
   const tools = new ToolService({
     workspaceRoot,
     outputRoot,

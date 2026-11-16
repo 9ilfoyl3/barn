@@ -202,6 +202,36 @@ export class BrowserService {
     return result
   }
 
+  async setFileInput(ref: string, filePath: string): Promise<{ ref: string; path: string }> {
+    this.requireOpen()
+    const tab = this.requireActiveTab()
+    const webContents = tab.view.webContents
+    const ownsDebugger = !webContents.debugger.isAttached()
+    if (ownsDebugger) webContents.debugger.attach('1.3')
+    try {
+      const document = await webContents.debugger.sendCommand('DOM.getDocument', { depth: -1, pierce: true }) as {
+        root?: { nodeId?: number }
+      }
+      const rootNodeId = document.root?.nodeId
+      if (rootNodeId === undefined) throw new Error('Unable to inspect browser document')
+      const selector = `input[type="file"][data-barn-ref="${ref.replace(/[^a-zA-Z0-9_-]/g, '')}"]`
+      const match = await webContents.debugger.sendCommand('DOM.querySelector', {
+        nodeId: rootNodeId,
+        selector,
+      }) as { nodeId?: number }
+      if (match.nodeId === undefined || match.nodeId === 0) {
+        throw new Error(`File input ref not found: ${ref}`)
+      }
+      await webContents.debugger.sendCommand('DOM.setFileInputFiles', {
+        nodeId: match.nodeId,
+        files: [filePath],
+      })
+      return { ref, path: filePath }
+    } finally {
+      if (ownsDebugger && webContents.debugger.isAttached()) webContents.debugger.detach()
+    }
+  }
+
   async capturePng(): Promise<{ data: string; mimeType: 'image/png'; width: number; height: number }> {
     this.requireOpen()
     const tab = this.requireActiveTab()
