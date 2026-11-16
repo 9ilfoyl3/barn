@@ -59,11 +59,20 @@ test('opens a real browser split and swaps it with the agent screen', async () =
 
     await panel.getByRole('button', { name: 'Close browser' }).click()
     await expect(page.getByTestId('browser-panel')).toHaveCount(0)
-    await expect(page.getByTestId('agent-screen')).toBeVisible()
+    const agentScreen = page.getByTestId('agent-screen')
+    await expect(agentScreen).toBeVisible()
+    await expect(agentScreen).toContainText('Barn Browser Fixture')
+    await expect(agentScreen.locator('.agent-screen-kit-image')).toBeVisible()
     await expect.poll(async () => page.evaluate(() => window.barn.browser.getState())).toMatchObject({
       open: false,
       visible: false,
     })
+    await page.screenshot({ path: 'test-results/barn-agent-screen-live.png', fullPage: true })
+
+    await agentScreen.locator('.agent-screen-kit-media-wrap').hover()
+    await agentScreen.getByRole('button', { name: 'Open screen' }).click()
+    await expect(page.getByTestId('browser-panel')).toBeVisible()
+    await expect(page.getByTestId('agent-screen')).toHaveCount(0)
   } finally {
     await app.close()
     await new Promise<void>((resolve, reject) => fixture.server.close((error) => error === undefined ? resolve() : reject(error)))
