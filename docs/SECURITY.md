@@ -22,6 +22,18 @@
 - Local source folder watches read metadata only and skip symlinks.
 - Attachment image and text previews are read only from the managed attachment store and are size-limited. PDF and modern Office previews have a 50MB input cap and are parsed without executing embedded content; unsupported or binary formats fall back to an icon.
 
+## Built-in browser
+
+- The browser uses a dedicated persistent Electron session and a native `WebContentsView`; website content is never injected into the Barn renderer.
+- Only HTTP, HTTPS, and `about:blank` are allowed.
+- Loopback development hosts are allowed. Unspecified, private, link-local, carrier-grade NAT, metadata, and IPv6 local ranges are blocked by default.
+- Browser permission requests are denied by default.
+- Popups open as Barn browser tabs rather than unrestricted windows.
+- Agent browser actions are fixed Host operations. The model cannot submit arbitrary JavaScript or raw CDP commands.
+- File uploads resolve real paths and remain inside the Session working directory or managed Barn roots.
+- Downloads use unique paths in the configured Downloads directory.
+- Browser-session isolation is not equivalent to VM isolation. Secure VM and host Computer Use remain unavailable providers until their dedicated security and approval controls ship.
+
 ## Consequential actions
 
 - External writes and destructive operations default to `ask`.

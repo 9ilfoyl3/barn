@@ -10,6 +10,17 @@
 
 ---
 
+## Delivery status
+
+- Module 1: implemented as `feat/browser-surface-split`.
+- Module 2: implemented as `feat/agent-screen-live`; expansion opens the real browser split rather than a static enlarged mock.
+- Module 3: implemented as `feat/browser-semantic-control` with compact DOM semantics rather than a full platform Accessibility Tree. Tabs, uploads, downloads, and address policy followed in separate modules.
+- Module 4: implemented as `feat/browser-tabs`, `feat/browser-security-downloads`, and `feat/browser-uploads`. Durable approval integration for browser side effects remains open.
+- Module 5: provider capability boundary implemented as `feat/agent-computer-providers`; Secure VM and host Computer Use remain intentionally unavailable.
+- Current limitations and verified behavior are recorded in `docs/BROWSER_AGENT_SCREEN.md`.
+
+---
+
 ## Module 1: Browser Surface Split
 
 **Branch:** `feat/browser-surface-split`
