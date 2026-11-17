@@ -180,6 +180,44 @@ export interface ThreadBridge {
   onEvent(listener: (event: ThreadLiveEvent) => void): () => void
 }
 
+export type DelegationAction = 'answer' | 'clarify' | 'task'
+export type DelegationRisk = 'none' | 'local_write' | 'external_write' | 'destructive'
+
+export interface TaskContract {
+  objective: string
+  deliverable: string
+  constraints: string[]
+  inputRefs: string[]
+  sourceRefs: string[]
+  acceptanceCriteria: string[]
+  forbiddenActions: string[]
+  risk: DelegationRisk
+  deadline?: string
+  executionLane: 'interactive' | 'background' | 'scheduled'
+  expectedArtifacts: string[]
+}
+
+export interface DelegationInput {
+  text: string
+  attachmentNames?: string[]
+  hasWorkingDirectory?: boolean
+}
+
+export interface DelegationDecision {
+  action: DelegationAction
+  confidence: number
+  complexity: 'low' | 'medium' | 'high'
+  risk: DelegationRisk
+  requiredCapabilities: string[]
+  missingInformation: string[]
+  rationaleCodes: string[]
+  taskContract?: TaskContract
+}
+
+export interface DelegationBridge {
+  classify(input: DelegationInput): Promise<DelegationDecision>
+}
+
 export type TaskStatus = 'proposed' | 'queued' | 'running' | 'waiting' | 'completed' | 'failed' | 'cancelled'
 export type TaskOrigin = 'user' | 'automation'
 export type TaskWaitingReason = 'input' | 'approval'
@@ -717,6 +755,7 @@ export interface BarnBridge {
   terminal: TerminalBridge
   sessions: SessionBridge
   threads: ThreadBridge
+  delegation: DelegationBridge
   tasks: TaskBridge
   permissions: PermissionBridge
   approvals: ApprovalBridge

@@ -10,6 +10,7 @@ import { AesGcmEventCipher } from './session/event-cipher'
 import { registerSessionIpc } from './session/session-ipc'
 import { ThreadService } from './threads/thread-service'
 import { registerThreadIpc } from './threads/thread-ipc'
+import { registerDelegationIpc } from './delegation/delegation-ipc'
 import { ActionService } from './actions/action-service'
 import { registerDiagnosticsIpc } from './diagnostics/diagnostics-ipc'
 import { DiagnosticsService } from './diagnostics/diagnostics-service'
@@ -221,6 +222,7 @@ void app.whenReady().then(async () => {
   registerMemoryIpc(memoryService, trustedSender)
   registerSessionIpc(sessionStore, agentService, join(workspaceRoot, 'attachments'), trustedSender, () => nativeLocale())
   registerThreadIpc(threadService, trustedSender)
+  registerDelegationIpc(trustedSender)
   registerTaskIpc(taskService, trustedSender)
   registerPermissionIpc(permissionService, trustedSender)
   registerLocalSourceIpc(localSourceService, trustedSender)

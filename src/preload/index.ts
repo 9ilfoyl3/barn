@@ -15,6 +15,8 @@ import type {
   SessionPromptInput,
   ThreadBridge,
   ThreadLiveEvent,
+  DelegationBridge,
+  DelegationInput,
   AppendVisibleMessageInput,
   TaskBridge,
   CreateTaskInput,
@@ -124,6 +126,10 @@ const threads: ThreadBridge = {
   },
 }
 
+const delegation: DelegationBridge = {
+  classify: (input: DelegationInput) => ipcRenderer.invoke('delegation:classify', input),
+}
+
 const tasks: TaskBridge = {
   list: () => ipcRenderer.invoke('tasks:list'),
   get: (taskId: string) => ipcRenderer.invoke('tasks:get', taskId),
@@ -216,6 +222,7 @@ const api: BarnBridge = {
   terminal,
   sessions,
   threads,
+  delegation,
   tasks,
   permissions,
   approvals,
