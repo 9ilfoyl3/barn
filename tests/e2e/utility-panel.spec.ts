@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { _electron as electron, expect, test } from '@playwright/test'
 
-test('opens a sandboxed terminal from the browser new tab page', async () => {
+test('opens a real sandboxed PTY with tab completion and control keys', async () => {
   const userData = await mkdtemp(join(tmpdir(), 'barn-terminal-e2e-'))
   const app = await launchApp(userData)
   try {
@@ -15,20 +15,23 @@ test('opens a sandboxed terminal from the browser new tab page', async () => {
     const panel = page.getByTestId('utility-panel')
     await expect(panel).toBeVisible()
     await expect(panel.getByRole('tab', { name: 'Terminal' })).toBeVisible()
-    const command = panel.getByRole('textbox', { name: 'Terminal command' })
-    await command.press('Enter')
-    await command.press('Enter')
-    await expect(panel.locator('.terminal-line.is-command')).toHaveCount(2)
-    await command.fill('echo one')
-    await command.press('Shift+Enter')
-    await command.type('echo two')
-    await command.press('Enter')
-    await expect(panel.locator('.terminal-output')).toContainText('one', { timeout: 15_000 })
-    await expect(panel.locator('.terminal-output')).toContainText('two')
-    await expect(panel.locator('.terminal-busy')).toHaveCount(0)
-    await command.fill('pwd')
-    await command.press('Enter')
-    await expect(panel.locator('.terminal-output')).toContainText(process.cwd(), { timeout: 15_000 })
+    const xterm = panel.locator('.xterm')
+    await expect(xterm).toBeVisible()
+    await xterm.click()
+    await expect(panel.locator('.xterm-rows')).toContainText('→ barn', { timeout: 15_000 })
+
+    await page.keyboard.type('ls pack')
+    await page.keyboard.press('Tab')
+    await page.keyboard.press('Enter')
+    await expect(panel.locator('.xterm-rows')).toContainText('package.json', { timeout: 15_000 })
+
+    await page.keyboard.type('sleep 5')
+    await page.keyboard.press('Enter')
+    await page.waitForTimeout(250)
+    await page.keyboard.press('Control+C')
+    await page.keyboard.type('echo pty-ready')
+    await page.keyboard.press('Enter')
+    await expect(panel.locator('.xterm-rows')).toContainText('pty-ready', { timeout: 15_000 })
     await expect(page.locator('.app-shell')).not.toHaveClass(/sidebar-collapsed/)
     await page.screenshot({ path: 'test-results/barn-terminal-panel.png', fullPage: true })
   } finally {

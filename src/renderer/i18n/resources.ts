@@ -175,6 +175,8 @@ const en = {
     timedOut: 'Command timed out.',
     exitCode: 'Exit code {{code}}',
     command: 'Terminal command',
+    exited: 'Terminal process exited.',
+    restart: 'Restart terminal',
   },
   sideChat: {
     empty: 'Start a side conversation without leaving the browser workspace.',
@@ -640,6 +642,8 @@ const zhCN: TranslationSchema = {
     timedOut: '命令执行超时。',
     exitCode: '退出码 {{code}}',
     command: '终端命令',
+    exited: '终端进程已退出。',
+    restart: '重启终端',
   },
   sideChat: {
     empty: '无需离开浏览器工作区，即可开始一段侧边对话。',

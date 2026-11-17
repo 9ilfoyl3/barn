@@ -1,10 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-
-interface TerminalLine {
-  kind: 'command' | 'stdout' | 'stderr' | 'meta'
-  text: string
-}
+import { FitAddon } from '@xterm/addon-fit'
+import { WebLinksAddon } from '@xterm/addon-web-links'
+import { Terminal } from '@xterm/xterm'
+import '@xterm/xterm/css/xterm.css'
 
 export interface TerminalViewProps {
   terminalId: string
@@ -14,113 +13,116 @@ export interface TerminalViewProps {
 
 export function TerminalView({ terminalId, workingDirectory, onError }: TerminalViewProps) {
   const { t } = useTranslation()
-  const [lines, setLines] = useState<TerminalLine[]>([])
-  const [input, setInput] = useState('')
-  const [cwd, setCwd] = useState(workingDirectory ?? '')
-  const [busy, setBusy] = useState(false)
-  const [history, setHistory] = useState<string[]>([])
-  const [historyIndex, setHistoryIndex] = useState<number | undefined>()
-  const outputRef = useRef<HTMLDivElement>(null)
-  const inputRef = useRef<HTMLTextAreaElement>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
+  const [generation, setGeneration] = useState(0)
+  const [exited, setExited] = useState(false)
 
   useEffect(() => {
-    outputRef.current?.scrollTo({ top: outputRef.current.scrollHeight })
-  }, [input, lines, busy])
+    const container = containerRef.current
+    if (container === null) return
+    setExited(false)
+    const terminal = new Terminal({
+      allowProposedApi: false,
+      cursorBlink: true,
+      fontFamily: 'JetBrains Mono Variable, monospace',
+      fontSize: 12,
+      lineHeight: 1.45,
+      scrollback: 8_000,
+      theme: readTerminalTheme(container),
+    })
+    const fit = new FitAddon()
+    terminal.loadAddon(fit)
+    terminal.loadAddon(new WebLinksAddon())
+    terminal.open(container)
+    fit.fit()
+    terminal.focus()
 
-  useEffect(() => {
-    inputRef.current?.focus()
-  }, [])
+    let ready = false
+    const input = terminal.onData((data) => {
+      if (ready) void window.barn.terminal.write(terminalId, data).catch((reason: unknown) => onError(errorMessage(reason)))
+    })
+    const unsubscribeData = window.barn.terminal.onData((event) => {
+      if (event.terminalId === terminalId) terminal.write(event.data)
+    })
+    const unsubscribeExit = window.barn.terminal.onExit((event) => {
+      if (event.terminalId !== terminalId) return
+      ready = false
+      setExited(true)
+      terminal.write(`\r\n\x1b[2m[process exited with code ${event.exitCode}]\x1b[0m\r\n`)
+    })
+    const unsubscribeTheme = window.barn.theme.onChange(() => {
+      terminal.options.theme = readTerminalTheme(container)
+    })
 
-  async function submit(): Promise<void> {
-    if (busy) return
-    const command = input.replace(/\n+$/, '')
-    setInput('')
-    setHistoryIndex(undefined)
-    if (command.length === 0) {
-      setLines((current) => [...current, { kind: 'command', text: 'barn' }])
-      return
-    }
-    setHistory((current) => [...current.filter((entry) => entry !== command), command].slice(-100))
-    if (command === 'clear') {
-      setLines([])
-      return
-    }
-    setBusy(true)
-    setLines((current) => [...current, { kind: 'command', text: `barn ${command}` }])
-    try {
-      const result = await window.barn.terminal.run({
-        terminalId,
-        command,
-        ...(workingDirectory === undefined ? {} : { workingDirectory }),
+    void window.barn.terminal.create({
+      terminalId,
+      ...(workingDirectory === undefined ? {} : { workingDirectory }),
+      cols: terminal.cols,
+      rows: terminal.rows,
+    }).then(() => {
+      ready = true
+      terminal.focus()
+      void window.barn.terminal.resize(terminalId, terminal.cols, terminal.rows)
+    }).catch((reason: unknown) => onError(errorMessage(reason)))
+
+    let resizeFrame = 0
+    const resizeObserver = new ResizeObserver(() => {
+      cancelAnimationFrame(resizeFrame)
+      resizeFrame = requestAnimationFrame(() => {
+        if (container.clientWidth === 0 || container.clientHeight === 0) return
+        fit.fit()
+        if (ready) void window.barn.terminal.resize(terminalId, terminal.cols, terminal.rows).catch(() => undefined)
       })
-      setCwd(result.cwd)
-      setLines((current) => [
-        ...current,
-        ...(result.stdout.length > 0 ? [{ kind: 'stdout' as const, text: result.stdout.trimEnd() }] : []),
-        ...(result.stderr.length > 0 ? [{ kind: 'stderr' as const, text: result.stderr.trimEnd() }] : []),
-        ...(result.timedOut ? [{ kind: 'stderr' as const, text: t('terminal.timedOut') }] : []),
-        ...(result.exitCode !== null && result.exitCode !== 0 ? [{ kind: 'meta' as const, text: t('terminal.exitCode', { code: result.exitCode }) }] : []),
-      ])
-    } catch (reason) {
-      const message = reason instanceof Error ? reason.message : String(reason)
-      setLines((current) => [...current, { kind: 'stderr', text: message }])
-      onError(message)
-    } finally {
-      setBusy(false)
-      requestAnimationFrame(() => inputRef.current?.focus())
-    }
-  }
+    })
+    resizeObserver.observe(container)
+    void document.fonts.ready.then(() => {
+      fit.fit()
+      if (ready) void window.barn.terminal.resize(terminalId, terminal.cols, terminal.rows)
+    })
 
-  function recall(direction: 'up' | 'down'): void {
-    if (history.length === 0) return
-    const currentIndex = historyIndex ?? history.length
-    const nextIndex = direction === 'up'
-      ? Math.max(0, currentIndex - 1)
-      : Math.min(history.length, currentIndex + 1)
-    setHistoryIndex(nextIndex === history.length ? undefined : nextIndex)
-    setInput(nextIndex === history.length ? '' : history[nextIndex] ?? '')
-  }
+    return () => {
+      ready = false
+      cancelAnimationFrame(resizeFrame)
+      resizeObserver.disconnect()
+      unsubscribeData()
+      unsubscribeExit()
+      unsubscribeTheme()
+      input.dispose()
+      terminal.dispose()
+      void window.barn.terminal.dispose(terminalId)
+    }
+  }, [generation, terminalId, workingDirectory])
 
   return (
-    <div className="terminal-view" onClick={() => { if (!busy) inputRef.current?.focus() }}>
-      <div className="terminal-output" ref={outputRef}>
-        {lines.length === 0 && <div className="terminal-meta">{t('terminal.ready', { cwd: cwd || 'workspace' })}</div>}
-        {lines.map((line, index) => (
-          <pre className={`terminal-line is-${line.kind}`} key={`${index}-${line.kind}`}>
-            {line.kind === 'command' ? `→ ${line.text}` : line.text}
-          </pre>
-        ))}
-        {busy ? (
-          <div className="terminal-busy">{t('terminal.running')}</div>
-        ) : (
-          <form className="terminal-active-line" onSubmit={(event) => { event.preventDefault(); void submit() }}>
-            <span className="terminal-prompt" aria-hidden="true">→</span>
-            <span className="terminal-user">barn</span>
-            <textarea
-              ref={inputRef}
-              aria-label={t('terminal.command')}
-              value={input}
-              rows={1}
-              onChange={(event) => {
-                setInput(event.target.value)
-                event.currentTarget.style.height = 'auto'
-                event.currentTarget.style.height = `${Math.min(event.currentTarget.scrollHeight, 132)}px`
-              }}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter' && !event.shiftKey) {
-                  event.preventDefault()
-                  void submit()
-                  return
-                }
-                if (event.key === 'ArrowUp' && !input.includes('\n')) { event.preventDefault(); recall('up') }
-                if (event.key === 'ArrowDown' && !input.includes('\n')) { event.preventDefault(); recall('down') }
-              }}
-              spellCheck={false}
-              autoComplete="off"
-            />
-          </form>
-        )}
-      </div>
+    <div className="terminal-view">
+      <div className="terminal-xterm" ref={containerRef} onClick={() => containerRef.current?.querySelector<HTMLElement>('.xterm-helper-textarea')?.focus()} />
+      {exited && (
+        <div className="terminal-exit">
+          <span>{t('terminal.exited')}</span>
+          <button type="button" onClick={() => setGeneration((current) => current + 1)}>{t('terminal.restart')}</button>
+        </div>
+      )}
     </div>
   )
+}
+
+function readTerminalTheme(container: HTMLElement) {
+  const style = getComputedStyle(container)
+  const foreground = style.color
+  const background = style.backgroundColor
+  return {
+    background,
+    foreground,
+    cursor: foreground,
+    cursorAccent: background,
+    selectionBackground: colorMix(foreground, 24),
+  }
+}
+
+function colorMix(color: string, alpha: number): string {
+  return `color-mix(in srgb, ${color} ${alpha}%, transparent)`
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error)
 }

@@ -306,23 +306,37 @@ export interface MemoryBridge {
   setSessionControls(sessionId: string, controls: Partial<MemorySessionControls>): Promise<MemorySessionControls>
 }
 
-export interface TerminalRunInput {
+export interface TerminalCreateInput {
   terminalId: string
-  command: string
   workingDirectory?: string | undefined
+  cols: number
+  rows: number
 }
 
-export interface TerminalRunResult {
+export interface TerminalSessionInfo {
+  terminalId: string
+  shell: string
   cwd: string
-  command: string
-  stdout: string
-  stderr: string
-  exitCode: number | null
-  timedOut: boolean
+}
+
+export interface TerminalDataEvent {
+  terminalId: string
+  data: string
+}
+
+export interface TerminalExitEvent {
+  terminalId: string
+  exitCode: number
+  signal?: number | undefined
 }
 
 export interface TerminalBridge {
-  run(input: TerminalRunInput): Promise<TerminalRunResult>
+  create(input: TerminalCreateInput): Promise<TerminalSessionInfo>
+  write(terminalId: string, data: string): Promise<void>
+  resize(terminalId: string, cols: number, rows: number): Promise<void>
+  dispose(terminalId: string): Promise<void>
+  onData(listener: (event: TerminalDataEvent) => void): () => void
+  onExit(listener: (event: TerminalExitEvent) => void): () => void
 }
 
 export interface DiagnosticsSnapshot {
