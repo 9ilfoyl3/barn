@@ -207,7 +207,7 @@ void app.whenReady().then(async () => {
       scrubbedShellEnvironment(process.env, privateTempRoot),
     ),
   })
-  agentService = new AgentService(supervisor, modelService, sessionStore, tools, memoryService)
+  agentService = new AgentService(supervisor, modelService, sessionStore, tools, memoryService, threadService)
   await agentService.start()
   taskService = new TaskService(sessionStore.tasks)
   taskRunner = new TaskRunner(agentService, taskService, sessionStore)

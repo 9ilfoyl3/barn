@@ -14,6 +14,7 @@ import type { ToolService } from '../tools/tool-service'
 import type { SessionStore } from '../session/session-store'
 import { WorkerSupervisor, type WorkerSupervisorStatus } from './worker-supervisor'
 import type { MemoryService } from '../memory/memory-service'
+import type { ThreadService } from '../threads/thread-service'
 
 export class AgentService {
   private readonly broker: ModelStreamBroker
@@ -28,6 +29,7 @@ export class AgentService {
     private readonly sessions: SessionStore,
     private readonly tools: ToolService,
     private readonly memory?: Pick<MemoryService, 'contextForPrompt'>,
+    private readonly threads?: Pick<ThreadService, 'appendMessage'>,
   ) {
     this.broker = new ModelStreamBroker(models, (message) => supervisor.post(message))
     supervisor.onMessage((message) => this.handleWorkerMessage(message))
@@ -75,7 +77,7 @@ export class AgentService {
         this.openSessions.set(sessionId, modelKey)
       }
 
-      this.sessions.append(sessionId, [{
+      const [userEvent] = this.sessions.append(sessionId, [{
         type: 'agent.message',
         data: {
           message: {
@@ -87,6 +89,19 @@ export class AgentService {
         },
         actor: { kind: 'user', id: 'desktop-user' },
       }])
+      if (userEvent !== undefined) {
+        this.threads?.appendMessage({
+          clientMessageId: `session-user:${userEvent.eventId}`,
+          role: 'user',
+          content: trimmed,
+          metadata: {
+            sessionId,
+            sessionEventId: userEvent.eventId,
+            attachmentNames: attachments.map((attachment) => attachment.name),
+          },
+          sourceRefs: [`session:${sessionId}:event:${userEvent.eventId}`],
+        })
+      }
       if (session.title === 'New session') {
         this.sessions.updateTitle(sessionId, titleFromPrompt(trimmed))
       }
@@ -177,6 +192,7 @@ export class AgentService {
             actor: actorForMessage(message.message),
           }])[0]
           if (sessionEvent === undefined) throw new Error('Session event was not persisted')
+          this.projectAssistantVisibleMessage(message.sessionId, sessionEvent)
           // Do not publish a session summary update for every streamed message. The
           // renderer reloads the timeline from those updates, which would duplicate
           // the same assistant turn alongside the transient live stream.
@@ -258,6 +274,27 @@ export class AgentService {
       case 'worker.ready':
         return
     }
+  }
+
+  private projectAssistantVisibleMessage(
+    sessionId: string,
+    event: SessionTimelineEvent,
+  ): void {
+    if (!isRecord(event.data) || !('message' in event.data) || !isRecord(event.data.message)) return
+    const message = event.data.message as unknown as AgentMessage
+    if (message.role !== 'assistant') return
+    const text = agentMessageText(message).trim()
+    if (text.length === 0) return
+    this.threads?.appendMessage({
+      clientMessageId: `session-assistant:${event.eventId}`,
+      role: 'assistant',
+      content: text,
+      metadata: {
+        sessionId,
+        sessionEventId: event.eventId,
+      },
+      sourceRefs: [`session:${sessionId}:event:${event.eventId}`],
+    })
   }
 
   private handleWorkerStatus(status: WorkerSupervisorStatus): void {
