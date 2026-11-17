@@ -60,6 +60,21 @@ export class MemoryService {
     return this.store.setPinned(id, pinned)
   }
 
+  listCandidates(): MemoryEntry[] {
+    this.requireEnabled()
+    return this.store.listCandidates()
+  }
+
+  confirm(id: string): MemoryEntry {
+    this.requireEnabled()
+    return this.store.confirm(id)
+  }
+
+  reject(id: string): MemoryEntry {
+    this.requireEnabled()
+    return this.store.reject(id)
+  }
+
   forget(id: string): void {
     this.store.delete(id)
   }
@@ -72,7 +87,7 @@ export class MemoryService {
     if (entries.length === 0) return ''
     this.store.touch(entries.map((entry) => entry.id))
 
-    const selected: Array<Pick<MemoryEntry, 'kind' | 'title' | 'content' | 'tags' | 'confidence'>> = []
+    const selected: Array<Pick<MemoryEntry, 'kind' | 'title' | 'content' | 'tags' | 'confidence' | 'sourceAuthority' | 'sourceRefs'>> = []
     let size = 0
     for (const entry of entries) {
       const projected = {
@@ -81,6 +96,8 @@ export class MemoryService {
         content: entry.content,
         tags: entry.tags,
         confidence: entry.confidence,
+        sourceAuthority: entry.sourceAuthority,
+        sourceRefs: entry.sourceRefs,
       }
       const projectedSize = JSON.stringify(projected).length
       if (size + projectedSize > MAX_CONTEXT_CHARS) continue
