@@ -502,6 +502,12 @@ export interface BrowserTabState {
   active: boolean
 }
 
+export interface BrowserHistoryEntry {
+  url: string
+  title: string
+  visitedAt: string
+}
+
 export interface BrowserDownloadState {
   id: string
   filename: string
@@ -522,6 +528,7 @@ export interface BrowserState {
   activeTabId?: string | undefined
   tabs: BrowserTabState[]
   downloads: BrowserDownloadState[]
+  history: BrowserHistoryEntry[]
   error?: string | undefined
 }
 

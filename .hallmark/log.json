@@ -3,6 +3,38 @@
   "shape": "app screen",
   "theme": "barn-native",
   "axes": [
+   "loaded-page navigation toolbar",
+   "search suggestions from history",
+   "single browser tab strip"
+  ],
+  "hero": "none",
+  "nav": "browser tabs plus loaded-page toolbar",
+  "footer": "existing composer",
+  "imagery": "real browser captures",
+  "photos": [],
+  "entry": "Browser button in workspace header",
+  "fingerprint": "barn-browser-search-toolbar-2026-11-17",
+  "sections": [
+   "browser tab strip",
+   "loaded-page toolbar",
+   "new-tab search",
+   "search suggestions",
+   "shortcut cards"
+  ],
+  "signature": "search and navigation share the same quiet browser chrome without a second application frame",
+  "waived": [
+   "28b"
+  ],
+  "prompt": "Improve the loaded-page browser toolbar and search suggestion experience to match the provided reference images",
+  "date": "2026-11-17",
+  "mode": "redesign",
+  "depth": "polish",
+  "scope": "app"
+ },
+ {
+  "shape": "app screen",
+  "theme": "barn-native",
+  "axes": [
    "single browser tab bar",
    "centered new-tab search",
    "three compact shortcuts"

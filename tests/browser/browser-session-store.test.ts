@@ -15,8 +15,12 @@ describe('BrowserSessionStore', () => {
         { url: 'https://example.org/', title: 'Example Org' },
       ],
       activeIndex: 8,
+      history: [{ url: 'https://example.com/', title: 'Example', visitedAt: '2026-11-17T00:00:00.000Z' }],
     })
-    expect(store.read()).toMatchObject({ activeIndex: 1 })
+    expect(store.read()).toMatchObject({
+      activeIndex: 1,
+      history: [{ url: 'https://example.com/', title: 'Example' }],
+    })
   })
 
   it('ignores malformed snapshots', async () => {
