@@ -1,9 +1,9 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Folder, Globe2, MessageCircle, Search, Terminal } from 'lucide-react'
+import { Folder, Globe2, Search, Terminal } from 'lucide-react'
 import type { BrowserHistoryEntry } from '../shared/models'
 
-export type BrowserQuickAction = 'terminal' | 'files' | 'side-chat'
+export type BrowserQuickAction = 'terminal' | 'files'
 
 export interface BrowserNewTabProps {
   history: BrowserHistoryEntry[]
@@ -90,10 +90,6 @@ export function BrowserNewTab({ history, onNavigate, onQuickAction }: BrowserNew
           <button type="button" onClick={() => onQuickAction('files')}>
             <span className="browser-newtab-card-icon"><Folder size={18} /></span>
             <span>{t('browser.files')}</span>
-          </button>
-          <button type="button" onClick={() => onQuickAction('side-chat')}>
-            <span className="browser-newtab-card-icon"><MessageCircle size={18} /></span>
-            <span>{t('browser.sideChat')}</span>
           </button>
         </div>
       </div>

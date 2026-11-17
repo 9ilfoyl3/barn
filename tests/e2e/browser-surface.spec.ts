@@ -41,7 +41,7 @@ test('opens a real browser split without mounting an idle agent screen', async (
     await expect(panel.getByRole('button', { name: 'Close browser' })).toBeVisible()
     await expect(page.locator('.browser-newtab')).toBeVisible()
     await expect(page.locator('.browser-newtab-search input')).toHaveAttribute('placeholder', 'Search files or enter a URL')
-    await expect(page.locator('.browser-newtab-grid button')).toHaveCount(3)
+    await expect(page.locator('.browser-newtab-grid button')).toHaveCount(2)
     await expect(page.locator('.browser-topbar .browser-tab')).toHaveCount(1)
 
     const addressInput = page.getByRole('textbox', { name: 'Browser address' })

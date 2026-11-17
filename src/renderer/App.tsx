@@ -1,10 +1,10 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import 'streamdown/styles.css'
 import {
-  Archive,
-  ChevronRight,
+  Clock3,
   ChevronDown,
+  ChevronRight,
   FileSearch,
   FileText,
   Folder,
@@ -14,16 +14,13 @@ import {
   Inbox,
   Search,
   Settings2,
-  Wrench,
   PanelLeft,
   Paperclip,
-  Pin,
-  Plus,
   Sparkles,
   Stethoscope,
   Trash2,
   UserRound,
-  X,
+  Wrench,
 } from 'lucide-react'
 import type {
   ApprovalRequest,
@@ -50,6 +47,10 @@ import { ConversationParts, PendingThinking } from './ConversationParts'
 import './composer-workspace.css'
 import './browser-panel.css'
 import { TaskCenter } from './TaskCenter'
+import { TodayPanel } from './TodayPanel'
+import { TaskRail } from './TaskRail'
+import { CommandPalette } from './CommandPalette'
+import './secretary.css'
 import { initializeAppLanguage } from './i18n'
 import { TooltipButton } from './components/TooltipButton'
 import { MessageBubble, MessageBubbleGroup } from '@/components/beui/components/agents/message-bubble'
@@ -80,9 +81,8 @@ export function App() {
   const [stopping, setStopping] = useState(false)
   const [error, setError] = useState<string>()
   const [accountOpen, setAccountOpen] = useState(false)
-  const [sessionSearchOpen, setSessionSearchOpen] = useState(false)
-  const [sessionQuery, setSessionQuery] = useState('')
   const [announcement, setAnnouncement] = useState('')
+  const [commandOpen, setCommandOpen] = useState(false)
   const [view, setView] = useState<'conversation' | 'tasks' | 'settings'>('conversation')
   const [tasks, setTasks] = useState<Task[]>([])
   const [tasksLoading, setTasksLoading] = useState(true)
@@ -106,21 +106,10 @@ export function App() {
   const [agentScreenPreview, setAgentScreenPreview] = useState<string>()
   const [pendingApprovals, setPendingApprovals] = useState<ApprovalRequest[]>([])
   const listRef = useRef<HTMLElement>(null)
-  const sessionSearchInputRef = useRef<HTMLInputElement>(null)
   const accountAreaRef = useRef<HTMLDivElement>(null)
   const accountTriggerRef = useRef<HTMLButtonElement>(null)
   const activeSessionIdRef = useRef<string | undefined>(undefined)
   const draftSessionIdRef = useRef<string | undefined>(undefined)
-  const sideChatCounterRef = useRef(0)
-
-  useEffect(() => {
-    if (!sessionSearchOpen) {
-      sessionSearchInputRef.current?.blur()
-      return
-    }
-    const frame = requestAnimationFrame(() => sessionSearchInputRef.current?.focus())
-    return () => cancelAnimationFrame(frame)
-  }, [sessionSearchOpen])
 
   useEffect(() => {
     void initializeAppLanguage()
@@ -152,6 +141,17 @@ export function App() {
       unsubscribeTheme()
       unsubscribeTasks()
     }
+  }, [])
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent): void => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLocaleLowerCase() === 'k') {
+        event.preventDefault()
+        setCommandOpen((current) => !current)
+      }
+    }
+    document.addEventListener('keydown', onKeyDown)
+    return () => document.removeEventListener('keydown', onKeyDown)
   }, [])
 
   useEffect(() => {
@@ -314,21 +314,6 @@ export function App() {
     }
   }
 
-  function startNewSession(): void {
-    setView('conversation')
-    draftSessionIdRef.current = crypto.randomUUID()
-    activeSessionIdRef.current = undefined
-    setActiveSessionId(undefined)
-    setMessages([])
-    setLiveParts([])
-    setInput('')
-    setAttachments([])
-    setWorkingDirectory(undefined)
-    setPending(false)
-    setStopping(false)
-    setError(undefined)
-  }
-
   async function sendPrompt(): Promise<void> {
     const text = input.trim()
     if (text.length === 0 || pending || modelSelectionBusy || activeSession?.archivedAt !== undefined) return
@@ -414,35 +399,6 @@ export function App() {
     }
   }
 
-  async function setSessionPinned(session: SessionSummary, pinned: boolean): Promise<void> {
-    keepSessionSidebarAnchored()
-    try {
-      const updated = await window.barn.sessions.setPinned(session.id, pinned)
-      setSessions((current) => upsertSession(current, updated))
-      setAnnouncement(pinned ? t('sidebar.sessionPinned') : t('sidebar.sessionUnpinned'))
-    } catch (reason) {
-      setError(errorMessage(reason, t))
-    }
-  }
-
-  async function archiveSession(sessionId: string): Promise<void> {
-    keepSessionSidebarAnchored()
-    try {
-      const updated = await window.barn.sessions.setArchived(sessionId, true)
-      setSessions((current) => upsertSession(current, updated))
-      if (activeSessionId === sessionId) {
-        const fallback = sortSessions(sessions.filter((session) => (
-          session.id !== sessionId && session.archivedAt === undefined
-        )))[0]
-        if (fallback === undefined) startNewSession()
-        else openSession(fallback.id)
-      }
-      setAnnouncement(t('sidebar.sessionArchived'))
-    } catch (reason) {
-      setError(errorMessage(reason, t))
-    }
-  }
-
   async function unarchiveSession(sessionId: string): Promise<void> {
     keepSessionSidebarAnchored()
     try {
@@ -508,7 +464,7 @@ export function App() {
       void attachFiles()
       return
     }
-    void openUtilityTab(action === 'terminal' ? 'terminal' : 'side-chat')
+    if (action === 'terminal') void openUtilityTab('terminal')
   }
 
   async function openUtilityTab(type: UtilityTabType): Promise<void> {
@@ -522,18 +478,8 @@ export function App() {
     } else if (type === 'empty') {
       tab = { id: crypto.randomUUID(), type: 'empty', title: t('browser.newTab') }
       setUtilityTabs((current) => [...current, tab!])
-    } else {
-      sideChatCounterRef.current += 1
-      const count = sideChatCounterRef.current
-      const parentSessionId = activeSessionIdRef.current ?? draftSessionId()
-      tab = {
-        id: crypto.randomUUID(),
-        type: 'side-chat',
-        title: count === 1 ? t('browser.sideChat') : `${t('browser.sideChat')} ${count}`,
-        parentSessionId,
-      }
-      setUtilityTabs((current) => [...current, tab!])
     }
+    if (tab === undefined) return
     setActiveUtilityTabId(tab.id)
     setUtilityOpen(true)
     if (browserOpen) {
@@ -548,13 +494,9 @@ export function App() {
   }
 
   function closeUtilityTab(tabId: string): void {
-    const closing = utilityTabs.find((tab) => tab.id === tabId)
     const index = utilityTabs.findIndex((tab) => tab.id === tabId)
     const next = utilityTabs.filter((tab) => tab.id !== tabId)
     setUtilityTabs(next)
-    if (closing?.type === 'side-chat') {
-      void window.barn.sessions.setArchived(tabId, true).catch(() => undefined)
-    }
     if (activeUtilityTabId === tabId) {
       const fallback = next[Math.min(index, next.length - 1)]
       setActiveUtilityTabId(fallback?.id)
@@ -620,33 +562,17 @@ export function App() {
   const activeSession = sessions.find((session) => session.id === activeSessionId)
   const commandKey = window.barn.platform === 'darwin' ? '⌘' : 'Ctrl'
   const running = pending || activeSession?.status === 'running'
-  const sideChatSessionIds = new Set(utilityTabs.filter((tab) => tab.type === 'side-chat').map((tab) => tab.id))
   const rightPanelOpen = browserOpen || utilityOpen
-  const activeSessions = sortSessions(sessions.filter((session) => (
-    session.archivedAt === undefined && session.parentSessionId === undefined && !sideChatSessionIds.has(session.id)
-  )))
   const archivedSessions = sortSessions(sessions.filter((session) => (
-    session.archivedAt !== undefined && session.parentSessionId === undefined && !sideChatSessionIds.has(session.id)
+    session.archivedAt !== undefined && session.parentSessionId === undefined
   )))
-  const normalizedSessionQuery = sessionQuery.trim().toLocaleLowerCase()
-  const visibleSessions = normalizedSessionQuery === ''
-    ? activeSessions
-    : activeSessions.filter((session) => session.title.toLocaleLowerCase().includes(normalizedSessionQuery))
-  const pinnedSessions = visibleSessions.filter((session) => session.pinned)
-  const recentSessions = visibleSessions.filter((session) => !session.pinned)
   const activeSessionIsArchived = activeSession?.archivedAt !== undefined
-  const conversationTitle = activeSession?.title ?? t('conversation.newSession')
   const workingDirectoryLabel = workingDirectory === undefined
     ? t('conversation.chooseWorkingDirectory')
     : workingDirectory.split(/[\\/]/).filter(Boolean).at(-1) ?? workingDirectory
   const hasBrowserOperation = [...messages.flatMap((message) => message.parts), ...liveParts]
     .some((part) => part.type === 'tool' && part.tool.name.startsWith('browser_'))
   const browserApproval = pendingApprovals.find((approval) => approval.title === 'Approve browser action')
-  const workspaceTitle = view === 'tasks'
-    ? t('tasks.title')
-    : view === 'settings'
-      ? t('sidebar.settings')
-      : conversationTitle
   const needsYouCount = tasks.filter((task) => ['proposed', 'waiting', 'failed'].includes(task.status)).length
 
   function openSession(sessionId: string): void {
@@ -655,42 +581,47 @@ export function App() {
     setView('conversation')
   }
 
+  function openTask(task: Task): void {
+    setCommandOpen(false)
+    if (task.sessionId !== undefined) {
+      openSession(task.sessionId)
+      return
+    }
+    setView('tasks')
+  }
+
   function draftSessionId(): string {
     draftSessionIdRef.current ??= crypto.randomUUID()
     return draftSessionIdRef.current
   }
 
-  function renderSessionRows(items: SessionSummary[]) {
-    return items.map((session) => (
-      <SessionRow
-        active={view === 'conversation' && session.id === activeSessionId}
-        key={session.id}
-        onArchive={() => void archiveSession(session.id)}
-        onOpen={() => openSession(session.id)}
-        onTogglePinned={() => void setSessionPinned(session, !session.pinned)}
-        session={session}
-      />
-    ))
-  }
-
   const appShellClassName = [
     'app-shell',
+    'secretary-shell',
     window.barn.platform === 'darwin' ? 'platform-darwin' : '',
     sidebarOpen ? '' : 'sidebar-collapsed',
   ].filter(Boolean).join(' ')
   const workspaceShellClassName = rightPanelOpen ? 'workspace-shell browser-open' : 'workspace-shell'
   const showAgentScreen = view === 'conversation' && !rightPanelOpen && hasBrowserOperation
-  const workspaceBodyClassName = showAgentScreen ? 'workspace-body agent-screen-open' : 'workspace-body'
+  const workspaceBodyClassName = [
+    'workspace-body',
+    showAgentScreen ? 'agent-screen-open' : '',
+    view === 'conversation' && !rightPanelOpen && !showAgentScreen ? 'with-task-rail' : '',
+  ].filter(Boolean).join(' ')
 
   return (
     <div className={appShellClassName}>
       <aside
         id="app-sidebar"
-        className={sidebarOpen ? 'sidebar sidebar-open' : 'sidebar'}
+        className={sidebarOpen ? 'sidebar today-sidebar sidebar-open' : 'sidebar today-sidebar'}
         aria-hidden={!sidebarOpen}
       >
-        <div className="sidebar-content">
-          <div className="sidebar-titlebar">
+        <div className="sidebar-content today-sidebar-content">
+          <div className="sidebar-titlebar today-titlebar">
+            <div className="brand-lockup">
+              <div className="brand-mark" aria-hidden="true"><span /><span /></div>
+              <strong>Barn</strong>
+            </div>
             <TooltipButton
               className="icon-button sidebar-toggle sidebar-toggle-sidebar"
               label={t('sidebar.hide')}
@@ -702,111 +633,11 @@ export function App() {
             </TooltipButton>
           </div>
 
-          <div className="sidebar-top">
-            <div className="brand-lockup">
-              <div className="brand-mark" aria-hidden="true">
-                <span />
-                <span />
-              </div>
-              <strong>Barn</strong>
-            </div>
-            <div
-              id="session-search-field"
-              className={sessionSearchOpen ? 'session-search open' : 'session-search'}
-              role="search"
-              aria-label={t('sidebar.filterSessions')}
-              aria-hidden={!sessionSearchOpen}
-            >
-              <input
-                ref={sessionSearchInputRef}
-                type="search"
-                aria-label={t('sidebar.filterSessions')}
-                placeholder={t('sidebar.searchSessions')}
-                tabIndex={sessionSearchOpen ? 0 : -1}
-                value={sessionQuery}
-                onChange={(event) => setSessionQuery(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key !== 'Escape') return
-                  setSessionSearchOpen(false)
-                  setSessionQuery('')
-                }}
-              />
-              {sessionQuery.length > 0 && (
-                <TooltipButton label={t('sidebar.clearSearch')} onClick={() => setSessionQuery('')}>
-                  <X size={12} />
-                </TooltipButton>
-              )}
-            </div>
-            <div className="sidebar-actions">
-              <TooltipButton
-                className={sessionSearchOpen ? 'icon-button active session-search-trigger' : 'icon-button session-search-trigger'}
-                label={sessionSearchOpen ? t('sidebar.closeSearch') : t('sidebar.searchSessions')}
-                aria-controls="session-search-field"
-                aria-expanded={sessionSearchOpen}
-                onClick={() => {
-                  setSessionSearchOpen(!sessionSearchOpen)
-                  if (sessionSearchOpen) setSessionQuery('')
-                }}
-              >
-                <Search size={15} />
-              </TooltipButton>
-            </div>
-          </div>
-
-          <button className="new-session-button" type="button" onClick={startNewSession}>
-            <Plus size={15} />
-            <span>{t('sidebar.newSession')}</span>
-            <kbd>{commandKey} N</kbd>
-          </button>
-          <button
-            className={view === 'tasks' ? 'new-session-button task-nav-button active' : 'new-session-button task-nav-button'}
-            type="button"
-            aria-current={view === 'tasks' ? 'page' : undefined}
-            onClick={() => setView('tasks')}
-          >
-            <Inbox size={15} />
-            <span>{t('tasks.title')}</span>
-            {needsYouCount > 0 && <span className="task-nav-count">{needsYouCount}</span>}
-          </button>
-
-          <nav className="session-nav" aria-label={t('sidebar.sessions')}>
-            <div className="session-list">
-              {pinnedSessions.length > 0 && (
-                <>
-                  <div className="nav-label">
-                    <span>{t('sidebar.pinned')}</span>
-                    <span>{pinnedSessions.length}</span>
-                  </div>
-                  <div className="session-group" data-group="pinned">
-                    {renderSessionRows(pinnedSessions)}
-                  </div>
-                </>
-              )}
-              <div className="nav-label session-recent-label">
-                <span>{t('sidebar.recent')}</span>
-                <span>{recentSessions.length}</span>
-              </div>
-              {recentSessions.length > 0 && (
-                <div className="session-group" data-group="recent">
-                  {renderSessionRows(recentSessions)}
-                </div>
-              )}
-              {visibleSessions.length === 0 && (
-                <div className="empty-session-list">
-                  <Sparkles size={16} />
-                  <p>
-                    {sessionQuery.trim() !== ''
-                      ? t('sidebar.noSearchResults')
-                      : t('sidebar.noSessions')}
-                  </p>
-                </div>
-              )}
-            </div>
-          </nav>
+          <TodayPanel tasks={tasks} onOpenTasks={() => setView('tasks')} />
 
           <div className="visually-hidden" role="status" aria-live="polite">{announcement}</div>
 
-          <div className="sidebar-footer">
+          <footer className="today-footer today-account-area">
             <div ref={accountAreaRef} className="account-area">
               <button
                 ref={accountTriggerRef}
@@ -815,16 +646,12 @@ export function App() {
                 aria-controls="account-panel"
                 aria-expanded={accountOpen}
                 aria-haspopup="menu"
-                onClick={() => {
-                  setAccountOpen(!accountOpen)
-                }}
+                onClick={() => setAccountOpen(!accountOpen)}
               >
-                <span className="account-avatar">
-                  <UserRound size={14} />
-                </span>
+                <span className="account-avatar"><UserRound size={14} /></span>
                 <span className="account-copy">
                   <strong>{t('sidebar.localAgent')}</strong>
-                  <small>{t('sidebar.localWorkspace')}</small>
+                  <small>{t('sidebar.localOnly')}</small>
                 </span>
                 <ChevronRight size={14} />
               </button>
@@ -841,89 +668,65 @@ export function App() {
                   <strong>{t('sidebar.localWorkspace')}</strong>
                   <small>{t('sidebar.localOnly')}</small>
                 </div>
-                <button
-                  className="account-menu-item"
-                  type="button"
-                  role="menuitem"
-                  onClick={() => {
-                    setAccountOpen(false)
-                    keepSessionSidebarAnchored()
-                    setView('settings')
-                  }}
-                >
-                  <Settings2 size={14} />
-                  <span>{t('sidebar.settings')}</span>
-                  <ChevronRight className="account-menu-chevron" size={13} />
+                <button className="account-menu-item" type="button" role="menuitem" onClick={() => { setAccountOpen(false); setView('settings') }}>
+                  <Settings2 size={14} /><span>{t('sidebar.settings')}</span><ChevronRight className="account-menu-chevron" size={13} />
                 </button>
-                <button
-                  className="account-menu-item"
-                  type="button"
-                  role="menuitem"
-                  onClick={() => {
-                    setAccountOpen(false)
-                    setSourceSettingsOpen(true)
-                  }}
-                >
-                  <FolderSearch size={14} />
-                  <span>{t('sidebar.localSources')}</span>
-                  <ChevronRight className="account-menu-chevron" size={13} />
+                <button className="account-menu-item" type="button" role="menuitem" onClick={() => { setAccountOpen(false); setSourceSettingsOpen(true) }}>
+                  <FolderSearch size={14} /><span>{t('sidebar.localSources')}</span><ChevronRight className="account-menu-chevron" size={13} />
                 </button>
-                <button
-                  className="account-menu-item"
-                  type="button"
-                  role="menuitem"
-                  onClick={() => {
-                    setAccountOpen(false)
-                    setDiagnosticsOpen(true)
-                  }}
-                >
-                  <Stethoscope size={14} />
-                  <span>{t('sidebar.diagnostics')}</span>
-                  <ChevronRight className="account-menu-chevron" size={13} />
+                <button className="account-menu-item" type="button" role="menuitem" onClick={() => { setAccountOpen(false); setDiagnosticsOpen(true) }}>
+                  <Stethoscope size={14} /><span>{t('sidebar.diagnostics')}</span><ChevronRight className="account-menu-chevron" size={13} />
                 </button>
-                <button
-                  className="account-menu-item"
-                  type="button"
-                  role="menuitem"
-                  onClick={() => {
-                    setAccountOpen(false)
-                    setSettingsOpen(true)
-                  }}
-                >
-                  <Wrench size={14} />
-                  <span>{t('sidebar.models')}</span>
-                  <ChevronRight className="account-menu-chevron" size={13} />
+                <button className="account-menu-item" type="button" role="menuitem" onClick={() => { setAccountOpen(false); setSettingsOpen(true) }}>
+                  <Wrench size={14} /><span>{t('sidebar.models')}</span><ChevronRight className="account-menu-chevron" size={13} />
                 </button>
                 <LanguagePicker />
               </div>
             </div>
-          </div>
+          </footer>
         </div>
       </aside>
 
       <div className={workspaceShellClassName} data-testid="workspace-shell">
       <main className="workspace">
-        <header className="workspace-header">
-          {!sidebarOpen && (
-            <TooltipButton
-              className="icon-button sidebar-toggle sidebar-toggle-header"
-              label={t('sidebar.show')}
-              aria-controls="app-sidebar"
-              aria-expanded={sidebarOpen}
-              onClick={() => setSidebarOpen(true)}
-            >
-              <PanelLeft size={16} />
-            </TooltipButton>
+        <header className="workspace-header secretary-commandbar">
+          {view !== 'conversation' && (
+            <h1 className="visually-hidden">{view === 'tasks' ? t('tasks.title') : t('sidebar.settings')}</h1>
           )}
-          <div className="workspace-header-title">
-            <div className="workspace-header-copy">
-              <h1 title={workspaceTitle}>{workspaceTitle}</h1>
-            </div>
-          </div>
-          <div className="workspace-header-actions">
-            {!rightPanelOpen && (
+          <div className="secretary-brand-strip">
+            {!sidebarOpen && (
               <TooltipButton
-                className="icon-button browser-toggle"
+                className="icon-button sidebar-toggle sidebar-toggle-header"
+                label={t('sidebar.show')}
+                aria-controls="app-sidebar"
+                aria-expanded={sidebarOpen}
+                onClick={() => setSidebarOpen(true)}
+              >
+                <PanelLeft size={16} />
+              </TooltipButton>
+            )}
+            <span>Barn</span>
+          </div>
+
+          <button className="secretary-search" type="button" onClick={() => setCommandOpen(true)}>
+            <Search size={15} aria-hidden="true" />
+            <span>{t('secretary.search')}</span>
+            <kbd>{commandKey} K</kbd>
+          </button>
+
+          <div className="workspace-header-actions">
+            <TooltipButton
+              className="icon-button secretary-action task-nav-button"
+              label={t('secretary.needsYou')}
+              aria-pressed={view === 'tasks'}
+              onClick={() => setView('tasks')}
+            >
+              <Inbox size={15} />
+              {needsYouCount > 0 && <span className="secretary-notification-count task-nav-count">{needsYouCount}</span>}
+            </TooltipButton>
+            {view === 'conversation' && !rightPanelOpen && (
+              <TooltipButton
+                className="icon-button secretary-action browser-toggle"
                 label={t('browser.open')}
                 aria-pressed={false}
                 onClick={() => void toggleBrowser()}
@@ -931,6 +734,13 @@ export function App() {
                 <Globe2 size={15} />
               </TooltipButton>
             )}
+            <TooltipButton
+              className="icon-button secretary-action"
+              label={t('sidebar.settings')}
+              onClick={() => setView('settings')}
+            >
+              <Clock3 size={15} />
+            </TooltipButton>
           </div>
         </header>
 
@@ -1132,6 +942,10 @@ export function App() {
             </div>
           )}
 
+          {view === 'conversation' && !rightPanelOpen && !showAgentScreen && (
+            <TaskRail tasks={tasks} onOpenTask={openTask} onOpenTasks={() => setView('tasks')} />
+          )}
+
           {showAgentScreen && (
             <AgentScreen
               preview={agentScreenPreview}
@@ -1170,12 +984,22 @@ export function App() {
           onAddTab={() => void openUtilityTab('empty')}
           onNavigate={navigateFromUtility}
           onQuickAction={handleBrowserQuickAction}
-          onConfigureModel={() => setSettingsOpen(true)}
           onClose={() => setUtilityOpen(false)}
           onError={(message) => setError(message)}
         />
       )}
       </div>
+
+      <CommandPalette
+        open={commandOpen}
+        tasks={tasks}
+        onClose={() => setCommandOpen(false)}
+        onOpenTask={openTask}
+        onOpenTasks={() => {
+          setCommandOpen(false)
+          setView('tasks')
+        }}
+      />
 
       {settingsOpen && (
         <ModelSettings
@@ -1218,107 +1042,6 @@ function upsertTask(current: Task[], task: Task): Task[] {
 
 function errorMessage(reason: unknown, t: ReturnType<typeof useTranslation>['t']): string {
   return reason instanceof Error ? reason.message : t('conversation.somethingWentWrong')
-}
-
-interface SessionRowProps {
-  session: SessionSummary
-  active: boolean
-  onOpen: () => void
-  onTogglePinned: () => void
-  onArchive: () => void
-}
-
-function SessionRow({
-  session,
-  active,
-  onOpen,
-  onTogglePinned,
-  onArchive,
-}: SessionRowProps) {
-  const { t } = useTranslation()
-  const statusLabel = session.status === 'running'
-    ? t('sidebar.sessionRunning')
-    : session.status === 'failed'
-      ? t('sidebar.sessionFailed')
-      : t('sidebar.sessionComplete')
-  const className = [
-    'session-row',
-    active ? 'active' : '',
-    session.pinned ? 'pinned' : '',
-  ].filter(Boolean).join(' ')
-
-  return (
-    <div className={className} data-session-id={session.id}>
-      <button
-        className="session-row-main"
-        type="button"
-        aria-current={active ? 'page' : undefined}
-        onClick={onOpen}
-      >
-        <SessionRowTitle title={session.title} />
-      </button>
-      {(session.status === 'running' || session.hasUnreadResult) && (
-        <span
-          className={`session-row-status ${session.status}`}
-          role="status"
-          aria-label={statusLabel}
-          title={statusLabel}
-        >
-          {session.status === 'running'
-            ? <span className="session-row-status-spinner" />
-            : <span className="session-row-status-dot" />}
-        </span>
-      )}
-      <div className="session-row-actions">
-        <TooltipButton
-          className="session-row-action"
-          label={session.pinned ? t('sidebar.unpinSession') : t('sidebar.pinSession')}
-          tooltipSide="top"
-          aria-pressed={session.pinned}
-          onClick={onTogglePinned}
-        >
-          <Pin size={13} fill={session.pinned ? 'currentColor' : 'none'} />
-        </TooltipButton>
-        <TooltipButton
-          className="session-row-action"
-          label={t('sidebar.archiveSession')}
-          tooltipSide="top"
-          onClick={onArchive}
-        >
-          <Archive size={13} />
-        </TooltipButton>
-      </div>
-    </div>
-  )
-}
-
-function SessionRowTitle({ title }: { title: string }) {
-  const viewportRef = useRef<HTMLSpanElement>(null)
-
-  useLayoutEffect(() => {
-    const viewport = viewportRef.current
-    const content = viewport?.firstElementChild
-    if (!viewport || !(content instanceof HTMLElement)) return
-
-    const measure = (): void => {
-      const distance = Math.max(0, content.scrollWidth - viewport.clientWidth)
-      viewport.toggleAttribute('data-scrollable', distance > 1)
-      viewport.style.setProperty('--session-title-shift', `${distance}px`)
-      viewport.style.setProperty('--session-title-duration', `${Math.min(7, Math.max(2.6, distance / 32 + 2.6))}s`)
-    }
-
-    measure()
-    const observer = new ResizeObserver(measure)
-    observer.observe(viewport)
-    observer.observe(content)
-    return () => observer.disconnect()
-  }, [title])
-
-  return (
-    <span ref={viewportRef} className="session-title" title={title}>
-      <span className="session-title-text">{title}</span>
-    </span>
-  )
 }
 
 function formatFileSize(bytes: number): string {

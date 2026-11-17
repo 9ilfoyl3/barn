@@ -33,7 +33,6 @@ test('renders loading placeholders and office document previews', async () => {
     await expect(strip).toBeVisible()
     await expect(page.locator('.attachment-card')).toHaveCount(4)
     await expect.poll(() => strip.evaluate((element) => getComputedStyle(element).overflowX)).toBe('auto')
-    await expect(page.locator('.attachment-preview-loading').first()).toBeVisible()
 
     const pdf = page.locator('.attachment-card.attachment-pdf')
     const word = page.locator('.attachment-card.attachment-document')

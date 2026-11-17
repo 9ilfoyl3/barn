@@ -179,8 +179,8 @@ test('shows needs-you, in-progress, and recent tasks with usable actions', async
 
     const completedRow = page.locator('.task-row', { hasText: 'Finished background report' })
     await completedRow.getByRole('button', { name: 'Open' }).click()
-    await expect(page.getByRole('heading', { name: 'Finished background report', level: 1 })).toBeVisible()
-    await expect(page.getByText('Task finished from the inbox.').last()).toBeVisible()
+    await expect(page.locator('.conversation-surface')).toContainText('Task finished from the inbox.')
+    await expect(page.getByRole('button', { name: /New session/i })).toHaveCount(0)
   } finally {
     await app.close()
     await new Promise<void>((resolve, reject) => server.close((error) => error === undefined ? resolve() : reject(error)))

@@ -56,7 +56,7 @@ test('configures a watched folder and turns a file change into a suggestion', as
     await page.getByRole('button', { name: 'Close local sources' }).click()
     await expect(page.locator('.task-nav-count')).toHaveText(String(proposedCount))
     await page.locator('.task-nav-button').click()
-    await expect(page.getByText('Review changed file: notes.txt')).toBeVisible()
+    await expect(page.locator('.task-row', { hasText: 'Review changed file: notes.txt' })).toBeVisible()
     await page.screenshot({ path: 'test-results/barn-local-sources.png', fullPage: true })
   } finally {
     await app.close()

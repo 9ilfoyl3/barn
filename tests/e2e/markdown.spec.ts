@@ -61,7 +61,6 @@ test('renders streamdown tables and code blocks without overlapping controls', a
       await window.barn.models.setDefault({ providerId: 'markdown-provider', modelId: 'markdown-model' })
     }, `http://127.0.0.1:${address.port}/v1`)
 
-    await page.getByRole('button', { name: /New session/i }).click()
     const composer = page.getByLabel('Message Barn')
     await composer.fill('Render the extracted project information.')
     await composer.press('Enter')

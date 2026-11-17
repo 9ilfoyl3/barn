@@ -108,7 +108,6 @@ test('configures Volcengine Ark and completes a Responses API call', async () =>
     await expect(page.getByRole('slider', { name: 'Effort' })).toBeVisible()
     await expect(page.locator('.effort-slider-dot')).toHaveCount(4)
     await page.keyboard.press('Escape')
-    await page.getByRole('button', { name: /New session/i }).click()
     const composer = page.getByLabel('Message Barn')
     await composer.fill('Hello Ark')
     await composer.press('Enter')

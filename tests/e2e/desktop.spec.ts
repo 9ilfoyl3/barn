@@ -3,8 +3,8 @@ import { mkdtemp } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
-test('opens the Desktop workspace and model configuration', async () => {
-  const userData = await mkdtemp(join(tmpdir(), 'barn-desktop-e2e-'))
+test('opens the personal secretary workspace and model configuration', async () => {
+  const userData = await mkdtemp(join(tmpdir(), 'barn-desktop-secretary-e2e-'))
   const inheritedEnv = Object.fromEntries(
     Object.entries(process.env).filter((entry): entry is [string, string] => entry[1] !== undefined),
   )
@@ -25,169 +25,40 @@ test('opens the Desktop workspace and model configuration', async () => {
       await Promise.all(element.getAnimations().map((animation) => animation.finished))
     })
 
+    await expect(window.getByRole('heading', { name: /Good (morning|afternoon|evening)/ })).toBeVisible()
+    await expect(window.getByRole('heading', { name: 'Routines' })).toBeVisible()
+    await expect(window.getByRole('heading', { name: 'Tasks' })).toBeVisible()
     await expect(window.getByRole('heading', { name: 'What needs attention?' })).toBeVisible()
+    await expect(window.getByRole('button', { name: /New session/i })).toHaveCount(0)
+    await expect(window.locator('.session-row')).toHaveCount(0)
+    await expect(window.locator('.today-panel')).toBeVisible()
+    await expect(window.locator('.task-rail')).toBeVisible()
+
+    await window.getByRole('button', { name: /Search Barn/ }).click()
+    const palette = window.getByRole('dialog', { name: 'Search Barn' })
+    await expect(palette).toBeVisible()
+    await expect(palette.getByRole('searchbox')).toBeFocused()
+    await palette.getByRole('button', { name: 'Close' }).click()
+
+    await window.locator('.account-row').click()
+    await expect(window.getByRole('menuitem', { name: /Models/i })).toBeVisible()
+    await window.getByRole('menuitem', { name: /Models/i }).click()
+    await expect(window.getByRole('dialog', { name: 'Model settings' })).toBeVisible()
+    await expect(window.getByPlaceholder('Search providers')).toBeVisible()
+    await window.getByRole('button', { name: 'Close settings' }).click()
+
     await expect(window.locator('html')).toHaveAttribute('data-theme', /^(light|dark)$/)
     await app.evaluate(({ nativeTheme }) => { nativeTheme.themeSource = 'dark' })
     await expect(window.locator('html')).toHaveAttribute('data-theme', 'dark')
     await app.evaluate(({ nativeTheme }) => { nativeTheme.themeSource = 'light' })
     await expect(window.locator('html')).toHaveAttribute('data-theme', 'light')
-    const accountTrigger = window.locator('.account-row')
-    const accountPopover = window.locator('.account-popover')
-    await accountTrigger.click()
-    await expect(window.getByRole('menuitem', { name: /Models/i })).toBeVisible()
-    await expect(accountPopover).toHaveClass(/open/)
-    const accountMotion = await accountPopover.evaluate((element) => {
-      const style = getComputedStyle(element)
-      return {
-        property: style.transitionProperty,
-        duration: Number.parseFloat(style.transitionDuration),
-      }
-    })
-    expect(accountMotion.property).toContain('opacity')
-    expect(accountMotion.property).toContain('transform')
-    expect(accountMotion.duration).toBeGreaterThan(0)
-    await window.screenshot({ path: 'test-results/barn-user-menu.png', fullPage: true })
-    await window.getByRole('heading', { name: 'What needs attention?' }).click()
-    await expect(accountPopover).toBeHidden()
-    await expect(accountTrigger).toHaveAttribute('aria-expanded', 'false')
-    await expect(window.locator('.workspace-footer')).toHaveCount(0)
-    if (process.platform === 'darwin') {
-      const titlebarLayout = await window.evaluate(() => {
-        const sidebarTitlebar = document.querySelector('.sidebar-titlebar')!.getBoundingClientRect()
-        const workspaceHeader = document.querySelector('.workspace-header')!.getBoundingClientRect()
-        const sidebarToggle = document.querySelector('.sidebar-toggle-sidebar')!.getBoundingClientRect()
-        return {
-          sidebarHeight: sidebarTitlebar.height,
-          workspaceHeight: workspaceHeader.height,
-          sidebarCenter: sidebarTitlebar.top + sidebarTitlebar.height / 2,
-          toggleCenter: sidebarToggle.top + sidebarToggle.height / 2,
-        }
-      })
-      expect(titlebarLayout.sidebarHeight).toBe(titlebarLayout.workspaceHeight)
-      expect(Math.abs(titlebarLayout.toggleCenter - titlebarLayout.sidebarCenter)).toBeLessThanOrEqual(0.5)
-    }
-
-    const searchTrigger = window.getByRole('button', { name: 'Search sessions' })
-    await searchTrigger.click()
-    const sessionSearch = window.locator('.session-search')
-    const sessionSearchInput = window.getByRole('searchbox', { name: 'Filter sessions' })
-    await expect(sessionSearchInput).toBeFocused()
-    await sessionSearch.evaluate(async (element) => {
-      await Promise.all(element.getAnimations().map((animation) => animation.finished))
-    })
-    await expect.poll(async () => (await sessionSearch.boundingBox())?.width ?? 0).toBeGreaterThan(200)
-
-    const searchLayout = await window.evaluate(() => {
-      const logo = document.querySelector('.brand-lockup')!.getBoundingClientRect()
-      const field = document.querySelector('.session-search')!.getBoundingClientRect()
-      const trigger = document.querySelector('.session-search-trigger')!.getBoundingClientRect()
-      const logoHit = document.elementFromPoint(logo.x + logo.width / 2, logo.y + logo.height / 2)
-      const transition = getComputedStyle(document.querySelector('.session-search')!)
-      return {
-        logoLeft: logo.left,
-        logoBottom: logo.bottom,
-        fieldLeft: field.left,
-        fieldRight: field.right,
-        fieldTop: field.top,
-        triggerRight: trigger.right,
-        fieldCoversLogo: logoHit?.closest('.session-search') !== null,
-        transitionProperty: transition.transitionProperty,
-        transitionDuration: Number.parseFloat(transition.transitionDuration),
-      }
-    })
-    expect(searchLayout.fieldLeft).toBeLessThanOrEqual(searchLayout.logoLeft + 0.5)
-    expect(Math.abs(searchLayout.fieldRight - searchLayout.triggerRight)).toBeLessThanOrEqual(0.5)
-    expect(searchLayout.fieldTop).toBeLessThan(searchLayout.logoBottom)
-    expect(searchLayout.fieldCoversLogo).toBe(true)
-    expect(searchLayout.transitionProperty).toContain('width')
-    expect(searchLayout.transitionDuration).toBeGreaterThan(0)
-    await window.screenshot({ path: 'test-results/barn-session-search.png', fullPage: true })
-
-    await window.getByRole('button', { name: 'Close search' }).click()
-    await expect(window.getByRole('button', { name: 'Search sessions' })).toHaveAttribute('aria-expanded', 'false')
-    await expect.poll(async () => (await sessionSearch.boundingBox())?.width ?? 0).toBeLessThan(1)
-
-    const sidebarTransition = await window.locator('.app-shell').evaluate((element) => getComputedStyle(element).transitionDuration)
-    expect(Number.parseFloat(sidebarTransition)).toBeGreaterThan(0)
-    const expandedToggleBox = await window.getByRole('button', { name: 'Hide sidebar' }).boundingBox()
-
-    await window.getByRole('button', { name: 'Hide sidebar' }).click()
-    await expect(window.locator('.sidebar')).toBeHidden()
-    const collapsedToggle = window.getByRole('button', { name: 'Show sidebar' })
-    await expect(collapsedToggle).toBeVisible()
-    await expect(window.locator('.workspace-header .sidebar-toggle')).toHaveCount(1)
-    const collapsedToggleBox = await collapsedToggle.boundingBox()
-    expect(expandedToggleBox?.x).toBe(collapsedToggleBox?.x)
-    expect(Math.abs((expandedToggleBox?.y ?? 0) - (collapsedToggleBox?.y ?? 0))).toBeLessThanOrEqual(0.5)
-    if (process.platform === 'darwin') {
-      expect(collapsedToggleBox?.x).toBe(82)
-      expect(collapsedToggleBox?.y).toBeCloseTo(13.5)
-    }
-    if (collapsedToggleBox !== null) {
-      const hitTarget = await window.evaluate(({ x, y }) => {
-        const element = document.elementFromPoint(x, y)
-        return element?.closest('.sidebar-toggle') !== null
-      }, {
-        x: collapsedToggleBox.x + collapsedToggleBox.width / 2,
-        y: collapsedToggleBox.y + collapsedToggleBox.height / 2,
-      })
-      expect(hitTarget).toBe(true)
-    }
-    const collapsedLayout = await window.evaluate(() => ({
-      viewportWidth: globalThis.innerWidth,
-      workspaceWidth: document.querySelector('.workspace')?.getBoundingClientRect().width,
-      headerPaddingLeft: Number.parseFloat(getComputedStyle(document.querySelector('.workspace-header')!).paddingLeft),
-    }))
-    expect(collapsedLayout.workspaceWidth).toBe(collapsedLayout.viewportWidth)
-    if (process.platform === 'darwin') {
-      expect(collapsedLayout.headerPaddingLeft).toBeGreaterThanOrEqual(80)
-    }
-    await window.screenshot({
-      path: 'test-results/barn-desktop-sidebar-collapsed.png',
-      fullPage: true,
-    })
-    if (collapsedToggleBox !== null) {
-      await window.mouse.click(
-        collapsedToggleBox.x + collapsedToggleBox.width / 2,
-        collapsedToggleBox.y + collapsedToggleBox.height / 2,
-      )
-    }
-    await expect(window.locator('.sidebar')).toBeVisible()
-
-    await window.getByRole('button', { name: /New session/i }).click()
-    await expect(window.locator('.session-row')).toHaveCount(0)
-    await expect(window.getByRole('heading', { name: 'What needs attention?' })).toBeVisible()
-
-    await window.screenshot({
-      path: 'test-results/barn-desktop.png',
-      fullPage: true,
-    })
-
-    await window.locator('.account-row').click()
-    await window.getByRole('menuitem', { name: /Models/i }).click()
-    await expect(window.getByRole('dialog', { name: 'Model settings' })).toBeVisible()
-    await expect(window.getByPlaceholder('Search providers')).toBeVisible()
-
-    await window.getByPlaceholder('Search providers').fill('deepseek')
-    await window.locator('.provider-row', { hasText: 'DeepSeek' }).click()
-    await window.getByLabel('API key').fill('test-key-not-real')
-    await window.getByRole('button', { name: 'Save', exact: true }).click()
-    await expect(window.getByText('Configured', { exact: true })).toBeVisible()
-
-    const firstModel = window.locator('.model-row').first()
-    await firstModel.click()
-    await expect(window.locator('.model-row.active')).toHaveCount(1)
-
-    await window.screenshot({
-      path: 'test-results/barn-model-settings.png',
-      fullPage: true,
-    })
+    await window.screenshot({ path: 'test-results/barn-personal-secretary.png', fullPage: true })
   } finally {
     await app.close()
   }
 })
 
-test('does not persist a new session until the first message is sent', async () => {
+test('does not persist a Session before the first message and exposes no Session management', async () => {
   const userData = await mkdtemp(join(tmpdir(), 'barn-desktop-empty-session-e2e-'))
   const inheritedEnv = Object.fromEntries(
     Object.entries(process.env).filter((entry): entry is [string, string] => entry[1] !== undefined),
@@ -205,15 +76,10 @@ test('does not persist a new session until the first message is sent', async () 
   try {
     const page = await app.firstWindow()
     await page.waitForLoadState('domcontentloaded')
-    const newSession = page.getByRole('button', { name: /New session/i })
-
-    await newSession.click()
-    await newSession.click()
+    await expect(page.getByRole('button', { name: /New session/i })).toHaveCount(0)
     await expect(page.locator('.session-row')).toHaveCount(0)
     await expect(page.getByRole('heading', { name: 'What needs attention?' })).toBeVisible()
-
-    const storedSessions = await page.evaluate(() => window.barn.sessions.list())
-    expect(storedSessions).toHaveLength(0)
+    expect(await page.evaluate(() => window.barn.sessions.list())).toHaveLength(0)
   } finally {
     await app.close()
   }
