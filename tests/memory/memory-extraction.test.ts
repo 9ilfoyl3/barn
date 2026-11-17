@@ -109,13 +109,20 @@ describe('MemoryExtractionService', () => {
 
     await service.runOnce(new Date(Date.now() + 60 * 60 * 1_000))
 
-    const entries = store.memories.list()
-    expect(entries).toMatchObject([{
+    expect(store.memories.list()).toEqual([])
+    const candidates = store.memories.listCandidates()
+    expect(candidates).toMatchObject([{
       scope: 'workspace',
       kind: 'procedure',
       title: 'Project workflow',
       sourceSessionIds: [sessionId],
+      sourceAuthority: 'inferred',
+      status: 'candidate',
     }])
+    expect(candidates[0]?.sourceRefs).toEqual(expect.arrayContaining([`session:${sessionId}:seq:2`]))
+    const confirmed = store.memories.confirm(candidates[0]!.id)
+    expect(confirmed).toMatchObject({ status: 'active', sourceAuthority: 'inferred' })
+    expect(confirmed.lastConfirmedAt).toEqual(expect.any(String))
     await service.runOnce(new Date(Date.now() + 2 * 60 * 60 * 1_000))
     expect(spy).toHaveBeenCalledTimes(1)
     expect(store.memories.extractionState(sessionId)).toMatchObject({ lastProcessedSeq: 2, attempts: 0 })

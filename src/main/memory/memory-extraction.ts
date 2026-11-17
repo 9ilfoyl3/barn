@@ -104,6 +104,9 @@ export class MemoryExtractionService {
                 tags: memory.tags,
                 confidence: memory.confidence,
                 sourceSessionId: candidate.sessionId,
+                sourceAuthority: 'inferred',
+                status: 'candidate',
+                sourceRefs: [`session:${candidate.sessionId}:seq:${candidate.lastSeq}`],
                 ...(memory.key === undefined ? {} : { key: memory.key }),
               })
             } catch {

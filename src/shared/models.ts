@@ -282,6 +282,8 @@ export interface LocalSourceBridge {
 
 export type MemoryScope = 'global' | 'workspace'
 export type MemoryKind = 'preference' | 'fact' | 'procedure' | 'decision' | 'project'
+export type MemoryStatus = 'candidate' | 'active' | 'archived'
+export type MemorySourceAuthority = 'explicit' | 'verified' | 'observed' | 'inferred'
 
 export interface MemoryEntry {
   id: string
@@ -293,7 +295,13 @@ export interface MemoryEntry {
   pinned: boolean
   confidence: number
   sourceSessionIds: string[]
+  sourceRefs: string[]
+  sourceAuthority: MemorySourceAuthority
+  status: MemoryStatus
   version: number
+  lastConfirmedAt?: string
+  validUntil?: string
+  supersedesId?: string
   createdAt: string
   updatedAt: string
   lastUsedAt?: string
@@ -340,6 +348,10 @@ export interface MemorySaveInput {
   pinned?: boolean
   confidence?: number
   sourceSessionId?: string
+  sourceRefs?: string[]
+  sourceAuthority?: MemorySourceAuthority
+  status?: MemoryStatus
+  validUntil?: string
 }
 
 export interface MemoryBridge {
@@ -348,6 +360,9 @@ export interface MemoryBridge {
   list(): Promise<MemoryEntry[]>
   delete(id: string): Promise<void>
   setPinned(id: string, pinned: boolean): Promise<MemoryEntry>
+  listCandidates(): Promise<MemoryEntry[]>
+  confirm(id: string): Promise<MemoryEntry>
+  reject(id: string): Promise<MemoryEntry>
   getSessionControls(sessionId: string): Promise<MemorySessionControls>
   setSessionControls(sessionId: string, controls: Partial<MemorySessionControls>): Promise<MemorySessionControls>
 }

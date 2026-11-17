@@ -31,6 +31,18 @@ export function registerMemoryIpc(
     requireTrusted(event, isTrustedSender)
     return memory.list()
   })
+  ipcMain.handle('memory:list-candidates', (event) => {
+    requireTrusted(event, isTrustedSender)
+    return memory.listCandidates()
+  })
+  ipcMain.handle('memory:confirm', (event, id: unknown) => {
+    requireTrusted(event, isTrustedSender)
+    return memory.confirm(z.uuid().parse(id))
+  })
+  ipcMain.handle('memory:reject', (event, id: unknown) => {
+    requireTrusted(event, isTrustedSender)
+    return memory.reject(z.uuid().parse(id))
+  })
   ipcMain.handle('memory:delete', (event, id: unknown) => {
     requireTrusted(event, isTrustedSender)
     memory.forget(z.uuid().parse(id))

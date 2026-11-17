@@ -12,6 +12,8 @@ import type {
   MemorySessionControls,
   MemoryExtractionCandidate,
   MemoryExtractionState,
+  MemorySourceAuthority,
+  MemoryStatus,
 } from '../../shared/models'
 import type { AesGcmEventCipher } from '../session/event-cipher'
 
@@ -29,9 +31,15 @@ interface MemoryRow {
   scope: MemoryScope
   workspace_hash: string
   kind: MemoryKind
+  status: MemoryStatus
   pinned: number
   confidence: number
   version: number
+  source_authority: MemorySourceAuthority
+  source_refs_json: string
+  supersedes_id: string | null
+  valid_until: string | null
+  last_confirmed_at: string | null
   payload_ciphertext: Uint8Array
   payload_nonce: Uint8Array
   payload_tag: Uint8Array
@@ -40,6 +48,10 @@ interface MemoryRow {
   last_used_at: string | null
   use_count: number
 }
+
+const MEMORY_COLUMNS = `id, scope, workspace_hash, kind, status, pinned, confidence, version,
+  source_authority, source_refs_json, supersedes_id, valid_until, last_confirmed_at,
+  payload_ciphertext, payload_nonce, payload_tag, created_at, updated_at, last_used_at, use_count`
 
 const DEFAULT_SETTINGS: MemorySettings = {
   enabled: false,
@@ -85,6 +97,11 @@ export class MemoryStore {
         pinned INTEGER NOT NULL DEFAULT 0,
         confidence REAL NOT NULL,
         version INTEGER NOT NULL,
+        source_authority TEXT NOT NULL DEFAULT 'explicit',
+        source_refs_json TEXT NOT NULL DEFAULT '[]',
+        supersedes_id TEXT,
+        valid_until TEXT,
+        last_confirmed_at TEXT,
         payload_ciphertext BLOB NOT NULL,
         payload_nonce BLOB NOT NULL,
         payload_tag BLOB NOT NULL,
@@ -115,7 +132,22 @@ export class MemoryStore {
         use_memories INTEGER NOT NULL DEFAULT 1,
         generate_memories INTEGER NOT NULL DEFAULT 1
       );
+
+      CREATE TABLE IF NOT EXISTS memory_history (
+        id TEXT PRIMARY KEY,
+        memory_id TEXT NOT NULL,
+        version INTEGER NOT NULL,
+        source_authority TEXT NOT NULL,
+        source_refs_json TEXT NOT NULL,
+        valid_until TEXT,
+        payload_ciphertext BLOB NOT NULL,
+        payload_nonce BLOB NOT NULL,
+        payload_tag BLOB NOT NULL,
+        archived_at TEXT NOT NULL,
+        UNIQUE(memory_id, version)
+      );
     `)
+    this.ensureOptionalColumns()
     this.database.prepare(`
       INSERT OR IGNORE INTO memory_settings (
         id, enabled, use_memories, generate_memories, idle_minutes, max_entries
@@ -181,22 +213,34 @@ export class MemoryStore {
       normalized.kind,
       key.trim().toLowerCase(),
     ].join('\0'))
+    const status = normalized.status ?? 'active'
+    const sourceAuthority = normalized.sourceAuthority ?? 'explicit'
     const existing = this.database.prepare(`
-      SELECT id, version, created_at FROM memory_entries
-      WHERE scope = ? AND workspace_hash = ? AND kind = ? AND dedupe_hash = ? AND status = 'active'
-    `).get(normalized.scope, workspaceHash, normalized.kind, dedupeHash) as {
-      id: string
-      version: number
-      created_at: string
-    } | undefined
+      SELECT ${MEMORY_COLUMNS}
+      FROM memory_entries
+      WHERE scope = ? AND workspace_hash = ? AND kind = ? AND dedupe_hash = ?
+    `).get(normalized.scope, workspaceHash, normalized.kind, dedupeHash) as unknown as MemoryRow | undefined
+    const sourceRefs = normalizeSourceRefs([
+      ...(existing === undefined ? [] : parseSourceRefs(existing.source_refs_json)),
+      ...(normalized.sourceRefs ?? []),
+      ...(normalized.sourceSessionId === undefined ? [] : [`session:${normalized.sourceSessionId}`]),
+    ])
 
-    if (existing === undefined && this.activeCount() >= this.getSettings().maxEntries) {
+    if (existing === undefined && status === 'active' && this.activeCount() >= this.getSettings().maxEntries) {
       throw new Error('Memory limit reached; remove or archive memories before saving more')
+    }
+    if (existing?.status === 'active' && status === 'candidate') {
+      throw new Error('A confirmed memory already exists for this key')
+    }
+    if (existing?.status === 'active' && sourceAuthorityRank(existing.source_authority) > sourceAuthorityRank(sourceAuthority)) {
+      throw new Error('A higher-authority memory already exists for this key')
     }
 
     const id = existing?.id ?? randomUUID()
     const version = (existing?.version ?? 0) + 1
     const now = new Date().toISOString()
+    const lastConfirmedAt = status === 'active' ? now : null
+    if (existing?.status === 'active') this.archiveHistory(existing, now)
     const payload: MemoryPayload = {
       key,
       title: normalized.title,
@@ -204,21 +248,28 @@ export class MemoryStore {
       tags: normalized.tags,
     }
     const encrypted = this.cipher.encrypt(payload, memoryAssociatedData(id, version))
+    const sourceRefsJson = JSON.stringify(sourceRefs)
     if (existing === undefined) {
       this.database.prepare(`
         INSERT INTO memory_entries (
           id, scope, workspace_hash, kind, status, dedupe_hash, pinned, confidence, version,
+          source_authority, source_refs_json, supersedes_id, valid_until, last_confirmed_at,
           payload_ciphertext, payload_nonce, payload_tag, created_at, updated_at, use_count
-        ) VALUES (?, ?, ?, ?, 'active', ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, 0)
       `).run(
         id,
         normalized.scope,
         workspaceHash,
         normalized.kind,
+        status,
         dedupeHash,
         normalized.pinned ? 1 : 0,
         normalized.confidence,
         version,
+        sourceAuthority,
+        sourceRefsJson,
+        normalized.validUntil ?? null,
+        lastConfirmedAt,
         encrypted.ciphertext,
         encrypted.nonce,
         encrypted.tag,
@@ -228,13 +279,19 @@ export class MemoryStore {
     } else {
       this.database.prepare(`
         UPDATE memory_entries
-        SET pinned = ?, confidence = ?, version = ?, payload_ciphertext = ?, payload_nonce = ?,
-            payload_tag = ?, updated_at = ?
+        SET status = ?, pinned = ?, confidence = ?, version = ?, source_authority = ?,
+            source_refs_json = ?, valid_until = ?, last_confirmed_at = ?, payload_ciphertext = ?,
+            payload_nonce = ?, payload_tag = ?, updated_at = ?
         WHERE id = ?
       `).run(
+        status,
         normalized.pinned ? 1 : 0,
         normalized.confidence,
         version,
+        sourceAuthority,
+        sourceRefsJson,
+        normalized.validUntil ?? null,
+        lastConfirmedAt,
         encrypted.ciphertext,
         encrypted.nonce,
         encrypted.tag,
@@ -254,14 +311,14 @@ export class MemoryStore {
   list(options: { scope?: 'all' | MemoryScope; workspacePath?: string } = {}): MemoryEntry[] {
     const scope = options.scope ?? 'all'
     const workspaceHash = options.workspacePath === undefined ? undefined : this.workspaceHash(options.workspacePath)
+    const now = new Date().toISOString()
     const rows = this.database.prepare(`
-      SELECT id, scope, workspace_hash, kind, pinned, confidence, version,
-             payload_ciphertext, payload_nonce, payload_tag,
-             created_at, updated_at, last_used_at, use_count
+      SELECT ${MEMORY_COLUMNS}
       FROM memory_entries
       WHERE status = 'active'
+        AND (valid_until IS NULL OR valid_until > ?)
       ORDER BY pinned DESC, updated_at DESC
-    `).all() as unknown as MemoryRow[]
+    `).all(now) as unknown as MemoryRow[]
     return rows
       .filter((row) => {
         if (scope === 'global') return row.scope === 'global'
@@ -272,6 +329,37 @@ export class MemoryStore {
         return row.scope === 'global' || row.workspace_hash === workspaceHash
       })
       .map((row) => this.toEntry(row))
+  }
+
+  listCandidates(): MemoryEntry[] {
+    const rows = this.database.prepare(`
+      SELECT ${MEMORY_COLUMNS}
+      FROM memory_entries
+      WHERE status = 'candidate'
+      ORDER BY updated_at DESC
+    `).all() as unknown as MemoryRow[]
+    return rows.map((row) => this.toEntry(row))
+  }
+
+  confirm(id: string): MemoryEntry {
+    const now = new Date().toISOString()
+    const result = this.database.prepare(`
+      UPDATE memory_entries
+      SET status = 'active', last_confirmed_at = ?, updated_at = ?
+      WHERE id = ? AND status = 'candidate'
+    `).run(now, now, id)
+    if (result.changes === 0) throw new Error(`Unknown memory candidate: ${id}`)
+    return this.get(id)
+  }
+
+  reject(id: string): MemoryEntry {
+    const now = new Date().toISOString()
+    const result = this.database.prepare(`
+      UPDATE memory_entries SET status = 'archived', updated_at = ?
+      WHERE id = ? AND status = 'candidate'
+    `).run(now, id)
+    if (result.changes === 0) throw new Error(`Unknown memory candidate: ${id}`)
+    return this.get(id)
   }
 
   search(input: { query: string; workspacePath?: string; scope?: 'all' | MemoryScope; limit?: number }): MemoryEntry[] {
@@ -307,7 +395,7 @@ export class MemoryStore {
 
   setPinned(id: string, pinned: boolean): MemoryEntry {
     const result = this.database.prepare(`
-      UPDATE memory_entries SET pinned = ?, updated_at = ? WHERE id = ? AND status = 'active'
+      UPDATE memory_entries SET pinned = ?, updated_at = ? WHERE id = ? AND status IN ('active', 'candidate')
     `).run(pinned ? 1 : 0, new Date().toISOString(), id)
     if (result.changes === 0) throw new Error(`Unknown memory: ${id}`)
     return this.get(id)
@@ -433,10 +521,8 @@ export class MemoryStore {
 
   private get(id: string): MemoryEntry {
     const row = this.database.prepare(`
-      SELECT id, scope, workspace_hash, kind, pinned, confidence, version,
-             payload_ciphertext, payload_nonce, payload_tag,
-             created_at, updated_at, last_used_at, use_count
-      FROM memory_entries WHERE id = ? AND status = 'active'
+      SELECT ${MEMORY_COLUMNS}
+      FROM memory_entries WHERE id = ?
     `).get(id) as unknown as MemoryRow | undefined
     if (row === undefined) throw new Error(`Unknown memory: ${id}`)
     return this.toEntry(row)
@@ -461,13 +547,54 @@ export class MemoryStore {
       pinned: row.pinned === 1,
       confidence: row.confidence,
       sourceSessionIds: sources.map((source) => source.session_id),
+      sourceRefs: parseSourceRefs(row.source_refs_json),
+      sourceAuthority: row.source_authority,
+      status: row.status,
       version: row.version,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
       useCount: row.use_count,
     }
     if (row.last_used_at !== null) entry.lastUsedAt = row.last_used_at
+    if (row.last_confirmed_at !== null) entry.lastConfirmedAt = row.last_confirmed_at
+    if (row.valid_until !== null) entry.validUntil = row.valid_until
+    if (row.supersedes_id !== null) entry.supersedesId = row.supersedes_id
     return entry
+  }
+
+  private archiveHistory(row: MemoryRow, archivedAt: string): void {
+    this.database.prepare(`
+      INSERT OR IGNORE INTO memory_history (
+        id, memory_id, version, source_authority, source_refs_json, valid_until,
+        payload_ciphertext, payload_nonce, payload_tag, archived_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      randomUUID(),
+      row.id,
+      row.version,
+      row.source_authority,
+      row.source_refs_json,
+      row.valid_until,
+      row.payload_ciphertext,
+      row.payload_nonce,
+      row.payload_tag,
+      archivedAt,
+    )
+  }
+
+  private ensureOptionalColumns(): void {
+    const columns = new Set((this.database.prepare('PRAGMA table_info(memory_entries)').all() as Array<{ name: string }>)
+      .map((column) => column.name))
+    const additions = [
+      ['source_authority', "TEXT NOT NULL DEFAULT 'explicit'"],
+      ['source_refs_json', "TEXT NOT NULL DEFAULT '[]'"],
+      ['supersedes_id', 'TEXT'],
+      ['valid_until', 'TEXT'],
+      ['last_confirmed_at', 'TEXT'],
+    ] as const
+    for (const [name, type] of additions) {
+      if (!columns.has(name)) this.database.exec(`ALTER TABLE memory_entries ADD COLUMN ${name} ${type}`)
+    }
   }
 
   private workspaceHash(workspacePath: string): string {
@@ -552,4 +679,26 @@ function matchesTerm(text: string, term: string): boolean {
   if (!/^[a-z0-9_-]+$/i.test(term) || term.length < 5) return false
   const prefix = term.slice(0, 5)
   return text.split(/[^a-z0-9_-]+/i).some((word) => word.length >= 5 && word.startsWith(prefix))
+}
+
+function normalizeSourceRefs(refs: string[]): string[] {
+  return [...new Set(refs.map((ref) => ref.trim()).filter(Boolean))]
+}
+
+function parseSourceRefs(value: string): string[] {
+  try {
+    const parsed: unknown = JSON.parse(value)
+    return Array.isArray(parsed) ? parsed.filter((ref): ref is string => typeof ref === 'string') : []
+  } catch {
+    return []
+  }
+}
+
+function sourceAuthorityRank(authority: MemorySourceAuthority): number {
+  switch (authority) {
+    case 'explicit': return 4
+    case 'verified': return 3
+    case 'observed': return 2
+    case 'inferred': return 1
+  }
 }

@@ -39,11 +39,17 @@ describe('MemoryStore', () => {
     expect(updated.version).toBe(2)
     expect(updated.content).toBe('Use pnpm 10 for this user.')
     expect(updated.sourceSessionIds).toEqual(['session-one', 'session-two'])
+    expect(updated.sourceAuthority).toBe('explicit')
+    expect(updated.status).toBe('active')
+    expect(updated.sourceRefs).toEqual(['session:session-one', 'session:session-two'])
+    expect(updated.lastConfirmedAt).toEqual(expect.any(String))
     expect(store.memories.list()).toHaveLength(1)
 
     const disk = new DatabaseSync(path, { readOnly: true })
     const row = disk.prepare('SELECT payload_ciphertext FROM memory_entries LIMIT 1').get() as { payload_ciphertext: Uint8Array }
     expect(Buffer.from(row.payload_ciphertext).toString('utf8')).not.toContain('pnpm 10')
+    const history = disk.prepare('SELECT COUNT(*) AS count FROM memory_history').get() as { count: number }
+    expect(Number(history.count)).toBe(1)
     disk.close()
     store.close()
   })
@@ -78,6 +84,48 @@ describe('MemoryStore', () => {
     expect(store.memories.search({ query: 'shipping test', workspacePath: workspaceB })).toMatchObject([
       { title: 'Other test command', scope: 'workspace' },
     ])
+    store.close()
+  })
+
+  it('keeps inferred memories as candidates and refuses to overwrite explicit knowledge', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'barn-memory-authority-'))
+    const store = new SessionStore(join(directory, 'sessions.db'), new AesGcmEventCipher(randomBytes(32)))
+    await store.initialize()
+
+    const explicit = store.memories.save({
+      kind: 'fact',
+      scope: 'global',
+      title: 'Launch date',
+      content: 'The launch date is November 20.',
+      key: 'launch-date',
+      sourceAuthority: 'explicit',
+      sourceRefs: ['message:m1'],
+    })
+    expect(explicit.status).toBe('active')
+    expect(() => store.memories.save({
+      kind: 'fact',
+      scope: 'global',
+      title: 'Launch date',
+      content: 'The launch date is November 22.',
+      key: 'launch-date',
+      sourceAuthority: 'inferred',
+      status: 'candidate',
+    })).toThrow('confirmed memory already exists')
+
+    const candidate = store.memories.save({
+      kind: 'preference',
+      scope: 'global',
+      title: 'Report style',
+      content: 'Maybe prefer shorter reports.',
+      key: 'report-style',
+      sourceAuthority: 'inferred',
+      status: 'candidate',
+      sourceRefs: ['task:t1'],
+    })
+    expect(store.memories.search({ query: 'reports' })).toEqual([])
+    expect(store.memories.listCandidates()).toEqual([expect.objectContaining({ id: candidate.id, status: 'candidate' })])
+    store.memories.reject(candidate.id)
+    expect(store.memories.listCandidates()).toEqual([])
     store.close()
   })
 
