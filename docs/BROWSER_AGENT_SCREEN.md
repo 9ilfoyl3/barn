@@ -8,6 +8,7 @@ Barn Desktop includes a local built-in browser and a visible Agent Screen inside
 - The browser uses an Electron `WebContentsView` with a dedicated persistent session partition.
 - While the browser is open, the Agent Screen collapses. Closing the browser restores the preview only when the current session has a browser operation.
 - The Agent Screen is a compact right-side layout column, not an overlay. Its appearance squeezes the conversation list and composer with a shared grid transition.
+- The conversation scroll surface extends beneath the transparent Agent Screen gutter so the scrollbar stays at the workspace's far-right edge while content remains clear of the screen card.
 - Idle or new sessions do not mount the Agent Screen; manual browser browsing alone does not create an Agent Screen instance.
 - The compact surface shows the live page capture without the kit's footer card.
 - The Agent Screen is based on the MIT Agents Kit `AgentScreen` source with local attribution and controls.
@@ -18,6 +19,8 @@ Barn Desktop includes a local built-in browser and a visible Agent Screen inside
 - URL navigation, back, forward, reload, title, loading state, and address normalization.
 - Multiple tabs: create, select, close, list, and restore after restart.
 - A native-looking new-tab page provides a centered search/URL field, focused search suggestions from recent history, and Terminal, Files, and Side chat shortcuts.
+- Terminal opens a sandboxed command surface in the shared right-side utility panel; commands run in the Session workspace and support `cd`.
+- Side chat opens independent Agent Sessions in separate utility tabs. Multiple side chats can run at once and are excluded from the main Session list while open.
 - Loaded pages use a browser toolbar with navigation, site information, address, bookmark, download, and overflow controls.
 - Semantic observation of page text and interactive elements with stable refs, including open Shadow DOM and same-origin iframes.
 - Actions: click, type, select, press, hover, scroll, and wait.

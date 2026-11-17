@@ -3,6 +3,35 @@
   "shape": "app screen",
   "theme": "barn-native",
   "axes": [
+   "sandboxed terminal tab",
+   "multiple side chat tabs",
+   "shared utility panel chrome"
+  ],
+  "hero": "none",
+  "nav": "browser new-tab shortcuts to terminal and side chats",
+  "footer": "existing composer",
+  "imagery": "real terminal output",
+  "photos": [],
+  "entry": "Terminal and Side chat cards on the browser new tab page",
+  "fingerprint": "barn-terminal-side-chat-2026-11-17",
+  "sections": [
+   "utility tab bar",
+   "sandboxed terminal",
+   "side chat transcript",
+   "side chat composer"
+  ],
+  "signature": "terminal commands and parallel side conversations share one compact workspace tab strip",
+  "waived": [],
+  "prompt": "Implement the terminal and multiple side chats from the browser new-tab shortcuts, matching the provided terminal reference",
+  "date": "2026-11-17",
+  "mode": "redesign",
+  "depth": "polish",
+  "scope": "app"
+ },
+ {
+  "shape": "app screen",
+  "theme": "barn-native",
+  "axes": [
    "loaded-page navigation toolbar",
    "search suggestions from history",
    "single browser tab strip"

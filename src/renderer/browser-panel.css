@@ -188,7 +188,6 @@
 .browser-address:focus-within,
 .browser-approval-actions button:focus-visible,
 .browser-newtab-grid button:focus-visible,
-.browser-newtab-heading button:focus-visible,
 .browser-more-menu button:focus-visible {
   outline: 2px solid color-mix(in srgb, var(--accent) 72%, transparent);
   outline-offset: 2px;
@@ -201,8 +200,7 @@
 .browser-panel-close:active,
 .browser-toolbar button:active:not(:disabled),
 .browser-approval-actions button:active,
-.browser-newtab-grid button:active,
-.browser-newtab-heading button:active {
+.browser-newtab-grid button:active {
   transform: translateY(1px);
 }
 
@@ -562,23 +560,6 @@
   font-size: 12px;
 }
 
-.browser-newtab-heading button {
-  display: grid;
-  width: 28px;
-  height: 28px;
-  place-items: center;
-  border: 0;
-  border-radius: 7px;
-  background: transparent;
-  color: var(--text-faint);
-  cursor: pointer;
-}
-
-.browser-newtab-heading button:hover {
-  background: var(--panel-raised);
-  color: var(--text);
-}
-
 .browser-newtab-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -616,7 +597,8 @@
 }
 
 .workspace-body.agent-screen-open {
-  grid-template-columns: minmax(0, 1fr) clamp(216px, 20vw, 264px);
+  --agent-screen-width: clamp(216px, 20vw, 264px);
+  grid-template-columns: minmax(0, 1fr) var(--agent-screen-width);
 }
 
 .workspace-body > .agent-screen {
@@ -635,12 +617,14 @@
   overflow: hidden;
   background: transparent;
   padding: 16px 20px 24px 12px;
+  pointer-events: none;
   animation: agent-screen-enter 280ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .agent-screen .agent-screen-live {
   width: 100%;
   max-width: none;
+  pointer-events: auto;
   border-radius: 10px;
   box-shadow: none;
 }
@@ -654,7 +638,7 @@
 
 @media (max-width: 980px) {
   .workspace-body.agent-screen-open {
-    grid-template-columns: minmax(0, 1fr) 216px;
+    --agent-screen-width: 216px;
   }
 }
 
@@ -675,8 +659,7 @@
   .browser-panel-close:active,
   .browser-toolbar button:active:not(:disabled),
   .browser-approval-actions button:active,
-  .browser-newtab-grid button:active,
-  .browser-newtab-heading button:active {
+  .browser-newtab-grid button:active {
     animation: none;
     transform: none;
     transition: none;

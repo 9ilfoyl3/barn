@@ -321,7 +321,6 @@ export function BrowserPanel({
             <div className="browser-newtab-section">
               <div className="browser-newtab-heading">
                 <span>{t('browser.newTabSection')}</span>
-                <button type="button" aria-label={t('browser.moreNewTabActions')}>···</button>
               </div>
               <div className="browser-newtab-grid">
                 <button type="button" onClick={() => onQuickAction('terminal')}>

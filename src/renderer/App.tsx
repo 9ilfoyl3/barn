@@ -46,6 +46,7 @@ import { SettingsPage } from './SettingsPage'
 import { AttachmentStrip } from './AttachmentStrip'
 import { AgentScreen } from './AgentScreen'
 import { BrowserPanel, type BrowserQuickAction } from './BrowserPanel'
+import { UtilityPanel, type UtilityTab, type UtilityTabType } from './UtilityPanel'
 import './composer-workspace.css'
 import './browser-panel.css'
 import { TaskCenter } from './TaskCenter'
@@ -99,6 +100,9 @@ export function App() {
   const [tasksLoading, setTasksLoading] = useState(true)
   const [taskError, setTaskError] = useState<string>()
   const [browserOpen, setBrowserOpen] = useState(false)
+  const [utilityOpen, setUtilityOpen] = useState(false)
+  const [utilityTabs, setUtilityTabs] = useState<UtilityTab[]>([])
+  const [activeUtilityTabId, setActiveUtilityTabId] = useState<string>()
   const [browserState, setBrowserState] = useState<BrowserState>({
     open: false,
     visible: false,
@@ -119,6 +123,7 @@ export function App() {
   const accountTriggerRef = useRef<HTMLButtonElement>(null)
   const activeSessionIdRef = useRef<string | undefined>(undefined)
   const draftSessionIdRef = useRef<string | undefined>(undefined)
+  const sideChatCounterRef = useRef(0)
 
   useEffect(() => {
     if (!sessionSearchOpen) {
@@ -239,6 +244,7 @@ export function App() {
     const unsubscribe = window.barn.browser.onEvent((event) => {
       setBrowserState(event.state)
       setBrowserOpen(event.state.open)
+      if (event.state.open) setUtilityOpen(false)
     })
     void window.barn.browser.getState()
       .then((state) => {
@@ -508,12 +514,53 @@ export function App() {
       void attachFiles()
       return
     }
-    if (action === 'side-chat') {
-      setSidebarOpen(true)
-      return
+    void openUtilityTab(action === 'terminal' ? 'terminal' : 'side-chat')
+  }
+
+  async function openUtilityTab(type: UtilityTabType): Promise<void> {
+    let tab: UtilityTab | undefined
+    if (type === 'terminal') {
+      tab = utilityTabs.find((candidate) => candidate.type === 'terminal')
+      if (tab === undefined) {
+        tab = { id: crypto.randomUUID(), type: 'terminal', title: t('browser.terminal') }
+        setUtilityTabs((current) => [...current, tab!])
+      }
+    } else {
+      sideChatCounterRef.current += 1
+      const count = sideChatCounterRef.current
+      tab = {
+        id: crypto.randomUUID(),
+        type: 'side-chat',
+        title: count === 1 ? t('browser.sideChat') : `${t('browser.sideChat')} ${count}`,
+      }
+      setUtilityTabs((current) => [...current, tab!])
     }
-    setInput(t('browser.quickActions.terminalPrompt'))
-    void closeBrowser()
+    setActiveUtilityTabId(tab.id)
+    setUtilityOpen(true)
+    if (browserOpen) {
+      try {
+        const state = await window.barn.browser.close()
+        setBrowserState(state)
+        setBrowserOpen(false)
+      } catch (reason) {
+        setError(errorMessage(reason, t))
+      }
+    }
+  }
+
+  function closeUtilityTab(tabId: string): void {
+    const closing = utilityTabs.find((tab) => tab.id === tabId)
+    const index = utilityTabs.findIndex((tab) => tab.id === tabId)
+    const next = utilityTabs.filter((tab) => tab.id !== tabId)
+    setUtilityTabs(next)
+    if (closing?.type === 'side-chat') {
+      void window.barn.sessions.setArchived(tabId, true).catch(() => undefined)
+    }
+    if (activeUtilityTabId === tabId) {
+      const fallback = next[Math.min(index, next.length - 1)]
+      setActiveUtilityTabId(fallback?.id)
+      if (fallback === undefined) setUtilityOpen(false)
+    }
   }
 
   async function newBrowserTab(): Promise<void> {
@@ -574,8 +621,14 @@ export function App() {
   const activeSession = sessions.find((session) => session.id === activeSessionId)
   const commandKey = window.barn.platform === 'darwin' ? '⌘' : 'Ctrl'
   const running = pending || activeSession?.status === 'running'
-  const activeSessions = sortSessions(sessions.filter((session) => session.archivedAt === undefined))
-  const archivedSessions = sortSessions(sessions.filter((session) => session.archivedAt !== undefined))
+  const sideChatSessionIds = new Set(utilityTabs.filter((tab) => tab.type === 'side-chat').map((tab) => tab.id))
+  const rightPanelOpen = browserOpen || utilityOpen
+  const activeSessions = sortSessions(sessions.filter((session) => (
+    session.archivedAt === undefined && !sideChatSessionIds.has(session.id)
+  )))
+  const archivedSessions = sortSessions(sessions.filter((session) => (
+    session.archivedAt !== undefined && !sideChatSessionIds.has(session.id)
+  )))
   const normalizedSessionQuery = sessionQuery.trim().toLocaleLowerCase()
   const visibleSessions = normalizedSessionQuery === ''
     ? activeSessions
@@ -626,8 +679,8 @@ export function App() {
     window.barn.platform === 'darwin' ? 'platform-darwin' : '',
     sidebarOpen ? '' : 'sidebar-collapsed',
   ].filter(Boolean).join(' ')
-  const workspaceShellClassName = browserOpen ? 'workspace-shell browser-open' : 'workspace-shell'
-  const showAgentScreen = view === 'conversation' && !browserOpen && hasBrowserOperation
+  const workspaceShellClassName = rightPanelOpen ? 'workspace-shell browser-open' : 'workspace-shell'
+  const showAgentScreen = view === 'conversation' && !rightPanelOpen && hasBrowserOperation
   const workspaceBodyClassName = showAgentScreen ? 'workspace-body agent-screen-open' : 'workspace-body'
 
   return (
@@ -869,7 +922,7 @@ export function App() {
             </div>
           </div>
           <div className="workspace-header-actions">
-            {!browserOpen && (
+            {!rightPanelOpen && (
               <TooltipButton
                 className="icon-button browser-toggle"
                 label={t('browser.open')}
@@ -1090,7 +1143,7 @@ export function App() {
         </div>
       </main>
 
-      {browserOpen && (
+      {browserOpen && !utilityOpen && (
         <BrowserPanel
           state={browserState}
           onBack={() => browserHistory('back')}
@@ -1105,6 +1158,18 @@ export function App() {
           onQuickAction={handleBrowserQuickAction}
           approval={browserApproval}
           onResolveApproval={resolveBrowserApproval}
+        />
+      )}
+      {utilityOpen && (
+        <UtilityPanel
+          tabs={utilityTabs}
+          activeTabId={activeUtilityTabId}
+          workingDirectory={workingDirectory}
+          onActivate={setActiveUtilityTabId}
+          onCloseTab={closeUtilityTab}
+          onAddSideChat={() => void openUtilityTab('side-chat')}
+          onClose={() => setUtilityOpen(false)}
+          onError={(message) => setError(message)}
         />
       )}
       </div>

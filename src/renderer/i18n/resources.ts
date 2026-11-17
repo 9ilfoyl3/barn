@@ -144,6 +144,9 @@ const en = {
     noSuggestions: 'No recent pages yet',
     copyAddress: 'Copy address',
     showDownloads: 'Show downloads',
+    closeTab: 'Close {{name}}',
+    newSideChat: 'New side chat',
+    closeSidePanel: 'Close side panel',
     address: 'Browser address',
     back: 'Back',
     forward: 'Forward',
@@ -166,6 +169,21 @@ const en = {
       screenshot: 'Checking the screen',
     },
   },
+  terminal: {
+    ready: 'Barn terminal is ready in {{cwd}}.',
+    running: 'Running command…',
+    timedOut: 'Command timed out.',
+    exitCode: 'Exit code {{code}}',
+    command: 'Terminal command',
+  },
+  sideChat: {
+    empty: 'Start a side conversation without leaving the browser workspace.',
+    input: 'Side chat message',
+    placeholder: 'Ask in a side chat…',
+    working: 'Working',
+    send: 'Send',
+  },
+
   memorySettings: {
     title: 'Agent memory',
     description: 'Keep stable preferences, decisions, and project context across Sessions. Memory is local and encrypted; it does not replace rules that must always apply.',
@@ -591,6 +609,9 @@ const zhCN: TranslationSchema = {
     noSuggestions: '暂无最近访问页面',
     copyAddress: '复制地址',
     showDownloads: '查看下载',
+    closeTab: '关闭 {{name}}',
+    newSideChat: '新建侧边聊天',
+    closeSidePanel: '关闭侧边面板',
     address: '浏览器地址',
     back: '后退',
     forward: '前进',
@@ -613,6 +634,21 @@ const zhCN: TranslationSchema = {
       screenshot: '正在检查屏幕',
     },
   },
+  terminal: {
+    ready: 'Barn 终端已在 {{cwd}} 中准备就绪。',
+    running: '正在执行命令…',
+    timedOut: '命令执行超时。',
+    exitCode: '退出码 {{code}}',
+    command: '终端命令',
+  },
+  sideChat: {
+    empty: '无需离开浏览器工作区，即可开始一段侧边对话。',
+    input: '侧边聊天消息',
+    placeholder: '在侧边聊天中提问…',
+    working: '处理中',
+    send: '发送',
+  },
+
   memorySettings: {
     title: '智能助手记忆',
     description: '跨会话保留稳定的偏好、决定和项目上下文。记忆保存在本地并加密，但不能替代必须始终生效的规则。',

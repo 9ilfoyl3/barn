@@ -34,6 +34,8 @@ import { BrowserService } from './browser/browser-service'
 import { registerBrowserIpc } from './browser/browser-ipc'
 import { BrowserToolService } from './browser/browser-tools'
 import { BrowserSessionStore } from './browser/browser-session-store'
+import { TerminalService } from './terminal/terminal-service'
+import { registerTerminalIpc } from './terminal/terminal-ipc'
 
 if (process.env.BARN_USER_DATA_DIR !== undefined) {
   app.setPath('userData', process.env.BARN_USER_DATA_DIR)
@@ -179,6 +181,7 @@ void app.whenReady().then(async () => {
     mkdir(privateTempRoot, { recursive: true, mode: 0o700 }),
   ])
   const memoryService = new MemoryService(sessionStore.memories)
+  const terminalService = new TerminalService(shellService, workspaceRoot, outputRoot, privateTempRoot)
   const browserTools = new BrowserToolService({
     getBrowser: () => browserService,
     workspaceRoot,
@@ -231,6 +234,7 @@ void app.whenReady().then(async () => {
   maintenanceTimer.unref()
   registerRuntimeIpc(shellService, trustedSender, () => nativeLocale())
   registerBrowserIpc(() => browserService, trustedSender)
+  registerTerminalIpc(terminalService, trustedSender)
   await createWindow()
   lifecycle = new AlwaysOnLifecycle({
     showWindow,

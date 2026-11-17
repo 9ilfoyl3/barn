@@ -33,6 +33,8 @@ import type {
   BrowserBridge,
   BrowserBounds,
   BrowserLiveEvent,
+  TerminalBridge,
+  TerminalRunInput,
 } from '../shared/models'
 
 const models: ModelBridge = {
@@ -66,6 +68,10 @@ const browser: BrowserBridge = {
     ipcRenderer.on('browser:event', handler)
     return () => ipcRenderer.removeListener('browser:event', handler)
   },
+}
+
+const terminal: TerminalBridge = {
+  run: (input: TerminalRunInput) => ipcRenderer.invoke('terminal:run', input),
 }
 
 const sessions: SessionBridge = {
@@ -175,6 +181,7 @@ const api: BarnBridge = {
   i18n,
   models,
   browser,
+  terminal,
   sessions,
   tasks,
   permissions,
