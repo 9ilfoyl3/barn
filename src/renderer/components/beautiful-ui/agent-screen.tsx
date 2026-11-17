@@ -35,6 +35,7 @@ export interface AgentScreenProps {
   recordingElapsed?: string | undefined
   paused?: boolean | undefined
   className?: string | undefined
+  showHeader?: boolean | undefined
   openLabel?: string | undefined
   collapseLabel?: string | undefined
   loadingLabel?: string | undefined
@@ -130,6 +131,7 @@ export function AgentScreen({
   recordingElapsed,
   paused = false,
   className,
+  showHeader = true,
   openLabel = 'Open screen',
   collapseLabel = 'Collapse',
   loadingLabel = 'Connecting to agent screen',
@@ -204,40 +206,42 @@ export function AgentScreen({
         </AnimatePresence>
       </div>
 
-      <header className="agent-screen-kit-header">
-        <div>
-          <p className="agent-screen-kit-variant">{variant}</p>
-          <h2>{title}</h2>
-          {description !== undefined && <p className="agent-screen-kit-description">{description}</p>}
-        </div>
-        {variant !== 'loading' && showRecordingControls && (
-          <AnimatePresence initial={false} mode="wait">
-            <motion.div
-              key={recording ? (paused ? 'paused' : 'recording') : 'idle'}
-              initial={reduce ? false : { opacity: 0, y: 4 }}
-              animate={{ opacity: 1, y: 0 }}
-              {...(reduce ? {} : { exit: { opacity: 0, y: -4 } })}
-              transition={{ duration: reduce ? 0 : 0.15 }}
-              className="agent-screen-kit-actions"
-            >
-              {recording ? (
-                <ScreenButton variant="danger" leadingIcon={Square} onClick={onEndRecording}>
-                  End recording
-                </ScreenButton>
-              ) : (
-                <ScreenButton variant="secondary" leadingIcon={Radio} onClick={onStartRecording}>
-                  Teach a task
-                </ScreenButton>
-              )}
-              {recording && (paused ? (
-                <ScreenButton variant="ghost" leadingIcon={Play} onClick={onResume}>Resume</ScreenButton>
-              ) : (
-                <ScreenButton variant="ghost" leadingIcon={Pause} onClick={onPause}>Pause</ScreenButton>
-              ))}
-            </motion.div>
-          </AnimatePresence>
-        )}
-      </header>
+      {showHeader && (
+        <header className="agent-screen-kit-header">
+          <div>
+            <p className="agent-screen-kit-variant">{variant}</p>
+            <h2>{title}</h2>
+            {description !== undefined && <p className="agent-screen-kit-description">{description}</p>}
+          </div>
+          {variant !== 'loading' && showRecordingControls && (
+            <AnimatePresence initial={false} mode="wait">
+              <motion.div
+                key={recording ? (paused ? 'paused' : 'recording') : 'idle'}
+                initial={reduce ? false : { opacity: 0, y: 4 }}
+                animate={{ opacity: 1, y: 0 }}
+                {...(reduce ? {} : { exit: { opacity: 0, y: -4 } })}
+                transition={{ duration: reduce ? 0 : 0.15 }}
+                className="agent-screen-kit-actions"
+              >
+                {recording ? (
+                  <ScreenButton variant="danger" leadingIcon={Square} onClick={onEndRecording}>
+                    End recording
+                  </ScreenButton>
+                ) : (
+                  <ScreenButton variant="secondary" leadingIcon={Radio} onClick={onStartRecording}>
+                    Teach a task
+                  </ScreenButton>
+                )}
+                {recording && (paused ? (
+                  <ScreenButton variant="ghost" leadingIcon={Play} onClick={onResume}>Resume</ScreenButton>
+                ) : (
+                  <ScreenButton variant="ghost" leadingIcon={Pause} onClick={onPause}>Pause</ScreenButton>
+                ))}
+              </motion.div>
+            </AnimatePresence>
+          )}
+        </header>
+      )}
 
       {steps.length > 0 && (
         <motion.div layout className="agent-screen-kit-steps">

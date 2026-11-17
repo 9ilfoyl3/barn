@@ -4,9 +4,12 @@ Barn Desktop includes a local built-in browser and a visible Agent Screen inside
 
 ## Current surface
 
-- The top-right Browser button opens a right-side split.
+- The top-right Browser button opens a right-side split and temporarily collapses the sidebar for a wider browser surface.
 - The browser uses an Electron `WebContentsView` with a dedicated persistent session partition.
-- While the browser is open, the Agent Screen collapses. Closing the browser restores the Agent Screen preview.
+- While the browser is open, the Agent Screen collapses. Closing the browser restores the preview only when the current session has a browser operation.
+- The Agent Screen is a compact right-side layout column, not an overlay. Its appearance squeezes the conversation list and composer with a shared grid transition.
+- Idle or new sessions do not mount the Agent Screen; manual browser browsing alone does not create an Agent Screen instance.
+- The compact surface shows the live page capture without the kit's footer card.
 - The Agent Screen is based on the MIT Agents Kit `AgentScreen` source with local attribution and controls.
 - The preview is captured from the real browser page, not a generated mock.
 
@@ -14,6 +17,7 @@ Barn Desktop includes a local built-in browser and a visible Agent Screen inside
 
 - URL navigation, back, forward, reload, title, loading state, and address normalization.
 - Multiple tabs: create, select, close, list, and restore after restart.
+- A native-looking new-tab page provides a centered search/URL field and Terminal, Files, and Side chat shortcuts.
 - Semantic observation of page text and interactive elements with stable refs, including open Shadow DOM and same-origin iframes.
 - Actions: click, type, select, press, hover, scroll, and wait.
 - Bounded visible-text extraction.
@@ -79,6 +83,7 @@ Real Electron e2e covers:
 
 - opening and closing the split;
 - Browser/Agent Screen mutual exclusion;
+- Agent Screen gating on browser operations and compact split layout;
 - real native browser content and captures;
 - tab creation, switching, and closing;
 - semantic observation, form fill, and submit;

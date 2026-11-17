@@ -45,8 +45,7 @@ import { DiagnosticsSettings } from './DiagnosticsSettings'
 import { SettingsPage } from './SettingsPage'
 import { AttachmentStrip } from './AttachmentStrip'
 import { AgentScreen } from './AgentScreen'
-import type { AgentScreenStep } from '@/components/beautiful-ui/agent-screen'
-import { BrowserPanel } from './BrowserPanel'
+import { BrowserPanel, type BrowserQuickAction } from './BrowserPanel'
 import './composer-workspace.css'
 import './browser-panel.css'
 import { TaskCenter } from './TaskCenter'
@@ -119,6 +118,8 @@ export function App() {
   const accountTriggerRef = useRef<HTMLButtonElement>(null)
   const activeSessionIdRef = useRef<string | undefined>(undefined)
   const draftSessionIdRef = useRef<string | undefined>(undefined)
+  const sidebarBeforeBrowserRef = useRef<boolean | undefined>(undefined)
+  const browserWasOpenRef = useRef(false)
 
   useEffect(() => {
     if (!sessionSearchOpen) {
@@ -222,6 +223,19 @@ export function App() {
   useEffect(() => {
     return window.barn.sessions.onEvent(handleLiveEvent)
   }, [])
+  useLayoutEffect(() => {
+    if (browserOpen && !browserWasOpenRef.current) {
+      sidebarBeforeBrowserRef.current = sidebarOpen
+      setSidebarOpen(false)
+    } else if (!browserOpen && browserWasOpenRef.current) {
+      if (sidebarBeforeBrowserRef.current !== undefined) {
+        setSidebarOpen(sidebarBeforeBrowserRef.current)
+        sidebarBeforeBrowserRef.current = undefined
+      }
+    }
+    browserWasOpenRef.current = browserOpen
+  }, [browserOpen])
+
   useEffect(() => {
     const upsert = (approval: ApprovalRequest): void => {
       setPendingApprovals((current) => {
@@ -503,6 +517,19 @@ export function App() {
     }
   }
 
+  function handleBrowserQuickAction(action: BrowserQuickAction): void {
+    if (action === 'files') {
+      void attachFiles()
+      return
+    }
+    if (action === 'side-chat') {
+      setSidebarOpen(true)
+      return
+    }
+    setInput(t('browser.quickActions.terminalPrompt'))
+    void closeBrowser()
+  }
+
   async function newBrowserTab(): Promise<void> {
     try {
       const state = await window.barn.browser.newTab()
@@ -574,20 +601,9 @@ export function App() {
   const workingDirectoryLabel = workingDirectory === undefined
     ? t('conversation.chooseWorkingDirectory')
     : workingDirectory.split(/[\\/]/).filter(Boolean).at(-1) ?? workingDirectory
-  const browserToolParts = [...messages.flatMap((message) => message.parts), ...liveParts]
-    .filter((part): part is Extract<ConversationPart, { type: 'tool' }> => (
-      part.type === 'tool' && part.tool.name.startsWith('browser_')
-    ))
+  const hasBrowserOperation = [...messages.flatMap((message) => message.parts), ...liveParts]
+    .some((part) => part.type === 'tool' && part.tool.name.startsWith('browser_'))
   const browserApproval = pendingApprovals.find((approval) => approval.title === 'Approve browser action')
-  const agentScreenSteps: AgentScreenStep[] = browserToolParts.slice(-6).map((part) => ({
-    id: part.tool.id,
-    label: browserToolLabel(part.tool.name, t),
-    status: part.tool.status === 'running'
-      ? 'running'
-      : part.tool.status === 'success'
-        ? 'complete'
-        : 'pending',
-  }))
   const workspaceTitle = view === 'tasks'
     ? t('tasks.title')
     : view === 'settings'
@@ -625,6 +641,8 @@ export function App() {
     sidebarOpen ? '' : 'sidebar-collapsed',
   ].filter(Boolean).join(' ')
   const workspaceShellClassName = browserOpen ? 'workspace-shell browser-open' : 'workspace-shell'
+  const showAgentScreen = view === 'conversation' && !browserOpen && hasBrowserOperation
+  const workspaceBodyClassName = showAgentScreen ? 'workspace-body agent-screen-open' : 'workspace-body'
 
   return (
     <div className={appShellClassName}>
@@ -876,7 +894,7 @@ export function App() {
           </div>
         </header>
 
-        <div className="workspace-body">
+        <div className={workspaceBodyClassName}>
           {view === 'settings' ? (
             <SettingsPage
               sessions={archivedSessions}
@@ -991,16 +1009,6 @@ export function App() {
                 )}
               </section>
 
-              {!browserOpen && (
-                <AgentScreen
-                  preview={agentScreenPreview}
-                  url={browserState.url}
-                  title={browserState.title}
-                  steps={agentScreenSteps}
-                  onOpenBrowser={() => void toggleBrowser()}
-                />
-              )}
-
               <div className="composer-dock">
                 <div className="composer-project">
                   {workingDirectory === undefined ? (
@@ -1084,6 +1092,13 @@ export function App() {
             </div>
           )}
 
+          {showAgentScreen && (
+            <AgentScreen
+              preview={agentScreenPreview}
+              onOpenBrowser={() => void toggleBrowser()}
+            />
+          )}
+
         </div>
       </main>
 
@@ -1099,6 +1114,7 @@ export function App() {
           onActivateTab={activateBrowserTab}
           onCloseTab={closeBrowserTab}
           onRevealDownload={revealBrowserDownload}
+          onQuickAction={handleBrowserQuickAction}
           approval={browserApproval}
           onResolveApproval={resolveBrowserApproval}
         />
@@ -1116,19 +1132,6 @@ export function App() {
       {diagnosticsOpen && <DiagnosticsSettings onClose={() => setDiagnosticsOpen(false)} />}
     </div>
   )
-}
-
-function browserToolLabel(name: string, t: ReturnType<typeof useTranslation>['t']): string {
-  switch (name) {
-    case 'browser_open': return t('browser.tools.open')
-    case 'browser_observe': return t('browser.tools.observe')
-    case 'browser_act': return t('browser.tools.act')
-    case 'browser_read': return t('browser.tools.read')
-    case 'browser_tab': return t('browser.tools.tabs')
-    case 'browser_upload': return t('browser.tools.upload')
-    case 'browser_screenshot': return t('browser.tools.screenshot')
-    default: return name
-  }
 }
 
 function ToolGroup({ tools }: { tools: ToolCallView[] }) {

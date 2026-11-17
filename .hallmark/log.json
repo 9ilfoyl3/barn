@@ -3,6 +3,37 @@
   "shape": "app screen",
   "theme": "barn-native",
   "axes": [
+   "single browser tab bar",
+   "centered new-tab search",
+   "three compact shortcuts"
+  ],
+  "hero": "none",
+  "nav": "temporary collapsed sidebar while browser split is open",
+  "footer": "existing composer",
+  "imagery": "real browser captures",
+  "photos": [],
+  "entry": "Browser button in workspace header",
+  "fingerprint": "barn-browser-new-tab-2026-11-17",
+  "sections": [
+   "browser tab bar",
+   "new-tab search",
+   "new-tab shortcut cards",
+   "native browser viewport"
+  ],
+  "signature": "the new-tab surface reads as part of the conversation rather than a second application",
+  "waived": [
+   "28b"
+  ],
+  "prompt": "Match the browser new-tab UI to the provided reference while preserving Barn tokens and real browser behavior",
+  "date": "2026-11-17",
+  "mode": "redesign",
+  "depth": "polish",
+  "scope": "app"
+ },
+ {
+  "shape": "app screen",
+  "theme": "barn-native",
+  "axes": [
    "right-side browser split",
    "inline action approval",
    "agent screen handoff"

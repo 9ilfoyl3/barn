@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { _electron as electron, expect, test } from '@playwright/test'
 
-test('opens a real browser split and swaps it with the agent screen', async () => {
+test('opens a real browser split without mounting an idle agent screen', async () => {
   const fixture = await startBrowserFixture()
   const address = fixture.server.address()
   if (address === null || typeof address === 'string') throw new Error('Browser fixture did not bind')
@@ -26,19 +26,25 @@ test('opens a real browser split and swaps it with the agent screen', async () =
   try {
     const page = await app.firstWindow()
     await page.waitForLoadState('domcontentloaded')
-    await expect(page.getByTestId('agent-screen')).toBeVisible()
+    await expect(page.getByTestId('agent-screen')).toHaveCount(0)
     await expect(page.getByTestId('browser-panel')).toHaveCount(0)
+    await expect(page.locator('.app-shell')).not.toHaveClass(/sidebar-collapsed/)
 
     await page.locator('.workspace-header').getByRole('button', { name: 'Open browser' }).click()
     const panel = page.getByTestId('browser-panel')
     await expect(panel).toBeVisible()
     await expect(page.getByTestId('agent-screen')).toHaveCount(0)
     await expect(page.getByTestId('workspace-shell')).toHaveClass(/browser-open/)
+    await expect(page.locator('.app-shell')).toHaveClass(/sidebar-collapsed/)
+    await expect(page.locator('.browser-newtab')).toBeVisible()
+    await expect(page.locator('.browser-newtab-search input')).toHaveAttribute('placeholder', 'Search files or enter a URL')
+    await expect(page.locator('.browser-newtab-grid button')).toHaveCount(3)
+    await expect(page.locator('.browser-topbar .browser-tab')).toHaveCount(1)
 
     const addressInput = page.getByRole('textbox', { name: 'Browser address' })
     await addressInput.fill(fixtureUrl)
     await addressInput.press('Enter')
-    await expect(page.locator('.browser-page-title')).toContainText('Barn Browser Fixture', { timeout: 10_000 })
+    await expect(page.locator('.browser-tab.active .browser-tab-select')).toContainText('Barn Browser Fixture', { timeout: 10_000 })
     await expect.poll(async () => page.evaluate(() => window.barn.browser.getState())).toMatchObject({
       open: true,
       visible: true,
@@ -59,23 +65,15 @@ test('opens a real browser split and swaps it with the agent screen', async () =
 
     await panel.getByRole('button', { name: 'Close browser' }).click()
     await expect(page.getByTestId('browser-panel')).toHaveCount(0)
-    const agentScreen = page.getByTestId('agent-screen')
-    await expect(agentScreen).toBeVisible()
-    await expect(agentScreen).toContainText('Barn Browser Fixture')
-    await expect(agentScreen.locator('.agent-screen-kit-image')).toBeVisible()
+    await expect(page.getByTestId('agent-screen')).toHaveCount(0)
     await expect.poll(async () => page.evaluate(() => window.barn.browser.getState())).toMatchObject({
       open: false,
       visible: false,
     })
-    await page.screenshot({ path: 'test-results/barn-agent-screen-live.png', fullPage: true })
+    await page.screenshot({ path: 'test-results/barn-browser-closed.png', fullPage: true })
 
     await expect(page.evaluate(() => window.barn.browser.navigate('file:///etc/passwd'))).rejects.toThrow(/not allowed/i)
     await expect(page.evaluate(() => window.barn.browser.navigate('http://169.254.169.254/latest/meta-data'))).rejects.toThrow(/not allowed/i)
-
-    await agentScreen.locator('.agent-screen-kit-media-wrap').hover()
-    await agentScreen.getByRole('button', { name: 'Open screen' }).click()
-    await expect(page.getByTestId('browser-panel')).toBeVisible()
-    await expect(page.getByTestId('agent-screen')).toHaveCount(0)
   } finally {
     await app.close()
     await new Promise<void>((resolve, reject) => fixture.server.close((error) => error === undefined ? resolve() : reject(error)))
