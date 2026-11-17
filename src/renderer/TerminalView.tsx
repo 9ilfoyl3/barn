@@ -25,7 +25,7 @@ export function TerminalView({ terminalId, workingDirectory, onError }: Terminal
 
   useEffect(() => {
     outputRef.current?.scrollTo({ top: outputRef.current.scrollHeight })
-  }, [lines, busy])
+  }, [input, lines, busy])
 
   useEffect(() => {
     inputRef.current?.focus()
@@ -82,7 +82,7 @@ export function TerminalView({ terminalId, workingDirectory, onError }: Terminal
   }
 
   return (
-    <div className="terminal-view">
+    <div className="terminal-view" onClick={() => { if (!busy) inputRef.current?.focus() }}>
       <div className="terminal-output" ref={outputRef}>
         {lines.length === 0 && <div className="terminal-meta">{t('terminal.ready', { cwd: cwd || 'workspace' })}</div>}
         {lines.map((line, index) => (
@@ -90,34 +90,37 @@ export function TerminalView({ terminalId, workingDirectory, onError }: Terminal
             {line.kind === 'command' ? `→ ${line.text}` : line.text}
           </pre>
         ))}
-        {busy && <div className="terminal-busy">{t('terminal.running')}</div>}
+        {busy ? (
+          <div className="terminal-busy">{t('terminal.running')}</div>
+        ) : (
+          <form className="terminal-active-line" onSubmit={(event) => { event.preventDefault(); void submit() }}>
+            <span className="terminal-prompt" aria-hidden="true">→</span>
+            <span className="terminal-user">barn</span>
+            <textarea
+              ref={inputRef}
+              aria-label={t('terminal.command')}
+              value={input}
+              rows={1}
+              onChange={(event) => {
+                setInput(event.target.value)
+                event.currentTarget.style.height = 'auto'
+                event.currentTarget.style.height = `${Math.min(event.currentTarget.scrollHeight, 132)}px`
+              }}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' && !event.shiftKey) {
+                  event.preventDefault()
+                  void submit()
+                  return
+                }
+                if (event.key === 'ArrowUp' && !input.includes('\n')) { event.preventDefault(); recall('up') }
+                if (event.key === 'ArrowDown' && !input.includes('\n')) { event.preventDefault(); recall('down') }
+              }}
+              spellCheck={false}
+              autoComplete="off"
+            />
+          </form>
+        )}
       </div>
-      <form className="terminal-composer" onSubmit={(event) => { event.preventDefault(); void submit() }}>
-        <span className="terminal-prompt" aria-hidden="true">→</span>
-        <span className="terminal-user">barn</span>
-        <textarea
-          ref={inputRef}
-          aria-label={t('terminal.command')}
-          value={input}
-          rows={1}
-          onChange={(event) => {
-            setInput(event.target.value)
-            event.currentTarget.style.height = 'auto'
-            event.currentTarget.style.height = `${Math.min(event.currentTarget.scrollHeight, 132)}px`
-          }}
-          onKeyDown={(event) => {
-            if (event.key === 'Enter' && !event.shiftKey) {
-              event.preventDefault()
-              void submit()
-              return
-            }
-            if (event.key === 'ArrowUp' && !input.includes('\n')) { event.preventDefault(); recall('up') }
-            if (event.key === 'ArrowDown' && !input.includes('\n')) { event.preventDefault(); recall('down') }
-          }}
-          spellCheck={false}
-          autoComplete="off"
-        />
-      </form>
     </div>
   )
 }
