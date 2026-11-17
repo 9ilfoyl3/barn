@@ -133,6 +133,52 @@ export interface ModelBridge {
   testModel(input: ModelTestInput): Promise<ModelTestResult>
 }
 
+export type VisibleMessageRole = 'user' | 'assistant' | 'system'
+
+/** The single user-visible Assistant history. Session IDs never define this identity. */
+export interface PrincipalThread {
+  id: string
+  lastVisibleSeq: number
+  createdAt: string
+  updatedAt: string
+}
+
+export interface VisibleMessage {
+  id: string
+  threadId: string
+  seq: number
+  role: VisibleMessageRole
+  content: unknown
+  metadata: Record<string, unknown>
+  sourceRefs: string[]
+  clientMessageId?: string
+  createdAt: string
+}
+
+export interface AppendVisibleMessageInput {
+  clientMessageId?: string
+  role: VisibleMessageRole
+  content: unknown
+  metadata?: Record<string, unknown>
+  sourceRefs?: string[]
+}
+
+export interface PrincipalThreadSnapshot {
+  thread: PrincipalThread
+  messages: VisibleMessage[]
+}
+
+export type ThreadLiveEvent = {
+  type: 'thread.message-appended'
+  message: VisibleMessage
+}
+
+export interface ThreadBridge {
+  getSnapshot(): Promise<PrincipalThreadSnapshot>
+  listMessages(options?: { afterSeq?: number; limit?: number }): Promise<VisibleMessage[]>
+  appendMessage(input: AppendVisibleMessageInput): Promise<VisibleMessage>
+  onEvent(listener: (event: ThreadLiveEvent) => void): () => void
+}
 
 export type TaskStatus = 'proposed' | 'queued' | 'running' | 'waiting' | 'completed' | 'failed' | 'cancelled'
 export type TaskOrigin = 'user' | 'automation'
@@ -655,6 +701,7 @@ export interface BarnBridge {
   browser: BrowserBridge
   terminal: TerminalBridge
   sessions: SessionBridge
+  threads: ThreadBridge
   tasks: TaskBridge
   permissions: PermissionBridge
   approvals: ApprovalBridge

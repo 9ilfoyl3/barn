@@ -8,6 +8,8 @@ import { ShellService } from './sandbox/shell-service'
 import { loadOrCreateDeviceDataKey } from './session/device-data-key'
 import { AesGcmEventCipher } from './session/event-cipher'
 import { registerSessionIpc } from './session/session-ipc'
+import { ThreadService } from './threads/thread-service'
+import { registerThreadIpc } from './threads/thread-ipc'
 import { ActionService } from './actions/action-service'
 import { registerDiagnosticsIpc } from './diagnostics/diagnostics-ipc'
 import { DiagnosticsService } from './diagnostics/diagnostics-service'
@@ -182,6 +184,7 @@ void app.whenReady().then(async () => {
     mkdir(privateTempRoot, { recursive: true, mode: 0o700 }),
   ])
   const memoryService = new MemoryService(sessionStore.memories)
+  const threadService = new ThreadService(sessionStore.threads)
   terminalService = new TerminalService(outputRoot, privateTempRoot)
   const browserTools = new BrowserToolService({
     getBrowser: () => browserService,
@@ -217,6 +220,7 @@ void app.whenReady().then(async () => {
   registerModelIpc(modelService, trustedSender)
   registerMemoryIpc(memoryService, trustedSender)
   registerSessionIpc(sessionStore, agentService, join(workspaceRoot, 'attachments'), trustedSender, () => nativeLocale())
+  registerThreadIpc(threadService, trustedSender)
   registerTaskIpc(taskService, trustedSender)
   registerPermissionIpc(permissionService, trustedSender)
   registerLocalSourceIpc(localSourceService, trustedSender)
