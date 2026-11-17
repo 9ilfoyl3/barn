@@ -80,9 +80,16 @@ test('opens multiple independent side chats and keeps them out of the main sessi
     await composer.press('Enter')
     await expect(panel.getByText('Side chat reply').last()).toBeVisible({ timeout: 15_000 })
     await expect(page.locator('.session-row')).toHaveCount(0)
+    await expect(panel.locator('.side-chat-composer-dock .composer-project')).toHaveCount(0)
 
-    await panel.getByRole('button', { name: 'New side chat' }).click()
+    await panel.getByRole('button', { name: 'New tab', exact: true }).click()
     await expect(panel.locator('.utility-tab')).toHaveCount(2)
+    await expect(panel.getByRole('tab', { name: 'New tab' })).toHaveAttribute('aria-selected', 'true')
+    await expect(panel.locator('.utility-newtab')).toBeVisible()
+    await expect(page.locator('.session-row')).toHaveCount(0)
+
+    await panel.locator('.utility-newtab-actions').getByRole('button', { name: 'Side chat', exact: true }).click()
+    await expect(panel.locator('.utility-tab')).toHaveCount(3)
     await expect(panel.getByRole('tab', { name: 'Side chat 2' })).toHaveAttribute('aria-selected', 'true')
     await panel.getByRole('tab', { name: 'Side chat', exact: true }).click()
     await expect(panel.getByText('Side chat reply').last()).toBeVisible()

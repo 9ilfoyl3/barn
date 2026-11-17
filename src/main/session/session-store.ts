@@ -210,11 +210,14 @@ export class SessionStore {
   }
 
   ensureSession(sessionId: string, title = 'New session', workingDirectory?: string): SessionSummary {
-    const row = this.database.prepare(`
-      SELECT id, title, status, has_unread_result, pinned, archived_at, working_directory, created_at, updated_at
-      FROM sessions WHERE id = ?
-    `).get(sessionId) as SessionRow | undefined
-    return row === undefined ? this.createSession(title, sessionId, workingDirectory) : toSessionSummary(row)
+    const now = new Date().toISOString()
+    this.database.prepare(`
+      INSERT OR IGNORE INTO sessions (
+        id, title, status, has_unread_result, pinned, archived_at,
+        working_directory, last_seq, created_at, updated_at
+      ) VALUES (?, ?, 'idle', 0, 0, NULL, ?, 0, ?, ?)
+    `).run(sessionId, title, workingDirectory ?? null, now, now)
+    return this.getSession(sessionId)
   }
 
   getSession(sessionId: string): SessionSummary {
