@@ -18,12 +18,12 @@ Barn Desktop includes a local built-in browser and a visible Agent Screen inside
 
 - URL navigation, back, forward, reload, title, loading state, and address normalization.
 - Multiple tabs: create, select, close, list, and restore after restart.
-- A native-looking new-tab page provides a centered search/URL field, focused search suggestions from recent history, and Terminal, Files, and Side chat shortcuts.
+- The browser and the right-side utility panel share one native-looking new-tab component with a centered search/URL field, focused search suggestions from recent history, and Terminal, Files, and Side chat shortcuts. Opening a utility tab therefore does not fall back to a reduced two-action placeholder.
 - Terminal opens a sandboxed command surface in the shared right-side utility panel. The default current directory is Barn's real local working directory (or the selected Session directory), so `pwd` shows host paths while macOS Seatbelt still restricts writes, reads, and network access.
 - Terminal uses xterm.js over a persistent sandboxed `node-pty` session, providing Tab completion, Ctrl+C, colors, streaming output, history, and interactive programs.
 - Each terminal uses a managed zsh configuration and private `ZDOTDIR`, avoiding user-home writes while retaining real workspace paths.
 - The packaged macOS app rebuilds and unpacks `node-pty`; Windows remains fail-closed until an enforcing PTY sandbox exists.
-- Side chat opens independent Agent Sessions in separate utility tabs. Multiple side chats can run at once and are excluded from the main Session list while open.
+- Side chat opens temporary child Sessions in separate utility tabs. Each child stores its parent Session ID, is excluded from main Session history in the data layer, and receives a bounded transcript of the parent conversation when it asks the model. Multiple side chats can run at once, but none appear in the sidebar.
 - Loaded pages use a browser toolbar with navigation, site information, address, bookmark, download, and overflow controls.
 - Semantic observation of page text and interactive elements with stable refs, including open Shadow DOM and same-origin iframes.
 - Actions: click, type, select, press, hover, scroll, and wait.

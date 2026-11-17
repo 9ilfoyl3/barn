@@ -16,12 +16,19 @@ import {
 
 export interface SideChatViewProps {
   sessionId: string
+  parentSessionId?: string | undefined
   workingDirectory?: string | undefined
   onConfigureModel: () => void
   onError: (message: string) => void
 }
 
-export function SideChatView({ sessionId, workingDirectory, onConfigureModel, onError }: SideChatViewProps) {
+export function SideChatView({
+  sessionId,
+  parentSessionId,
+  workingDirectory,
+  onConfigureModel,
+  onError,
+}: SideChatViewProps) {
   const { t } = useTranslation()
   const [snapshot, setSnapshot] = useState<ModelConfigSnapshot>()
   const [messages, setMessages] = useState<ChatMessage[]>([])
@@ -36,13 +43,13 @@ export function SideChatView({ sessionId, workingDirectory, onConfigureModel, on
 
   useEffect(() => {
     void window.barn.models.getSnapshot().then(setSnapshot).catch((reason: unknown) => onError(errorMessage(reason)))
-    void window.barn.sessions.create(sessionId)
+    void window.barn.sessions.create(sessionId, parentSessionId)
       .then(async () => {
         setReady(true)
         await load()
       })
       .catch((reason: unknown) => onError(errorMessage(reason)))
-  }, [sessionId])
+  }, [parentSessionId, sessionId])
 
   useEffect(() => window.barn.sessions.onEvent((event) => handleEvent(event)), [sessionId])
 
