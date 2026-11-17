@@ -13,6 +13,9 @@ import type {
   SessionLiveEvent,
   NativeLocale,
   SessionPromptInput,
+  ThreadBridge,
+  ThreadLiveEvent,
+  AppendVisibleMessageInput,
   TaskBridge,
   CreateTaskInput,
   TaskStatusUpdate,
@@ -110,6 +113,17 @@ const sessions: SessionBridge = {
   },
 }
 
+const threads: ThreadBridge = {
+  getSnapshot: () => ipcRenderer.invoke('threads:get-snapshot'),
+  listMessages: (options?: { afterSeq?: number; limit?: number }) => ipcRenderer.invoke('threads:list-messages', options ?? {}),
+  appendMessage: (input: AppendVisibleMessageInput) => ipcRenderer.invoke('threads:append-message', input),
+  onEvent: (listener: (event: ThreadLiveEvent) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, liveEvent: ThreadLiveEvent): void => listener(liveEvent)
+    ipcRenderer.on('threads:event', handler)
+    return () => ipcRenderer.removeListener('threads:event', handler)
+  },
+}
+
 const tasks: TaskBridge = {
   list: () => ipcRenderer.invoke('tasks:list'),
   get: (taskId: string) => ipcRenderer.invoke('tasks:get', taskId),
@@ -198,6 +212,7 @@ const api: BarnBridge = {
   browser,
   terminal,
   sessions,
+  threads,
   tasks,
   permissions,
   approvals,

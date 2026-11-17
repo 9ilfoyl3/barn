@@ -9,12 +9,13 @@ import { PermissionStore } from '../permissions/permission-store'
 import { ActionStore } from '../actions/action-store'
 import { LocalSourceStore } from '../sources/local-source-store'
 import { MemoryStore } from '../memory/memory-store'
+import { ThreadStore } from '../threads/thread-store'
 
 export type SessionStatus = SessionSummary['status']
 
-// Schema 6 adds durable parent links for temporary side-chat Sessions. Older
-// schema versions are upgraded in place by ensureSessionColumns().
-export const CURRENT_SCHEMA_VERSION = 6
+// Schema 7 adds the Principal Thread and visible-message history. Older schema
+// versions are upgraded in place by idempotent store initialization.
+export const CURRENT_SCHEMA_VERSION = 7
 
 export interface NewSessionEvent {
   type: string
@@ -37,6 +38,7 @@ export class SessionStore {
   readonly actions: ActionStore
   readonly localSources: LocalSourceStore
   readonly memories: MemoryStore
+  readonly threads: ThreadStore
 
   constructor(
     path: string,
@@ -49,6 +51,7 @@ export class SessionStore {
     this.actions = new ActionStore(this.database, cipher)
     this.localSources = new LocalSourceStore(this.database, cipher)
     this.memories = new MemoryStore(this.database, cipher)
+    this.threads = new ThreadStore(this.database, cipher)
   }
 
   async initialize(): Promise<void> {
@@ -106,6 +109,7 @@ export class SessionStore {
     this.actions.initialize()
     this.localSources.initialize()
     this.memories.initialize()
+    this.threads.initialize()
     this.database.prepare(`
       INSERT INTO schema_meta (id, version, updated_at) VALUES (1, ?, ?)
       ON CONFLICT(id) DO UPDATE SET version = excluded.version, updated_at = excluded.updated_at
