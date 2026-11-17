@@ -2,6 +2,7 @@ import type {
   AttachmentDescriptor,
   SessionLiveEvent,
   SessionTimelineEvent,
+  VisibleMessage,
 } from '../shared/models'
 import { attachmentDisplayName } from '../shared/attachments'
 
@@ -271,4 +272,64 @@ function splitLegacyAttachments(value: string): {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+export function chatMessagesFromThread(messages: VisibleMessage[]): ChatMessage[] {
+  return messages.flatMap((message): ChatMessage[] => {
+    if (message.role !== 'user' && message.role !== 'assistant') return []
+    const text = visibleMessageText(message.content)
+    if (text.trim().length === 0) return []
+    return [{
+      key: `thread:${message.id}`,
+      role: message.role,
+      parts: [{ type: 'text', text }],
+      attachments: attachmentNames(message.metadata).map((name) => ({ name, path: name, size: 0 })),
+      isError: false,
+    }]
+  })
+}
+
+function visibleMessageText(content: unknown): string {
+  if (typeof content === 'string') return content
+  if (!Array.isArray(content)) return ''
+  return content.flatMap((part): string[] => {
+    if (typeof part !== 'object' || part === null || Array.isArray(part)) return []
+    const record = part as Record<string, unknown>
+    return record.type === 'text' && typeof record.text === 'string' ? [record.text] : []
+  }).join('\n')
+}
+
+function attachmentNames(metadata: Record<string, unknown>): string[] {
+  const names = metadata.attachmentNames
+  return Array.isArray(names) ? names.filter((name): name is string => typeof name === 'string') : []
+}
+
+export function mergeThreadAndSessionMessages(
+  threadMessages: VisibleMessage[],
+  sessionMessages: ChatMessage[],
+): ChatMessage[] {
+  return chatMessagesFromThread(threadMessages).map((threadMessage) => {
+    const text = chatMessageText(threadMessage)
+    const match = sessionMessages.find((sessionMessage) => (
+      sessionMessage.role === threadMessage.role && chatMessageText(sessionMessage).includes(text)
+    ))
+    return match === undefined
+      ? threadMessage
+      : { ...match, key: threadMessage.key }
+  })
+}
+
+export function filterLivePartsAgainstThread(
+  liveParts: ConversationPart[],
+  threadMessages: VisibleMessage[],
+): ConversationPart[] {
+  const committed = new Set(threadMessages
+    .filter((message) => message.role === 'assistant')
+    .map((message) => visibleMessageText(message.content).trim())
+    .filter(Boolean))
+  return liveParts.filter((part) => part.type !== 'text' || !committed.has(part.text.trim()))
+}
+
+function chatMessageText(message: ChatMessage): string {
+  return message.parts.flatMap((part) => part.type === 'text' ? [part.text] : []).join('\n')
 }

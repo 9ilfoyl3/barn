@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { SessionLiveEvent, SessionTimelineEvent } from '../../src/shared/models'
-import { applyLiveEvent, groupConversationParts, messagesFromEvents } from '../../src/renderer/conversation'
+import { applyLiveEvent, chatMessagesFromThread, groupConversationParts, messagesFromEvents } from '../../src/renderer/conversation'
 
 describe('conversation timeline', () => {
   it('rebuilds thinking, tool and content in persisted event order', () => {
@@ -163,6 +163,47 @@ describe('conversation timeline', () => {
       },
     }])
   })
+  it('maps the Principal Thread to the same visible chat structure', () => {
+    const messages = chatMessagesFromThread([
+      {
+        id: 'm1',
+        threadId: 'primary',
+        seq: 1,
+        role: 'user',
+        content: 'Review the launch plan.',
+        metadata: { attachmentNames: ['plan.pdf'] },
+        sourceRefs: ['session:s:event:e1'],
+        createdAt: '2026-11-17T00:00:00.000Z',
+      },
+      {
+        id: 'm2',
+        threadId: 'primary',
+        seq: 2,
+        role: 'assistant',
+        content: 'The plan is ready.',
+        metadata: {},
+        sourceRefs: ['session:s:event:e2'],
+        createdAt: '2026-11-17T00:00:01.000Z',
+      },
+      {
+        id: 'm3',
+        threadId: 'primary',
+        seq: 3,
+        role: 'system',
+        content: 'Internal',
+        metadata: {},
+        sourceRefs: [],
+        createdAt: '2026-11-17T00:00:02.000Z',
+      },
+    ])
+
+    expect(messages).toEqual([
+      expect.objectContaining({ role: 'user', parts: [{ type: 'text', text: 'Review the launch plan.' }] }),
+      expect.objectContaining({ role: 'assistant', parts: [{ type: 'text', text: 'The plan is ready.' }] }),
+    ])
+    expect(messages[0]?.attachments).toEqual([{ name: 'plan.pdf', path: 'plan.pdf', size: 0 }])
+  })
+
 })
 
 function timelineEvent(eventId: string, seq: number, data: unknown): SessionTimelineEvent {

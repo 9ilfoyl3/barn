@@ -31,6 +31,7 @@ import type {
   SessionSummary,
   Task,
   TaskLiveEvent,
+  VisibleMessage,
 } from '../shared/models'
 import { attachmentDisplayName } from '../shared/attachments'
 import { ModelSettings } from './ModelSettings'
@@ -57,6 +58,8 @@ import { MessageBubble, MessageBubbleGroup } from '@/components/beui/components/
 import { PromptInput } from '@/components/beui/components/agents/prompt-input'
 import {
   applyLiveEvent,
+  filterLivePartsAgainstThread,
+  mergeThreadAndSessionMessages,
   messagesFromEvents,
   type ChatMessage,
   type ConversationPart,
@@ -73,6 +76,7 @@ export function App() {
   const [sessions, setSessions] = useState<SessionSummary[]>([])
   const [activeSessionId, setActiveSessionId] = useState<string>()
   const [messages, setMessages] = useState<ChatMessage[]>([])
+  const [threadMessages, setThreadMessages] = useState<VisibleMessage[]>([])
   const [input, setInput] = useState('')
   const [attachments, setAttachments] = useState<AttachmentDescriptor[]>([])
   const [workingDirectory, setWorkingDirectory] = useState<string>()
@@ -137,9 +141,16 @@ export function App() {
       .catch((reason: unknown) => setTaskError(errorMessage(reason, t)))
       .finally(() => setTasksLoading(false))
     const unsubscribeTasks = window.barn.tasks.onEvent(handleTaskEvent)
+    const unsubscribeThread = window.barn.threads.onEvent((event) => {
+      setThreadMessages((current) => upsertVisibleMessage(current, event.message))
+    })
+    void window.barn.threads.getSnapshot()
+      .then((threadSnapshot) => setThreadMessages(threadSnapshot.messages))
+      .catch((reason: unknown) => setError(errorMessage(reason, t)))
     return () => {
       unsubscribeTheme()
       unsubscribeTasks()
+      unsubscribeThread()
     }
   }, [])
 
@@ -562,6 +573,10 @@ export function App() {
   const activeSession = sessions.find((session) => session.id === activeSessionId)
   const commandKey = window.barn.platform === 'darwin' ? '⌘' : 'Ctrl'
   const running = pending || activeSession?.status === 'running'
+  const displayMessages = threadMessages.length > 0
+    ? mergeThreadAndSessionMessages(threadMessages, messages)
+    : messages
+  const displayLiveParts = filterLivePartsAgainstThread(liveParts, threadMessages)
   const rightPanelOpen = browserOpen || utilityOpen
   const archivedSessions = sortSessions(sessions.filter((session) => (
     session.archivedAt !== undefined && session.parentSessionId === undefined
@@ -762,9 +777,9 @@ export function App() {
             <div className="conversation-view">
               <section
                 ref={listRef}
-                className={messages.length === 0 && liveParts.length === 0 && !running ? 'conversation-surface empty-conversation' : 'conversation-surface chat-surface'}
+                className={displayMessages.length === 0 && displayLiveParts.length === 0 && !running ? 'conversation-surface empty-conversation' : 'conversation-surface chat-surface'}
               >
-                {messages.length === 0 && liveParts.length === 0 && !running ? (
+                {displayMessages.length === 0 && displayLiveParts.length === 0 && !running ? (
                   <div className="empty-center">
                     <div className="welcome-mark" aria-hidden="true">
                       <Sparkles size={20} />
@@ -795,11 +810,11 @@ export function App() {
                   </div>
                 ) : (
                   <MessageBubbleGroup className="message-list" spacing="default">
-                    {messages.map((message) => (
+                    {displayMessages.map((message) => (
                       <MessageBubble
                         aria-label={message.role === 'user' ? t('conversation.userMessage') : t('conversation.barnMessage')}
                         align={message.role === 'user' ? 'end' : 'start'}
-                        className={`chat-message ${message.role}${message.isError ? ' error' : ''}`}
+                        className={`chat-message thread-message ${message.role}${message.isError ? ' error' : ''}`}
                         key={message.key}
                         role="article"
                         variant="ghost"
@@ -825,7 +840,7 @@ export function App() {
                         )}
                       </MessageBubble>
                     ))}
-                    {running && liveParts.length === 0 && (
+                    {running && displayLiveParts.length === 0 && (
                       <MessageBubble
                         aria-label={t('conversation.barnMessage')}
                         className="chat-message assistant live-turn"
@@ -835,7 +850,7 @@ export function App() {
                         <PendingThinking />
                       </MessageBubble>
                     )}
-                    {liveParts.length > 0 && (
+                    {displayLiveParts.length > 0 && (
                       <MessageBubble
                         aria-label={t('conversation.barnMessage')}
                         className="chat-message assistant streaming live-turn"
@@ -843,7 +858,7 @@ export function App() {
                         variant="ghost"
                       >
                         <ConversationParts
-                          parts={liveParts}
+                          parts={displayLiveParts}
                           role="assistant"
                           keyPrefix="live"
                         />
@@ -1048,4 +1063,8 @@ function formatFileSize(bytes: number): string {
   if (bytes < 1_024) return `${bytes} B`
   if (bytes < 1_024 * 1_024) return `${Math.round(bytes / 1_024)} KB`
   return `${Math.round(bytes / (1_024 * 1_024) * 10) / 10} MB`
+}
+
+function upsertVisibleMessage(current: VisibleMessage[], message: VisibleMessage): VisibleMessage[] {
+  return [...current.filter((item) => item.id !== message.id), message].toSorted((left, right) => left.seq - right.seq)
 }
