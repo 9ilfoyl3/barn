@@ -306,6 +306,25 @@ export interface MemoryBridge {
   setSessionControls(sessionId: string, controls: Partial<MemorySessionControls>): Promise<MemorySessionControls>
 }
 
+export interface TerminalRunInput {
+  terminalId: string
+  command: string
+  workingDirectory?: string | undefined
+}
+
+export interface TerminalRunResult {
+  cwd: string
+  command: string
+  stdout: string
+  stderr: string
+  exitCode: number | null
+  timedOut: boolean
+}
+
+export interface TerminalBridge {
+  run(input: TerminalRunInput): Promise<TerminalRunResult>
+}
+
 export interface DiagnosticsSnapshot {
   appVersion: string
   platform: NodeJS.Platform
@@ -619,6 +638,7 @@ export interface BarnBridge {
   i18n: I18nBridge
   models: ModelBridge
   browser: BrowserBridge
+  terminal: TerminalBridge
   sessions: SessionBridge
   tasks: TaskBridge
   permissions: PermissionBridge
