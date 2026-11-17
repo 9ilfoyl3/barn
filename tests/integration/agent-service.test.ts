@@ -16,6 +16,7 @@ import type { WorkerTransport } from '../../src/main/worker/worker-supervisor'
 import { WorkerSupervisor } from '../../src/main/worker/worker-supervisor'
 import { MemoryService } from '../../src/main/memory/memory-service'
 import { WorkerRuntime, type WorkerPort } from '../../src/worker/worker-runtime'
+import { ThreadService } from '../../src/main/threads/thread-service'
 
 class PairedHostTransport implements WorkerTransport {
   private messageListener: ((message: unknown) => void) | undefined
@@ -328,7 +329,8 @@ describe('AgentService integration', () => {
       privateTempRoot: temp,
       shell: { run: vi.fn() } as unknown as ShellService,
     })
-    const agent = new AgentService(supervisor, fakeModels(), sessions, tools)
+    const threads = new ThreadService(sessions.threads)
+    const agent = new AgentService(supervisor, fakeModels(), sessions, tools, undefined, threads)
     const statuses: string[] = []
     const liveEvents: SessionLiveEvent[] = []
     agent.onLiveEvent((event) => {
@@ -357,6 +359,10 @@ describe('AgentService integration', () => {
         content: [{ type: 'text', text: 'Hello from Barn' }],
       },
     })
+    await vi.waitFor(() => expect(threads.getSnapshot().messages.map((item) => ({ role: item.role, content: item.content }))).toEqual([
+      { role: 'user', content: 'Hello' },
+      { role: 'assistant', content: 'Hello from Barn' },
+    ]))
 
     await agent.stop()
     sessions.close()
