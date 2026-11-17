@@ -1,5 +1,7 @@
 import { Globe2, MessageCircle, Plus, Terminal, X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import type { BrowserHistoryEntry } from '../shared/models'
+import { BrowserNewTab, type BrowserQuickAction } from './BrowserNewTab'
 import { SideChatView } from './SideChatView'
 import { TerminalView } from './TerminalView'
 import './utility-panel.css'
@@ -9,17 +11,19 @@ export interface UtilityTab {
   id: string
   type: UtilityTabType
   title: string
+  parentSessionId?: string
 }
 
 export interface UtilityPanelProps {
   tabs: UtilityTab[]
   activeTabId?: string | undefined
   workingDirectory?: string | undefined
+  browserHistory: BrowserHistoryEntry[]
   onActivate: (tabId: string) => void
   onCloseTab: (tabId: string) => void
   onAddTab: () => void
-  onNewSideChat: () => void
-  onOpenTerminal: () => void
+  onNavigate: (url: string) => Promise<void>
+  onQuickAction: (action: BrowserQuickAction) => void
   onConfigureModel: () => void
   onClose: () => void
   onError: (message: string) => void
@@ -29,11 +33,12 @@ export function UtilityPanel({
   tabs,
   activeTabId,
   workingDirectory,
+  browserHistory,
   onActivate,
   onCloseTab,
   onAddTab,
-  onNewSideChat,
-  onOpenTerminal,
+  onNavigate,
+  onQuickAction,
   onConfigureModel,
   onClose,
   onError,
@@ -51,7 +56,7 @@ export function UtilityPanel({
                 aria-selected={tab.id === activeTabId}
                 onClick={() => onActivate(tab.id)}
               >
-                {tab.type === 'terminal' ? <Terminal size={14} /> : tab.type === 'side-chat' ? <MessageCircle size={14} /> : <Plus size={14} />}
+                {tab.type === 'terminal' ? <Terminal size={14} /> : tab.type === 'side-chat' ? <MessageCircle size={14} /> : <Globe2 size={14} />}
                 <span>{tab.title}</span>
               </button>
               <button type="button" aria-label={t('browser.closeTab', { name: tab.title })} onClick={() => onCloseTab(tab.id)}>
@@ -75,27 +80,17 @@ export function UtilityPanel({
             ) : tab.type === 'side-chat' ? (
               <SideChatView
                 sessionId={tab.id}
+                parentSessionId={tab.parentSessionId}
                 workingDirectory={workingDirectory}
                 onConfigureModel={onConfigureModel}
                 onError={onError}
               />
             ) : (
-              <div className="utility-newtab">
-                <div className="utility-newtab-copy">
-                  <h2>{t('browser.newTab')}</h2>
-                  <p>{t('sideChat.newTabHint')}</p>
-                </div>
-                <div className="utility-newtab-actions">
-                  <button type="button" onClick={onNewSideChat}>
-                    <MessageCircle size={18} />
-                    <span>{t('browser.sideChat')}</span>
-                  </button>
-                  <button type="button" onClick={onOpenTerminal}>
-                    <Terminal size={18} />
-                    <span>{t('browser.terminal')}</span>
-                  </button>
-                </div>
-              </div>
+              <BrowserNewTab
+                history={browserHistory}
+                onNavigate={onNavigate}
+                onQuickAction={onQuickAction}
+              />
             )}
           </div>
         ))}

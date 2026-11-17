@@ -91,7 +91,7 @@ const terminal: TerminalBridge = {
 
 const sessions: SessionBridge = {
   list: () => ipcRenderer.invoke('sessions:list'),
-  create: (sessionId?: string) => ipcRenderer.invoke('sessions:create', sessionId),
+  create: (sessionId?: string, parentSessionId?: string) => ipcRenderer.invoke('sessions:create', sessionId, parentSessionId),
   getEvents: (sessionId: string) => ipcRenderer.invoke('sessions:get-events', sessionId),
   prompt: (input: SessionPromptInput) => ipcRenderer.invoke('sessions:prompt', input),
   cancel: (sessionId: string) => ipcRenderer.invoke('sessions:cancel', sessionId),

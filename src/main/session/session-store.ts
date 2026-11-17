@@ -12,10 +12,9 @@ import { MemoryStore } from '../memory/memory-store'
 
 export type SessionStatus = SessionSummary['status']
 
-// Schema 5 matches the table and column set already produced by the current
-// memory, session-state, task, approval, and local-source stores. Version 5 was
-// written by an earlier build; initializing it remains idempotent.
-export const CURRENT_SCHEMA_VERSION = 5
+// Schema 6 adds durable parent links for temporary side-chat Sessions. Older
+// schema versions are upgraded in place by ensureSessionColumns().
+export const CURRENT_SCHEMA_VERSION = 6
 
 export interface NewSessionEvent {
   type: string
@@ -78,6 +77,7 @@ export class SessionStore {
         pinned INTEGER NOT NULL DEFAULT 0,
         archived_at TEXT,
         working_directory TEXT,
+        parent_session_id TEXT,
         last_seq INTEGER NOT NULL DEFAULT 0,
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL
@@ -190,7 +190,12 @@ export class SessionStore {
     }
   }
 
-  createSession(title = 'New session', sessionId: string = randomUUID(), workingDirectory?: string): SessionSummary {
+  createSession(
+    title = 'New session',
+    sessionId: string = randomUUID(),
+    workingDirectory?: string,
+    parentSessionId?: string,
+  ): SessionSummary {
     const now = new Date().toISOString()
     const session: SessionSummary = {
       id: sessionId,
@@ -202,27 +207,44 @@ export class SessionStore {
       updatedAt: now,
     }
     if (workingDirectory !== undefined) session.workingDirectory = workingDirectory
+    if (parentSessionId !== undefined) session.parentSessionId = parentSessionId
     this.database.prepare(`
-      INSERT INTO sessions (id, title, status, has_unread_result, pinned, archived_at, working_directory, last_seq, created_at, updated_at)
-      VALUES (?, ?, ?, 0, 0, NULL, ?, 0, ?, ?)
-    `).run(session.id, session.title, session.status, session.workingDirectory ?? null, now, now)
+      INSERT INTO sessions (
+        id, title, status, has_unread_result, pinned, archived_at,
+        working_directory, parent_session_id, last_seq, created_at, updated_at
+      ) VALUES (?, ?, ?, 0, 0, NULL, ?, ?, 0, ?, ?)
+    `).run(
+      session.id,
+      session.title,
+      session.status,
+      session.workingDirectory ?? null,
+      session.parentSessionId ?? null,
+      now,
+      now,
+    )
     return session
   }
 
-  ensureSession(sessionId: string, title = 'New session', workingDirectory?: string): SessionSummary {
+  ensureSession(
+    sessionId: string,
+    title = 'New session',
+    workingDirectory?: string,
+    parentSessionId?: string,
+  ): SessionSummary {
     const now = new Date().toISOString()
     this.database.prepare(`
       INSERT OR IGNORE INTO sessions (
         id, title, status, has_unread_result, pinned, archived_at,
-        working_directory, last_seq, created_at, updated_at
-      ) VALUES (?, ?, 'idle', 0, 0, NULL, ?, 0, ?, ?)
-    `).run(sessionId, title, workingDirectory ?? null, now, now)
+        working_directory, parent_session_id, last_seq, created_at, updated_at
+      ) VALUES (?, ?, 'idle', 0, 0, NULL, ?, ?, 0, ?, ?)
+    `).run(sessionId, title, workingDirectory ?? null, parentSessionId ?? null, now, now)
     return this.getSession(sessionId)
   }
 
   getSession(sessionId: string): SessionSummary {
     const row = this.database.prepare(`
-      SELECT id, title, status, has_unread_result, pinned, archived_at, working_directory, created_at, updated_at
+      SELECT id, title, status, has_unread_result, pinned, archived_at,
+             working_directory, parent_session_id, created_at, updated_at
       FROM sessions WHERE id = ?
     `).get(sessionId) as SessionRow | undefined
     if (row === undefined) throw new Error(`Unknown session: ${sessionId}`)
@@ -308,9 +330,11 @@ export class SessionStore {
 
   listSessions(): SessionSummary[] {
     const rows = this.database.prepare(`
-      SELECT id, title, status, has_unread_result, pinned, archived_at, working_directory, created_at, updated_at
+      SELECT id, title, status, has_unread_result, pinned, archived_at,
+             working_directory, parent_session_id, created_at, updated_at
       FROM sessions
       WHERE last_seq > 0
+        AND parent_session_id IS NULL
       ORDER BY
         CASE WHEN archived_at IS NULL THEN 0 ELSE 1 END,
         pinned DESC,
@@ -323,6 +347,7 @@ export class SessionStore {
       pinned: number
       archived_at: string | null
       working_directory: string | null
+      parent_session_id: string | null
       created_at: string
       updated_at: string
     }>
@@ -438,6 +463,7 @@ export class SessionStore {
     if (!columns.has('has_unread_result')) this.database.exec('ALTER TABLE sessions ADD COLUMN has_unread_result INTEGER NOT NULL DEFAULT 0')
     if (!columns.has('pinned')) this.database.exec('ALTER TABLE sessions ADD COLUMN pinned INTEGER NOT NULL DEFAULT 0')
     if (!columns.has('archived_at')) this.database.exec('ALTER TABLE sessions ADD COLUMN archived_at TEXT')
+    if (!columns.has('parent_session_id')) this.database.exec('ALTER TABLE sessions ADD COLUMN parent_session_id TEXT')
   }
 
   private pruneEmptySessions(): void {
@@ -463,6 +489,7 @@ interface SessionRow {
   pinned: number
   archived_at: string | null
   working_directory: string | null
+  parent_session_id: string | null
   created_at: string
   updated_at: string
 }
@@ -479,6 +506,7 @@ function toSessionSummary(row: SessionRow): SessionSummary {
   }
   if (row.archived_at !== null) session.archivedAt = row.archived_at
   if (row.working_directory !== null) session.workingDirectory = row.working_directory
+  if (row.parent_session_id !== null) session.parentSessionId = row.parent_session_id
   return session
 }
 

@@ -23,6 +23,30 @@ describe('SessionStore', () => {
     store.close()
   })
 
+  it('persists a parent link and keeps side chats out of main history', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'barn-session-parent-'))
+    const path = pathForSessions(directory)
+    const store = new SessionStore(path, new AesGcmEventCipher(randomBytes(32)))
+    await store.initialize()
+
+    const parent = store.createSession('Parent conversation')
+    store.append(parent.id, [{ type: 'message/user', data: { text: 'Parent context' } }])
+    const childId = randomUUID()
+    const child = store.ensureSession(childId, 'Side chat', undefined, parent.id)
+    store.append(child.id, [{ type: 'message/user', data: { text: 'Temporary question' } }])
+
+    expect(child.parentSessionId).toBe(parent.id)
+    expect(store.getSession(child.id).parentSessionId).toBe(parent.id)
+    expect(store.listSessions().map((session) => session.id)).toEqual([parent.id])
+    store.close()
+
+    const reopened = new SessionStore(path, new AesGcmEventCipher(randomBytes(32)))
+    await reopened.initialize()
+    expect(reopened.getSession(childId).parentSessionId).toBe(parent.id)
+    expect(reopened.listSessions().map((session) => session.id)).toEqual([parent.id])
+    reopened.close()
+  })
+
   it('creates sessions and appends encrypted contiguous events', async () => {
     const directory = await mkdtemp(join(tmpdir(), 'barn-session-store-'))
     const key = randomBytes(32)

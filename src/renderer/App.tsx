@@ -480,10 +480,16 @@ export function App() {
     try {
       const state = await window.barn.browser.navigate(url)
       setBrowserState(state)
+      setBrowserOpen(state.open)
     } catch (reason) {
       setError(errorMessage(reason, t))
       throw reason
     }
+  }
+
+  async function navigateFromUtility(url: string): Promise<void> {
+    await navigateBrowser(url)
+    setUtilityOpen(false)
   }
 
   async function browserHistory(direction: 'back' | 'forward'): Promise<void> {
@@ -519,10 +525,12 @@ export function App() {
     } else {
       sideChatCounterRef.current += 1
       const count = sideChatCounterRef.current
+      const parentSessionId = activeSessionIdRef.current ?? draftSessionId()
       tab = {
         id: crypto.randomUUID(),
         type: 'side-chat',
         title: count === 1 ? t('browser.sideChat') : `${t('browser.sideChat')} ${count}`,
+        parentSessionId,
       }
       setUtilityTabs((current) => [...current, tab!])
     }
@@ -615,10 +623,10 @@ export function App() {
   const sideChatSessionIds = new Set(utilityTabs.filter((tab) => tab.type === 'side-chat').map((tab) => tab.id))
   const rightPanelOpen = browserOpen || utilityOpen
   const activeSessions = sortSessions(sessions.filter((session) => (
-    session.archivedAt === undefined && !sideChatSessionIds.has(session.id)
+    session.archivedAt === undefined && session.parentSessionId === undefined && !sideChatSessionIds.has(session.id)
   )))
   const archivedSessions = sortSessions(sessions.filter((session) => (
-    session.archivedAt !== undefined && !sideChatSessionIds.has(session.id)
+    session.archivedAt !== undefined && session.parentSessionId === undefined && !sideChatSessionIds.has(session.id)
   )))
   const normalizedSessionQuery = sessionQuery.trim().toLocaleLowerCase()
   const visibleSessions = normalizedSessionQuery === ''
@@ -1156,11 +1164,12 @@ export function App() {
           tabs={utilityTabs}
           activeTabId={activeUtilityTabId}
           workingDirectory={workingDirectory}
+          browserHistory={browserState.history}
           onActivate={setActiveUtilityTabId}
           onCloseTab={closeUtilityTab}
           onAddTab={() => void openUtilityTab('empty')}
-          onNewSideChat={() => void openUtilityTab('side-chat')}
-          onOpenTerminal={() => void openUtilityTab('terminal')}
+          onNavigate={navigateFromUtility}
+          onQuickAction={handleBrowserQuickAction}
           onConfigureModel={() => setSettingsOpen(true)}
           onClose={() => setUtilityOpen(false)}
           onError={(message) => setError(message)}

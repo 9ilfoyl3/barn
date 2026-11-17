@@ -436,6 +436,7 @@ export interface SessionSummary {
   pinned: boolean
   archivedAt?: string
   workingDirectory?: string
+  parentSessionId?: string
   createdAt: string
   updatedAt: string
 }
@@ -589,7 +590,7 @@ export interface BrowserBridge {
 
 export interface SessionBridge {
   list(): Promise<SessionSummary[]>
-  create(sessionId?: string): Promise<SessionSummary>
+  create(sessionId?: string, parentSessionId?: string): Promise<SessionSummary>
   getEvents(sessionId: string): Promise<SessionTimelineEvent[]>
   prompt(input: SessionPromptInput): Promise<SessionSummary>
   cancel(sessionId: string): Promise<void>

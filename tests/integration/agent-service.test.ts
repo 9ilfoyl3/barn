@@ -155,6 +155,52 @@ describe('AgentService integration', () => {
     sessions.close()
   })
 
+  it('injects bounded parent-session context into a side-chat prompt', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'barn-agent-parent-context-'))
+    const workspace = join(directory, 'workspace')
+    const output = join(directory, 'output')
+    const temp = join(directory, 'temp')
+    await Promise.all([mkdir(workspace), mkdir(output), mkdir(temp)])
+
+    const sessions = new SessionStore(join(directory, 'sessions.db'), new AesGcmEventCipher(randomBytes(32)))
+    await sessions.initialize()
+    const parent = sessions.createSession('Parent conversation')
+    sessions.append(parent.id, [{
+      type: 'agent.message',
+      data: {
+        message: {
+          role: 'user',
+          content: 'The parent-only launch code is 4721.',
+          timestamp: Date.now(),
+        },
+      },
+    }])
+    const child = sessions.ensureSession(randomUUID(), 'Side chat', undefined, parent.id)
+    const prompt = vi.fn(async (_sessionId: string, _text: string) => undefined)
+    const supervisor = {
+      onMessage: () => () => undefined,
+      onStatus: () => () => undefined,
+      openSession: vi.fn(async () => undefined),
+      prompt,
+    } as unknown as WorkerSupervisor
+    const tools = new ToolService({
+      workspaceRoot: workspace,
+      outputRoot: output,
+      privateTempRoot: temp,
+      shell: { run: vi.fn() } as unknown as ShellService,
+    })
+    const agent = new AgentService(supervisor, fakeModels(), sessions, tools)
+
+    await agent.prompt(child.id, 'What is the launch code?')
+
+    expect(prompt).toHaveBeenCalledWith(
+      child.id,
+      expect.stringContaining('The parent-only launch code is 4721.'),
+    )
+    expect(prompt.mock.calls[0]?.[1]).toContain('<parent_session_context>')
+    sessions.close()
+  })
+
   it('honors cancellation while the Worker session is still opening', async () => {
     const directory = await mkdtemp(join(tmpdir(), 'barn-agent-cancel-start-'))
     const workspace = join(directory, 'workspace')
