@@ -80,6 +80,14 @@ test('does not persist a Session before the first message and exposes no Session
     await expect(page.locator('.session-row')).toHaveCount(0)
     await expect(page.getByRole('heading', { name: 'What needs attention?' })).toBeVisible()
     expect(await page.evaluate(() => window.barn.sessions.list())).toHaveLength(0)
+
+    await page.locator('.account-row').click()
+    await page.getByRole('menuitem', { name: 'Settings' }).click()
+    await expect(page.getByRole('heading', { name: 'Settings', level: 1 })).toBeVisible()
+    await expect(page.getByText('Archived chats', { exact: true })).toHaveCount(0)
+    await expect(page.getByRole('heading', { name: 'Models' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Local sources' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Diagnostics and memory' })).toBeVisible()
   } finally {
     await app.close()
   }

@@ -84,7 +84,6 @@ export function App() {
   const [stopping, setStopping] = useState(false)
   const [error, setError] = useState<string>()
   const [accountOpen, setAccountOpen] = useState(false)
-  const [announcement, setAnnouncement] = useState('')
   const [commandOpen, setCommandOpen] = useState(false)
   const [delegationNotice, setDelegationNotice] = useState<string>()
   const [view, setView] = useState<'conversation' | 'tasks' | 'settings'>('conversation')
@@ -447,16 +446,6 @@ export function App() {
     }
   }
 
-  async function unarchiveSession(sessionId: string): Promise<void> {
-    keepSessionSidebarAnchored()
-    try {
-      const updated = await window.barn.sessions.setArchived(sessionId, false)
-      setSessions((current) => upsertSession(current, updated))
-      setAnnouncement(t('appSettings.unarchived'))
-    } catch (reason) {
-      setError(errorMessage(reason, t))
-    }
-  }
 
   async function toggleBrowser(): Promise<void> {
     try {
@@ -619,9 +608,6 @@ export function App() {
     : messages
   const displayLiveParts = liveParts
   const rightPanelOpen = browserOpen || utilityOpen
-  const archivedSessions = sortSessions(sessions.filter((session) => (
-    session.archivedAt !== undefined && session.parentSessionId === undefined
-  )))
   const activeSessionIsArchived = activeSession?.archivedAt !== undefined
   const workingDirectoryLabel = workingDirectory === undefined
     ? t('conversation.chooseWorkingDirectory')
@@ -691,8 +677,6 @@ export function App() {
 
           <TodayPanel tasks={tasks} onOpenTasks={() => setView('tasks')} />
 
-          <div className="visually-hidden" role="status" aria-live="polite">{announcement}</div>
-
           <footer className="today-footer today-account-area">
             <div ref={accountAreaRef} className="account-area">
               <button
@@ -746,9 +730,7 @@ export function App() {
       <div className={workspaceShellClassName} data-testid="workspace-shell">
       <main className="workspace">
         <header className="workspace-header secretary-commandbar">
-          {view !== 'conversation' && (
-            <h1 className="visually-hidden">{view === 'tasks' ? t('tasks.title') : t('sidebar.settings')}</h1>
-          )}
+          {view === 'tasks' && <h1 className="visually-hidden">{t('tasks.title')}</h1>}
           <div className="secretary-brand-strip">
             {!sidebarOpen && (
               <TooltipButton
@@ -803,8 +785,9 @@ export function App() {
         <div className={workspaceBodyClassName}>
           {view === 'settings' ? (
             <SettingsPage
-              sessions={archivedSessions}
-              onUnarchive={(sessionId) => unarchiveSession(sessionId)}
+              onOpenModels={() => setSettingsOpen(true)}
+              onOpenSources={() => setSourceSettingsOpen(true)}
+              onOpenDiagnostics={() => setDiagnosticsOpen(true)}
             />
           ) : view === 'tasks' ? (
             <TaskCenter
@@ -1086,13 +1069,6 @@ function sortSessions(current: SessionSummary[]): SessionSummary[] {
     const pinnedOrder = Number(b.pinned) - Number(a.pinned)
     if (pinnedOrder !== 0) return pinnedOrder
     return b.updatedAt.localeCompare(a.updatedAt)
-  })
-}
-
-function keepSessionSidebarAnchored(): void {
-  requestAnimationFrame(() => {
-    const sidebar = document.getElementById('app-sidebar')
-    if (sidebar !== null) sidebar.scrollLeft = 0
   })
 }
 

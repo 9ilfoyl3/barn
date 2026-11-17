@@ -1,0 +1,76 @@
+/* Hallmark · page: Barn settings overview · genre: modern-minimal · theme: barn-native · scope: page · built: the project */
+/* Hallmark · pre-emit critique: P4 H5 E5 S5 R4 V4 · weakest: V, settings must stay quiet beside the secretary workspace */
+
+.settings-section-grid {
+  display: grid;
+  gap: 12px;
+}
+
+.settings-section-card {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 16px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--panel);
+  padding: 16px;
+  box-shadow: var(--card-shadow);
+}
+
+.settings-section-icon {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  place-items: center;
+  border-radius: 8px;
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.settings-section-card h2 {
+  margin: 0;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+  text-wrap: balance;
+}
+
+.settings-section-card p {
+  margin: 4px 0 0;
+  color: var(--text-dim);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.settings-section-card button {
+  min-height: 32px;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  background: var(--panel-raised);
+  padding: 0 12px;
+  color: var(--text);
+  cursor: pointer;
+  font-size: 10px;
+}
+
+.settings-section-card button:hover {
+  border-color: color-mix(in srgb, var(--accent) 30%, var(--line-strong));
+  background: var(--panel);
+}
+
+.settings-section-card button:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent) 72%, transparent);
+  outline-offset: 2px;
+}
+
+.settings-section-card button:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.settings-section-card button:disabled {
+  border-color: var(--line);
+  background: var(--disabled-surface);
+  color: var(--text-faint);
+  cursor: default;
+}
