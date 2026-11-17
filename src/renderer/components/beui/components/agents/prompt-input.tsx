@@ -8,9 +8,6 @@ import {
   type FormEvent,
   type KeyboardEvent,
   type ReactNode,
-  type TextareaHTMLAttributes,
-  useCallback,
-  useEffect,
   useLayoutEffect,
   useRef,
   useState,
@@ -29,6 +26,7 @@ import {
 } from "@/components/beui/components/motion/select";
 import { SPRING_SWAP } from "@/components/beui/lib/ease";
 import { cn } from "@/components/beui/lib/utils";
+import { promptTextSegments } from "@/composer-links";
 
 export interface PromptModel {
   value: string;
@@ -46,8 +44,8 @@ export interface PromptAction {
 }
 
 export interface PromptInputProps extends Omit<
-  TextareaHTMLAttributes<HTMLTextAreaElement>,
-  "value" | "defaultValue" | "onChange" | "onSubmit" | "children"
+  React.HTMLAttributes<HTMLDivElement>,
+  "children" | "onChange" | "onInput" | "onSubmit"
 > {
   value?: string;
   defaultValue?: string;
@@ -70,6 +68,141 @@ export interface PromptInputProps extends Omit<
   stopLabel?: string;
   stoppingLabel?: string;
   className?: string;
+  disabled?: boolean;
+  placeholder?: string;
+  onInput?: React.FormEventHandler<HTMLDivElement>;
+}
+
+interface EditorSelection {
+  start: number;
+  end: number;
+}
+
+interface EditorPoint {
+  container: Node;
+  offset: number;
+}
+
+const EDITOR_LINE_SENTINEL = "\u200b";
+
+function appendTextWithBreaks(parent: DocumentFragment, text: string): void {
+  const lines = text.split("\n");
+  lines.forEach((line, index) => {
+    if (line) parent.append(document.createTextNode(line));
+    if (index < lines.length - 1) {
+      parent.append(document.createElement("br"));
+      if (index === lines.length - 2 && lines[index + 1] === "") {
+        parent.append(document.createTextNode(EDITOR_LINE_SENTINEL));
+      }
+    }
+  });
+}
+
+function editorText(node: Node): string {
+  const walker = document.createTreeWalker(node, NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT);
+  let text = "";
+  for (let current = walker.nextNode(); current; current = walker.nextNode()) {
+    if (current.nodeType === Node.TEXT_NODE) {
+      text += (current.textContent ?? "").replaceAll(EDITOR_LINE_SENTINEL, "");
+    } else if (current.nodeName === "BR") {
+      text += "\n";
+    }
+  }
+  return text;
+}
+
+function editorSelection(editor: HTMLDivElement): EditorSelection | undefined {
+  const selection = window.getSelection();
+  if (!selection || selection.rangeCount === 0) return undefined;
+  const range = selection.getRangeAt(0);
+  if (!editor.contains(range.startContainer) || !editor.contains(range.endContainer)) {
+    return undefined;
+  }
+
+  const beforeStart = document.createRange();
+  beforeStart.selectNodeContents(editor);
+  beforeStart.setEnd(range.startContainer, range.startOffset);
+
+  const beforeEnd = document.createRange();
+  beforeEnd.selectNodeContents(editor);
+  beforeEnd.setEnd(range.endContainer, range.endOffset);
+
+  return {
+    start: editorText(beforeStart.cloneContents()).length,
+    end: editorText(beforeEnd.cloneContents()).length,
+  };
+}
+
+function editorPoint(editor: HTMLDivElement, target: number): EditorPoint | undefined {
+  const walker = document.createTreeWalker(editor, NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT);
+  let remaining = target;
+
+  for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+    if (node.nodeType === Node.TEXT_NODE) {
+      const length = node.textContent?.length ?? 0;
+      if (remaining <= length) return { container: node, offset: remaining };
+      remaining -= length;
+      continue;
+    }
+    if (node.nodeName !== "BR") continue;
+    if (remaining === 0) {
+      const parent = node.parentNode;
+      if (parent) return { container: parent, offset: Array.prototype.indexOf.call(parent.childNodes, node) };
+    }
+    remaining -= 1;
+    if (remaining === 0) {
+      const parent = node.parentNode;
+      if (parent) return { container: parent, offset: Array.prototype.indexOf.call(parent.childNodes, node) + 1 };
+    }
+  }
+  return undefined;
+}
+
+function restoreEditorSelection(editor: HTMLDivElement, selection: EditorSelection): void {
+  const range = document.createRange();
+  const start = editorPoint(editor, selection.start);
+  const end = editorPoint(editor, selection.end);
+  if (!start || !end) {
+    range.selectNodeContents(editor);
+    range.collapse(false);
+  } else {
+    range.setStart(start.container, start.offset);
+    range.setEnd(end.container, end.offset);
+  }
+
+  const activeSelection = window.getSelection();
+  activeSelection?.removeAllRanges();
+  activeSelection?.addRange(range);
+}
+
+function renderEditorContent(editor: HTMLDivElement, value: string): void {
+  const selection = editorSelection(editor);
+  const segments = promptTextSegments(value);
+  const hasLinks = segments.some((segment) => segment.kind === "link");
+  const fragment = document.createDocumentFragment();
+
+  for (const segment of segments) {
+    if (segment.kind === "text") {
+      appendTextWithBreaks(fragment, segment.text);
+      continue;
+    }
+
+    const link = document.createElement("span");
+    link.className = "prompt-editor-link";
+
+    const icon = document.createElement("span");
+    icon.className = "prompt-editor-link-icon";
+    icon.contentEditable = "false";
+    icon.setAttribute("aria-hidden", "true");
+
+    link.append(icon, document.createTextNode(segment.text));
+    fragment.append(link);
+  }
+
+  editor.replaceChildren(fragment);
+  editor.dataset.renderValue = value;
+  editor.dataset.hasLinks = hasLinks ? "true" : "false";
+  if (selection) restoreEditorSelection(editor, selection);
 }
 
 export function PromptInput({
@@ -98,11 +231,15 @@ export function PromptInput({
   placeholder = "Ask the agent to do something…",
   "aria-label": ariaLabel = "Prompt",
   onKeyDown,
-  ...textareaProps
+  onInput,
+  onPaste,
+  onCompositionStart,
+  onCompositionEnd,
+  ...editorProps
 }: PromptInputProps) {
   const reduce = useReducedMotion() ?? false;
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const measurementRef = useRef<HTMLDivElement>(null);
+  const editorRef = useRef<HTMLDivElement>(null);
+  const composingRef = useRef(false);
   const [internalValue, setInternalValue] = useState(defaultValue);
   const [internalModel, setInternalModel] = useState(
     defaultModel ?? models[0]?.value,
@@ -114,32 +251,27 @@ export function PromptInput({
     (option) => option.value === currentModelValue,
   );
   const canSubmit = Boolean(currentValue.trim()) && !disabled && !loading;
-
-  const resizeTextarea = useCallback(() => {
-    const textarea = textareaRef.current;
-    const measurement = measurementRef.current;
-    if (!textarea || !measurement || textarea.value !== currentValue) return;
-
-    const lineHeight = 24;
-    const nextHeight = Math.min(
-      Math.max(measurement.scrollHeight, minRows * lineHeight),
-      maxRows * lineHeight,
-    );
-    const height = `${nextHeight}px`;
-    if (textarea.style.height !== height) textarea.style.height = height;
-  }, [currentValue, maxRows, minRows]);
+  const hasWebLinks = promptTextSegments(currentValue).some(
+    (segment) => segment.kind === "link",
+  );
 
   useLayoutEffect(() => {
-    resizeTextarea();
-  }, [resizeTextarea]);
+    const editor = editorRef.current;
+    if (!editor || composingRef.current) return;
 
-  useEffect(() => {
-    const textarea = textareaRef.current;
-    if (!textarea || typeof ResizeObserver === "undefined") return;
-    const observer = new ResizeObserver(resizeTextarea);
-    observer.observe(textarea);
-    return () => observer.disconnect();
-  }, [resizeTextarea]);
+    if (
+      editor.dataset.renderValue === currentValue
+      && editor.dataset.hasLinks === (hasWebLinks ? "true" : "false")
+    ) {
+      return;
+    }
+    if (!hasWebLinks && editor.textContent === currentValue && editor.dataset.hasLinks !== "true") {
+      editor.dataset.renderValue = currentValue;
+      editor.dataset.hasLinks = "false";
+      return;
+    }
+    renderEditorContent(editor, currentValue);
+  }, [currentValue, hasWebLinks]);
 
   const setValue = (next: string) => {
     if (value === undefined) setInternalValue(next);
@@ -157,21 +289,51 @@ export function PromptInput({
     if (!prompt || disabled || loading) return;
 
     onSubmit?.(prompt, currentModelValue);
-    if (value === undefined) setInternalValue("");
-    textareaRef.current?.focus({ preventScroll: true });
+    if (value === undefined) {
+      setInternalValue("");
+      if (editorRef.current) renderEditorContent(editorRef.current, "");
+    }
+    editorRef.current?.focus({ preventScroll: true });
   };
 
-  const handleKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
+  const insertPlainText = (text: string) => {
+    const editor = editorRef.current;
+    if (!editor) return;
+    editor.focus();
+
+    const selection = window.getSelection();
+    const range = selection && selection.rangeCount > 0
+      && editor.contains(selection.anchorNode)
+      ? selection.getRangeAt(0)
+      : document.createRange();
+    if (range.startContainer === document || !editor.contains(range.startContainer)) {
+      range.selectNodeContents(editor);
+      range.collapse(false);
+    }
+
+    const inserted = document.createDocumentFragment();
+    appendTextWithBreaks(inserted, text);
+    const lastNode = inserted.lastChild;
+    range.deleteContents();
+    range.insertNode(inserted);
+    if (lastNode) range.setStartAfter(lastNode);
+    range.collapse(true);
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+
+    setValue(editorText(editor));
+  };
+
+  const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     onKeyDown?.(event);
-    if (
-      event.defaultPrevented ||
-      event.key !== "Enter" ||
-      event.shiftKey ||
-      event.nativeEvent.isComposing
-    ) {
+    if (event.defaultPrevented || event.nativeEvent.isComposing) return;
+    if (event.key !== "Enter") return;
+
+    event.preventDefault();
+    if (event.shiftKey) {
+      insertPlainText("\n");
       return;
     }
-    event.preventDefault();
     submit();
   };
 
@@ -185,23 +347,52 @@ export function PromptInput({
       )}
     >
       <div
-        ref={measurementRef}
-        aria-hidden="true"
-        className="pointer-events-none invisible absolute inset-x-2 top-0 whitespace-pre-wrap px-2 text-sm leading-6 [overflow-wrap:break-word]"
-      >
-        {`${currentValue}\u200b`}
-      </div>
-      <textarea
-        ref={textareaRef}
-        value={currentValue}
-        disabled={disabled}
-        placeholder={placeholder}
+        ref={editorRef}
+        {...editorProps}
+        role="textbox"
+        contentEditable={!disabled}
+        suppressContentEditableWarning
+        tabIndex={disabled ? -1 : 0}
         aria-label={ariaLabel}
-        rows={minRows}
-        {...textareaProps}
-        onChange={(event) => setValue(event.target.value)}
+        aria-multiline="true"
+        aria-disabled={disabled || undefined}
+        aria-placeholder={placeholder}
+        data-placeholder={placeholder}
+        data-empty={currentValue.length === 0 ? "true" : "false"}
+        data-web-link={hasWebLinks ? "true" : undefined}
+        onInput={(event) => {
+          onInput?.(event);
+          const editor = editorRef.current;
+          if (!editor) return;
+          setValue(editorText(editor));
+        }}
         onKeyDown={handleKeyDown}
-        className="scrollbar-hide block w-full resize-none overflow-y-auto bg-transparent px-2 pt-1.5 text-sm leading-6 text-foreground outline-none placeholder:text-muted-foreground/55"
+        onPaste={(event) => {
+          onPaste?.(event);
+          if (event.defaultPrevented) return;
+          const text = event.clipboardData.getData("text/plain");
+          if (!text) return;
+          event.preventDefault();
+          insertPlainText(text);
+        }}
+        onCompositionStart={(event) => {
+          onCompositionStart?.(event);
+          composingRef.current = true;
+        }}
+        onCompositionEnd={(event) => {
+          onCompositionEnd?.(event);
+          composingRef.current = false;
+          const editor = editorRef.current;
+          if (!editor) return;
+          const next = editorText(editor);
+          setValue(next);
+          renderEditorContent(editor, next);
+        }}
+        style={{
+          minHeight: `${minRows * 24}px`,
+          maxHeight: `${maxRows * 24}px`,
+        }}
+        className="prompt-input-editor scrollbar-hide"
       />
 
       <div className="mt-1 flex min-h-8 items-center gap-1">

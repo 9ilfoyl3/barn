@@ -86,14 +86,23 @@ test('uses semantic browser tools to fill and submit a real page', async () => {
     await expect.poll(() => agentScreen.locator('.agent-screen-live').evaluate((element) => (
       getComputedStyle(element).boxShadow
     ))).toBe('none')
+    await expect.poll(() => agentScreen.evaluate((element) => getComputedStyle(element).pointerEvents)).toBe('none')
+    await expect.poll(() => agentScreen.locator('.agent-screen-live').evaluate((element) => (
+      getComputedStyle(element).pointerEvents
+    ))).toBe('auto')
 
     const layout = await page.evaluate(() => {
       const conversation = document.querySelector('.conversation-view')!.getBoundingClientRect()
+      const surface = document.querySelector('.conversation-surface')!.getBoundingClientRect()
+      const workspace = document.querySelector('.workspace-body')!.getBoundingClientRect()
       const screen = document.querySelector('.agent-screen')!.getBoundingClientRect()
       const composerRect = document.querySelector('.composer-dock')!.getBoundingClientRect()
       const messageList = document.querySelector('.message-list')!.getBoundingClientRect()
       return {
         conversationRight: conversation.right,
+        conversationOverflow: getComputedStyle(document.querySelector('.conversation-view')!).overflow,
+        surfaceRight: surface.right,
+        workspaceRight: workspace.right,
         screenLeft: screen.left,
         screenWidth: screen.width,
         composerRight: composerRect.right,
@@ -102,6 +111,8 @@ test('uses semantic browser tools to fill and submit a real page', async () => {
     })
     expect(layout.screenWidth).toBeLessThanOrEqual(264)
     expect(layout.conversationRight).toBeLessThanOrEqual(layout.screenLeft + 1)
+    expect(layout.conversationOverflow).toBe('visible')
+    expect(layout.surfaceRight).toBeCloseTo(layout.workspaceRight, 0)
     expect(layout.composerRight).toBeLessThanOrEqual(layout.screenLeft + 1)
     expect(layout.messageListRight).toBeLessThanOrEqual(layout.screenLeft + 1)
     await page.screenshot({ path: 'test-results/barn-agent-screen-live.png', fullPage: true })

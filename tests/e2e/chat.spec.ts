@@ -94,19 +94,24 @@ test('streams a multi-turn conversation through the Agent Worker', async () => {
       const dock = document.querySelector('.composer-dock')!
       const composerElement = document.querySelector('.barn-prompt-input')!
       const messageList = document.querySelector('.message-list')!
+      const dockBackdrop = getComputedStyle(dock, '::before')
       return {
         surfaceRight: surface.getBoundingClientRect().right,
         viewRight: view.getBoundingClientRect().right,
         surfaceOverflowY: getComputedStyle(surface).overflowY,
         messageListOverflowY: getComputedStyle(messageList).overflowY,
-        dockBackground: getComputedStyle(dock, '::before').backgroundColor,
+        dockBackdropBackground: dockBackdrop.backgroundColor,
+        dockBackdropBottom: dockBackdrop.bottom,
+        dockBackdropHeight: dockBackdrop.height,
         composerShadow: getComputedStyle(composerElement).boxShadow,
       }
     })
     expect(conversationLayout.surfaceRight).toBeCloseTo(conversationLayout.viewRight, 0)
     expect(conversationLayout.surfaceOverflowY).toBe('auto')
     expect(conversationLayout.messageListOverflowY).toBe('visible')
-    expect(conversationLayout.dockBackground).not.toBe('rgba(0, 0, 0, 0)')
+    expect(conversationLayout.dockBackdropBackground).not.toBe('rgba(0, 0, 0, 0)')
+    expect(conversationLayout.dockBackdropBottom).toBe('0px')
+    expect(conversationLayout.dockBackdropHeight).toBe('14px')
     expect(conversationLayout.composerShadow).toBe('none')
     await page.screenshot({ path: 'test-results/barn-desktop-chat.png', fullPage: true })
   } finally {

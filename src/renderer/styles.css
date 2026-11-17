@@ -24,6 +24,7 @@ html:root {
   --accent: light-dark(#4f5fd6, #96a0ff);
   --accent-strong: light-dark(#3c4bc2, #b0b7ff);
   --accent-soft: light-dark(rgba(79, 95, 214, 0.09), rgba(150, 160, 255, 0.13));
+  --link: light-dark(#2f66d8, #91afff);
   --green: light-dark(#37865d, #72bd93);
   --danger: light-dark(#c95043, #e18478);
   --warning: light-dark(#c87a37, #e2a260);
@@ -1203,6 +1204,50 @@ select:focus-visible {
 
 .barn-prompt-input .text-primary-foreground {
   color: var(--primary-foreground);
+}
+
+.prompt-input-editor {
+  position: relative;
+  width: 100%;
+  min-width: 0;
+  overflow-wrap: break-word;
+  border: 0;
+  background: transparent;
+  padding: 4px 8px 2px;
+  color: var(--text);
+  cursor: text;
+  font-size: 14px;
+  line-height: 1.5;
+  outline: 0;
+  white-space: pre-wrap;
+}
+
+.prompt-input-editor[data-empty="true"]::before {
+  position: absolute;
+  top: 4px;
+  right: 8px;
+  left: 8px;
+  overflow: hidden;
+  color: var(--text-faint);
+  content: attr(data-placeholder);
+  pointer-events: none;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.prompt-editor-link {
+  color: var(--link);
+}
+
+.prompt-editor-link-icon {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  margin-right: 5px;
+  background-color: currentColor;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M21.54 15H17a2 2 0 0 0-2 2v4.54'/%3E%3Cpath d='M7 3.34V5a3 3 0 0 0 3 3a2 2 0 0 1 2 2c0 1.1.9 2 2 2a2 2 0 0 0 2-2c0-1.1.9-2 2-2h3.17'/%3E%3Cpath d='M11 21.95V18a2 2 0 0 0-2-2a2 2 0 0 1-2-2v-1a2 2 0 0 0-2-2H2.05'/%3E%3Ccircle cx='12' cy='12' r='10'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M21.54 15H17a2 2 0 0 0-2 2v4.54'/%3E%3Cpath d='M7 3.34V5a3 3 0 0 0 3 3a2 2 0 0 1 2 2c0 1.1.9 2 2 2a2 2 0 0 0 2-2c0-1.1.9-2 2-2h3.17'/%3E%3Cpath d='M11 21.95V18a2 2 0 0 0-2-2a2 2 0 0 1-2-2v-1a2 2 0 0 0-2-2H2.05'/%3E%3Ccircle cx='12' cy='12' r='10'/%3E%3C/svg%3E") center / contain no-repeat;
+  vertical-align: -2px;
 }
 
 .composer-toolbar {
@@ -2406,12 +2451,25 @@ select:focus-visible {
 .conversation-view .composer-dock::before {
   position: absolute;
   z-index: 0;
-  top: var(--composer-dock-top-space);
   right: 0;
   bottom: 0;
   left: 0;
+  height: 14px;
   background: var(--canvas);
   content: "";
+}
+
+/* Keep the conversation scrollbar at the workspace edge while the Agent Screen
+   still occupies its own layout column. The oversized surface slides under the
+   transparent screen gutter; its padding keeps messages and controls clear. */
+.workspace-body.agent-screen-open .conversation-view {
+  overflow: visible;
+}
+
+.workspace-body.agent-screen-open .conversation-surface {
+  width: calc(100% + var(--agent-screen-width, clamp(216px, 20vw, 264px)));
+  margin-right: calc(-1 * var(--agent-screen-width, clamp(216px, 20vw, 264px)));
+  padding-right: var(--agent-screen-width, clamp(216px, 20vw, 264px));
 }
 
 .conversation-view .composer-dock > * {
