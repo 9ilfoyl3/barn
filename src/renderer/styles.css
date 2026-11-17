@@ -258,7 +258,7 @@ select:focus-visible {
   padding: 0 12px 12px;
 }
 
-.sidebar-titlebar {
+.sidebar-heading {
   display: flex;
   height: var(--workspace-header-height);
   min-height: var(--workspace-header-height);
@@ -270,7 +270,7 @@ select:focus-visible {
   -webkit-app-region: drag;
 }
 
-.sidebar-titlebar button {
+.sidebar-heading button {
   -webkit-app-region: no-drag;
 }
 
@@ -2654,7 +2654,7 @@ select:focus-visible {
   left: 82px;
 }
 
-.platform-darwin .sidebar-titlebar {
+.platform-darwin .sidebar-heading {
   padding-left: 82px;
 }
 

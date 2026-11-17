@@ -659,7 +659,7 @@ export function App() {
         aria-hidden={!sidebarOpen}
       >
         <div className="sidebar-content today-sidebar-content">
-          <div className="sidebar-titlebar today-titlebar">
+          <div className="sidebar-heading">
             <div className="brand-lockup">
               <div className="brand-mark" aria-hidden="true"><span /><span /></div>
               <strong>Barn</strong>
@@ -743,7 +743,6 @@ export function App() {
                 <PanelLeft size={16} />
               </TooltipButton>
             )}
-            <span>Barn</span>
           </div>
 
           <button className="secretary-search" type="button" onClick={() => setCommandOpen(true)}>
