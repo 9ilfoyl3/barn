@@ -595,13 +595,19 @@ test('interleaves live thinking, tools, and content in event order', async () =>
     const toolGroup = page.locator('.chat-message.assistant .tool-group')
     const toolHeader = toolGroup.locator('button').first()
     const assistantWidths = await page.evaluate(() => {
-      const message = document.querySelector('.chat-message.assistant')!.getBoundingClientRect().width
+      const message = document.querySelector('.chat-message.assistant')!
       const parts = document.querySelector('.chat-message.assistant .conversation-parts')!.getBoundingClientRect().width
       const tools = document.querySelector('.chat-message.assistant .tool-group')!.getBoundingClientRect().width
-      return { message, parts, tools }
+      const style = getComputedStyle(message)
+      const content = message.getBoundingClientRect().width
+        - Number.parseFloat(style.paddingLeft)
+        - Number.parseFloat(style.paddingRight)
+        - Number.parseFloat(style.borderLeftWidth)
+        - Number.parseFloat(style.borderRightWidth)
+      return { content, parts, tools }
     })
-    expect(assistantWidths.parts).toBeCloseTo(assistantWidths.message, 0)
-    expect(assistantWidths.tools).toBeCloseTo(assistantWidths.message, 0)
+    expect(assistantWidths.parts).toBeCloseTo(assistantWidths.content, 0)
+    expect(assistantWidths.tools).toBeCloseTo(assistantWidths.content, 0)
     await expect(toolHeader).toBeVisible()
     if (await toolHeader.getAttribute('aria-expanded') === 'false') await toolHeader.click()
     await expect(toolHeader).toHaveAttribute('aria-expanded', 'true')

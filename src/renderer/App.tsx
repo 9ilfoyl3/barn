@@ -5,10 +5,7 @@ import {
   Clock3,
   ChevronDown,
   ChevronRight,
-  FileSearch,
-  FileText,
   Folder,
-  FolderOpen,
   FolderSearch,
   Globe2,
   Inbox,
@@ -16,7 +13,6 @@ import {
   Settings2,
   PanelLeft,
   Paperclip,
-  Sparkles,
   Stethoscope,
   Trash2,
   UserRound,
@@ -803,33 +799,14 @@ export function App() {
                 className={displayMessages.length === 0 && displayLiveParts.length === 0 && !running ? 'conversation-surface empty-conversation' : 'conversation-surface chat-surface'}
               >
                 {displayMessages.length === 0 && displayLiveParts.length === 0 && !running ? (
-                  <div className="empty-center">
-                    <div className="welcome-mark" aria-hidden="true">
-                      <Sparkles size={20} />
-                    </div>
-                    <div className="welcome-kicker">{t('conversation.welcomeKicker')}</div>
-                    <h1>{t('conversation.title')}</h1>
-                    <p>
-                      {t('conversation.subtitle')}
-                    </p>
-                    <div className="action-grid">
-                      <button type="button" onClick={() => setInput(t('conversation.summarizePrompt'))}>
-                        <span className="action-icon blue"><FileText size={17} /></span>
-                        <span>{t('conversation.summarizeFiles')}</span>
-                      </button>
-                      <button type="button" onClick={() => setInput(t('conversation.draftPrompt'))}>
-                        <span className="action-icon violet"><Sparkles size={17} /></span>
-                        <span>{t('conversation.draftContent')}</span>
-                      </button>
-                      <button type="button" onClick={() => setInput(t('conversation.inspectFilesPrompt'))}>
-                        <span className="action-icon green"><FileSearch size={17} /></span>
-                        <span>{t('conversation.inspectFiles')}</span>
-                      </button>
-                      <button type="button" onClick={() => setInput(t('conversation.organizePrompt'))}>
-                        <span className="action-icon orange"><FolderOpen size={17} /></span>
-                        <span>{t('conversation.organizeFiles')}</span>
-                      </button>
-                    </div>
+                  <div className="secretary-empty-state">
+                    <h1 className="visually-hidden">{t('conversation.title')}</h1>
+                    <span className="secretary-presence" aria-hidden="true">
+                      <i />
+                      <i />
+                      <i />
+                    </span>
+                    <p>{t('conversation.secretaryReady')}</p>
                   </div>
                 ) : (
                   <MessageBubbleGroup className="message-list" spacing="default">
