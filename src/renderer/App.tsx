@@ -118,8 +118,6 @@ export function App() {
   const accountTriggerRef = useRef<HTMLButtonElement>(null)
   const activeSessionIdRef = useRef<string | undefined>(undefined)
   const draftSessionIdRef = useRef<string | undefined>(undefined)
-  const sidebarBeforeBrowserRef = useRef<boolean | undefined>(undefined)
-  const browserWasOpenRef = useRef(false)
 
   useEffect(() => {
     if (!sessionSearchOpen) {
@@ -223,19 +221,6 @@ export function App() {
   useEffect(() => {
     return window.barn.sessions.onEvent(handleLiveEvent)
   }, [])
-  useLayoutEffect(() => {
-    if (browserOpen && !browserWasOpenRef.current) {
-      sidebarBeforeBrowserRef.current = sidebarOpen
-      setSidebarOpen(false)
-    } else if (!browserOpen && browserWasOpenRef.current) {
-      if (sidebarBeforeBrowserRef.current !== undefined) {
-        setSidebarOpen(sidebarBeforeBrowserRef.current)
-        sidebarBeforeBrowserRef.current = undefined
-      }
-    }
-    browserWasOpenRef.current = browserOpen
-  }, [browserOpen])
-
   useEffect(() => {
     const upsert = (approval: ApprovalRequest): void => {
       setPendingApprovals((current) => {
@@ -883,14 +868,16 @@ export function App() {
             </div>
           </div>
           <div className="workspace-header-actions">
-            <TooltipButton
-              className={browserOpen ? 'icon-button browser-toggle active' : 'icon-button browser-toggle'}
-              label={browserOpen ? t('browser.close') : t('browser.open')}
-              aria-pressed={browserOpen}
-              onClick={() => void toggleBrowser()}
-            >
-              <Globe2 size={15} />
-            </TooltipButton>
+            {!browserOpen && (
+              <TooltipButton
+                className="icon-button browser-toggle"
+                label={t('browser.open')}
+                aria-pressed={false}
+                onClick={() => void toggleBrowser()}
+              >
+                <Globe2 size={15} />
+              </TooltipButton>
+            )}
           </div>
         </header>
 

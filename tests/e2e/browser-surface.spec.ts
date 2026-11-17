@@ -29,13 +29,16 @@ test('opens a real browser split without mounting an idle agent screen', async (
     await expect(page.getByTestId('agent-screen')).toHaveCount(0)
     await expect(page.getByTestId('browser-panel')).toHaveCount(0)
     await expect(page.locator('.app-shell')).not.toHaveClass(/sidebar-collapsed/)
+    await expect(page.locator('.workspace-header .browser-toggle')).toBeVisible()
 
     await page.locator('.workspace-header').getByRole('button', { name: 'Open browser' }).click()
     const panel = page.getByTestId('browser-panel')
     await expect(panel).toBeVisible()
     await expect(page.getByTestId('agent-screen')).toHaveCount(0)
     await expect(page.getByTestId('workspace-shell')).toHaveClass(/browser-open/)
-    await expect(page.locator('.app-shell')).toHaveClass(/sidebar-collapsed/)
+    await expect(page.locator('.app-shell')).not.toHaveClass(/sidebar-collapsed/)
+    await expect(page.locator('.workspace-header .browser-toggle')).toHaveCount(0)
+    await expect(panel.getByRole('button', { name: 'Close browser' })).toBeVisible()
     await expect(page.locator('.browser-newtab')).toBeVisible()
     await expect(page.locator('.browser-newtab-search input')).toHaveAttribute('placeholder', 'Search files or enter a URL')
     await expect(page.locator('.browser-newtab-grid button')).toHaveCount(3)
@@ -66,6 +69,8 @@ test('opens a real browser split without mounting an idle agent screen', async (
     await panel.getByRole('button', { name: 'Close browser' }).click()
     await expect(page.getByTestId('browser-panel')).toHaveCount(0)
     await expect(page.getByTestId('agent-screen')).toHaveCount(0)
+    await expect(page.locator('.workspace-header .browser-toggle')).toBeVisible()
+    await expect(page.locator('.app-shell')).not.toHaveClass(/sidebar-collapsed/)
     await expect.poll(async () => page.evaluate(() => window.barn.browser.getState())).toMatchObject({
       open: false,
       visible: false,

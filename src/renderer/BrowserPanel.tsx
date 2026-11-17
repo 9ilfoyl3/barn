@@ -150,8 +150,8 @@ export function BrowserPanel({
             <span>{state.downloads.filter((download) => download.state === 'completed').length}</span>
           </button>
         )}
-        <button className="browser-panel-close" type="button" aria-label="Close browser" onClick={() => void onClose()}>
-          <X size={16} />
+        <button className="browser-panel-close active" type="button" aria-label="Close browser" onClick={() => void onClose()}>
+          <Globe2 size={16} />
         </button>
       </header>
 
