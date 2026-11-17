@@ -82,7 +82,6 @@ test('stops an in-progress response', async () => {
       await window.barn.models.setDefault({ providerId: 'cancel-provider', modelId: 'mock-model' })
     }, baseUrl)
 
-    await page.getByRole('button', { name: /New session/i }).click()
     const composer = page.getByLabel('Message Barn')
     await composer.fill('Give me a long response')
     await composer.press('Enter')

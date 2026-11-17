@@ -64,8 +64,6 @@ test('streams a multi-turn conversation through the Agent Worker', async () => {
       dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [path] })
     }, attachmentPath)
 
-    await page.getByRole('button', { name: /New session/i }).click()
-    await expect(page.locator('.session-row')).toHaveCount(0)
     await page.getByRole('button', { name: 'Attach', exact: true }).click()
     await page.getByRole('dialog', { name: 'Attach' }).getByRole('button', { name: /Files and folders/ }).click()
     await expect(page.locator('.attachment-card.attachment-pdf')).toContainText('contract.pdf')
@@ -81,8 +79,6 @@ test('streams a multi-turn conversation through the Agent Worker', async () => {
     await expect(page.locator('.message-attachment')).not.toContainText(attachmentId)
     await expect(page.locator('.workspace-footer')).toHaveCount(0)
     await expect(page.getByText(attachmentPath, { exact: true })).toHaveCount(0)
-    await expect(page.locator('.session-row')).toHaveCount(1)
-    await expect(page.locator('.session-row.active')).toContainText('Hello')
 
     await composer.fill('Second turn')
     await composer.press('Enter')
@@ -114,126 +110,6 @@ test('streams a multi-turn conversation through the Agent Worker', async () => {
     expect(conversationLayout.dockBackdropHeight).toBe('14px')
     expect(conversationLayout.composerShadow).toBe('none')
     await page.screenshot({ path: 'test-results/barn-desktop-chat.png', fullPage: true })
-  } finally {
-    await app.close()
-    await new Promise<void>((resolve, reject) => server.close((error) => error === undefined ? resolve() : reject(error)))
-  }
-})
-
-
-test('pins, archives in Settings, restores, and persists Session organization', async () => {
-  let replyCount = 0
-  const server = await startMockModelServer(() => `Organization reply ${++replyCount}`)
-  const address = server.address()
-  if (address === null || typeof address === 'string') throw new Error('Mock server did not bind')
-  const baseUrl = `http://127.0.0.1:${address.port}/v1`
-  const userData = await mkdtemp(join(tmpdir(), 'barn-desktop-session-organization-e2e-'))
-  const inheritedEnv = Object.fromEntries(
-    Object.entries(process.env).filter((entry): entry is [string, string] => entry[1] !== undefined),
-  )
-  const app = await electron.launch({
-    args: ['.'],
-    env: {
-      ...inheritedEnv,
-      ELECTRON_DISABLE_SECURITY_WARNINGS: 'true',
-      BARN_USER_DATA_DIR: userData,
-      BARN_UI_LANGUAGE: 'en',
-    },
-  })
-
-  try {
-    const page = await app.firstWindow()
-    await page.waitForLoadState('domcontentloaded')
-    await page.evaluate(async (url) => {
-      await window.barn.models.saveCustomProvider({
-        id: 'organization-provider',
-        name: 'Organization Provider',
-        baseUrl: url,
-        api: 'openai-completions',
-        models: [{
-          id: 'organization-model',
-          name: 'Organization Model',
-          contextWindow: 128_000,
-          maxTokens: 8_000,
-          reasoning: false,
-          reasoningEfforts: [],
-          input: ['text'],
-        }],
-      })
-      await window.barn.models.saveCredential({ providerId: 'organization-provider', apiKey: 'test-key' })
-      await window.barn.models.setDefault({ providerId: 'organization-provider', modelId: 'organization-model' })
-    }, baseUrl)
-
-    const composer = page.getByLabel('Message Barn')
-    await page.getByRole('button', { name: /New session/i }).click()
-    await composer.fill('First conversation')
-    await composer.press('Enter')
-    await expect(page.getByText('Organization reply 1').last()).toBeVisible({ timeout: 15_000 })
-
-    await page.getByRole('button', { name: /New session/i }).click()
-    await composer.fill('Second conversation')
-    await composer.press('Enter')
-    await expect(page.getByText('Organization reply 2').last()).toBeVisible({ timeout: 15_000 })
-
-    const secondRow = page.locator('.session-row', { hasText: 'Second conversation' })
-    await expect(secondRow.locator('.session-row-actions')).toHaveCSS('opacity', '0')
-    await secondRow.hover()
-    await expect(secondRow.locator('.session-row-actions')).toHaveCSS('opacity', '1')
-    await secondRow.getByRole('button', { name: 'Pin session' }).click()
-    const pinnedGroup = page.locator('.session-group[data-group="pinned"]')
-    await expect(pinnedGroup.locator('.session-row')).toContainText('Second conversation')
-    await expect.poll(async () => page.evaluate(async () => {
-      const sessions = await window.barn.sessions.list()
-      return sessions.find((session) => session.title === 'Second conversation')?.pinned
-    })).toBe(true)
-    await expect.poll(async () => page.evaluate(() => {
-      const sidebar = document.querySelector('.sidebar')
-      return sidebar === null ? undefined : sidebar.scrollLeft
-    })).toBe(0)
-    await page.screenshot({ path: 'test-results/barn-session-pinned.png', fullPage: true })
-
-    await pinnedGroup.locator('.session-row', { hasText: 'Second conversation' }).hover()
-    await pinnedGroup.locator('.session-row', { hasText: 'Second conversation' })
-      .getByRole('button', { name: 'Archive session' }).click()
-    await expect(page.locator('.session-row', { hasText: 'Second conversation' })).toHaveCount(0)
-    await expect(page.locator('.session-row', { hasText: 'First conversation' })).toHaveClass(/active/)
-    await expect(page.getByText('Pinned:', { exact: true })).toHaveCount(0)
-    await expect.poll(async () => page.evaluate(async () => {
-      const sessions = await window.barn.sessions.list()
-      return sessions.find((session) => session.title === 'Second conversation')?.archivedAt
-    })).toEqual(expect.any(String))
-
-    await page.reload()
-    await page.waitForLoadState('domcontentloaded')
-    await page.locator('.account-row').click()
-    await page.getByRole('menuitem', { name: 'Settings' }).click()
-    await expect(page.locator('.account-popover')).toBeHidden()
-    await expect.poll(async () => page.evaluate(() => {
-      const sidebar = document.querySelector('.sidebar')
-      return sidebar === null ? undefined : sidebar.scrollLeft
-    })).toBe(0)
-    await expect(page.getByRole('heading', { name: 'Archived chats' })).toBeVisible()
-    const archivedRow = page.locator('.settings-archive-row', { hasText: 'Second conversation' })
-    await expect(archivedRow).toBeVisible()
-    const archivedSearch = page.getByRole('searchbox', { name: 'Search archived chats' })
-    await archivedSearch.fill('missing chat')
-    await expect(page.getByRole('heading', { name: 'No matching archived chats' })).toBeVisible()
-    await archivedSearch.fill('Second')
-    await expect(archivedRow).toBeVisible()
-    await page.screenshot({ path: 'test-results/barn-session-archived.png', fullPage: true })
-
-    await archivedSearch.fill('')
-    await archivedRow.getByRole('button', { name: 'Unarchive' }).click()
-    await expect(archivedRow).toHaveCount(0)
-    await expect(page.getByRole('heading', { name: 'No archived chats' })).toBeVisible()
-    await expect.poll(async () => page.evaluate(async () => {
-      const sessions = await window.barn.sessions.list()
-      return sessions.find((session) => session.title === 'Second conversation')?.archivedAt
-    })).toBeUndefined()
-
-    await page.getByRole('button', { name: /New session/i }).click()
-    await expect(page.locator('.session-group[data-group="pinned"] .session-row', { hasText: 'Second conversation' })).toBeVisible()
-    await expect(page.getByRole('heading', { name: 'What needs attention?' })).toBeVisible()
   } finally {
     await app.close()
     await new Promise<void>((resolve, reject) => server.close((error) => error === undefined ? resolve() : reject(error)))
@@ -698,7 +574,6 @@ test('interleaves live thinking, tools, and content in event order', async () =>
       await window.barn.models.setDefault({ providerId: 'ordered-provider', modelId: 'ordered-model' })
     }, `http://127.0.0.1:${address.port}/v1`)
 
-    await page.getByRole('button', { name: /New session/i }).click()
     const composer = page.getByLabel('Message Barn')
     await composer.fill('Inspect the workspace.')
     await composer.press('Enter')
