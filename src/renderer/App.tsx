@@ -41,6 +41,7 @@ import { AgentScreen } from './AgentScreen'
 import { BrowserPanel, type BrowserQuickAction } from './BrowserPanel'
 import { UtilityPanel, type UtilityTab, type UtilityTabType } from './UtilityPanel'
 import { ConversationParts, PendingThinking } from './ConversationParts'
+import { AssistantResult } from './AssistantResult'
 import './composer-workspace.css'
 import './browser-panel.css'
 import { TaskCenter } from './TaskCenter'
@@ -481,6 +482,16 @@ export function App() {
     setUtilityOpen(false)
   }
 
+  async function openResultLink(url: string): Promise<void> {
+    try {
+      const state = await window.barn.browser.open(url)
+      setBrowserState(state)
+      setBrowserOpen(state.open)
+    } catch (reason) {
+      setError(errorMessage(reason, t))
+    }
+  }
+
   async function browserHistory(direction: 'back' | 'forward'): Promise<void> {
     try {
       const state = direction === 'back'
@@ -837,6 +848,12 @@ export function App() {
                               )
                             })}
                           </div>
+                        )}
+                        {message.role === 'assistant' && message.resultCard !== undefined && (
+                          <AssistantResult
+                            card={message.resultCard}
+                            onOpenLink={(url) => void openResultLink(url)}
+                          />
                         )}
                       </MessageBubble>
                     ))}

@@ -3,6 +3,8 @@ import type {
   SessionLiveEvent,
   SessionTimelineEvent,
   VisibleMessage,
+  VisibleResultCard,
+  VisibleResultCardKind,
 } from '../shared/models'
 import { attachmentDisplayName } from '../shared/attachments'
 
@@ -25,6 +27,7 @@ export interface ChatMessage {
   parts: ConversationPart[]
   attachments: AttachmentDescriptor[]
   isError: boolean
+  resultCard?: VisibleResultCard
 }
 
 export type ConversationDisplayPart =
@@ -279,12 +282,14 @@ export function chatMessagesFromThread(messages: VisibleMessage[]): ChatMessage[
     if (message.role !== 'user' && message.role !== 'assistant') return []
     const text = visibleMessageText(message.content)
     if (text.trim().length === 0) return []
+    const resultCard = parseVisibleResultCard(message.metadata.resultCard)
     return [{
       key: `thread:${message.id}`,
       role: message.role,
       parts: [{ type: 'text', text }],
       attachments: attachmentNames(message.metadata).map((name) => ({ name, path: name, size: 0 })),
       isError: false,
+      ...(resultCard === undefined ? {} : { resultCard }),
     }]
   })
 }
@@ -315,7 +320,11 @@ export function mergeThreadAndSessionMessages(
     ))
     return match === undefined
       ? threadMessage
-      : { ...match, key: threadMessage.key }
+      : {
+          ...match,
+          key: threadMessage.key,
+          ...(threadMessage.resultCard === undefined ? {} : { resultCard: threadMessage.resultCard }),
+        }
   })
 }
 
@@ -332,4 +341,59 @@ export function filterLivePartsAgainstThread(
 
 function chatMessageText(message: ChatMessage): string {
   return message.parts.flatMap((part) => part.type === 'text' ? [part.text] : []).join('\n')
+}
+
+
+const RESULT_CARD_KINDS: readonly VisibleResultCardKind[] = ['file', 'link', 'task', 'map']
+const MAX_RESULT_IMAGE_DATA_URL_LENGTH = 2_000_000
+const RESULT_IMAGE_PATTERN = /^data:image\/(?:png|jpeg|webp);base64,[a-z0-9+/=\s]+$/i
+
+/** Parse untrusted Thread metadata into the small result-card surface the UI supports. */
+export function parseVisibleResultCard(value: unknown): VisibleResultCard | undefined {
+  if (!isRecord(value) || value.version !== 1) return undefined
+  if (typeof value.kind !== 'string' || !RESULT_CARD_KINDS.includes(value.kind as VisibleResultCardKind)) return undefined
+  const title = boundedText(value.title, 160)
+  if (title === undefined) return undefined
+  const description = boundedText(value.description, 500)
+  const provider = boundedText(value.provider, 60)
+  const meta = boundedText(value.meta, 120)
+  const status = boundedText(value.status, 60)
+  const href = safeHttpsUrl(value.href)
+  const image = resultCardImage(value.image)
+  return {
+    version: 1,
+    kind: value.kind as VisibleResultCardKind,
+    title,
+    ...(description === undefined ? {} : { description }),
+    ...(provider === undefined ? {} : { provider }),
+    ...(meta === undefined ? {} : { meta }),
+    ...(status === undefined ? {} : { status }),
+    ...(href === undefined ? {} : { href }),
+    ...(image === undefined ? {} : { image }),
+  }
+}
+
+function resultCardImage(value: unknown): VisibleResultCard['image'] {
+  if (!isRecord(value)) return undefined
+  const dataUrl = boundedText(value.dataUrl, MAX_RESULT_IMAGE_DATA_URL_LENGTH)
+  const alt = boundedText(value.alt, 160)
+  if (dataUrl === undefined || alt === undefined || !RESULT_IMAGE_PATTERN.test(dataUrl)) return undefined
+  return { dataUrl, alt }
+}
+
+function safeHttpsUrl(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined
+  try {
+    const url = new URL(value.trim())
+    if (url.protocol !== 'https:' || url.username.length > 0 || url.password.length > 0) return undefined
+    return url.toString()
+  } catch {
+    return undefined
+  }
+}
+
+function boundedText(value: unknown, maxLength: number): string | undefined {
+  if (typeof value !== 'string') return undefined
+  const text = value.trim()
+  return text.length === 0 || text.length > maxLength ? undefined : text
 }

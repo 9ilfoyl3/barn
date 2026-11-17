@@ -143,6 +143,26 @@ export interface PrincipalThread {
   updatedAt: string
 }
 
+export type VisibleResultCardKind = 'file' | 'link' | 'task' | 'map'
+
+export interface VisibleResultCardImage {
+  dataUrl: string
+  alt: string
+}
+
+/** Structured, allowlisted content that may accompany one assistant turn. */
+export interface VisibleResultCard {
+  version: 1
+  kind: VisibleResultCardKind
+  title: string
+  description?: string
+  provider?: string
+  meta?: string
+  status?: string
+  href?: string
+  image?: VisibleResultCardImage
+}
+
 export interface VisibleMessage {
   id: string
   threadId: string
