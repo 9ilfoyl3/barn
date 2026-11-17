@@ -26,7 +26,7 @@ test('packaged Desktop starts and loads the workspace', async () => {
   try {
     const window = await app.firstWindow()
     await window.waitForLoadState('domcontentloaded')
-    await expect(window.getByRole('heading', { name: 'What needs attention?' })).toBeVisible()
+    await expect(window.locator('.secretary-presence')).toBeVisible()
   } finally {
     await app.close()
   }
