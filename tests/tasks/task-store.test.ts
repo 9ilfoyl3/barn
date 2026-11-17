@@ -24,6 +24,7 @@ describe('TaskStore', () => {
       origin: 'user',
       sessionId: session.id,
       prompt: 'Summarize the attached figures and prepare the report.',
+      visiblePrompt: 'Summarize the figures.',
     }, '11111111-1111-4111-8111-111111111111')
     store.close()
 
@@ -35,6 +36,7 @@ describe('TaskStore', () => {
       origin: 'user',
       sessionId: session.id,
       prompt: 'Summarize the attached figures and prepare the report.',
+      visiblePrompt: 'Summarize the figures.',
     }))
     reopened.close()
   })

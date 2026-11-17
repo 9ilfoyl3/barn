@@ -86,6 +86,7 @@ export function App() {
   const [accountOpen, setAccountOpen] = useState(false)
   const [announcement, setAnnouncement] = useState('')
   const [commandOpen, setCommandOpen] = useState(false)
+  const [delegationNotice, setDelegationNotice] = useState<string>()
   const [view, setView] = useState<'conversation' | 'tasks' | 'settings'>('conversation')
   const [tasks, setTasks] = useState<Task[]>([])
   const [tasksLoading, setTasksLoading] = useState(true)
@@ -331,6 +332,43 @@ export function App() {
 
     const filesToSend = attachments
     try {
+      const delegation = await window.barn.delegation.classify({
+        text,
+        attachmentNames: filesToSend.map((file) => file.name),
+        hasWorkingDirectory: workingDirectory !== undefined,
+      })
+      const browserInteraction = /\b(browser|page|form|website|click|navigate|url)\b/i.test(text)
+      if (
+        delegation.action === 'task'
+        && delegation.confidence >= 0.9
+        && delegation.taskContract !== undefined
+        && filesToSend.length === 0
+        && workingDirectory === undefined
+        && !browserInteraction
+      ) {
+        const attachmentContext = filesToSend.length === 0
+          ? ''
+          : `\n\nAttachments:\n${filesToSend.map((file) => `- ${file.name}: ${file.path}`).join('\n')}`
+        const task = await window.barn.tasks.create({
+          title: taskTitle(text),
+          origin: 'user',
+          status: 'queued',
+          prompt: `${text}${attachmentContext}\n\nTask contract:\n${JSON.stringify(delegation.taskContract, null, 2)}`,
+          visiblePrompt: text,
+        })
+        setTasks((current) => upsertTask(current, task))
+        setDelegationNotice(t('secretary.taskStarted'))
+        setInput('')
+        setAttachments([])
+        setLiveParts([])
+        setError(undefined)
+        return
+      }
+    } catch (reason) {
+      setError(errorMessage(reason, t))
+      return
+    }
+    try {
       if (isNewSession) await window.barn.sessions.create(sessionId)
       activeSessionIdRef.current = sessionId
       setActiveSessionId(sessionId)
@@ -338,6 +376,7 @@ export function App() {
       setStopping(false)
       setError(undefined)
       setLiveParts([])
+      setDelegationNotice(undefined)
       setInput('')
       setAttachments([])
       const session = await window.barn.sessions.prompt({
@@ -869,6 +908,10 @@ export function App() {
                   </MessageBubbleGroup>
                 )}
 
+                {delegationNotice !== undefined && (
+                  <div className="delegation-notice" role="status">{delegationNotice}</div>
+                )}
+
                 {error !== undefined && (
                   <div className="error-banner" role="alert">
                     {error}
@@ -1069,4 +1112,9 @@ function formatFileSize(bytes: number): string {
 
 function upsertVisibleMessage(current: VisibleMessage[], message: VisibleMessage): VisibleMessage[] {
   return [...current.filter((item) => item.id !== message.id), message].toSorted((left, right) => left.seq - right.seq)
+}
+
+function taskTitle(text: string): string {
+  const oneLine = text.replace(/\s+/g, ' ').trim()
+  return oneLine.length <= 64 ? oneLine : `${oneLine.slice(0, 61)}...`
 }

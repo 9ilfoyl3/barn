@@ -52,6 +52,7 @@ const en = {
     openNeedsYou: 'Open Needs you',
     openNeedsYouDetail: 'See everything waiting for a decision or review.',
     noMatches: 'No matches yet.',
+    taskStarted: 'Barn is working on this as a task. Progress is shown on the right.',
   },
   sidebar: {
     hide: 'Hide sidebar',
@@ -543,6 +544,7 @@ const zhCN: TranslationSchema = {
     openNeedsYou: '打开发需要你',
     openNeedsYouDetail: '查看所有等待决策或确认的事项。',
     noMatches: '暂时没有匹配结果。',
+    taskStarted: 'Barn 已将这项工作作为任务处理，进度会显示在右侧。',
   },
   sidebar: {
     hide: '隐藏侧边栏',
