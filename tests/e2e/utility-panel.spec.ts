@@ -25,6 +25,7 @@ test('opens a sandboxed terminal from the browser new tab page', async () => {
     await command.press('Enter')
     await expect(panel.locator('.terminal-output')).toContainText('one', { timeout: 15_000 })
     await expect(panel.locator('.terminal-output')).toContainText('two')
+    await expect(panel.locator('.terminal-busy')).toHaveCount(0)
     await command.fill('pwd')
     await command.press('Enter')
     await expect(panel.locator('.terminal-output')).toContainText(process.cwd(), { timeout: 15_000 })
