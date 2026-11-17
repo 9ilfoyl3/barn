@@ -45,6 +45,7 @@ export class AgentService {
     text: string,
     attachments: AttachmentDescriptor[] = [],
     workingDirectory?: string,
+    visibleText?: string,
   ): Promise<SessionSummary> {
     const trimmed = text.trim()
     if (trimmed.length === 0) throw new Error('Prompt cannot be empty')
@@ -93,7 +94,7 @@ export class AgentService {
         this.threads?.appendMessage({
           clientMessageId: `session-user:${userEvent.eventId}`,
           role: 'user',
-          content: trimmed,
+          content: visibleText?.trim() || trimmed,
           metadata: {
             sessionId,
             sessionEventId: userEvent.eventId,

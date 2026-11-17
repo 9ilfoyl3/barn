@@ -231,6 +231,7 @@ export interface Task {
   sessionId?: string
   approvalId?: string
   prompt?: string
+  visiblePrompt?: string
   waitingReason?: TaskWaitingReason
   detail?: string
   createdAt: string
@@ -245,6 +246,7 @@ export interface CreateTaskInput {
   status?: 'proposed' | 'queued'
   sessionId?: string
   prompt?: string
+  visiblePrompt?: string
 }
 
 export interface TaskStatusUpdate {

@@ -58,6 +58,9 @@ describe('TaskRunner', () => {
     expect(h.agent.prompt).toHaveBeenCalledWith(
       running.sessionId,
       'Read the notes and produce a concise summary.',
+      [],
+      undefined,
+      undefined,
     )
 
     h.agent.emit({

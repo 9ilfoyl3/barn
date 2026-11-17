@@ -41,6 +41,10 @@ describe('DelegationPolicy', () => {
     expect(decision.taskContract?.acceptanceCriteria.length).toBeGreaterThan(0)
   })
 
+  it('keeps short conversational turns in the normal Agent loop', () => {
+    expect(classifyDelegation({ text: 'Hello' })).toMatchObject({ action: 'answer' })
+  })
+
   it('treats a bounded translation as a direct answer', () => {
     expect(classifyDelegation({ text: 'Translate this sentence into Chinese: Good morning.' })).toMatchObject({
       action: 'answer',

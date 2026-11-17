@@ -1,4 +1,4 @@
-import type { SessionLiveEvent, Task } from '../../shared/models'
+import type { AttachmentDescriptor, SessionLiveEvent, Task } from '../../shared/models'
 import type { SessionStore } from '../session/session-store'
 import type { TaskService } from './task-service'
 
@@ -7,7 +7,13 @@ export interface TaskRunnerOptions {
 }
 
 export interface TaskAgent {
-  prompt(sessionId: string, text: string): Promise<unknown>
+  prompt(
+    sessionId: string,
+    text: string,
+    attachments?: AttachmentDescriptor[],
+    workingDirectory?: string,
+    visibleText?: string,
+  ): Promise<unknown>
   cancel(sessionId: string): Promise<void>
   onLiveEvent(listener: (event: SessionLiveEvent) => void): () => void
 }
@@ -120,7 +126,7 @@ export class TaskRunner {
     try {
       this.tasks.assignSession(task.id, session.id)
       this.tasks.updateStatus(task.id, { status: 'running', detail: 'Task execution started.' })
-      await this.agent.prompt(session.id, task.prompt!)
+      await this.agent.prompt(session.id, task.prompt!, [], undefined, task.visiblePrompt)
     } catch (error) {
       this.removeActive(task.id)
       const current = this.tasks.list().find((candidate) => candidate.id === task.id)

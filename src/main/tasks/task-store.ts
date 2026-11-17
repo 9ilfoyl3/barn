@@ -35,6 +35,9 @@ interface TaskRow {
   prompt_ciphertext: Uint8Array | null
   prompt_nonce: Uint8Array | null
   prompt_tag: Uint8Array | null
+  visible_prompt_ciphertext: Uint8Array | null
+  visible_prompt_nonce: Uint8Array | null
+  visible_prompt_tag: Uint8Array | null
   waiting_reason: string | null
   detail: string | null
   created_at: string
@@ -62,6 +65,9 @@ export class TaskStore {
         prompt_ciphertext BLOB,
         prompt_nonce BLOB,
         prompt_tag BLOB,
+        visible_prompt_ciphertext BLOB,
+        visible_prompt_nonce BLOB,
+        visible_prompt_tag BLOB,
         waiting_reason TEXT,
         detail TEXT,
         created_at TEXT NOT NULL,
@@ -99,15 +105,20 @@ export class TaskStore {
     }
     if (input.sessionId !== undefined) task.sessionId = input.sessionId
     if (input.prompt !== undefined) task.prompt = normalizePrompt(input.prompt)
+    if (input.visiblePrompt !== undefined) task.visiblePrompt = normalizePrompt(input.visiblePrompt)
     const encryptedPrompt = task.prompt === undefined
       ? undefined
       : this.cipher.encrypt(task.prompt, promptAssociatedData(task.id))
+    const encryptedVisiblePrompt = task.visiblePrompt === undefined
+      ? undefined
+      : this.cipher.encrypt(task.visiblePrompt, visiblePromptAssociatedData(task.id))
     this.database.prepare(`
       INSERT INTO tasks (
         id, title, status, origin, session_id, approval_id,
         prompt_ciphertext, prompt_nonce, prompt_tag,
+        visible_prompt_ciphertext, visible_prompt_nonce, visible_prompt_tag,
         waiting_reason, detail, created_at, updated_at, started_at, finished_at
-      ) VALUES (?, ?, ?, ?, ?, NULL, ?, ?, ?, NULL, NULL, ?, ?, NULL, NULL)
+      ) VALUES (?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, NULL, NULL, ?, ?, NULL, NULL)
     `).run(
       task.id,
       task.title,
@@ -117,6 +128,9 @@ export class TaskStore {
       encryptedPrompt?.ciphertext ?? null,
       encryptedPrompt?.nonce ?? null,
       encryptedPrompt?.tag ?? null,
+      encryptedVisiblePrompt?.ciphertext ?? null,
+      encryptedVisiblePrompt?.nonce ?? null,
+      encryptedVisiblePrompt?.tag ?? null,
       now,
       now,
     )
@@ -203,12 +217,24 @@ export class TaskStore {
     }
     const prompt = normalizePrompt(value)
     const encrypted = this.cipher.encrypt(prompt, promptAssociatedData(taskId))
+    const visible = this.cipher.encrypt(prompt, visiblePromptAssociatedData(taskId))
     const now = new Date().toISOString()
     this.database.prepare(`
       UPDATE tasks
-      SET prompt_ciphertext = ?, prompt_nonce = ?, prompt_tag = ?, updated_at = ?
+      SET prompt_ciphertext = ?, prompt_nonce = ?, prompt_tag = ?,
+          visible_prompt_ciphertext = ?, visible_prompt_nonce = ?, visible_prompt_tag = ?,
+          updated_at = ?
       WHERE id = ?
-    `).run(encrypted.ciphertext, encrypted.nonce, encrypted.tag, now, taskId)
+    `).run(
+      encrypted.ciphertext,
+      encrypted.nonce,
+      encrypted.tag,
+      visible.ciphertext,
+      visible.nonce,
+      visible.tag,
+      now,
+      taskId,
+    )
     return this.get(taskId)
   }
 
@@ -257,6 +283,15 @@ export class TaskStore {
         tag: row.prompt_tag!,
       }, promptAssociatedData(row.id)) as string
     }
+    const visibleFields = [row.visible_prompt_ciphertext, row.visible_prompt_nonce, row.visible_prompt_tag]
+    if (visibleFields.some((field) => field !== null)) {
+      if (visibleFields.some((field) => field === null)) throw new Error(`Incomplete encrypted visible prompt for task: ${row.id}`)
+      task.visiblePrompt = this.cipher.decrypt({
+        ciphertext: row.visible_prompt_ciphertext!,
+        nonce: row.visible_prompt_nonce!,
+        tag: row.visible_prompt_tag!,
+      }, visiblePromptAssociatedData(row.id)) as string
+    }
     return task
   }
 
@@ -269,6 +304,9 @@ export class TaskStore {
       ['prompt_ciphertext', 'BLOB'],
       ['prompt_nonce', 'BLOB'],
       ['prompt_tag', 'BLOB'],
+      ['visible_prompt_ciphertext', 'BLOB'],
+      ['visible_prompt_nonce', 'BLOB'],
+      ['visible_prompt_tag', 'BLOB'],
     ] as const
     for (const [name, type] of additions) {
       if (!columns.has(name)) this.database.exec(`ALTER TABLE tasks ADD COLUMN ${name} ${type}`)
@@ -302,6 +340,10 @@ function normalizePrompt(value: string): string {
 
 function promptAssociatedData(taskId: string): string {
   return `task:${taskId}:prompt`
+}
+
+function visiblePromptAssociatedData(taskId: string): string {
+  return `task:${taskId}:visible-prompt`
 }
 
 function normalizeDetail(value: string | undefined): string | null {

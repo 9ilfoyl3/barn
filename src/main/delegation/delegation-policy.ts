@@ -9,7 +9,7 @@ const EXTERNAL_WRITE = /\b(send|email|message|post|publish|submit|share|invite|u
 const DESTRUCTIVE = /\b(delete|remove|erase|wipe|drop|reset|revoke|archive|cancel|deploy|release|merge|close)\b/i
 const MULTI_STEP = /\b(research|investigate|review|analy[sz]e|compare|prepare|create|draft|write|build|implement|debug|fix|test|browse|navigate|collect|extract|organi[sz]e|summari[sz]e|plan)\b/i
 const REQUIRED_ATTACHMENT = /\b(this file|the file|attached|attachment|document|spreadsheet|pdf)\b/i
-const DIRECT_ANSWER = /^(what|who|when|where|why|how|is|are|can|could|should|explain|translate|rewrite|summari[sz]e)\b/i
+const DIRECT_ANSWER = /^(what|who|when|where|why|how|is|are|can|could|should|explain|translate|rewrite|summari[sz]e|hi|hello|hey|thanks|thank you|ok|okay)\b/i
 const CAPABILITY_PATTERNS: Array<[RegExp, string]> = [
   [/\b(web|search|research|browse|website|url|page)\b/i, 'web'],
   [/\b(file|folder|document|pdf|spreadsheet|workspace)\b/i, 'filesystem'],
