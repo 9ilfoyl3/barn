@@ -58,7 +58,6 @@ import { MessageBubble, MessageBubbleGroup } from '@/components/beui/components/
 import { PromptInput } from '@/components/beui/components/agents/prompt-input'
 import {
   applyLiveEvent,
-  filterLivePartsAgainstThread,
   mergeThreadAndSessionMessages,
   messagesFromEvents,
   type ChatMessage,
@@ -270,7 +269,7 @@ export function App() {
   useEffect(() => {
     const element = listRef.current
     if (element !== null) element.scrollTop = element.scrollHeight
-  }, [messages, liveParts])
+  }, [messages, liveParts, threadMessages])
 
   async function loadSession(sessionId: string): Promise<void> {
     try {
@@ -318,8 +317,7 @@ export function App() {
       setPending(event.status === 'running')
       if (event.status !== 'running') {
         setStopping(false)
-        setLiveParts([])
-        void loadSession(sessionId)
+        void loadSession(sessionId).finally(() => setLiveParts([]))
         if (event.status === 'failed') setError(event.error ?? t('conversation.runFailed'))
       }
     }
@@ -573,10 +571,14 @@ export function App() {
   const activeSession = sessions.find((session) => session.id === activeSessionId)
   const commandKey = window.barn.platform === 'darwin' ? '⌘' : 'Ctrl'
   const running = pending || activeSession?.status === 'running'
+  const liveText = new Set(liveParts.flatMap((part) => part.type === 'text' ? [part.text.trim()] : []))
   const displayMessages = threadMessages.length > 0
-    ? mergeThreadAndSessionMessages(threadMessages, messages)
+    ? mergeThreadAndSessionMessages(threadMessages, messages).filter((message) => (
+      liveParts.length === 0
+      || !liveText.has(message.parts.flatMap((part) => part.type === 'text' ? [part.text.trim()] : []).join('\n'))
+    ))
     : messages
-  const displayLiveParts = filterLivePartsAgainstThread(liveParts, threadMessages)
+  const displayLiveParts = liveParts
   const rightPanelOpen = browserOpen || utilityOpen
   const archivedSessions = sortSessions(sessions.filter((session) => (
     session.archivedAt !== undefined && session.parentSessionId === undefined
