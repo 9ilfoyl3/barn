@@ -57,6 +57,7 @@ let lifecycle: AlwaysOnLifecycle | undefined
 let diagnosticsService: DiagnosticsService | undefined
 let memoryExtractionService: MemoryExtractionService | undefined
 let browserService: BrowserService | undefined
+let terminalService: TerminalService | undefined
 let maintenanceTimer: NodeJS.Timeout | undefined
 let isQuitting = false
 const shellService = new ShellService()
@@ -181,7 +182,7 @@ void app.whenReady().then(async () => {
     mkdir(privateTempRoot, { recursive: true, mode: 0o700 }),
   ])
   const memoryService = new MemoryService(sessionStore.memories)
-  const terminalService = new TerminalService(shellService, process.cwd(), outputRoot, privateTempRoot)
+  terminalService = new TerminalService(outputRoot, privateTempRoot)
   const browserTools = new BrowserToolService({
     getBrowser: () => browserService,
     workspaceRoot,
@@ -277,6 +278,8 @@ app.on('before-quit', () => {
   memoryExtractionService = undefined
   browserService?.dispose()
   browserService = undefined
+  terminalService?.disposeAll()
+  terminalService = undefined
   if (maintenanceTimer !== undefined) clearInterval(maintenanceTimer)
   maintenanceTimer = undefined
   void agentService?.stop()

@@ -3,6 +3,34 @@
   "shape": "app screen",
   "theme": "barn-native",
   "axes": [
+   "xterm dynamic terminal grid",
+   "persistent PTY prompt",
+   "utility tab chrome"
+  ],
+  "hero": "none",
+  "nav": "browser shortcuts to terminal",
+  "footer": "existing composer",
+  "imagery": "real terminal output",
+  "photos": [],
+  "entry": "Terminal card on browser new tab page",
+  "fingerprint": "barn-pty-xterm-2026-11-17",
+  "sections": [
+   "utility tab bar",
+   "xterm terminal",
+   "inline prompt and cursor"
+  ],
+  "signature": "the shell prompt lives in the terminal transcript and behaves like a real PTY",
+  "waived": [],
+  "prompt": "Replace the command terminal with node-pty and xterm.js while preserving the reference terminal appearance",
+  "date": "2026-11-17",
+  "mode": "redesign",
+  "depth": "polish",
+  "scope": "app"
+ },
+ {
+  "shape": "app screen",
+  "theme": "barn-native",
+  "axes": [
    "sandboxed terminal tab",
    "multiple side chat tabs",
    "shared utility panel chrome"

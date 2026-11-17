@@ -34,7 +34,9 @@ import type {
   BrowserBounds,
   BrowserLiveEvent,
   TerminalBridge,
-  TerminalRunInput,
+  TerminalCreateInput,
+  TerminalDataEvent,
+  TerminalExitEvent,
 } from '../shared/models'
 
 const models: ModelBridge = {
@@ -71,7 +73,20 @@ const browser: BrowserBridge = {
 }
 
 const terminal: TerminalBridge = {
-  run: (input: TerminalRunInput) => ipcRenderer.invoke('terminal:run', input),
+  create: (input: TerminalCreateInput) => ipcRenderer.invoke('terminal:create', input),
+  write: (terminalId: string, data: string) => ipcRenderer.invoke('terminal:write', { terminalId, data }),
+  resize: (terminalId: string, cols: number, rows: number) => ipcRenderer.invoke('terminal:resize', { terminalId, cols, rows }),
+  dispose: (terminalId: string) => ipcRenderer.invoke('terminal:dispose', terminalId),
+  onData: (listener: (event: TerminalDataEvent) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, dataEvent: TerminalDataEvent): void => listener(dataEvent)
+    ipcRenderer.on('terminal:data', handler)
+    return () => ipcRenderer.removeListener('terminal:data', handler)
+  },
+  onExit: (listener: (event: TerminalExitEvent) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, exitEvent: TerminalExitEvent): void => listener(exitEvent)
+    ipcRenderer.on('terminal:exit', handler)
+    return () => ipcRenderer.removeListener('terminal:exit', handler)
+  },
 }
 
 const sessions: SessionBridge = {

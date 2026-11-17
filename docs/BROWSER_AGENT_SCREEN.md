@@ -20,7 +20,9 @@ Barn Desktop includes a local built-in browser and a visible Agent Screen inside
 - Multiple tabs: create, select, close, list, and restore after restart.
 - A native-looking new-tab page provides a centered search/URL field, focused search suggestions from recent history, and Terminal, Files, and Side chat shortcuts.
 - Terminal opens a sandboxed command surface in the shared right-side utility panel. The default current directory is Barn's real local working directory (or the selected Session directory), so `pwd` shows host paths while macOS Seatbelt still restricts writes, reads, and network access.
-- Terminal input supports repeated empty Enter prompts, Shift+Enter multiline commands, command history, `cd`, and `clear`.
+- Terminal uses xterm.js over a persistent sandboxed `node-pty` session, providing Tab completion, Ctrl+C, colors, streaming output, history, and interactive programs.
+- Each terminal uses a managed zsh configuration and private `ZDOTDIR`, avoiding user-home writes while retaining real workspace paths.
+- The packaged macOS app rebuilds and unpacks `node-pty`; Windows remains fail-closed until an enforcing PTY sandbox exists.
 - Side chat opens independent Agent Sessions in separate utility tabs. Multiple side chats can run at once and are excluded from the main Session list while open.
 - Loaded pages use a browser toolbar with navigation, site information, address, bookmark, download, and overflow controls.
 - Semantic observation of page text and interactive elements with stable refs, including open Shadow DOM and same-origin iframes.
