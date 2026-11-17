@@ -1,6 +1,6 @@
 # Agent Note: Sessionless interaction with bounded execution and evidence-based memory
 
-Status: proposed
+Status: implemented
 
 ## Problem
 
@@ -8,7 +8,7 @@ Barn Desktop currently exposes Sessions as a user-facing concept. A Session is a
 
 The product target is one persistent Assistant experience where the user does not manage Sessions, while Task execution remains recoverable and long-term memory remains precise and controllable.
 
-## Proposal
+## Decision
 
 Separate five concepts:
 
@@ -55,3 +55,12 @@ Memory writes pass through evidence and quality gates. Task delegation passes th
 - Delegation thresholds can over-ask or under-delegate if tuned without real usage data.
 - Background Tasks can starve interactive requests without lane scheduling.
 - A local-first app still needs a clear cross-device synchronization decision before claiming cross-device continuity.
+
+## Consequences
+
+- Sessions remain the bounded execution context, but the user-visible history is now the Principal Thread.
+- Today/Routines, Assistant Thread, and Tasks are the default workspace; archived chats and New Session are removed.
+- Side Chat is removed from the product path while the browser and terminal remain contextual tools.
+- Inferred memories enter a candidate queue and do not affect retrieval until confirmed.
+- High-confidence side-effect work is routed into durable Tasks with a private contract and visible user prompt.
+- Existing Sessions remain readable for task execution and recovery, but are no longer a navigation or organization concept.
