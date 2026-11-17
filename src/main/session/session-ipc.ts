@@ -25,7 +25,9 @@ export function registerSessionIpc(
   ipcMain.handle('sessions:create', (event, sessionId: unknown) => {
     requireTrusted(event, isTrustedSender)
     const id = z.uuid().optional().parse(sessionId)
-    return sessions.createSession('New session', id)
+    return id === undefined
+      ? sessions.createSession()
+      : sessions.ensureSession(id)
   })
 
   ipcMain.handle('sessions:get-events', (event, sessionId: unknown) => {

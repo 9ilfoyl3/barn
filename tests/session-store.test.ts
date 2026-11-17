@@ -1,4 +1,4 @@
-import { randomBytes } from 'node:crypto'
+import { randomBytes, randomUUID } from 'node:crypto'
 import { mkdtemp } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -7,6 +7,22 @@ import { AesGcmEventCipher } from '../src/main/session/event-cipher'
 import { SessionStore } from '../src/main/session/session-store'
 
 describe('SessionStore', () => {
+  it('ensures an explicitly identified session idempotently', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'barn-session-idempotent-'))
+    const store = new SessionStore(
+      join(directory, 'sessions.db'),
+      new AesGcmEventCipher(randomBytes(32)),
+    )
+    await store.initialize()
+    const sessionId = randomUUID()
+    const first = store.ensureSession(sessionId)
+    const second = store.ensureSession(sessionId)
+    expect(first.id).toBe(sessionId)
+    expect(second.id).toBe(sessionId)
+    expect(store.getSession(sessionId).id).toBe(sessionId)
+    store.close()
+  })
+
   it('creates sessions and appends encrypted contiguous events', async () => {
     const directory = await mkdtemp(join(tmpdir(), 'barn-session-store-'))
     const key = randomBytes(32)

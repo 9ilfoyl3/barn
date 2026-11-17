@@ -179,6 +179,7 @@ const en = {
     restart: 'Restart terminal',
   },
   sideChat: {
+    newTabHint: 'Choose a side chat or a sandboxed terminal.',
     empty: 'Start a side conversation without leaving the browser workspace.',
     input: 'Side chat message',
     placeholder: 'Ask in a side chat…',
@@ -646,6 +647,7 @@ const zhCN: TranslationSchema = {
     restart: '重启终端',
   },
   sideChat: {
+    newTabHint: '选择侧边聊天或沙盒终端。',
     empty: '无需离开浏览器工作区，即可开始一段侧边对话。',
     input: '侧边聊天消息',
     placeholder: '在侧边聊天中提问…',

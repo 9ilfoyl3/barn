@@ -4,7 +4,7 @@ import { SideChatView } from './SideChatView'
 import { TerminalView } from './TerminalView'
 import './utility-panel.css'
 
-export type UtilityTabType = 'terminal' | 'side-chat'
+export type UtilityTabType = 'empty' | 'terminal' | 'side-chat'
 export interface UtilityTab {
   id: string
   type: UtilityTabType
@@ -17,7 +17,10 @@ export interface UtilityPanelProps {
   workingDirectory?: string | undefined
   onActivate: (tabId: string) => void
   onCloseTab: (tabId: string) => void
-  onAddSideChat: () => void
+  onAddTab: () => void
+  onNewSideChat: () => void
+  onOpenTerminal: () => void
+  onConfigureModel: () => void
   onClose: () => void
   onError: (message: string) => void
 }
@@ -28,7 +31,10 @@ export function UtilityPanel({
   workingDirectory,
   onActivate,
   onCloseTab,
-  onAddSideChat,
+  onAddTab,
+  onNewSideChat,
+  onOpenTerminal,
+  onConfigureModel,
   onClose,
   onError,
 }: UtilityPanelProps) {
@@ -45,7 +51,7 @@ export function UtilityPanel({
                 aria-selected={tab.id === activeTabId}
                 onClick={() => onActivate(tab.id)}
               >
-                {tab.type === 'terminal' ? <Terminal size={14} /> : <MessageCircle size={14} />}
+                {tab.type === 'terminal' ? <Terminal size={14} /> : tab.type === 'side-chat' ? <MessageCircle size={14} /> : <Plus size={14} />}
                 <span>{tab.title}</span>
               </button>
               <button type="button" aria-label={t('browser.closeTab', { name: tab.title })} onClick={() => onCloseTab(tab.id)}>
@@ -54,7 +60,7 @@ export function UtilityPanel({
             </div>
           ))}
         </div>
-        <button className="utility-action" type="button" aria-label={t('browser.newSideChat')} onClick={onAddSideChat}>
+        <button className="utility-action" type="button" aria-label={t('browser.newTab')} onClick={onAddTab}>
           <Plus size={15} />
         </button>
         <button className="utility-action utility-close" type="button" aria-label={t('browser.closeSidePanel')} onClick={onClose}>
@@ -66,8 +72,30 @@ export function UtilityPanel({
           <div className="utility-tab-panel" hidden={tab.id !== activeTabId} key={tab.id}>
             {tab.type === 'terminal' ? (
               <TerminalView terminalId={tab.id} workingDirectory={workingDirectory} onError={onError} />
+            ) : tab.type === 'side-chat' ? (
+              <SideChatView
+                sessionId={tab.id}
+                workingDirectory={workingDirectory}
+                onConfigureModel={onConfigureModel}
+                onError={onError}
+              />
             ) : (
-              <SideChatView sessionId={tab.id} workingDirectory={workingDirectory} onError={onError} />
+              <div className="utility-newtab">
+                <div className="utility-newtab-copy">
+                  <h2>{t('browser.newTab')}</h2>
+                  <p>{t('sideChat.newTabHint')}</p>
+                </div>
+                <div className="utility-newtab-actions">
+                  <button type="button" onClick={onNewSideChat}>
+                    <MessageCircle size={18} />
+                    <span>{t('browser.sideChat')}</span>
+                  </button>
+                  <button type="button" onClick={onOpenTerminal}>
+                    <Terminal size={18} />
+                    <span>{t('browser.terminal')}</span>
+                  </button>
+                </div>
+              </div>
             )}
           </div>
         ))}
