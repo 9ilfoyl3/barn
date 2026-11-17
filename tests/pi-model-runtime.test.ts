@@ -6,8 +6,8 @@ import { EncryptedCredentialStore } from '../src/main/models/credential-store'
 import { PiModelRuntime } from '../src/main/models/pi-model-runtime'
 
 const identityCodec = {
-  encrypt(value: string) { return value },
-  decrypt(value: string) { return value },
+  async encrypt(value: string) { return value },
+  async decrypt(value: string) { return value },
 }
 
 describe('PiModelRuntime', () => {

@@ -1,6 +1,6 @@
 import { mkdir } from 'node:fs/promises'
 import { join } from 'node:path'
-import { app, BrowserWindow, nativeTheme, powerMonitor, shell, type IpcMainInvokeEvent } from 'electron'
+import { app, BrowserWindow, dialog, nativeTheme, powerMonitor, shell, type IpcMainInvokeEvent } from 'electron'
 import { registerModelIpc } from './ipc'
 import { ModelService } from './models/model-service'
 import { registerRuntimeIpc } from './platform/runtime-ipc'
@@ -246,6 +246,11 @@ void app.whenReady().then(async () => {
   powerMonitor.on('unlock-screen', resumeWork)
 
   app.on('activate', showWindow)
+}).catch((error: unknown) => {
+  const message = error instanceof Error ? error.message : String(error)
+  console.error(`Barn failed to start: ${message}`)
+  dialog.showErrorBox('Barn could not start', message)
+  app.quit()
 })
 
 // Barn stays resident for background Tasks. Quit is explicit from the tray or app menu.

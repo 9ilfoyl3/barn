@@ -8,11 +8,11 @@ import {
 } from '../src/main/models/credential-store'
 
 class TestCodec implements SecretCodec {
-  encrypt(value: string): string {
+  async encrypt(value: string): Promise<string> {
     return Buffer.from(value).toString('base64')
   }
 
-  decrypt(value: string): string {
+  async decrypt(value: string): Promise<string> {
     return Buffer.from(value, 'base64').toString('utf8')
   }
 }

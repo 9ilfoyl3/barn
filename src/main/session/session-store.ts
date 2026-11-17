@@ -12,7 +12,10 @@ import { MemoryStore } from '../memory/memory-store'
 
 export type SessionStatus = SessionSummary['status']
 
-export const CURRENT_SCHEMA_VERSION = 4
+// Schema 5 matches the table and column set already produced by the current
+// memory, session-state, task, approval, and local-source stores. Version 5 was
+// written by an earlier build; initializing it remains idempotent.
+export const CURRENT_SCHEMA_VERSION = 5
 
 export interface NewSessionEvent {
   type: string

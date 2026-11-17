@@ -7,8 +7,8 @@ import type {
 } from '@earendil-works/pi-ai'
 
 export interface SecretCodec {
-  encrypt(value: string): string
-  decrypt(value: string): string
+  encrypt(value: string): Promise<string>
+  decrypt(value: string): Promise<string>
 }
 
 interface CredentialFile {
@@ -68,7 +68,7 @@ export class EncryptedCredentialStore implements CredentialStore {
       throw error
     }
 
-    const parsed = JSON.parse(this.codec.decrypt(encrypted)) as Partial<CredentialFile>
+    const parsed = JSON.parse(await this.codec.decrypt(encrypted)) as Partial<CredentialFile>
     if (parsed.version !== 1 || typeof parsed.credentials !== 'object' || parsed.credentials === null) {
       throw new Error('Invalid Barn credential file')
     }
@@ -78,7 +78,7 @@ export class EncryptedCredentialStore implements CredentialStore {
   private async writeAll(credentials: Record<string, Credential>): Promise<void> {
     await mkdir(dirname(this.path), { recursive: true, mode: 0o700 })
     const body: CredentialFile = { version: 1, credentials }
-    const encrypted = this.codec.encrypt(JSON.stringify(body))
+    const encrypted = await this.codec.encrypt(JSON.stringify(body))
     const temp = `${this.path}.${process.pid}.${Date.now()}.tmp`
     await writeFile(temp, encrypted, { mode: 0o600 })
     await rename(temp, this.path)
