@@ -170,6 +170,7 @@ export class BrowserService {
     tab.url = normalized
     tab.loading = true
     this.error = undefined
+    this.showActiveTab()
     this.emit()
     await tab.view.webContents.loadURL(normalized)
     tab.loading = false
@@ -383,10 +384,12 @@ export class BrowserService {
     })
     view.webContents.on('did-navigate', (_event, url) => {
       tab.url = url
+      this.showActiveTab()
       this.emit()
     })
     view.webContents.on('did-navigate-in-page', (_event, url) => {
       tab.url = url
+      this.showActiveTab()
       this.emit()
     })
     view.webContents.on('page-title-updated', (_event, title) => {
@@ -470,7 +473,12 @@ export class BrowserService {
 
   private showActiveTab(): void {
     for (const tab of this.tabs) {
-      tab.view.setVisible(this.openState && this.visibleState && tab.id === this.activeTabId)
+      tab.view.setVisible(
+        this.openState
+        && this.visibleState
+        && tab.id === this.activeTabId
+        && tab.url !== 'about:blank',
+      )
     }
     const tab = this.activeTab()
     if (tab !== undefined && this.lastBounds !== undefined) tab.view.setBounds(this.lastBounds)
