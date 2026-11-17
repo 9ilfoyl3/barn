@@ -181,7 +181,7 @@ void app.whenReady().then(async () => {
     mkdir(privateTempRoot, { recursive: true, mode: 0o700 }),
   ])
   const memoryService = new MemoryService(sessionStore.memories)
-  const terminalService = new TerminalService(shellService, workspaceRoot, outputRoot, privateTempRoot)
+  const terminalService = new TerminalService(shellService, process.cwd(), outputRoot, privateTempRoot)
   const browserTools = new BrowserToolService({
     getBrowser: () => browserService,
     workspaceRoot,

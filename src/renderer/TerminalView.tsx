@@ -21,7 +21,7 @@ export function TerminalView({ terminalId, workingDirectory, onError }: Terminal
   const [history, setHistory] = useState<string[]>([])
   const [historyIndex, setHistoryIndex] = useState<number | undefined>()
   const outputRef = useRef<HTMLDivElement>(null)
-  const inputRef = useRef<HTMLInputElement>(null)
+  const inputRef = useRef<HTMLTextAreaElement>(null)
 
   useEffect(() => {
     outputRef.current?.scrollTo({ top: outputRef.current.scrollHeight })
@@ -32,17 +32,21 @@ export function TerminalView({ terminalId, workingDirectory, onError }: Terminal
   }, [])
 
   async function submit(): Promise<void> {
-    const command = input.trim()
-    if (command.length === 0 || busy) return
+    if (busy) return
+    const command = input.replace(/\n+$/, '')
     setInput('')
     setHistoryIndex(undefined)
+    if (command.length === 0) {
+      setLines((current) => [...current, { kind: 'command', text: 'barn' }])
+      return
+    }
     setHistory((current) => [...current.filter((entry) => entry !== command), command].slice(-100))
     if (command === 'clear') {
       setLines([])
       return
     }
     setBusy(true)
-    setLines((current) => [...current, { kind: 'command', text: command }])
+    setLines((current) => [...current, { kind: 'command', text: `barn ${command}` }])
     try {
       const result = await window.barn.terminal.run({
         terminalId,
@@ -91,14 +95,24 @@ export function TerminalView({ terminalId, workingDirectory, onError }: Terminal
       <form className="terminal-composer" onSubmit={(event) => { event.preventDefault(); void submit() }}>
         <span className="terminal-prompt" aria-hidden="true">→</span>
         <span className="terminal-user">barn</span>
-        <input
+        <textarea
           ref={inputRef}
           aria-label={t('terminal.command')}
           value={input}
-          onChange={(event) => setInput(event.target.value)}
+          rows={1}
+          onChange={(event) => {
+            setInput(event.target.value)
+            event.currentTarget.style.height = 'auto'
+            event.currentTarget.style.height = `${Math.min(event.currentTarget.scrollHeight, 132)}px`
+          }}
           onKeyDown={(event) => {
-            if (event.key === 'ArrowUp') { event.preventDefault(); recall('up') }
-            if (event.key === 'ArrowDown') { event.preventDefault(); recall('down') }
+            if (event.key === 'Enter' && !event.shiftKey) {
+              event.preventDefault()
+              void submit()
+              return
+            }
+            if (event.key === 'ArrowUp' && !input.includes('\n')) { event.preventDefault(); recall('up') }
+            if (event.key === 'ArrowDown' && !input.includes('\n')) { event.preventDefault(); recall('down') }
           }}
           spellCheck={false}
           autoComplete="off"
