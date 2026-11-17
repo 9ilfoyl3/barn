@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { SessionLiveEvent, SessionTimelineEvent } from '../../src/shared/models'
-import { applyLiveEvent, chatMessagesFromThread, groupConversationParts, messagesFromEvents } from '../../src/renderer/conversation'
+import { applyLiveEvent, chatMessagesFromThread, groupConversationParts, messagesFromEvents, parseVisibleResultCard } from '../../src/renderer/conversation'
 
 describe('conversation timeline', () => {
   it('rebuilds thinking, tool and content in persisted event order', () => {
@@ -163,6 +163,47 @@ describe('conversation timeline', () => {
       },
     }])
   })
+
+  it('accepts only allowlisted result-card metadata', () => {
+    const card = parseVisibleResultCard({
+      version: 1,
+      kind: 'task',
+      title: 'Review the Q4 planning note',
+      description: 'One decision is still open.',
+      provider: 'You',
+      status: 'Waiting',
+      meta: 'Updated recently',
+      href: 'https://example.com/plan',
+      image: {
+        dataUrl: 'data:image/png;base64,iVBORw0KGgo=',
+        alt: 'Planning note preview',
+      },
+    })
+
+    expect(card).toEqual({
+      version: 1,
+      kind: 'task',
+      title: 'Review the Q4 planning note',
+      description: 'One decision is still open.',
+      provider: 'You',
+      status: 'Waiting',
+      meta: 'Updated recently',
+      href: 'https://example.com/plan',
+      image: {
+        dataUrl: 'data:image/png;base64,iVBORw0KGgo=',
+        alt: 'Planning note preview',
+      },
+    })
+    expect(parseVisibleResultCard({ ...card, kind: 'html' })).toBeUndefined()
+    expect(parseVisibleResultCard({ ...card, title: '' })).toBeUndefined()
+    expect(parseVisibleResultCard({ ...card, href: 'javascript:alert(1)' })).toMatchObject({ title: card?.title })
+    expect(parseVisibleResultCard({ ...card, href: 'javascript:alert(1)' })).not.toHaveProperty('href')
+    expect(parseVisibleResultCard({
+      ...card,
+      image: { dataUrl: 'data:image/svg+xml;base64,PHN2Zz4=', alt: 'Unsafe' },
+    })).not.toHaveProperty('image')
+  })
+
   it('maps the Principal Thread to the same visible chat structure', () => {
     const messages = chatMessagesFromThread([
       {
