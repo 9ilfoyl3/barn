@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { existsSync, mkdirSync } from 'node:fs'
 import { basename, extname, join } from 'node:path'
 import { app, BrowserWindow, session, shell, WebContentsView, type DownloadItem } from 'electron'
-import type { BrowserBounds, BrowserDownloadState, BrowserLiveEvent, BrowserState, BrowserTabState } from '../../shared/models'
+import type { BrowserBounds, BrowserDownloadState, BrowserHistoryEntry, BrowserLiveEvent, BrowserState, BrowserTabState } from '../../shared/models'
 import { isAllowedBrowserUrl, normalizeBrowserUrl } from './browser-policy'
 import { BrowserSessionStore } from './browser-session-store'
 import { classifyPageActions, collectPageSnapshot, performPageActions, readPageText, type PageAction, type PageSnapshot } from './page-script'
@@ -22,6 +22,7 @@ export class BrowserService {
   private readonly browserSession = session.fromPartition(browserPartition)
   private readonly tabs: BrowserTab[] = []
   private readonly downloads: BrowserDownloadState[] = []
+  private readonly history: BrowserHistoryEntry[] = []
   private activeTabId: string | undefined
   private lastBounds: BrowserBounds | undefined
   private openState = false
@@ -58,6 +59,7 @@ export class BrowserService {
         active: tab.id === this.activeTabId,
       })),
       downloads: this.downloads.slice(0, 10).map((download) => ({ ...download })),
+      history: this.history.slice(0, 20).map((entry) => ({ ...entry })),
       ...(this.error === undefined ? {} : { error: this.error }),
     }
   }
@@ -176,6 +178,7 @@ export class BrowserService {
     tab.loading = false
     tab.url = tab.view.webContents.getURL() || normalized
     tab.title = tab.view.webContents.getTitle() || tab.title
+    this.recordHistory(tab)
     this.emit()
     return this.getState()
   }
@@ -380,6 +383,7 @@ export class BrowserService {
       tab.loading = false
       tab.url = view.webContents.getURL() || tab.url
       tab.title = view.webContents.getTitle() || tab.title
+      this.recordHistory(tab)
       this.emit()
     })
     view.webContents.on('did-navigate', (_event, url) => {
@@ -389,6 +393,8 @@ export class BrowserService {
     })
     view.webContents.on('did-navigate-in-page', (_event, url) => {
       tab.url = url
+      tab.title = view.webContents.getTitle() || tab.title
+      this.recordHistory(tab)
       this.showActiveTab()
       this.emit()
     })
@@ -428,9 +434,23 @@ export class BrowserService {
     if (snapshot === undefined) return undefined
     const validTabs = snapshot.tabs.filter((tab) => isAllowedBrowserUrl(tab.url))
     if (validTabs.length === 0) return undefined
+    this.history.push(...(snapshot.history ?? []).filter((entry) => isAllowedBrowserUrl(entry.url)).slice(0, 20))
     const created = validTabs.map((tab) => this.createTab(tab.url))
     this.activeTabId = created[Math.min(snapshot.activeIndex, created.length - 1)]?.id
     return this.activeTab()
+  }
+
+  private recordHistory(tab: BrowserTab): void {
+    if (tab.url === 'about:blank' || !isAllowedBrowserUrl(tab.url)) return
+    const entry: BrowserHistoryEntry = {
+      url: tab.url,
+      title: tab.title || tab.url,
+      visitedAt: new Date().toISOString(),
+    }
+    const existing = this.history.findIndex((candidate) => candidate.url === entry.url)
+    if (existing >= 0) this.history.splice(existing, 1)
+    this.history.unshift(entry)
+    this.history.splice(20)
   }
 
   private schedulePersist(): void {
@@ -451,6 +471,7 @@ export class BrowserService {
       version: 1,
       tabs: tabs.map((tab) => ({ url: tab.url, title: tab.title })),
       activeIndex,
+      history: this.history.slice(0, 20),
     })
   }
 

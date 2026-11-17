@@ -3,14 +3,18 @@ import { useTranslation } from 'react-i18next'
 import {
   ArrowLeft,
   ArrowRight,
+  Bookmark,
+  Copy,
   Download,
   Folder,
   Globe2,
   LoaderCircle,
   MessageCircle,
+  MoreHorizontal,
   Plus,
   RotateCw,
   Search,
+  ShieldCheck,
   Terminal,
   X,
 } from 'lucide-react'
@@ -53,11 +57,32 @@ export function BrowserPanel({
   const viewportRef = useRef<HTMLDivElement>(null)
   const [address, setAddress] = useState(state.url === 'about:blank' ? '' : state.url)
   const [submitting, setSubmitting] = useState(false)
+  const [searchFocused, setSearchFocused] = useState(false)
+  const [bookmarked, setBookmarked] = useState(false)
+  const [moreOpen, setMoreOpen] = useState(false)
   const isNewTab = state.url === 'about:blank'
 
   useEffect(() => {
     setAddress(state.url === 'about:blank' ? '' : state.url)
   }, [state.url])
+  useEffect(() => {
+    if (!moreOpen) return
+    const close = (event: PointerEvent): void => {
+      const target = event.target
+      if (target instanceof Element && target.closest('.browser-more-wrap') !== null) return
+      setMoreOpen(false)
+    }
+    const escape = (event: KeyboardEvent): void => {
+      if (event.key === 'Escape') setMoreOpen(false)
+    }
+    document.addEventListener('pointerdown', close)
+    document.addEventListener('keydown', escape)
+    return () => {
+      document.removeEventListener('pointerdown', close)
+      document.removeEventListener('keydown', escape)
+    }
+  }, [moreOpen])
+
 
   useLayoutEffect(() => {
     const viewport = viewportRef.current
@@ -138,18 +163,6 @@ export function BrowserPanel({
         <button className="browser-new-tab" type="button" aria-label="New tab" onClick={() => void onNewTab()}>
           <Plus size={14} />
         </button>
-        {state.downloads[0] !== undefined && (
-          <button
-            className="browser-download-button"
-            type="button"
-            aria-label="Show latest download"
-            title={`${state.downloads[0].filename} · ${state.downloads[0].state}`}
-            onClick={() => void onRevealDownload(state.downloads[0]!.id)}
-          >
-            <Download size={14} />
-            <span>{state.downloads.filter((download) => download.state === 'completed').length}</span>
-          </button>
-        )}
         <button className="browser-panel-close active" type="button" aria-label="Close browser" onClick={() => void onClose()}>
           <Globe2 size={16} />
         </button>
@@ -180,8 +193,13 @@ export function BrowserPanel({
           <button type="button" aria-label="Forward" disabled={!state.canGoForward} onClick={() => void onForward()}>
             <ArrowRight size={15} />
           </button>
+          <button type="button" aria-label="Reload" onClick={() => void onReload()}>
+            <RotateCw size={14} />
+          </button>
+          <button type="button" className="browser-site-info" aria-label="Site information" title={state.url}>
+            <ShieldCheck size={15} />
+          </button>
           <form className="browser-address" onSubmit={(event) => { event.preventDefault(); void submit() }}>
-            <span aria-hidden="true">{state.loading ? <LoaderCircle className="browser-spinner" size={14} /> : <Globe2 size={14} />}</span>
             <input
               aria-label="Browser address"
               type="text"
@@ -194,29 +212,112 @@ export function BrowserPanel({
               onChange={(event) => setAddress(event.target.value)}
             />
           </form>
-          <button type="button" aria-label="Reload" onClick={() => void onReload()}>
-            <RotateCw size={14} />
+          <button
+            type="button"
+            aria-label="Bookmark page"
+            aria-pressed={bookmarked}
+            className={bookmarked ? 'is-active' : ''}
+            onClick={() => setBookmarked((current) => !current)}
+          >
+            <Bookmark size={15} fill={bookmarked ? 'currentColor' : 'none'} />
           </button>
+          <button
+            type="button"
+            aria-label="Show latest download"
+            disabled={state.downloads[0] === undefined}
+            onClick={() => {
+              const latest = state.downloads[0]
+              if (latest !== undefined) void onRevealDownload(latest.id)
+            }}
+          >
+            <Download size={15} />
+            {state.downloads.filter((download) => download.state === 'completed').length > 0 && (
+              <span className="browser-toolbar-count">{state.downloads.filter((download) => download.state === 'completed').length}</span>
+            )}
+          </button>
+          <div className="browser-more-wrap">
+            <button type="button" aria-label="More browser actions" aria-expanded={moreOpen} onClick={() => setMoreOpen((current) => !current)}>
+              <MoreHorizontal size={16} />
+            </button>
+            {moreOpen && (
+              <div className="browser-more-menu" role="menu">
+                <button type="button" role="menuitem" onClick={() => { void navigator.clipboard.writeText(state.url).catch(() => undefined); setMoreOpen(false) }}>
+                  <Copy size={14} />
+                  <span>{t('browser.copyAddress')}</span>
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  disabled={state.downloads[0] === undefined}
+                  onClick={() => {
+                    const latest = state.downloads[0]
+                    if (latest !== undefined) void onRevealDownload(latest.id)
+                    setMoreOpen(false)
+                  }}
+                >
+                  <Download size={14} />
+                  <span>{t('browser.showDownloads')}</span>
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       )}
 
       <div className="browser-viewport" ref={viewportRef}>
         {isNewTab ? (
           <div className="browser-newtab">
-            <form className="browser-newtab-search" onSubmit={(event) => { event.preventDefault(); void submit() }}>
-              <Search size={18} aria-hidden="true" />
-              <input
-                aria-label="Browser address"
-                type="text"
-                inputMode="url"
-                autoCapitalize="off"
-                autoCorrect="off"
-                spellCheck={false}
-                placeholder={t('browser.searchPlaceholder')}
-                value={address}
-                onChange={(event) => setAddress(event.target.value)}
-              />
-            </form>
+            <div
+              className="browser-newtab-search-wrap"
+              onFocus={() => setSearchFocused(true)}
+              onBlur={(event) => {
+                if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setSearchFocused(false)
+              }}
+            >
+              <form className="browser-newtab-search" onSubmit={(event) => { event.preventDefault(); void submit() }}>
+                <Search size={18} aria-hidden="true" />
+                <input
+                  aria-label="Browser address"
+                  type="text"
+                  inputMode="url"
+                  autoCapitalize="off"
+                  autoCorrect="off"
+                  spellCheck={false}
+                  placeholder={t('browser.searchPlaceholder')}
+                  value={address}
+                  onChange={(event) => setAddress(event.target.value)}
+                />
+              </form>
+              {searchFocused && (
+                <div className="browser-newtab-suggestions" onMouseDown={(event) => event.preventDefault()}>
+                  {address.trim().length > 0 && (
+                    <button className="browser-suggestion search" type="button" onClick={() => void submit()}>
+                      <Search size={15} />
+                      <span>{address.trim()}</span>
+                      <small>{t('browser.searchWeb')}</small>
+                    </button>
+                  )}
+                  {browserHistorySuggestions(address, state).map((entry) => (
+                    <button
+                      className="browser-suggestion"
+                      type="button"
+                      key={entry.url}
+                      onClick={() => {
+                        setAddress(entry.url)
+                        void onNavigate(entry.url)
+                      }}
+                    >
+                      <Globe2 size={15} />
+                      <span>{entry.title}</span>
+                      <small>{hostname(entry.url)}</small>
+                    </button>
+                  ))}
+                  {address.trim().length === 0 && state.history.length === 0 && (
+                    <div className="browser-suggestion-empty">{t('browser.noSuggestions')}</div>
+                  )}
+                </div>
+              )}
+            </div>
             <div className="browser-newtab-section">
               <div className="browser-newtab-heading">
                 <span>{t('browser.newTabSection')}</span>
@@ -247,6 +348,24 @@ export function BrowserPanel({
       </div>
     </section>
   )
+}
+
+function browserHistorySuggestions(query: string, state: BrowserState): Array<{ url: string; title: string }> {
+  const normalized = query.trim().toLocaleLowerCase()
+  const matches = state.history.filter((entry) => (
+    normalized.length === 0
+    || entry.title.toLocaleLowerCase().includes(normalized)
+    || entry.url.toLocaleLowerCase().includes(normalized)
+  ))
+  return matches.slice(0, 6).map(({ url, title }) => ({ url, title }))
+}
+
+function hostname(url: string): string {
+  try {
+    return new URL(url).host
+  } catch {
+    return url
+  }
 }
 
 function browserTarget(value: string): string {

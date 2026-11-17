@@ -5,10 +5,17 @@ export interface BrowserSessionTab {
   title: string
 }
 
+export interface BrowserSessionHistory {
+  url: string
+  title: string
+  visitedAt: string
+}
+
 export interface BrowserSessionSnapshot {
   version: 1
   tabs: BrowserSessionTab[]
   activeIndex: number
+  history?: BrowserSessionHistory[]
 }
 
 export class BrowserSessionStore {
@@ -31,7 +38,16 @@ export class BrowserSessionStore {
       const activeIndex = typeof value.activeIndex === 'number' && Number.isInteger(value.activeIndex)
         ? Math.max(0, Math.min(tabs.length - 1, value.activeIndex))
         : 0
-      return { version: 1, tabs, activeIndex }
+      const history = Array.isArray(value.history)
+        ? value.history.filter((entry): entry is BrowserSessionHistory => (
+          typeof entry === 'object'
+          && entry !== null
+          && typeof entry.url === 'string'
+          && typeof entry.title === 'string'
+          && typeof entry.visitedAt === 'string'
+        )).slice(0, 20)
+        : []
+      return { version: 1, tabs, activeIndex, history }
     } catch {
       return undefined
     }

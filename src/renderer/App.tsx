@@ -109,6 +109,7 @@ export function App() {
     canGoForward: false,
     tabs: [],
     downloads: [],
+    history: [],
   })
   const [agentScreenPreview, setAgentScreenPreview] = useState<string>()
   const [pendingApprovals, setPendingApprovals] = useState<ApprovalRequest[]>([])

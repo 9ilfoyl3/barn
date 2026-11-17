@@ -17,7 +17,8 @@ Barn Desktop includes a local built-in browser and a visible Agent Screen inside
 
 - URL navigation, back, forward, reload, title, loading state, and address normalization.
 - Multiple tabs: create, select, close, list, and restore after restart.
-- A native-looking new-tab page provides a centered search/URL field and Terminal, Files, and Side chat shortcuts.
+- A native-looking new-tab page provides a centered search/URL field, focused search suggestions from recent history, and Terminal, Files, and Side chat shortcuts.
+- Loaded pages use a browser toolbar with navigation, site information, address, bookmark, download, and overflow controls.
 - Semantic observation of page text and interactive elements with stable refs, including open Shadow DOM and same-origin iframes.
 - Actions: click, type, select, press, hover, scroll, and wait.
 - Bounded visible-text extraction.
