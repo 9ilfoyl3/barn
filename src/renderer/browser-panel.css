@@ -153,6 +153,12 @@
   color: var(--text-faint);
 }
 
+.browser-panel-close.active {
+  border-color: color-mix(in srgb, var(--accent) 24%, var(--line));
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
 .browser-download-button {
   position: relative;
 }
@@ -456,12 +462,6 @@
   height: 30px;
   place-items: center;
   color: var(--text-dim);
-}
-
-.workspace-shell.browser-open .workspace-header-actions .browser-toggle {
-  border-color: color-mix(in srgb, var(--accent) 24%, var(--line));
-  background: var(--accent-soft);
-  color: var(--accent);
 }
 
 .workspace-body.agent-screen-open {
