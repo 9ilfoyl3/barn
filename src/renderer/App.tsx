@@ -10,12 +10,14 @@ import {
   Globe2,
   Inbox,
   Search,
+  Home,
+  LayoutGrid,
+  ListTodo,
+  Plug,
   Settings2,
-  PanelLeft,
   Paperclip,
   Stethoscope,
   Trash2,
-  UserRound,
   Wrench,
 } from 'lucide-react'
 import type {
@@ -61,6 +63,10 @@ import {
   type ConversationPart,
 } from './conversation'
 
+function railButtonClassName(active: boolean): string {
+  return active ? 'app-rail-button active' : 'app-rail-button'
+}
+
 export function App() {
   const { t } = useTranslation()
   const [snapshot, setSnapshot] = useState<ModelConfigSnapshot>()
@@ -68,7 +74,6 @@ export function App() {
   const [sourceSettingsOpen, setSourceSettingsOpen] = useState(false)
   const [diagnosticsOpen, setDiagnosticsOpen] = useState(false)
   const [modelSelectionBusy, setModelSelectionBusy] = useState(false)
-  const [sidebarOpen, setSidebarOpen] = useState(true)
   const [sessions, setSessions] = useState<SessionSummary[]>([])
   const [activeSessionId, setActiveSessionId] = useState<string>()
   const [messages, setMessages] = useState<ChatMessage[]>([])
@@ -648,146 +653,146 @@ export function App() {
     'app-shell',
     'secretary-shell',
     window.barn.platform === 'darwin' ? 'platform-darwin' : '',
-    sidebarOpen ? '' : 'sidebar-collapsed',
   ].filter(Boolean).join(' ')
   const workspaceShellClassName = rightPanelOpen ? 'workspace-shell browser-open' : 'workspace-shell'
   const showAgentScreen = view === 'conversation' && !rightPanelOpen && hasBrowserOperation
   const workspaceBodyClassName = [
     'workspace-body',
     showAgentScreen ? 'agent-screen-open' : '',
-    view === 'conversation' && !rightPanelOpen && !showAgentScreen ? 'with-task-rail' : '',
+    view === 'conversation' && !rightPanelOpen && !showAgentScreen ? 'secretary-home' : '',
   ].filter(Boolean).join(' ')
 
   return (
     <div className={appShellClassName}>
-      <aside
-        id="app-sidebar"
-        className={sidebarOpen ? 'sidebar today-sidebar sidebar-open' : 'sidebar today-sidebar'}
-        aria-hidden={!sidebarOpen}
-      >
-        <div className="sidebar-content today-sidebar-content">
-          <div className="sidebar-heading">
-            <div className="brand-lockup">
-              <div className="brand-mark" aria-hidden="true"><span /><span /></div>
-              <strong>Barn</strong>
-            </div>
+      <header className="app-topbar workspace-header">
+        <div className="app-topbar-leading" aria-hidden="true" />
+        <button className="secretary-search" type="button" onClick={() => setCommandOpen(true)}>
+          <Search size={15} aria-hidden="true" />
+          <span>{t('secretary.search')}</span>
+          <kbd>{commandKey} K</kbd>
+        </button>
+        <div className="app-topbar-actions">
+          {view === 'conversation' && !rightPanelOpen && (
             <TooltipButton
-              className="icon-button sidebar-toggle sidebar-toggle-sidebar"
-              label={t('sidebar.hide')}
-              aria-controls="app-sidebar"
-              aria-expanded={sidebarOpen}
-              onClick={() => setSidebarOpen(false)}
+              className="icon-button secretary-action browser-toggle"
+              label={t('browser.open')}
+              aria-pressed={false}
+              onClick={() => void toggleBrowser()}
             >
-              <PanelLeft size={16} />
+              <Globe2 size={15} />
             </TooltipButton>
-          </div>
+          )}
+          <TooltipButton
+            className="icon-button secretary-action"
+            label={t('sidebar.settings')}
+            onClick={() => setView('settings')}
+          >
+            <Clock3 size={15} />
+          </TooltipButton>
+        </div>
+      </header>
 
-          <TodayPanel tasks={tasks} onOpenTasks={() => setView('tasks')} />
+      <aside id="app-sidebar" className="app-rail" aria-label={t('navigation.label')}>
+        <nav className="app-rail-nav" aria-label={t('navigation.label')}>
+          <button
+            className={railButtonClassName(view === 'conversation')}
+            type="button"
+            aria-current={view === 'conversation' ? 'page' : undefined}
+            onClick={() => setView('conversation')}
+          >
+            <Home size={19} aria-hidden="true" />
+            <span>{t('navigation.home')}</span>
+          </button>
+          <button
+            className={`${railButtonClassName(false)} task-nav-button`}
+            type="button"
+            onClick={() => setView('tasks')}
+          >
+            <Inbox size={19} aria-hidden="true" />
+            <span>{t('navigation.inbox')}</span>
+            {needsYouCount > 0 && <span className="app-rail-count task-nav-count">{needsYouCount}</span>}
+          </button>
+          <button
+            className={railButtonClassName(view === 'tasks')}
+            type="button"
+            aria-current={view === 'tasks' ? 'page' : undefined}
+            onClick={() => setView('tasks')}
+          >
+            <ListTodo size={19} aria-hidden="true" />
+            <span>{t('navigation.tasks')}</span>
+          </button>
+          <button
+            className={railButtonClassName(false)}
+            type="button"
+            onClick={() => void chooseWorkingDirectory()}
+          >
+            <Folder size={19} aria-hidden="true" />
+            <span>{t('navigation.files')}</span>
+          </button>
+          <button
+            className={railButtonClassName(view === 'settings')}
+            type="button"
+            aria-current={view === 'settings' ? 'page' : undefined}
+            onClick={() => setView('settings')}
+          >
+            <LayoutGrid size={19} aria-hidden="true" />
+            <span>{t('navigation.apps')}</span>
+          </button>
+          <button
+            className={railButtonClassName(false)}
+            type="button"
+            onClick={() => setSourceSettingsOpen(true)}
+          >
+            <Plug size={19} aria-hidden="true" />
+            <span>{t('navigation.plugins')}</span>
+          </button>
+        </nav>
 
-          <footer className="today-footer today-account-area">
-            <div ref={accountAreaRef} className="account-area">
-              <button
-                ref={accountTriggerRef}
-                className="account-row"
-                type="button"
-                aria-controls="account-panel"
-                aria-expanded={accountOpen}
-                aria-haspopup="menu"
-                onClick={() => setAccountOpen(!accountOpen)}
-              >
-                <span className="account-avatar"><UserRound size={14} /></span>
-                <span className="account-copy">
-                  <strong>{t('sidebar.localAgent')}</strong>
-                  <small>{t('sidebar.localOnly')}</small>
-                </span>
-                <ChevronRight size={14} />
-              </button>
-              <div
-                id="account-panel"
-                className={accountOpen ? 'account-popover open' : 'account-popover'}
-                role="menu"
-                aria-label={t('sidebar.accountMenu')}
-                aria-hidden={!accountOpen}
-                inert={!accountOpen}
-              >
-                <div className="account-summary">
-                  <span>{t('sidebar.workspace')}</span>
-                  <strong>{t('sidebar.localWorkspace')}</strong>
-                  <small>{t('sidebar.localOnly')}</small>
-                </div>
-                <button className="account-menu-item" type="button" role="menuitem" onClick={() => { setAccountOpen(false); setView('settings') }}>
-                  <Settings2 size={14} /><span>{t('sidebar.settings')}</span><ChevronRight className="account-menu-chevron" size={13} />
-                </button>
-                <button className="account-menu-item" type="button" role="menuitem" onClick={() => { setAccountOpen(false); setSourceSettingsOpen(true) }}>
-                  <FolderSearch size={14} /><span>{t('sidebar.localSources')}</span><ChevronRight className="account-menu-chevron" size={13} />
-                </button>
-                <button className="account-menu-item" type="button" role="menuitem" onClick={() => { setAccountOpen(false); setDiagnosticsOpen(true) }}>
-                  <Stethoscope size={14} /><span>{t('sidebar.diagnostics')}</span><ChevronRight className="account-menu-chevron" size={13} />
-                </button>
-                <button className="account-menu-item" type="button" role="menuitem" onClick={() => { setAccountOpen(false); setSettingsOpen(true) }}>
-                  <Wrench size={14} /><span>{t('sidebar.models')}</span><ChevronRight className="account-menu-chevron" size={13} />
-                </button>
-                <LanguagePicker />
-              </div>
+        <div ref={accountAreaRef} className="account-area app-rail-account">
+          <button
+            ref={accountTriggerRef}
+            className="account-row"
+            type="button"
+            aria-label={t('navigation.account')}
+            aria-controls="account-panel"
+            aria-expanded={accountOpen}
+            aria-haspopup="menu"
+            onClick={() => setAccountOpen(!accountOpen)}
+          >
+            <span className="account-avatar">BA</span>
+          </button>
+          <div
+            id="account-panel"
+            className={accountOpen ? 'account-popover open' : 'account-popover'}
+            role="menu"
+            aria-label={t('sidebar.accountMenu')}
+            aria-hidden={!accountOpen}
+            inert={!accountOpen}
+          >
+            <div className="account-summary">
+              <span>{t('sidebar.workspace')}</span>
+              <strong>{t('sidebar.localWorkspace')}</strong>
+              <small>{t('sidebar.localOnly')}</small>
             </div>
-          </footer>
+            <button className="account-menu-item" type="button" role="menuitem" onClick={() => { setAccountOpen(false); setView('settings') }}>
+              <Settings2 size={14} /><span>{t('sidebar.settings')}</span><ChevronRight className="account-menu-chevron" size={13} />
+            </button>
+            <button className="account-menu-item" type="button" role="menuitem" onClick={() => { setAccountOpen(false); setSourceSettingsOpen(true) }}>
+              <FolderSearch size={14} /><span>{t('sidebar.localSources')}</span><ChevronRight className="account-menu-chevron" size={13} />
+            </button>
+            <button className="account-menu-item" type="button" role="menuitem" onClick={() => { setAccountOpen(false); setDiagnosticsOpen(true) }}>
+              <Stethoscope size={14} /><span>{t('sidebar.diagnostics')}</span><ChevronRight className="account-menu-chevron" size={13} />
+            </button>
+            <button className="account-menu-item" type="button" role="menuitem" onClick={() => { setAccountOpen(false); setSettingsOpen(true) }}>
+              <Wrench size={14} /><span>{t('sidebar.models')}</span><ChevronRight className="account-menu-chevron" size={13} />
+            </button>
+            <LanguagePicker />
+          </div>
         </div>
       </aside>
 
       <div className={workspaceShellClassName} data-testid="workspace-shell">
-      <main className="workspace">
-        <header className="workspace-header secretary-commandbar">
-          {view === 'tasks' && <h1 className="visually-hidden">{t('tasks.title')}</h1>}
-          <div className="secretary-brand-strip">
-            {!sidebarOpen && (
-              <TooltipButton
-                className="icon-button sidebar-toggle sidebar-toggle-header"
-                label={t('sidebar.show')}
-                aria-controls="app-sidebar"
-                aria-expanded={sidebarOpen}
-                onClick={() => setSidebarOpen(true)}
-              >
-                <PanelLeft size={16} />
-              </TooltipButton>
-            )}
-          </div>
-
-          <button className="secretary-search" type="button" onClick={() => setCommandOpen(true)}>
-            <Search size={15} aria-hidden="true" />
-            <span>{t('secretary.search')}</span>
-            <kbd>{commandKey} K</kbd>
-          </button>
-
-          <div className="workspace-header-actions">
-            <TooltipButton
-              className="icon-button secretary-action task-nav-button"
-              label={t('secretary.needsYou')}
-              aria-pressed={view === 'tasks'}
-              onClick={() => setView('tasks')}
-            >
-              <Inbox size={15} />
-              {needsYouCount > 0 && <span className="secretary-notification-count task-nav-count">{needsYouCount}</span>}
-            </TooltipButton>
-            {view === 'conversation' && !rightPanelOpen && (
-              <TooltipButton
-                className="icon-button secretary-action browser-toggle"
-                label={t('browser.open')}
-                aria-pressed={false}
-                onClick={() => void toggleBrowser()}
-              >
-                <Globe2 size={15} />
-              </TooltipButton>
-            )}
-            <TooltipButton
-              className="icon-button secretary-action"
-              label={t('sidebar.settings')}
-              onClick={() => setView('settings')}
-            >
-              <Clock3 size={15} />
-            </TooltipButton>
-          </div>
-        </header>
-
+        <main className="workspace">
         <div className={workspaceBodyClassName}>
           {view === 'settings' ? (
             <SettingsPage
@@ -796,15 +801,24 @@ export function App() {
               onOpenDiagnostics={() => setDiagnosticsOpen(true)}
             />
           ) : view === 'tasks' ? (
-            <TaskCenter
-              tasks={tasks}
-              loading={tasksLoading}
-              error={taskError}
-              onOpenSession={openSession}
-              onError={setTaskError}
-            />
+            <>
+              <h1 className="visually-hidden">{t('tasks.title')}</h1>
+              <TaskCenter
+                tasks={tasks}
+                loading={tasksLoading}
+                error={taskError}
+                onOpenSession={openSession}
+                onError={setTaskError}
+              />
+            </>
           ) : (
-            <div className="conversation-view">
+            <>
+              {!rightPanelOpen && !showAgentScreen && (
+                <div className="today-home-column">
+                  <TodayPanel tasks={tasks} onOpenTasks={() => setView('tasks')} />
+                </div>
+              )}
+              <div className="conversation-view">
               <section
                 ref={listRef}
                 className={displayMessages.length === 0 && displayLiveParts.length === 0 && !running ? 'conversation-surface empty-conversation' : 'conversation-surface chat-surface'}
@@ -975,7 +989,8 @@ export function App() {
                   />
                 </div>
               </div>
-            </div>
+              </div>
+            </>
           )}
 
           {view === 'conversation' && !rightPanelOpen && !showAgentScreen && (

@@ -29,6 +29,16 @@ const en = {
     chinese: 'Simplified Chinese',
     current: 'Current language: {{language}}',
   },
+  navigation: {
+    label: 'Primary navigation',
+    home: 'Home',
+    inbox: 'Inbox',
+    tasks: 'Tasks',
+    files: 'Files',
+    apps: 'Apps',
+    plugins: 'Plugins',
+    account: 'Local account',
+  },
   secretary: {
     today: 'Today',
     tasksTitle: 'Tasks',
@@ -531,6 +541,16 @@ const zhCN: TranslationSchema = {
     english: 'English',
     chinese: '中文简体',
     current: '当前语言：{{language}}',
+  },
+  navigation: {
+    label: '主导航',
+    home: '主页',
+    inbox: '收件箱',
+    tasks: '任务',
+    files: '云盘',
+    apps: '应用',
+    plugins: '插件',
+    account: '本地账户',
   },
   secretary: {
     today: '今天',

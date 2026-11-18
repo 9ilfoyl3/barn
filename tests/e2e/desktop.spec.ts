@@ -119,7 +119,7 @@ test('applies and persists a Simplified Chinese language preference', async () =
     await expect(page.locator('html')).toHaveAttribute('lang', 'zh-CN')
     await expect(page.getByRole('heading', { name: '今天需要处理什么？' })).toBeVisible()
     await expect(page.getByLabel('给 Barn 发消息')).toBeVisible()
-    await expect(page.getByRole('button', { name: '隐藏侧边栏' })).toBeVisible()
+    await expect(page.getByRole('button', { name: '主页' })).toBeVisible()
 
     await page.locator('.account-row').click()
     await page.getByRole('button', { name: '界面语言' }).click()
