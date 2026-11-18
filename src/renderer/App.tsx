@@ -10,6 +10,7 @@ import {
   Globe2,
   Inbox,
   Search,
+  Sparkles,
   Home,
   LayoutGrid,
   ListTodo,
@@ -487,6 +488,18 @@ export function App() {
     setUtilityOpen(false)
   }
 
+  async function refreshTasks(): Promise<void> {
+    setTasksLoading(true)
+    try {
+      setTasks(await window.barn.tasks.list())
+      setTaskError(undefined)
+    } catch (reason) {
+      setTaskError(errorMessage(reason, t))
+    } finally {
+      setTasksLoading(false)
+    }
+  }
+
   async function openResultLink(url: string): Promise<void> {
     try {
       const state = await window.barn.browser.open(url)
@@ -815,7 +828,12 @@ export function App() {
             <>
               {!rightPanelOpen && !showAgentScreen && (
                 <div className="today-home-column">
-                  <TodayPanel tasks={tasks} onOpenTasks={() => setView('tasks')} />
+                  <TodayPanel
+                    tasks={tasks}
+                    onOpenTasks={() => setView('tasks')}
+                    onConnectSources={() => setSourceSettingsOpen(true)}
+                    onRefresh={() => void refreshTasks()}
+                  />
                 </div>
               )}
               <div className="conversation-view">
@@ -825,13 +843,11 @@ export function App() {
               >
                 {displayMessages.length === 0 && displayLiveParts.length === 0 && !running ? (
                   <div className="secretary-empty-state">
-                    <h1 className="visually-hidden">{t('conversation.title')}</h1>
                     <span className="secretary-presence" aria-hidden="true">
-                      <i />
-                      <i />
-                      <i />
+                      <Sparkles size={21} />
                     </span>
-                    <p>{t('conversation.secretaryReady')}</p>
+                    <h1>{t('conversation.heroTitle')}</h1>
+                    <p>{t('conversation.heroSubtitle')}</p>
                   </div>
                 ) : (
                   <MessageBubbleGroup className="message-list" spacing="default">
@@ -910,7 +926,7 @@ export function App() {
               </section>
 
               <div className="composer-dock">
-                <div className="composer-project">
+                <div className={workingDirectory === undefined ? 'composer-project composer-project-empty' : 'composer-project'}>
                   {workingDirectory === undefined ? (
                     <span className="composer-project-icon">
                       <Folder size={13} />
@@ -956,7 +972,7 @@ export function App() {
                       icon: <Paperclip size={15} />,
                     }]}
                     aria-label={t('conversation.messageBarn')}
-                    className="barn-prompt-input"
+                    className="barn-prompt-input barn-prompt-inline"
                     disabled={modelSelectionBusy || activeSessionIsArchived}
                     leadingAction={(
                       <ModelPicker
@@ -970,8 +986,8 @@ export function App() {
                       />
                     )}
                     loading={running}
-                    maxRows={8}
-                    minRows={2}
+                    maxRows={4}
+                    minRows={1}
                     onAction={(action) => {
                       if (action === 'attach') void attachFiles()
                     }}

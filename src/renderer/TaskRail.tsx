@@ -1,4 +1,4 @@
-import { AlertCircle, Check, Circle, LoaderCircle, X } from 'lucide-react'
+import { AlertCircle, Check, Circle, ListTodo, LoaderCircle, X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import type { Task } from '../shared/models'
 
@@ -23,8 +23,9 @@ export function TaskRail({ tasks, onOpenTask, onOpenTasks }: TaskRailProps) {
       </div>
       {ordered.length === 0 ? (
         <div className="task-rail-empty">
-          <Check size={16} aria-hidden="true" />
-          <p>{t('secretary.tasksEmpty')}</p>
+          <span className="task-rail-empty-mark" aria-hidden="true"><ListTodo size={17} /></span>
+          <strong>{t('secretary.noTasksTitle')}</strong>
+          <p>{t('secretary.tasksEmptyDescription')}</p>
         </div>
       ) : (
         <div className="task-rail-list">

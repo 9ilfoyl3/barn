@@ -185,7 +185,7 @@ test('selects a working directory and attaches a folder', async () => {
       }) as typeof dialog.showOpenDialog
     }, { working: workingDirectory, attachment: attachmentFolder, pdf: pdfPath, image: imagePath, text: textPath })
 
-    await page.getByRole('button', { name: 'Choose working folder' }).click()
+    await page.getByRole('button', { name: 'Files' }).click()
     await expect(page.locator('.composer-project')).toContainText('selected-project')
     await page.getByRole('button', { name: 'Attach', exact: true }).click()
     const addDialog = page.getByRole('dialog', { name: 'Attach' })
