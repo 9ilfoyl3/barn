@@ -130,10 +130,11 @@ export class TaskRunner {
       await this.agent.prompt(
         session.id,
         task.prompt!,
-        [],
-        undefined,
+        task.attachments ?? [],
+        task.workingDirectory,
         task.visiblePrompt,
         {
+          projectUserMessage: false,
           visibleMetadata: { taskId: task.id },
           clientMessageIdPrefix: `task-assistant:${task.id}`,
         },

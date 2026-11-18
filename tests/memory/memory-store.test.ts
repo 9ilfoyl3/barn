@@ -164,6 +164,28 @@ describe('MemoryStore', () => {
 })
 
 describe('MemoryService', () => {
+  it('never retrieves an unconfirmed memory candidate', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'barn-memory-candidate-'))
+    const store = new SessionStore(join(directory, 'sessions.db'), new AesGcmEventCipher(randomBytes(32)))
+    await store.initialize()
+    const service = new MemoryService(store.memories)
+    service.setSettings({ enabled: true, useMemories: true, generateMemories: true })
+    service.save({
+      kind: 'preference',
+      scope: 'global',
+      title: 'Unconfirmed language preference',
+      content: 'Prefer French responses.',
+      key: 'language',
+      status: 'candidate',
+      sourceAuthority: 'inferred',
+    })
+
+    expect(service.contextForPrompt('What language should you use?')).toBe('')
+    expect(service.listCandidates()).toHaveLength(1)
+    expect(service.list()).toEqual([])
+    store.close()
+  })
+
   it('enforces settings and builds a bounded prompt context', async () => {
     const directory = await mkdtemp(join(tmpdir(), 'barn-memory-service-'))
     const store = new SessionStore(join(directory, 'sessions.db'), new AesGcmEventCipher(randomBytes(32)))
@@ -187,10 +209,12 @@ describe('MemoryService', () => {
       key: 'language',
       pinned: true,
     })
-    const context = service.contextForPrompt('Please summarize this document', directory)
-    expect(context).toContain('memory_context')
-    expect(context).toContain('Prefer Chinese responses')
-    expect(context.length).toBeLessThan(7_000)
+    const detailed = service.contextForPromptWithSources('Please summarize this document', directory)
+    expect(detailed.context).toContain('memory_context')
+    expect(detailed.context).toContain('Prefer Chinese responses')
+    expect(detailed.context.length).toBeLessThan(7_000)
+    expect(detailed.sourceRefs).toEqual([expect.stringMatching(/^memory:/)])
+    expect(service.contextForPrompt('Please summarize this document', directory)).toBe(detailed.context)
     store.close()
   })
 })

@@ -83,18 +83,16 @@ test('stops an in-progress response', async () => {
     }, baseUrl)
 
     const composer = page.getByLabel('Message Barn')
-    await composer.fill('Give me a long response')
+    await composer.fill('Explain this in a long response')
     await composer.press('Enter')
 
-    const stop = page.getByRole('button', { name: 'Stop response' })
-    await expect(stop).toBeVisible({ timeout: 10_000 })
-    await stop.click()
+    const cancel = page.getByRole('button', { name: 'Cancel request' })
+    await expect(cancel).toBeVisible({ timeout: 10_000 })
+    await cancel.click()
 
-    await expect(page.getByRole('button', { name: 'Send message' })).toBeVisible({ timeout: 5_000 })
-    await expect(page.getByText(/Starting a long response/)).toBeVisible()
+    await expect(page.getByText('Cancelled', { exact: true })).toBeVisible({ timeout: 5_000 })
     await expect(page.getByText('Request aborted')).toHaveCount(0)
-    await expect.poll(async () => page.evaluate(async () => (await window.barn.sessions.list())[0]?.status))
-      .toBe('idle')
+    expect(await page.evaluate(async () => (await window.barn.router.getSnapshot()).requests[0]?.status)).toBe('cancelled')
   } finally {
     for (const interval of intervals) clearInterval(interval)
     await app.close()

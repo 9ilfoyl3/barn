@@ -17,6 +17,22 @@ import { TaskService } from '../../src/main/tasks/task-service'
 import { RouterService } from '../../src/main/router/router-service'
 
 class FakeRouterAgent {
+  private readonly listeners = new Set<(event: import('../../src/shared/models').SessionLiveEvent) => void>()
+
+  onLiveEvent(listener: (event: import('../../src/shared/models').SessionLiveEvent) => void): () => void {
+    this.listeners.add(listener)
+    return () => this.listeners.delete(listener)
+  }
+
+  emitRunStatus(sessionId: string, status: 'idle' | 'cancelled'): void {
+    for (const listener of this.listeners) listener({
+      type: 'run.status',
+      sessionId,
+      runId: `run:${sessionId}`,
+      status,
+    })
+  }
+
   readonly prompt = vi.fn(async (
     executionSessionId: string,
     _text: string,
@@ -35,18 +51,13 @@ class FakeRouterAgent {
         sourceRefs: [`router:${requestId}`],
       })
     }
-    return {
-      id: executionSessionId,
-      title: 'Router',
-      status: 'idle',
-      hasUnreadResult: false,
-      pinned: false,
-      createdAt: new Date(0).toISOString(),
-      updatedAt: new Date(0).toISOString(),
-    }
+    this.emitRunStatus(executionSessionId, 'idle')
+    return idleSession(executionSessionId)
   })
 
-  readonly cancel = vi.fn(async (_sessionId: string) => {})
+  readonly cancel = vi.fn(async (sessionId: string) => {
+    this.emitRunStatus(sessionId, 'cancelled')
+  })
 
   constructor(private readonly threads: ThreadService) {}
 }
@@ -78,15 +89,8 @@ async function harness(options: {
         content: `Reply for ${requestId}`,
         metadata: { routerRequestId: requestId },
       })
-      return {
-        id: executionSessionId,
-        title: 'Router',
-        status: 'idle',
-        hasUnreadResult: false,
-        pinned: false,
-        createdAt: new Date(0).toISOString(),
-        updatedAt: new Date(0).toISOString(),
-      }
+      agent.emitRunStatus(executionSessionId, 'idle')
+      return idleSession(executionSessionId)
     })
   }
   const router = new RouterService(
@@ -131,6 +135,19 @@ describe('RouterService', () => {
     await vi.waitFor(() => expect(h.agent.prompt).toHaveBeenCalledTimes(2))
     await vi.waitFor(() => expect(h.router.getSnapshot().requests.every((request) => request.status === 'completed')).toBe(true))
     expect(h.router.getSnapshot().requests.map((request) => request.sequence)).toEqual([1, 2])
+    h.router.stop()
+    h.sessions.close()
+  })
+
+  it('deduplicates repeated submissions with the same client message id', async () => {
+    const h = await harness()
+    h.router.start()
+    const first = await h.router.submit({ text: 'hello', clientMessageId: 'client-1' })
+    const second = await h.router.submit({ text: 'hello', clientMessageId: 'client-1' })
+    expect(second.request.id).toBe(first.request.id)
+    expect(h.router.getSnapshot().requests).toHaveLength(1)
+    await vi.waitFor(() => expect(h.router.getSnapshot().requests[0]?.status).toBe('completed'))
+    expect(h.threads.listMessages()).toHaveLength(2)
     h.router.stop()
     h.sessions.close()
   })
@@ -243,5 +260,18 @@ function taskDecision(): DelegationDecision {
       executionLane: 'background',
       expectedArtifacts: [],
     },
+  }
+}
+
+
+function idleSession(sessionId: string): SessionSummary {
+  return {
+    id: sessionId,
+    title: 'Router',
+    status: 'idle',
+    hasUnreadResult: false,
+    pinned: false,
+    createdAt: new Date(0).toISOString(),
+    updatedAt: new Date(0).toISOString(),
   }
 }

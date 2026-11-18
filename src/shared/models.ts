@@ -320,6 +320,8 @@ export interface Task {
   approvalId?: string
   prompt?: string
   visiblePrompt?: string
+  workingDirectory?: string
+  attachments?: AttachmentDescriptor[]
   waitingReason?: TaskWaitingReason
   detail?: string
   createdAt: string
@@ -335,6 +337,8 @@ export interface CreateTaskInput {
   sessionId?: string
   prompt?: string
   visiblePrompt?: string
+  workingDirectory?: string
+  attachments?: AttachmentDescriptor[]
 }
 
 export interface TaskStatusUpdate {

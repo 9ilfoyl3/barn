@@ -10,6 +10,13 @@ const createTaskSchema = z.object({
   sessionId: z.string().uuid().optional(),
   prompt: z.string().trim().min(1).max(2_000_000).optional(),
   visiblePrompt: z.string().trim().min(1).max(2_000_000).optional(),
+  workingDirectory: z.string().trim().min(1).max(4_000).optional(),
+  attachments: z.array(z.object({
+    name: z.string().trim().min(1).max(500),
+    path: z.string().trim().min(1).max(4_000),
+    size: z.number().int().nonnegative(),
+    kind: z.enum(['file', 'directory']).optional(),
+  })).max(50).optional(),
 }).strict()
 const updateTaskSchema = z.object({
   taskId: taskIdSchema,
@@ -52,6 +59,8 @@ export function registerTaskIpc(
       ...(parsed.sessionId === undefined ? {} : { sessionId: parsed.sessionId }),
       ...(parsed.prompt === undefined ? {} : { prompt: parsed.prompt }),
       ...(parsed.visiblePrompt === undefined ? {} : { visiblePrompt: parsed.visiblePrompt }),
+      ...(parsed.workingDirectory === undefined ? {} : { workingDirectory: parsed.workingDirectory }),
+      ...(parsed.attachments === undefined ? {} : { attachments: parsed.attachments }),
     })
   })
 

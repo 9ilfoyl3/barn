@@ -246,7 +246,13 @@ void app.whenReady().then(async () => {
     () => browserService,
   )
   registerDiagnosticsIpc(diagnosticsService, trustedSender)
-  memoryExtractionService = new MemoryExtractionService(sessionStore, modelService)
+  memoryExtractionService = new MemoryExtractionService(sessionStore, modelService, {
+    threads: threadService,
+    isRouterIdle: () => {
+      const snapshot = routerService?.getSnapshot()
+      return snapshot !== undefined && snapshot.queuedCount === 0 && snapshot.activeRequest === undefined
+    },
+  })
   memoryExtractionService.start()
   sessionStore.runRetention()
   maintenanceTimer = setInterval(() => sessionStore?.runRetention(), 24 * 60 * 60 * 1_000)

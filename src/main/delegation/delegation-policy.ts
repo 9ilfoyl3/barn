@@ -9,7 +9,7 @@ const EXTERNAL_WRITE = /\b(send|email|message|post|publish|submit|share|invite|u
 const DESTRUCTIVE = /\b(delete|remove|erase|wipe|drop|reset|revoke|archive|cancel|deploy|release|merge|close)\b/i
 const MULTI_STEP = /\b(research|investigate|review|analy[sz]e|compare|prepare|create|draft|write|build|implement|debug|fix|test|browse|navigate|collect|extract|organi[sz]e|summari[sz]e|plan)\b/i
 const REQUIRED_ATTACHMENT = /\b(this file|the file|attached|attachment|document|spreadsheet|pdf)\b/i
-const DIRECT_ANSWER = /^(what|who|when|where|why|how|is|are|can|could|should|explain|translate|rewrite|summari[sz]e|hi|hello|hey|thanks|thank you|ok|okay)\b/i
+const DIRECT_ANSWER = /^(what|who|when|where|why|how|is|are|can|could|should|explain|translate|rewrite|summari[sz]e|remember|note that|hi|hello|hey|thanks|thank you|ok|okay)\b/i
 const CAPABILITY_PATTERNS: Array<[RegExp, string]> = [
   [/\b(web|search|research|browse|website|url|page)\b/i, 'web'],
   [/\b(file|folder|document|pdf|spreadsheet|workspace)\b/i, 'filesystem'],
@@ -36,6 +36,9 @@ export function classifyDelegation(input: DelegationInput): DelegationDecision {
   }
   if (risk !== 'none' || DESTRUCTIVE.test(text)) {
     return decision('task', 0.97, 'high', risk, requiredCapabilities, ['side_effect_requires_task'], taskContract(text, risk, requiredCapabilities), [])
+  }
+  if (text.split(/\s+/).length <= 3 && /\b(it|this|that|them|those|these)\b/i.test(text)) {
+    return decision('clarify', 0.9, 'low', 'none', requiredCapabilities, ['ambiguous_reference'], undefined, ['objective'])
   }
   if (attachments.length > 0 || text.length > 600 || MULTI_STEP.test(text) || TASK_VERBS.test(text)) {
     return decision('task', 0.9, text.length > 200 ? 'high' : 'medium', 'none', requiredCapabilities, ['durable_work'], taskContract(text, 'none', requiredCapabilities), [])

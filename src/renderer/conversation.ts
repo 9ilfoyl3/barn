@@ -28,6 +28,7 @@ export interface ChatMessage {
   attachments: AttachmentDescriptor[]
   isError: boolean
   resultCard?: VisibleResultCard
+  routerRequestId?: string
 }
 
 export type ConversationDisplayPart =
@@ -283,6 +284,9 @@ export function chatMessagesFromThread(messages: VisibleMessage[]): ChatMessage[
     const text = visibleMessageText(message.content)
     if (text.trim().length === 0) return []
     const resultCard = parseVisibleResultCard(message.metadata.resultCard)
+    const routerRequestId = typeof message.metadata.routerRequestId === 'string'
+      ? message.metadata.routerRequestId
+      : undefined
     return [{
       key: `thread:${message.id}`,
       role: message.role,
@@ -290,6 +294,7 @@ export function chatMessagesFromThread(messages: VisibleMessage[]): ChatMessage[
       attachments: attachmentNames(message.metadata).map((name) => ({ name, path: name, size: 0 })),
       isError: false,
       ...(resultCard === undefined ? {} : { resultCard }),
+      ...(routerRequestId === undefined ? {} : { routerRequestId }),
     }]
   })
 }
@@ -314,6 +319,9 @@ export function mergeThreadAndSessionMessages(
   sessionMessages: ChatMessage[],
 ): ChatMessage[] {
   return chatMessagesFromThread(threadMessages).map((threadMessage) => {
+    // The Principal Thread owns visible user text. Session events may contain
+    // Router-injected context and must never replace the user's actual message.
+    if (threadMessage.role === 'user') return threadMessage
     const text = chatMessageText(threadMessage)
     const match = sessionMessages.find((sessionMessage) => (
       sessionMessage.role === threadMessage.role && chatMessageText(sessionMessage).includes(text)
@@ -324,6 +332,7 @@ export function mergeThreadAndSessionMessages(
           ...match,
           key: threadMessage.key,
           ...(threadMessage.resultCard === undefined ? {} : { resultCard: threadMessage.resultCard }),
+          ...(threadMessage.routerRequestId === undefined ? {} : { routerRequestId: threadMessage.routerRequestId }),
         }
   })
 }

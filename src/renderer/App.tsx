@@ -20,6 +20,7 @@ import {
   Stethoscope,
   Trash2,
   Wrench,
+  X,
 } from 'lucide-react'
 import type {
   ApprovalRequest,
@@ -27,6 +28,7 @@ import type {
   BrowserState,
   ModelConfigSnapshot,
   SessionLiveEvent,
+  RouterRequest,
   SessionSummary,
   Task,
   TaskLiveEvent,
@@ -78,16 +80,15 @@ export function App() {
   const [activeSessionId, setActiveSessionId] = useState<string>()
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [threadMessages, setThreadMessages] = useState<VisibleMessage[]>([])
+  const [routerRequests, setRouterRequests] = useState<RouterRequest[]>([])
   const [input, setInput] = useState('')
   const [attachments, setAttachments] = useState<AttachmentDescriptor[]>([])
   const [workingDirectory, setWorkingDirectory] = useState<string>()
   const [liveParts, setLiveParts] = useState<ConversationPart[]>([])
   const [pending, setPending] = useState(false)
-  const [stopping, setStopping] = useState(false)
   const [error, setError] = useState<string>()
   const [accountOpen, setAccountOpen] = useState(false)
   const [commandOpen, setCommandOpen] = useState(false)
-  const [delegationNotice, setDelegationNotice] = useState<string>()
   const [view, setView] = useState<'conversation' | 'tasks' | 'settings'>('conversation')
   const [tasks, setTasks] = useState<Task[]>([])
   const [tasksLoading, setTasksLoading] = useState(true)
@@ -126,12 +127,7 @@ export function App() {
       .then(setSnapshot)
       .catch((reason: unknown) => setError(errorMessage(reason, t)))
     void window.barn.sessions.list()
-      .then((value) => {
-        setSessions(value)
-        const initialSessionId = value.find((session) => session.archivedAt === undefined)?.id
-        activeSessionIdRef.current = initialSessionId
-        setActiveSessionId(initialSessionId)
-      })
+      .then(setSessions)
       .catch((reason: unknown) => setError(errorMessage(reason, t)))
     void window.barn.tasks.list()
       .then((value) => {
@@ -147,10 +143,28 @@ export function App() {
     void window.barn.threads.getSnapshot()
       .then((threadSnapshot) => setThreadMessages(threadSnapshot.messages))
       .catch((reason: unknown) => setError(errorMessage(reason, t)))
+    const unsubscribeRouter = window.barn.router.onEvent((event) => {
+      if (event.type === 'router.request-updated') {
+        setRouterRequests((current) => upsertRouterRequest(current, event.request))
+        return
+      }
+      if (event.type === 'router.execution-started') {
+        activeSessionIdRef.current = event.executionSessionId
+        setActiveSessionId(event.executionSessionId)
+        setPending(true)
+        setLiveParts([])
+        return
+      }
+      setPending(false)
+    })
+    void window.barn.router.getSnapshot()
+      .then((routerSnapshot) => setRouterRequests(routerSnapshot.requests))
+      .catch((reason: unknown) => setError(errorMessage(reason, t)))
     return () => {
       unsubscribeTheme()
       unsubscribeTasks()
       unsubscribeThread()
+      unsubscribeRouter()
     }
   }, [])
 
@@ -200,7 +214,6 @@ export function App() {
     setMessages([])
     setLiveParts([])
     setAttachments([])
-    setStopping(false)
     if (activeSessionId === undefined) return
     void loadSession(activeSessionId)
   }, [activeSessionId])
@@ -280,7 +293,6 @@ export function App() {
       setSessions((current) => upsertSession(current, event.session))
       if (event.session.id === sessionId) {
         setPending(event.session.status === 'running')
-        if (event.session.status !== 'running') setStopping(false)
         void loadSession(sessionId)
       }
       return
@@ -306,7 +318,6 @@ export function App() {
     if (event.type === 'run.status') {
       setPending(event.status === 'running')
       if (event.status !== 'running') {
-        setStopping(false)
         void loadSession(sessionId).finally(() => setLiveParts([]))
         if (event.status === 'failed') setError(event.error ?? t('conversation.runFailed'))
       }
@@ -315,82 +326,31 @@ export function App() {
 
   async function sendPrompt(): Promise<void> {
     const text = input.trim()
-    if (text.length === 0 || pending || modelSelectionBusy || activeSession?.archivedAt !== undefined) return
-    const isNewSession = activeSessionId === undefined
-    const sessionId = activeSessionId ?? draftSessionId()
-
+    if (text.length === 0 || modelSelectionBusy) return
     const filesToSend = attachments
+    const clientMessageId = crypto.randomUUID()
+    setInput('')
+    setAttachments([])
+    setError(undefined)
     try {
-      const delegation = await window.barn.delegation.classify({
+      await window.barn.router.submit({
         text,
-        attachmentNames: filesToSend.map((file) => file.name),
-        hasWorkingDirectory: workingDirectory !== undefined,
-      })
-      const browserInteraction = /\b(browser|page|form|website|click|navigate|url)\b/i.test(text)
-      if (
-        delegation.action === 'task'
-        && delegation.confidence >= 0.9
-        && delegation.taskContract !== undefined
-        && filesToSend.length === 0
-        && workingDirectory === undefined
-        && !browserInteraction
-      ) {
-        const attachmentContext = filesToSend.length === 0
-          ? ''
-          : `\n\nAttachments:\n${filesToSend.map((file) => `- ${file.name}: ${file.path}`).join('\n')}`
-        const task = await window.barn.tasks.create({
-          title: taskTitle(text),
-          origin: 'user',
-          status: 'queued',
-          prompt: `${text}${attachmentContext}\n\nTask contract:\n${JSON.stringify(delegation.taskContract, null, 2)}`,
-          visiblePrompt: text,
-        })
-        setTasks((current) => upsertTask(current, task))
-        setDelegationNotice(t('secretary.taskStarted'))
-        setInput('')
-        setAttachments([])
-        setLiveParts([])
-        setError(undefined)
-        return
-      }
-    } catch (reason) {
-      setError(errorMessage(reason, t))
-      return
-    }
-    try {
-      if (isNewSession) await window.barn.sessions.create(sessionId)
-      activeSessionIdRef.current = sessionId
-      setActiveSessionId(sessionId)
-      setPending(true)
-      setStopping(false)
-      setError(undefined)
-      setLiveParts([])
-      setDelegationNotice(undefined)
-      setInput('')
-      setAttachments([])
-      const session = await window.barn.sessions.prompt({
-        sessionId,
-        text,
-        attachments: filesToSend,
+        clientMessageId,
+        ...(filesToSend.length === 0 ? {} : { attachments: filesToSend }),
         ...(workingDirectory === undefined ? {} : { workingDirectory }),
       })
-      draftSessionIdRef.current = undefined
-      setSessions((current) => upsertSession(current, session))
     } catch (reason) {
-      if (isNewSession) activeSessionIdRef.current = undefined
-      setPending(false)
+      setInput(text)
+      setAttachments(filesToSend)
       setError(errorMessage(reason, t))
     }
   }
 
-  async function cancelRun(): Promise<void> {
-    const sessionId = activeSessionId ?? activeSessionIdRef.current
-    if (sessionId === undefined || stopping) return
-    setStopping(true)
+  async function cancelRouterRequest(requestId: string): Promise<void> {
     try {
-      await window.barn.sessions.cancel(sessionId)
+      const request = await window.barn.router.cancel(requestId)
+      setRouterRequests((current) => upsertRouterRequest(current, request))
     } catch (reason) {
-      setStopping(false)
       setError(errorMessage(reason, t))
     }
   }
@@ -626,20 +586,20 @@ export function App() {
     : workingDirectory.split(/[\\/]/).filter(Boolean).at(-1) ?? workingDirectory
   const browserApproval = pendingApprovals.find((approval) => approval.title === 'Approve browser action')
   const needsYouCount = tasks.filter((task) => ['proposed', 'waiting', 'failed'].includes(task.status)).length
+  const routerQueuedCount = routerRequests.filter((request) => request.status === 'queued').length
 
-  function openSession(sessionId: string): void {
-    activeSessionIdRef.current = sessionId
-    setActiveSessionId(sessionId)
-    setView('conversation')
+  function openTask(_task: Task): void {
+    setCommandOpen(false)
+    setView('tasks')
   }
 
-  function openTask(task: Task): void {
-    setCommandOpen(false)
-    if (task.sessionId !== undefined) {
-      openSession(task.sessionId)
-      return
-    }
-    setView('tasks')
+  function routerRequestStatusLabel(request: RouterRequest): string {
+    if (request.status === 'queued') return t('router.queued')
+    if (request.status === 'routing') return t('router.routing')
+    if (request.status === 'cancelled') return t('router.cancelled')
+    if (request.status === 'failed') return t('router.failed')
+    if (request.decisionKind === 'create_task') return t('router.taskQueued')
+    return t('router.completed')
   }
 
   function draftSessionId(): string {
@@ -803,7 +763,7 @@ export function App() {
                 tasks={tasks}
                 loading={tasksLoading}
                 error={taskError}
-                onOpenSession={openSession}
+                onOpenSession={() => setView('conversation')}
                 onError={setTaskError}
               />
             </>
@@ -862,6 +822,25 @@ export function App() {
                             })}
                           </div>
                         )}
+                        {message.role === 'user' && message.routerRequestId !== undefined && (() => {
+                          const request = routerRequests.find((candidate) => candidate.id === message.routerRequestId)
+                          if (request === undefined) return null
+                          return (
+                            <span className="router-message-state" data-status={request.status}>
+                              <span>{routerRequestStatusLabel(request)}</span>
+                              {(request.status === 'queued' || request.status === 'routing') && (
+                                <button
+                                  className="router-request-cancel"
+                                  type="button"
+                                  aria-label={t('router.cancelRequest')}
+                                  onClick={() => void cancelRouterRequest(request.id)}
+                                >
+                                  <X size={11} aria-hidden="true" />
+                                </button>
+                              )}
+                            </span>
+                          )
+                        })()}
                         {message.role === 'assistant' && message.resultCard !== undefined && (
                           <AssistantResult
                             card={message.resultCard}
@@ -897,8 +876,10 @@ export function App() {
                   </MessageBubbleGroup>
                 )}
 
-                {delegationNotice !== undefined && (
-                  <div className="delegation-notice" role="status">{delegationNotice}</div>
+                {routerQueuedCount > 0 && (
+                  <div className="router-queue-summary" role="status">
+                    {t('router.queueSummary', { count: routerQueuedCount })}
+                  </div>
                 )}
 
                 {error !== undefined && (
@@ -956,7 +937,7 @@ export function App() {
                     }]}
                     aria-label={t('conversation.messageBarn')}
                     className="barn-prompt-input barn-prompt-inline"
-                    disabled={modelSelectionBusy || activeSessionIsArchived}
+                    disabled={modelSelectionBusy}
                     leadingAction={(
                       <ModelPicker
                         snapshot={snapshot}
@@ -968,22 +949,15 @@ export function App() {
                         onBusyChange={setModelSelectionBusy}
                       />
                     )}
-                    loading={running}
                     maxRows={4}
                     minRows={1}
                     onAction={(action) => {
                       if (action === 'attach') void attachFiles()
                     }}
-                    onStop={() => void cancelRun()}
                     onSubmit={() => void sendPrompt()}
                     onValueChange={setInput}
-                    placeholder={activeSessionIsArchived
-                      ? t('conversation.archivedPlaceholder')
-                      : t('conversation.placeholder')}
+                    placeholder={t('conversation.placeholder')}
                     sendLabel={t('conversation.sendMessage')}
-                    stopLabel={t('conversation.stopResponse')}
-                    stopping={stopping}
-                    stoppingLabel={t('conversation.stoppingResponse')}
                     value={input}
                   />
                 </div>
@@ -1072,6 +1046,12 @@ function sortSessions(current: SessionSummary[]): SessionSummary[] {
   })
 }
 
+function upsertRouterRequest(current: RouterRequest[], request: RouterRequest): RouterRequest[] {
+  return [...current.filter((item) => item.id !== request.id), request]
+    .toSorted((left, right) => left.sequence - right.sequence)
+}
+
+
 function upsertTask(current: Task[], task: Task): Task[] {
   return [task, ...current.filter((item) => item.id !== task.id)]
 }
@@ -1088,9 +1068,4 @@ function formatFileSize(bytes: number): string {
 
 function upsertVisibleMessage(current: VisibleMessage[], message: VisibleMessage): VisibleMessage[] {
   return [...current.filter((item) => item.id !== message.id), message].toSorted((left, right) => left.seq - right.seq)
-}
-
-function taskTitle(text: string): string {
-  const oneLine = text.replace(/\s+/g, ' ').trim()
-  return oneLine.length <= 64 ? oneLine : `${oneLine.slice(0, 61)}...`
 }

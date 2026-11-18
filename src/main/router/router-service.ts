@@ -23,10 +23,10 @@ const ROUTER_CONTEXT_CHAR_LIMIT = 18_000
 const ROUTER_CONTEXT_MESSAGE_LIMIT = 40
 const ROUTER_LEASE_OWNER = 'desktop-router'
 
-type RouterAgent = Pick<AgentService, 'prompt' | 'cancel'>
+type RouterAgent = Pick<AgentService, 'prompt' | 'cancel' | 'onLiveEvent'>
 type RouterThreads = Pick<ThreadService, 'appendMessage' | 'appendMessageInTransaction' | 'notifyMessage' | 'listMessages'>
 type RouterTasks = Pick<TaskService, 'create'>
-type RouterSessions = Pick<SessionStore, 'transaction'>
+type RouterSessions = Pick<SessionStore, 'transaction' | 'ensureSession'>
 type RouterClassifier = (input: {
   text: string
   attachmentNames?: string[]
@@ -47,6 +47,8 @@ export interface RouterServiceOptions {
 export class RouterService {
   private readonly listeners = new Set<(event: RouterLiveEvent) => void>()
   private readonly activeSessions = new Map<string, string>()
+  private readonly runWaiters = new Map<string, { resolve: () => void; reject: (error: Error) => void }>()
+  private readonly unsubscribeAgent: () => void
   private readonly leaseMs: number
   private readonly contextCharLimit: number
   private readonly contextMessageLimit: number
@@ -73,6 +75,7 @@ export class RouterService {
     this.classify = options.classify ?? classifyDelegationDefault
     this.createRequestId = options.createRequestId ?? randomUUID
     this.createExecutionSessionId = options.createExecutionSessionId ?? randomUUID
+    this.unsubscribeAgent = this.agent.onLiveEvent((event) => this.handleAgentEvent(event))
   }
 
   start(): void {
@@ -86,6 +89,9 @@ export class RouterService {
 
   stop(): void {
     this.started = false
+    this.unsubscribeAgent()
+    for (const waiter of this.runWaiters.values()) waiter.reject(new Error('Router stopped'))
+    this.runWaiters.clear()
     if (this.scheduled !== undefined) clearImmediate(this.scheduled)
     this.scheduled = undefined
   }
@@ -189,26 +195,34 @@ export class RouterService {
       })
 
       if (decision.action === 'task' && decision.taskContract !== undefined) {
-        await this.createTask(request, userMessage, text, attachments, decision)
+        await this.createTask(request, userMessage, text, attachments, workingDirectory, decision)
         return
       }
 
       executionSessionId = this.createExecutionSessionId()
+      this.sessions.ensureSession(executionSessionId, 'Router', workingDirectory)
       this.activeSessions.set(request.id, executionSessionId)
       this.emit({ type: 'router.execution-started', requestId: request.id, executionSessionId })
       const prompt = this.promptWithPrincipalContext(text, userMessage)
-      await this.agent.prompt(
-        executionSessionId,
-        prompt,
-        attachments,
-        workingDirectory,
-        undefined,
-        {
-          projectUserMessage: false,
-          visibleMetadata: { routerRequestId: request.id },
-          clientMessageIdPrefix: `router-assistant:${request.id}`,
-        } satisfies AgentPromptOptions,
-      )
+      const completion = this.waitForRun(executionSessionId)
+      try {
+        await this.agent.prompt(
+          executionSessionId,
+          prompt,
+          attachments,
+          workingDirectory,
+          undefined,
+          {
+            projectUserMessage: false,
+            visibleMetadata: { routerRequestId: request.id },
+            clientMessageIdPrefix: `router-assistant:${request.id}`,
+          } satisfies AgentPromptOptions,
+        )
+        await completion
+      } catch (error) {
+        this.runWaiters.delete(executionSessionId)
+        throw error
+      }
       if (this.store.get(request.id).status === 'cancelled') return
       const reply = this.findReply(request.id)
       this.finish(request.id, {
@@ -235,6 +249,7 @@ export class RouterService {
     userMessage: VisibleMessage,
     text: string,
     attachments: AttachmentDescriptor[],
+    workingDirectory: string | undefined,
     decision: DelegationDecision,
   ): Promise<void> {
     const attachmentContext = attachments.length === 0
@@ -246,6 +261,8 @@ export class RouterService {
       status: 'queued',
       prompt: `${text}${attachmentContext}\n\nTask contract:\n${JSON.stringify(decision.taskContract, null, 2)}`,
       visiblePrompt: text,
+      ...(workingDirectory === undefined ? {} : { workingDirectory }),
+      ...(attachments.length === 0 ? {} : { attachments }),
     })
     const resultCard: VisibleResultCard = {
       version: 1,
@@ -311,6 +328,28 @@ export class RouterService {
       selected.join('\n\n'),
       '</principal_thread_context>',
     ].join('\n')
+  }
+
+  private waitForRun(sessionId: string): Promise<void> {
+    return new Promise<void>((resolve, reject) => {
+      this.runWaiters.set(sessionId, { resolve, reject })
+    })
+  }
+
+  private handleAgentEvent(event: Parameters<AgentService['onLiveEvent']>[0] extends (event: infer Event) => unknown ? Event : never): void {
+    if (event.type === 'session.updated' && event.session.status === 'failed') {
+      this.runWaiters.get(event.session.id)?.reject(new Error('Router execution session failed'))
+      return
+    }
+    if (event.type !== 'run.status' || event.status === 'running') return
+    const waiter = this.runWaiters.get(event.sessionId)
+    if (waiter === undefined) return
+    this.runWaiters.delete(event.sessionId)
+    if (event.status === 'failed') {
+      waiter.reject(new Error(event.error ?? 'Router execution failed'))
+    } else {
+      waiter.resolve()
+    }
   }
 
   private emit(event: RouterLiveEvent): void {
