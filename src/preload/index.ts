@@ -15,6 +15,9 @@ import type {
   SessionPromptInput,
   ThreadBridge,
   ThreadLiveEvent,
+  RouterBridge,
+  RouterLiveEvent,
+  RouterSubmitInput,
   DelegationBridge,
   DelegationInput,
   AppendVisibleMessageInput,
@@ -126,6 +129,17 @@ const threads: ThreadBridge = {
   },
 }
 
+const router: RouterBridge = {
+  submit: (input: RouterSubmitInput) => ipcRenderer.invoke('router:submit', input),
+  getSnapshot: () => ipcRenderer.invoke('router:get-snapshot'),
+  cancel: (requestId: string) => ipcRenderer.invoke('router:cancel', requestId),
+  onEvent: (listener: (event: RouterLiveEvent) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, liveEvent: RouterLiveEvent): void => listener(liveEvent)
+    ipcRenderer.on('router:event', handler)
+    return () => ipcRenderer.removeListener('router:event', handler)
+  },
+}
+
 const delegation: DelegationBridge = {
   classify: (input: DelegationInput) => ipcRenderer.invoke('delegation:classify', input),
 }
@@ -222,6 +236,7 @@ const api: BarnBridge = {
   terminal,
   sessions,
   threads,
+  router,
   delegation,
   tasks,
   permissions,

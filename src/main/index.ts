@@ -22,6 +22,8 @@ import { registerLocalSourceIpc } from './sources/local-source-ipc'
 import { LocalSourceService } from './sources/local-source-service'
 import { PermissionService } from './permissions/permission-service'
 import { registerTaskIpc } from './tasks/task-ipc'
+import { registerRouterIpc } from './router/router-ipc'
+import { RouterService } from './router/router-service'
 import { TaskRunner } from './tasks/task-runner'
 import { TaskService } from './tasks/task-service'
 import { SessionStore } from './session/session-store'
@@ -53,6 +55,7 @@ let sessionStore: SessionStore | undefined
 let agentService: AgentService | undefined
 let taskService: TaskService | undefined
 let taskRunner: TaskRunner | undefined
+let routerService: RouterService | undefined
 let permissionService: PermissionService | undefined
 let actionService: ActionService | undefined
 let localSourceService: LocalSourceService | undefined
@@ -213,6 +216,14 @@ void app.whenReady().then(async () => {
   taskService = new TaskService(sessionStore.tasks)
   taskRunner = new TaskRunner(agentService, taskService, sessionStore)
   taskRunner.start()
+  routerService = new RouterService(
+    sessionStore.router,
+    threadService,
+    sessionStore,
+    taskService,
+    agentService,
+  )
+  routerService.start()
   permissionService = new PermissionService(sessionStore.permissions, taskService)
   actionService = new ActionService(sessionStore.actions, permissionService)
   actionService.start()
@@ -224,6 +235,7 @@ void app.whenReady().then(async () => {
   registerThreadIpc(threadService, trustedSender)
   registerDelegationIpc(trustedSender)
   registerTaskIpc(taskService, trustedSender)
+  registerRouterIpc(routerService, trustedSender)
   registerPermissionIpc(permissionService, trustedSender)
   registerLocalSourceIpc(localSourceService, trustedSender)
   diagnosticsService = new DiagnosticsService(
@@ -273,6 +285,8 @@ app.on('before-quit', () => {
   lifecycle = undefined
   taskRunner?.stop()
   taskRunner = undefined
+  routerService?.stop()
+  routerService = undefined
   taskService = undefined
   permissionService = undefined
   actionService?.stop()

@@ -200,6 +200,74 @@ export interface ThreadBridge {
   onEvent(listener: (event: ThreadLiveEvent) => void): () => void
 }
 
+
+export type RouterRequestStatus = 'queued' | 'routing' | 'completed' | 'failed' | 'cancelled'
+export type RouterDecisionKind =
+  | 'reply'
+  | 'clarify'
+  | 'create_task'
+  | 'update_task'
+  | 'cancel_task'
+  | 'answer_task'
+
+/** Durable admission of one user message into the serial Router lane. */
+export interface RouterRequest {
+  id: string
+  threadId: string
+  userMessageId: string
+  sequence: number
+  priority: number
+  status: RouterRequestStatus
+  attemptCount: number
+  decisionKind?: RouterDecisionKind
+  taskId?: string
+  replyMessageId?: string
+  error?: string
+  createdAt: string
+  updatedAt: string
+  startedAt?: string
+  finishedAt?: string
+}
+
+export interface RouterSubmitInput {
+  text: string
+  clientMessageId?: string
+  priority?: number
+  attachments?: AttachmentDescriptor[]
+  workingDirectory?: string
+}
+
+export interface RouterSubmitResult {
+  request: RouterRequest
+  userMessage: VisibleMessage
+}
+
+export interface RouterSnapshot {
+  requests: RouterRequest[]
+  activeRequest?: RouterRequest
+  queuedCount: number
+}
+
+export type RouterLiveEvent =
+  | { type: 'router.request-updated'; request: RouterRequest }
+  | { type: 'router.execution-started'; requestId: string; executionSessionId: string }
+  | { type: 'router.execution-finished'; requestId: string }
+
+export interface RouterBridge {
+  submit(input: RouterSubmitInput): Promise<RouterSubmitResult>
+  getSnapshot(): Promise<RouterSnapshot>
+  cancel(requestId: string): Promise<RouterRequest>
+  onEvent(listener: (event: RouterLiveEvent) => void): () => void
+}
+
+/** Host-only projection controls for a model execution. */
+export interface AgentPromptOptions {
+  projectUserMessage?: boolean
+  includeMemory?: boolean
+  visibleMetadata?: Record<string, unknown>
+  clientMessageIdPrefix?: string
+}
+
 export type DelegationAction = 'answer' | 'clarify' | 'task'
 export type DelegationRisk = 'none' | 'local_write' | 'external_write' | 'destructive'
 
@@ -777,6 +845,7 @@ export interface BarnBridge {
   terminal: TerminalBridge
   sessions: SessionBridge
   threads: ThreadBridge
+  router: RouterBridge
   delegation: DelegationBridge
   tasks: TaskBridge
   permissions: PermissionBridge

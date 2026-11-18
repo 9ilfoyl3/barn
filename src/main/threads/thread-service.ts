@@ -25,9 +25,21 @@ export class ThreadService {
 
   appendMessage(input: AppendVisibleMessageInput): VisibleMessage {
     const message = this.store.appendPrimaryMessage(input)
+    this.notifyMessage(message)
+    return message
+  }
+
+  appendMessageInTransaction(input: AppendVisibleMessageInput): VisibleMessage {
+    return this.store.appendPrimaryMessageInTransaction(input)
+  }
+
+  notifyMessage(message: VisibleMessage): void {
     const event: ThreadLiveEvent = { type: 'thread.message-appended', message }
     for (const listener of this.listeners) listener(event)
-    return message
+  }
+
+  getMessage(messageId: string): VisibleMessage {
+    return this.store.getPrimaryMessage(messageId)
   }
 
   onEvent(listener: (event: ThreadLiveEvent) => void): () => void {
