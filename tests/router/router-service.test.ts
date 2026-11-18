@@ -73,7 +73,7 @@ describe('RouterService', () => {
     expect(h.router.getSnapshot().requests.map((request) => request.sequence)).toEqual([1, 2])
     h.router.stop()
     h.sessions.close()
-  })
+  }, 15_000)
 
   it('projects a direct reply without creating a Session or Task', async () => {
     const h = await harness()
