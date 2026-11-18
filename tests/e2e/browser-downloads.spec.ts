@@ -59,13 +59,19 @@ test('downloads through the built-in browser into the configured Downloads folde
     await expect(approval).toBeVisible({ timeout: 15_000 })
     await expect(approval).toContainText('Start a browser download')
     await approval.getByRole('button', { name: 'Approve browser action' }).click()
-    await expect(page.getByText('Download completed.').last()).toBeVisible({ timeout: 20_000 })
+    await expect.poll(async () => page.evaluate(async () => (await window.barn.tasks.list())[0]?.status), { timeout: 20_000 }).toBe('completed')
     await expect.poll(async () => page.evaluate(() => window.barn.browser.getState().then((state) => state.downloads[0]?.state))).toBe('completed')
+    await expect(page.getByTestId('browser-panel')).toHaveCount(0)
+    await page.locator('.task-rail-card').click()
+    await expect(page.locator('.task-detail-page')).toContainText('Download completed.')
 
     const state = await page.evaluate(() => window.barn.browser.getState())
+    expect(state.visible).toBe(false)
     const download = state.downloads[0]
     expect(download?.filename).toBe('report.txt')
     expect(await readFile(download!.path, 'utf8')).toBe('Barn download fixture')
+    await page.getByRole('button', { name: 'Home' }).click()
+    await page.locator('.workspace-header').getByRole('button', { name: 'Open browser' }).click()
     await expect(page.getByTestId('browser-panel').getByRole('button', { name: 'Show latest download' })).toBeVisible()
   } finally {
     await app.close()

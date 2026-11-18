@@ -30,12 +30,12 @@ export interface TaskCenterProps {
   tasks: Task[]
   loading: boolean
   error?: string | undefined
-  onOpenSession(sessionId: string): void
+  onOpenTask(task: Task): void
   onError(message: string | undefined): void
 }
 
 /** The personal Agent's attention inbox: work that needs a person, work in progress, and recent outcomes. */
-export function TaskCenter({ tasks, loading, error, onOpenSession, onError }: TaskCenterProps) {
+export function TaskCenter({ tasks, loading, error, onOpenTask, onError }: TaskCenterProps) {
   const { t, i18n } = useTranslation()
   const dateLocale = i18n.language === 'zh-CN' ? 'zh-CN' : 'en-US'
   const [busyTaskId, setBusyTaskId] = useState<string>()
@@ -150,7 +150,7 @@ export function TaskCenter({ tasks, loading, error, onOpenSession, onError }: Ta
         onSave={saveInstructions}
         onStatus={updateStatus}
         onResolveApproval={resolveApproval}
-        onOpenSession={onOpenSession}
+        onOpenTask={onOpenTask}
       />
       <TaskGroup
         groupKey="in-progress"
@@ -167,7 +167,7 @@ export function TaskCenter({ tasks, loading, error, onOpenSession, onError }: Ta
         onSave={saveInstructions}
         onStatus={updateStatus}
         onResolveApproval={resolveApproval}
-        onOpenSession={onOpenSession}
+        onOpenTask={onOpenTask}
       />
       <TaskGroup
         groupKey="recent"
@@ -184,7 +184,7 @@ export function TaskCenter({ tasks, loading, error, onOpenSession, onError }: Ta
         onSave={saveInstructions}
         onStatus={updateStatus}
         onResolveApproval={resolveApproval}
-        onOpenSession={onOpenSession}
+        onOpenTask={onOpenTask}
       />
     </section>
   )
@@ -205,7 +205,7 @@ interface TaskGroupProps {
   onSave(task: Task): Promise<void>
   onStatus(task: Task, status: TaskStatus): Promise<void>
   onResolveApproval(task: Task, decision: 'approved' | 'denied'): Promise<void>
-  onOpenSession(sessionId: string): void
+  onOpenTask(task: Task): void
 }
 
 function TaskGroup(props: TaskGroupProps) {
@@ -238,7 +238,7 @@ function TaskRow({
   onSave,
   onStatus,
   onResolveApproval,
-  onOpenSession,
+  onOpenTask,
 }: TaskGroupProps & { task: Task }) {
   const { t } = useTranslation()
   const busy = busyTaskId === task.id
@@ -251,18 +251,16 @@ function TaskRow({
     <article className="task-row" aria-busy={busy}>
       <div className="task-row-copy">
         <div className="task-row-title">
-          <h3>{task.title}</h3>
+          <button type="button" className="task-row-title-button" aria-label={`${t('tasks.openDetails')}: ${task.title}`} onClick={() => onOpenTask(task)}><h3>{task.title}</h3></button>
           <span className={`task-status task-status-${task.status}`}>{t(`tasks.status.${task.status}`)}</span>
         </div>
         <p>{detail}</p>
         <time dateTime={task.updatedAt}>{formatTaskTime(task.updatedAt, dateLocale)}</time>
       </div>
       <div className="task-row-actions">
-        {task.sessionId !== undefined && (
-          <button type="button" className="task-action" onClick={() => onOpenSession(task.sessionId!)}>
-            {t('tasks.open')}
-          </button>
-        )}
+        <button type="button" className="task-action" onClick={() => onOpenTask(task)}>
+          {t('tasks.openDetails')}
+        </button>
         {task.status === 'proposed' && task.prompt !== undefined && (
           <button type="button" className="task-action primary" disabled={busy} onClick={() => void onStatus(task, 'queued')}>
             {t('tasks.run')}

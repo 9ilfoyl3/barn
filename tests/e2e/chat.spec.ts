@@ -219,7 +219,9 @@ test('selects a working directory and attaches a folder', async () => {
     const composer = page.getByLabel('Message Barn')
     await composer.fill('Inspect the attached folder.')
     await composer.press('Enter')
-    await expect(page.getByText('Folder inspected.').last()).toBeVisible({ timeout: 15_000 })
+    await expect.poll(async () => page.evaluate(async () => (await window.barn.tasks.list())[0]?.status), { timeout: 15_000 }).toBe('completed')
+    await page.locator('.task-rail-card').click()
+    await expect(page.locator('.task-detail-page')).toContainText('Folder inspected.')
 
     const sessions = await page.evaluate(() => window.barn.sessions.list())
     expect(sessions[0]?.workingDirectory).toBe(workingDirectory)
@@ -238,6 +240,7 @@ test('selects a working directory and attaches a folder', async () => {
       .attachments.find((attachment) => attachment.name === 'reference-folder')!.path
     expect(await readFile(join(attachmentPath, 'reference.txt'), 'utf8')).toBe('reference folder content')
 
+    await page.getByRole('button', { name: 'Home' }).click()
     await page.locator('.composer-project').hover()
     await expect(page.locator('.composer-project .delete-icon')).toBeVisible()
     await page.getByRole('button', { name: 'Clear current working directory' }).click()

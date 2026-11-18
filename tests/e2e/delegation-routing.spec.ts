@@ -59,16 +59,20 @@ test('routes a high-confidence side-effect request through the durable Task path
     expect(task?.visiblePrompt).toBe(request)
     await expect(page.locator('.task-rail-card', { hasText: request })).toBeVisible()
 
-    await expect(page.getByText('The requested message is ready for approval.').last()).toBeVisible({ timeout: 15_000 })
+    await expect.poll(async () => page.evaluate(async (taskId) => (await window.barn.tasks.get(taskId)).status, task!.id), { timeout: 15_000 }).toBe('completed')
+    await page.locator('.task-rail-card').click()
+    await expect(page.locator('.task-detail-page')).toContainText('The requested message is ready for approval.')
     const thread = await page.evaluate(async () => (await window.barn.threads.getSnapshot()).messages)
+    expect(thread).toHaveLength(2)
     expect(thread).toEqual(expect.arrayContaining([
       expect.objectContaining({ role: 'user', content: request }),
       expect.objectContaining({
         role: 'assistant',
-        content: 'The requested message is ready for approval.',
+        content: `I’ve queued “${request}” as a task.`,
         metadata: expect.objectContaining({ taskId: task!.id }),
       }),
     ]))
+    expect(thread.some((message) => message.content === 'The requested message is ready for approval.')).toBe(false)
     expect(thread.find((message) => message.role === 'user')?.content).not.toContain('Task contract:')
   } finally {
     await app.close()

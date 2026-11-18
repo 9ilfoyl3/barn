@@ -178,8 +178,8 @@ test('shows needs-you, in-progress, and recent tasks with usable actions', async
     await expect(proposedRow.locator('.task-status')).toHaveText('Completed', { timeout: 15_000 })
 
     const completedRow = page.locator('.task-row', { hasText: 'Finished background report' })
-    await completedRow.getByRole('button', { name: 'Open' }).click()
-    await expect(page.locator('.conversation-surface')).toContainText('Task finished from the inbox.')
+    await completedRow.getByRole('button', { name: 'View details', exact: true }).click()
+    await expect(page.locator('.task-detail-page')).toContainText('Task finished from the inbox.')
     await expect(page.getByRole('button', { name: /New session/i })).toHaveCount(0)
   } finally {
     await app.close()
@@ -253,7 +253,7 @@ test('requires durable approval before a task can resume', async () => {
     const row = page.locator('.task-row', { hasText: 'Send the approved draft' })
     await expect(row).toContainText('Waiting')
     await expect(row).toContainText('Send the prepared draft externally.')
-    await row.getByRole('button', { name: 'Approve' }).click()
+    await row.getByRole('button', { name: 'Approve', exact: true }).click()
     await expect(row.locator('.task-status')).toHaveText('Completed', { timeout: 15_000 })
     const approval = await page.evaluate(
       (approvalId) => window.barn.approvals.get(approvalId),

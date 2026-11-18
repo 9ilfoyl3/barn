@@ -317,3 +317,18 @@
     justify-content: flex-start;
   }
 }
+
+.task-row-title-button {
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+
+.task-row-title-button:hover h3 {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}

@@ -53,9 +53,11 @@ test('observes and acts inside open Shadow DOM and same-origin iframes', async (
     const composer = page.getByLabel('Message Barn')
     await composer.fill('Fill controls inside the nested page regions.')
     await composer.press('Enter')
-    await expect(page.getByText('Nested action completed.').last()).toBeVisible({ timeout: 20_000 })
+    await expect.poll(async () => page.evaluate(async () => (await window.barn.tasks.list())[0]?.status), { timeout: 20_000 }).toBe('completed')
     await expect.poll(async () => page.evaluate(() => window.barn.browser.getState().then((state) => state.title))).toBe('Shadow:Ada / Frame:Hello')
-    await expect(page.getByTestId('browser-panel')).toBeVisible()
+    await expect(page.getByTestId('browser-panel')).toHaveCount(0)
+    await page.locator('.task-rail-card').click()
+    await expect(page.locator('.task-detail-page')).toContainText('Nested action completed.')
   } finally {
     await app.close()
     await new Promise<void>((resolve, reject) => modelServer.close((error) => error === undefined ? resolve() : reject(error)))

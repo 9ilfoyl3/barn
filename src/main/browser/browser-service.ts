@@ -134,7 +134,6 @@ export class BrowserService {
     } else if (this.activeTabId === tabId) {
       const next = this.tabs[Math.min(index, this.tabs.length - 1)]
       this.activeTabId = next?.id
-      this.visibleState = this.openState
     }
     this.showActiveTab()
     this.emit()
@@ -163,9 +162,17 @@ export class BrowserService {
   }
 
   async loadUrl(url: string): Promise<BrowserState> {
+    return this.loadUrlWithVisibility(url, true)
+  }
+
+  async loadUrlInBackground(url: string): Promise<BrowserState> {
+    return this.loadUrlWithVisibility(url, false)
+  }
+
+  private async loadUrlWithVisibility(url: string, visible: boolean): Promise<BrowserState> {
     const tab = this.ensureTab()
     this.openState = true
-    this.visibleState = true
+    this.visibleState = visible
     this.attachTab(tab)
     this.showActiveTab()
     const normalized = normalizeBrowserUrl(url)
@@ -186,6 +193,32 @@ export class BrowserService {
   async newTabAndLoad(url: string): Promise<BrowserState> {
     this.newTab()
     return this.loadUrl(url)
+  }
+
+  newTabInBackground(url?: string): BrowserState {
+    const tab = this.createTab(url === undefined ? 'about:blank' : normalizeBrowserUrl(url))
+    this.activeTabId = tab.id
+    this.openState = true
+    this.visibleState = false
+    this.showActiveTab()
+    this.emit()
+    return this.getState()
+  }
+
+  async newTabAndLoadInBackground(url: string): Promise<BrowserState> {
+    this.newTabInBackground('about:blank')
+    return this.loadUrlInBackground(url)
+  }
+
+  activateTabInBackground(tabId: string): BrowserState {
+    const tab = this.tabs.find((candidate) => candidate.id === tabId)
+    if (tab === undefined) throw new Error(`Unknown browser tab: ${tabId}`)
+    this.activeTabId = tab.id
+    this.openState = true
+    this.visibleState = false
+    this.showActiveTab()
+    this.emit()
+    return this.getState()
   }
 
   async observe(options: { textLimit: number; maxElements: number }): Promise<PageSnapshot> {
@@ -299,7 +332,7 @@ export class BrowserService {
     this.visibleState = false
   }
 
-  private createTab(url: string): BrowserTab {
+  private createTab(url: string, title = ''): BrowserTab {
     const view = new WebContentsView({
       webPreferences: {
         session: this.browserSession,
@@ -316,7 +349,7 @@ export class BrowserService {
       view,
       attached: false,
       url,
-      title: '',
+      title,
       loading: false,
     }
     this.tabs.push(tab)
@@ -435,7 +468,7 @@ export class BrowserService {
     const validTabs = snapshot.tabs.filter((tab) => isAllowedBrowserUrl(tab.url))
     if (validTabs.length === 0) return undefined
     this.history.push(...(snapshot.history ?? []).filter((entry) => isAllowedBrowserUrl(entry.url)).slice(0, 20))
-    const created = validTabs.map((tab) => this.createTab(tab.url))
+    const created = validTabs.map((tab) => this.createTab(tab.url, tab.title))
     this.activeTabId = created[Math.min(snapshot.activeIndex, created.length - 1)]?.id
     return this.activeTab()
   }

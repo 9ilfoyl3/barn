@@ -5,9 +5,11 @@ import type { VisibleResultCard } from '../shared/models'
 export function AssistantResult({
   card,
   onOpenLink,
+  onOpenTask,
 }: {
   card: VisibleResultCard
   onOpenLink: (url: string) => void
+  onOpenTask?: () => void
 }) {
   const { t } = useTranslation()
   const Icon = resultIcon(card.kind)
@@ -29,15 +31,23 @@ export function AssistantResult({
         />
       )}
       {card.description !== undefined && <p className="assistant-result-description">{card.description}</p>}
-      {(card.meta !== undefined || card.href !== undefined) && (
+      {(card.meta !== undefined || card.href !== undefined || onOpenTask !== undefined) && (
         <footer className="assistant-result-footer">
           {card.meta !== undefined && <span>{card.meta}</span>}
-          {card.href !== undefined && (
-            <button type="button" onClick={() => onOpenLink(card.href!)}>
-              {t('secretary.openResult')}
-              <ExternalLink size={12} aria-hidden="true" />
-            </button>
-          )}
+          <span className="assistant-result-actions">
+            {onOpenTask !== undefined && (
+              <button type="button" onClick={onOpenTask}>
+                {t('tasks.openDetails')}
+                <ListChecks size={12} aria-hidden="true" />
+              </button>
+            )}
+            {card.href !== undefined && (
+              <button type="button" onClick={() => onOpenLink(card.href!)}>
+                {t('secretary.openResult')}
+                <ExternalLink size={12} aria-hidden="true" />
+              </button>
+            )}
+          </span>
         </footer>
       )}
     </section>

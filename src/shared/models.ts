@@ -268,6 +268,7 @@ export interface AgentPromptOptions {
   visibleMetadata?: Record<string, unknown>
   clientMessageIdPrefix?: string
   visibleActivity?: boolean
+  projectAssistantMessage?: boolean
   toolPolicy?: 'default' | 'none'
 }
 

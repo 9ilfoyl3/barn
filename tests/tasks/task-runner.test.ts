@@ -178,6 +178,88 @@ describe('TaskRunner', () => {
     h.sessions.close()
   })
 
+  it('cancels the old run and requeues a task when Router reroutes it', async () => {
+    const h = await harness()
+    h.runner.start()
+    const task = h.tasks.create({
+      title: 'Search recent news',
+      origin: 'user',
+      prompt: 'Search recent news on Xinhua.',
+    })
+    const firstRun = await waitForTask(h.tasks, task.id, (current) => current.status === 'running')
+
+    h.tasks.reroute(task.id, 'Use Baidu instead of Xinhua.')
+    await vi.waitFor(() => expect(h.agent.cancel).toHaveBeenCalledWith(firstRun.sessionId))
+    const reroutedRun = await vi.waitFor(async () => {
+      const current = h.tasks.get(task.id)
+      expect(current.status).toBe('running')
+      expect(current.sessionId).not.toBe(firstRun.sessionId)
+      return current
+    })
+    expect(reroutedRun.prompt).toContain('Use Baidu instead of Xinhua.')
+    expect(h.agent.prompt).toHaveBeenLastCalledWith(
+      reroutedRun.sessionId,
+      expect.stringContaining('Use Baidu instead of Xinhua.'),
+      [],
+      undefined,
+      expect.anything(),
+      expect.objectContaining({ projectAssistantMessage: false }),
+    )
+    h.agent.emit({
+      type: 'run.status',
+      sessionId: reroutedRun.sessionId!,
+      runId: 'run-rerouted',
+      status: 'idle',
+    })
+    await waitForTask(h.tasks, task.id, (current) => current.status === 'completed')
+    h.runner.stop()
+    h.sessions.close()
+  })
+
+  it('does not fail a requeued task when the cancelled run rejects its prompt', async () => {
+    const h = await harness()
+    let rejectFirstPrompt: ((error: Error) => void) | undefined
+    h.agent.prompt.mockImplementationOnce(() => new Promise((_resolve, reject) => {
+      rejectFirstPrompt = reject
+    }))
+    h.runner.start()
+    const task = h.tasks.create({ title: 'Search news', origin: 'user', prompt: 'Search on Xinhua.' })
+    const firstRun = await waitForTask(h.tasks, task.id, (current) => current.status === 'running')
+
+    h.tasks.reroute(task.id, 'Use Baidu instead.')
+    await vi.waitFor(() => expect(h.agent.cancel).toHaveBeenCalledWith(firstRun.sessionId))
+    rejectFirstPrompt?.(new Error('Worker cancelled'))
+    const reroutedRun = await waitForTask(h.tasks, task.id, (current) => (
+      current.status === 'running' && current.sessionId !== firstRun.sessionId
+    ))
+    expect(reroutedRun.status).toBe('running')
+
+    h.agent.emit({
+      type: 'run.status',
+      sessionId: reroutedRun.sessionId!,
+      runId: 'run-after-cancel-race',
+      status: 'idle',
+    })
+    await waitForTask(h.tasks, task.id, (current) => current.status === 'completed')
+    h.runner.stop()
+    h.sessions.close()
+  })
+
+  it('runs independent tasks in parallel up to the configured concurrency', async () => {
+    const h = await harness(2)
+    h.runner.start()
+    const first = h.tasks.create({ title: 'First', origin: 'user', prompt: 'Run first.' })
+    const second = h.tasks.create({ title: 'Second', origin: 'user', prompt: 'Run second.' })
+
+    await vi.waitFor(() => {
+      expect(h.tasks.get(first.id).status).toBe('running')
+      expect(h.tasks.get(second.id).status).toBe('running')
+    })
+    expect(h.agent.prompt).toHaveBeenCalledTimes(2)
+    h.runner.stop()
+    h.sessions.close()
+  })
+
   it('cancels the active Session when the task is cancelled', async () => {
     const h = await harness()
     h.runner.start()

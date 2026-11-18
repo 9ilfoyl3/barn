@@ -112,7 +112,7 @@ export class BrowserToolService {
       switch (toolName) {
         case 'browser_open': {
           const input = openInput.parse(rawArgs)
-          const state = await browser.loadUrl(input.url)
+          const state = await browser.loadUrlInBackground(input.url)
           return {
             content: [{
               type: 'text',
@@ -170,9 +170,9 @@ export class BrowserToolService {
           const input = tabInput.parse(rawArgs)
           let state = browser.getState()
           if (input.action === 'new') {
-            state = input.url === undefined ? browser.newTab() : await browser.newTabAndLoad(input.url)
+            state = input.url === undefined ? browser.newTabInBackground() : await browser.newTabAndLoadInBackground(input.url)
           } else if (input.action === 'select') {
-            state = browser.activateTab(input.tabId)
+            state = browser.activateTabInBackground(input.tabId)
           } else if (input.action === 'close') {
             state = browser.closeTab(input.tabId)
           }

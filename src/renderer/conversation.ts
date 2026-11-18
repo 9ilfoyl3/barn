@@ -29,6 +29,7 @@ export interface ChatMessage {
   isError: boolean
   resultCard?: VisibleResultCard
   routerRequestId?: string
+  taskId?: string
 }
 
 export type ConversationDisplayPart =
@@ -287,6 +288,7 @@ export function chatMessagesFromThread(messages: VisibleMessage[]): ChatMessage[
     const routerRequestId = typeof message.metadata.routerRequestId === 'string'
       ? message.metadata.routerRequestId
       : undefined
+    const taskId = typeof message.metadata.taskId === 'string' ? message.metadata.taskId : undefined
     return [{
       key: `thread:${message.id}`,
       role: message.role,
@@ -295,6 +297,7 @@ export function chatMessagesFromThread(messages: VisibleMessage[]): ChatMessage[
       isError: false,
       ...(resultCard === undefined ? {} : { resultCard }),
       ...(routerRequestId === undefined ? {} : { routerRequestId }),
+      ...(taskId === undefined ? {} : { taskId }),
     }]
   })
 }
@@ -333,6 +336,7 @@ export function mergeThreadAndSessionMessages(
           key: threadMessage.key,
           ...(threadMessage.resultCard === undefined ? {} : { resultCard: threadMessage.resultCard }),
           ...(threadMessage.routerRequestId === undefined ? {} : { routerRequestId: threadMessage.routerRequestId }),
+          ...(threadMessage.taskId === undefined ? {} : { taskId: threadMessage.taskId }),
         }
   })
 }
