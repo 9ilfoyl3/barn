@@ -67,6 +67,25 @@ test('renders the sessionless personal-secretary workspace and structured result
     await expect(page.locator('.assistant-result')).toBeVisible()
     await expect(page.locator('.assistant-result')).toContainText('Review the Q4 planning note')
     await expect(page.locator('.secretary-shell')).toBeVisible()
+    await expect(page.locator('.app-topbar .secretary-search')).toBeVisible()
+    await expect(page.locator('.app-rail')).toBeVisible()
+    await expect(page.locator('.today-panel-heading')).toBeVisible()
+    await expect(page.locator('.task-rail')).toBeVisible()
+    await expect(page.locator('.barn-prompt-inline')).toBeVisible()
+
+    const layout = await page.evaluate(() => {
+      const bounds = (selector: string) => document.querySelector(selector)!.getBoundingClientRect()
+      return {
+        rail: bounds('.app-rail'),
+        workspace: bounds('.workspace-shell'),
+        routines: bounds('.today-home-column'),
+        conversation: bounds('.conversation-view'),
+        tasks: bounds('.task-rail'),
+      }
+    })
+    expect(layout.rail.right).toBeLessThanOrEqual(layout.workspace.left)
+    expect(layout.routines.right).toBeLessThanOrEqual(layout.conversation.left)
+    expect(layout.conversation.right).toBeLessThanOrEqual(layout.tasks.left)
     await expect(page.locator('.session-row')).toHaveCount(0)
     await expect(page.getByRole('button', { name: /New session/i })).toHaveCount(0)
     await expect(page.getByText('Side Chat', { exact: true })).toHaveCount(0)

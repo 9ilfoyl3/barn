@@ -25,7 +25,6 @@ test('opens the personal secretary workspace and model configuration', async () 
       await Promise.all(element.getAnimations().map((animation) => animation.finished))
     })
 
-    await expect(window.getByRole('heading', { name: /Good (morning|afternoon|evening)/ })).toBeVisible()
     await expect(window.getByRole('heading', { name: 'Routines' })).toBeVisible()
     await expect(window.getByRole('heading', { name: 'Tasks' })).toBeVisible()
     await expect(window.locator('.secretary-presence')).toBeVisible()
@@ -117,7 +116,7 @@ test('applies and persists a Simplified Chinese language preference', async () =
     await page.reload()
 
     await expect(page.locator('html')).toHaveAttribute('lang', 'zh-CN')
-    await expect(page.getByRole('heading', { name: '今天需要处理什么？' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: '你起个头，剩下的交给 Barn' })).toBeVisible()
     await expect(page.getByLabel('给 Barn 发消息')).toBeVisible()
     await expect(page.getByRole('button', { name: '主页' })).toBeVisible()
 
@@ -161,7 +160,7 @@ test('applies and persists a Simplified Chinese language preference', async () =
     const page = await restoredApp.firstWindow()
     await page.waitForLoadState('domcontentloaded')
     await expect(page.locator('html')).toHaveAttribute('lang', 'zh-CN')
-    await expect(page.getByRole('heading', { name: '今天需要处理什么？' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: '你起个头，剩下的交给 Barn' })).toBeVisible()
   } finally {
     await restoredApp.close()
   }
