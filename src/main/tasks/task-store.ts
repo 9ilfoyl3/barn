@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto'
 import type { DatabaseSync } from 'node:sqlite'
 import type { AesGcmEventCipher } from '../session/event-cipher'
 import type {
+  AttachmentDescriptor,
   CreateTaskInput,
   Task,
   TaskOrigin,
@@ -38,6 +39,10 @@ interface TaskRow {
   visible_prompt_ciphertext: Uint8Array | null
   visible_prompt_nonce: Uint8Array | null
   visible_prompt_tag: Uint8Array | null
+  working_directory: string | null
+  attachments_ciphertext: Uint8Array | null
+  attachments_nonce: Uint8Array | null
+  attachments_tag: Uint8Array | null
   waiting_reason: string | null
   detail: string | null
   created_at: string
@@ -68,6 +73,10 @@ export class TaskStore {
         visible_prompt_ciphertext BLOB,
         visible_prompt_nonce BLOB,
         visible_prompt_tag BLOB,
+        working_directory TEXT,
+        attachments_ciphertext BLOB,
+        attachments_nonce BLOB,
+        attachments_tag BLOB,
         waiting_reason TEXT,
         detail TEXT,
         created_at TEXT NOT NULL,
@@ -106,19 +115,25 @@ export class TaskStore {
     if (input.sessionId !== undefined) task.sessionId = input.sessionId
     if (input.prompt !== undefined) task.prompt = normalizePrompt(input.prompt)
     if (input.visiblePrompt !== undefined) task.visiblePrompt = normalizePrompt(input.visiblePrompt)
+    if (input.workingDirectory !== undefined) task.workingDirectory = normalizeWorkingDirectory(input.workingDirectory)
+    if (input.attachments !== undefined) task.attachments = normalizeAttachments(input.attachments)
     const encryptedPrompt = task.prompt === undefined
       ? undefined
       : this.cipher.encrypt(task.prompt, promptAssociatedData(task.id))
     const encryptedVisiblePrompt = task.visiblePrompt === undefined
       ? undefined
       : this.cipher.encrypt(task.visiblePrompt, visiblePromptAssociatedData(task.id))
+    const encryptedAttachments = task.attachments === undefined
+      ? undefined
+      : this.cipher.encrypt(JSON.stringify(task.attachments), attachmentsAssociatedData(task.id))
     this.database.prepare(`
       INSERT INTO tasks (
         id, title, status, origin, session_id, approval_id,
         prompt_ciphertext, prompt_nonce, prompt_tag,
         visible_prompt_ciphertext, visible_prompt_nonce, visible_prompt_tag,
+        working_directory, attachments_ciphertext, attachments_nonce, attachments_tag,
         waiting_reason, detail, created_at, updated_at, started_at, finished_at
-      ) VALUES (?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, NULL, NULL, ?, ?, NULL, NULL)
+      ) VALUES (?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, ?, ?, NULL, NULL)
     `).run(
       task.id,
       task.title,
@@ -131,6 +146,10 @@ export class TaskStore {
       encryptedVisiblePrompt?.ciphertext ?? null,
       encryptedVisiblePrompt?.nonce ?? null,
       encryptedVisiblePrompt?.tag ?? null,
+      task.workingDirectory ?? null,
+      encryptedAttachments?.ciphertext ?? null,
+      encryptedAttachments?.nonce ?? null,
+      encryptedAttachments?.tag ?? null,
       now,
       now,
     )
@@ -270,6 +289,7 @@ export class TaskStore {
     }
     if (row.session_id !== null) task.sessionId = row.session_id
     if (row.approval_id !== null) task.approvalId = row.approval_id
+    if (row.working_directory !== null) task.workingDirectory = row.working_directory
     if (row.waiting_reason !== null) task.waitingReason = requireWaitingReason(row.waiting_reason)
     if (row.detail !== null) task.detail = row.detail
     if (row.started_at !== null) task.startedAt = row.started_at
@@ -292,6 +312,16 @@ export class TaskStore {
         tag: row.visible_prompt_tag!,
       }, visiblePromptAssociatedData(row.id)) as string
     }
+    const attachmentFields = [row.attachments_ciphertext, row.attachments_nonce, row.attachments_tag]
+    if (attachmentFields.some((field) => field !== null)) {
+      if (attachmentFields.some((field) => field === null)) throw new Error(`Incomplete encrypted attachments for task: ${row.id}`)
+      const raw = this.cipher.decrypt({
+        ciphertext: row.attachments_ciphertext!,
+        nonce: row.attachments_nonce!,
+        tag: row.attachments_tag!,
+      }, attachmentsAssociatedData(row.id)) as string
+      task.attachments = normalizeAttachments(JSON.parse(raw) as AttachmentDescriptor[])
+    }
     return task
   }
 
@@ -307,6 +337,10 @@ export class TaskStore {
       ['visible_prompt_ciphertext', 'BLOB'],
       ['visible_prompt_nonce', 'BLOB'],
       ['visible_prompt_tag', 'BLOB'],
+      ['working_directory', 'TEXT'],
+      ['attachments_ciphertext', 'BLOB'],
+      ['attachments_nonce', 'BLOB'],
+      ['attachments_tag', 'BLOB'],
     ] as const
     for (const [name, type] of additions) {
       if (!columns.has(name)) this.database.exec(`ALTER TABLE tasks ADD COLUMN ${name} ${type}`)
@@ -344,6 +378,34 @@ function promptAssociatedData(taskId: string): string {
 
 function visiblePromptAssociatedData(taskId: string): string {
   return `task:${taskId}:visible-prompt`
+}
+
+function attachmentsAssociatedData(taskId: string): string {
+  return `task:${taskId}:attachments`
+}
+
+function normalizeWorkingDirectory(value: string): string {
+  const directory = value.trim()
+  if (directory.length === 0) throw new Error('Task working directory cannot be empty')
+  if (directory.length > 4_000) throw new Error('Task working directory must be 4,000 characters or fewer')
+  return directory
+}
+
+function normalizeAttachments(value: AttachmentDescriptor[]): AttachmentDescriptor[] {
+  if (value.length > 50) throw new Error('A task can include at most 50 attachments')
+  return value.map((attachment) => {
+    const name = attachment.name.trim()
+    const path = attachment.path.trim()
+    if (name.length === 0 || name.length > 500) throw new Error('Task attachment name is invalid')
+    if (path.length === 0 || path.length > 4_000) throw new Error('Task attachment path is invalid')
+    if (!Number.isInteger(attachment.size) || attachment.size < 0) throw new Error('Task attachment size is invalid')
+    return {
+      name,
+      path,
+      size: attachment.size,
+      ...(attachment.kind === 'file' || attachment.kind === 'directory' ? { kind: attachment.kind } : {}),
+    }
+  })
 }
 
 function normalizeDetail(value: string | undefined): string | null {

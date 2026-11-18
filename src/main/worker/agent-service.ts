@@ -28,6 +28,7 @@ export class AgentService {
     includeMemory: boolean
     visibleMetadata: Record<string, unknown>
     clientMessageIdPrefix: string
+    memoryRefs: string[]
   }>()
 
   constructor(
@@ -35,7 +36,7 @@ export class AgentService {
     private readonly models: ModelService,
     private readonly sessions: SessionStore,
     private readonly tools: ToolService,
-    private readonly memory?: Pick<MemoryService, 'contextForPrompt'>,
+    private readonly memory?: Pick<MemoryService, 'contextForPrompt' | 'contextForPromptWithSources'>,
     private readonly threads?: Pick<ThreadService, 'appendMessage'>,
   ) {
     this.broker = new ModelStreamBroker(models, (message) => supervisor.post(message))
@@ -64,6 +65,7 @@ export class AgentService {
       includeMemory: options.includeMemory !== false,
       visibleMetadata: options.visibleMetadata ?? {},
       clientMessageIdPrefix: options.clientMessageIdPrefix ?? `session-assistant:${sessionId}`,
+      memoryRefs: [],
     })
     try {
       const snapshot = await this.models.getSnapshot()
@@ -136,9 +138,13 @@ export class AgentService {
         : `\n\nAttached files and folders:\n${attachments.map((file) => `- ${file.path}`).join('\n')}`
       let memoryContext = ''
       try {
-        memoryContext = options.includeMemory === false
-          ? ''
-          : this.memory?.contextForPrompt(trimmed, workingDirectory, sessionId) ?? ''
+        if (options.includeMemory !== false) {
+          const memory = this.memory?.contextForPromptWithSources(trimmed, workingDirectory, sessionId)
+            ?? { context: this.memory?.contextForPrompt(trimmed, workingDirectory, sessionId) ?? '', sourceRefs: [] }
+          memoryContext = memory.context
+          const projection = this.promptProjections.get(sessionId)
+          if (projection !== undefined) projection.memoryRefs = memory.sourceRefs
+        }
       } catch {
         // Memory is an enhancement; a retrieval failure must not block the user's prompt.
       }
@@ -149,9 +155,11 @@ export class AgentService {
       )
       if (startingRun.cancelRequested) await this.supervisor.cancel(sessionId)
       return this.sessions.getSession(sessionId)
+    } catch (error) {
+      this.promptProjections.delete(sessionId)
+      throw error
     } finally {
       if (this.startingRuns.get(sessionId) === startingRun) this.startingRuns.delete(sessionId)
-      this.promptProjections.delete(sessionId)
     }
   }
 
@@ -237,6 +245,7 @@ export class AgentService {
         if (message.status === 'idle' || message.status === 'failed') {
           this.sessions.markResultUnread(message.sessionId)
         }
+        if (message.status !== 'running') this.promptProjections.delete(message.sessionId)
         this.emit({
           type: 'run.status',
           sessionId: message.sessionId,
@@ -312,8 +321,12 @@ export class AgentService {
         sessionId,
         sessionEventId: event.eventId,
         ...projection?.visibleMetadata,
+        ...(projection?.memoryRefs.length ? { memoryRefs: projection.memoryRefs } : {}),
       },
-      sourceRefs: [`session:${sessionId}:event:${event.eventId}`],
+      sourceRefs: [
+        `session:${sessionId}:event:${event.eventId}`,
+        ...(projection?.memoryRefs ?? []),
+      ],
     })
   }
 
@@ -322,6 +335,7 @@ export class AgentService {
     this.broker.abortAll()
     for (const controller of this.activeTools.values()) controller.abort()
     this.activeTools.clear()
+    this.promptProjections.clear()
     for (const sessionId of this.openSessions.keys()) {
       try {
         this.sessions.updateStatus(sessionId, 'failed')
@@ -335,6 +349,7 @@ export class AgentService {
   }
 
   private finishCancelledStart(sessionId: string): void {
+    this.promptProjections.delete(sessionId)
     this.sessions.updateStatus(sessionId, 'idle')
     this.emit({
       type: 'run.status',

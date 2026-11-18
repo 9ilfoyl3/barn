@@ -50,7 +50,8 @@ test('routes a high-confidence side-effect request through the durable Task path
     await composer.fill(request)
     await composer.press('Enter')
 
-    await expect(page.locator('.delegation-notice')).toBeVisible()
+    await expect(page.locator('.router-message-state')).toContainText('Task queued')
+    await expect(page.getByText(`I’ve queued “${request}” as a task.`)).toBeVisible()
     await expect.poll(async () => page.evaluate(async () => (await window.barn.tasks.list()).length)).toBe(1)
     const task = await page.evaluate(async () => (await window.barn.tasks.list())[0])
     expect(task).toMatchObject({ title: request, origin: 'user' })
@@ -62,7 +63,11 @@ test('routes a high-confidence side-effect request through the durable Task path
     const thread = await page.evaluate(async () => (await window.barn.threads.getSnapshot()).messages)
     expect(thread).toEqual(expect.arrayContaining([
       expect.objectContaining({ role: 'user', content: request }),
-      expect.objectContaining({ role: 'assistant', content: 'The requested message is ready for approval.' }),
+      expect.objectContaining({
+        role: 'assistant',
+        content: 'The requested message is ready for approval.',
+        metadata: expect.objectContaining({ taskId: task!.id }),
+      }),
     ]))
     expect(thread.find((message) => message.role === 'user')?.content).not.toContain('Task contract:')
   } finally {

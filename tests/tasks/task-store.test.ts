@@ -41,6 +41,32 @@ describe('TaskStore', () => {
     reopened.close()
   })
 
+  it('persists execution attachments and the selected working directory with the task', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'barn-task-store-'))
+    const key = randomBytes(32)
+    const store = await openStore(directory, key)
+    const task = store.tasks.create({
+      title: 'Inspect a project folder',
+      origin: 'user',
+      prompt: 'Inspect the attached materials.',
+      workingDirectory: '/tmp/selected-project',
+      attachments: [{
+        name: 'brief.pdf',
+        path: '/tmp/brief.pdf',
+        size: 42,
+        kind: 'file',
+      }],
+    })
+    store.close()
+
+    const reopened = await openStore(directory, key)
+    expect(reopened.tasks.get(task.id)).toMatchObject({
+      workingDirectory: '/tmp/selected-project',
+      attachments: [{ name: 'brief.pdf', path: '/tmp/brief.pdf', size: 42, kind: 'file' }],
+    })
+    reopened.close()
+  })
+
   it('encrypts task instructions at rest and fails closed with another key', async () => {
     const directory = await mkdtemp(join(tmpdir(), 'barn-task-store-'))
     const path = join(directory, 'sessions.db')

@@ -133,6 +133,15 @@ export class MemoryStore {
         generate_memories INTEGER NOT NULL DEFAULT 1
       );
 
+      CREATE TABLE IF NOT EXISTS memory_thread_state (
+        id INTEGER PRIMARY KEY CHECK (id = 1),
+        last_processed_seq INTEGER NOT NULL DEFAULT 0,
+        last_processed_at TEXT,
+        last_error TEXT,
+        attempts INTEGER NOT NULL DEFAULT 0,
+        next_attempt_at TEXT
+      );
+
       CREATE TABLE IF NOT EXISTS memory_history (
         id TEXT PRIMARY KEY,
         memory_id TEXT NOT NULL,
@@ -148,6 +157,10 @@ export class MemoryStore {
       );
     `)
     this.ensureOptionalColumns()
+    this.database.prepare(`
+      INSERT OR IGNORE INTO memory_thread_state (id, last_processed_seq, attempts)
+      VALUES (1, 0, 0)
+    `).run()
     this.database.prepare(`
       INSERT OR IGNORE INTO memory_settings (
         id, enabled, use_memories, generate_memories, idle_minutes, max_entries
@@ -428,6 +441,51 @@ export class MemoryStore {
         generate_memories = excluded.generate_memories
     `).run(sessionId, next.useMemories ? 1 : 0, next.generateMemories ? 1 : 0)
     return next
+  }
+
+  getPrincipalThreadExtractionState(): {
+    lastProcessedSeq: number
+    lastProcessedAt?: string
+    lastError?: string
+    attempts: number
+    nextAttemptAt?: string
+  } {
+    const row = this.database.prepare(`
+      SELECT last_processed_seq, last_processed_at, last_error, attempts, next_attempt_at
+      FROM memory_thread_state WHERE id = 1
+    `).get() as {
+      last_processed_seq: number
+      last_processed_at: string | null
+      last_error: string | null
+      attempts: number
+      next_attempt_at: string | null
+    }
+    return {
+      lastProcessedSeq: row.last_processed_seq,
+      attempts: row.attempts,
+      ...(row.last_processed_at === null ? {} : { lastProcessedAt: row.last_processed_at }),
+      ...(row.last_error === null ? {} : { lastError: row.last_error }),
+      ...(row.next_attempt_at === null ? {} : { nextAttemptAt: row.next_attempt_at }),
+    }
+  }
+
+  markPrincipalThreadExtractionSuccess(seq: number): void {
+    const now = new Date().toISOString()
+    this.database.prepare(`
+      UPDATE memory_thread_state
+      SET last_processed_seq = ?, last_processed_at = ?, last_error = NULL,
+          attempts = 0, next_attempt_at = NULL
+      WHERE id = 1
+    `).run(seq, now)
+  }
+
+  markPrincipalThreadExtractionFailure(seq: number, error: string, nextAttemptAt: string): void {
+    this.database.prepare(`
+      UPDATE memory_thread_state
+      SET last_processed_seq = ?, last_error = ?, attempts = attempts + 1,
+          next_attempt_at = ?
+      WHERE id = 1
+    `).run(seq, error.slice(0, 2_000), nextAttemptAt)
   }
 
   eligibleSessions(

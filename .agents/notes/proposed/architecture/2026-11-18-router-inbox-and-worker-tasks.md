@@ -185,6 +185,28 @@ Thread behavior:
 - Router replies may appear later and remain anchored to their request;
 - Task activity is rendered as progress and result blocks, not raw model thinking.
 
+### Accurate long-term memory
+
+Long-term memory is part of Router correctness, not a post-routing enhancement.
+
+- Router and Workers may retrieve only confirmed `active` memories with unexpired validity.
+- Every retrieval returns source refs; the visible Assistant message records the exact memory refs used.
+- Inferred memories are written as `candidate` and never enter retrieval until confirmation.
+- Principal Thread extraction is the canonical learning path. It processes bounded Thread windows only when the Router lane is idle.
+- Extraction evidence must come from user messages. Assistant prose and tool output are context, not proof of a user preference or decision.
+- Each candidate records message-level source refs, authority, confidence, scope, and the extraction window.
+- Confirming, correcting, superseding, or deleting a memory creates a new version or archive transition; retrieval never silently mutates an old fact.
+- A retrieval or extraction failure is non-blocking and retries with backoff.
+- Session-based extraction remains only for legacy/non-Principal-Thread paths; the default sessionless product learns from the Principal Thread once, rather than independently from every internal execution Session.
+
+### Delivery phases
+
+1. **Durable admission and UI queue:** Router Inbox, atomic user-message admission, FIFO Router lane, queue state, cancellation, and continued Composer input.
+2. **Delegation and Worker results:** Router decisions create durable Tasks; Worker Runs carry Task and inbound-request anchors; results project back without raw Session history.
+3. **Recovery and safety:** leases, restart recovery, duplicate suppression, Task cancellation, approval boundaries, and unknown-effect handling.
+4. **Accurate long-term memory:** confirmed-memory retrieval, used-memory provenance, Principal Thread candidate extraction, and confirmation before activation.
+5. **Evaluation and hardening:** golden routing set, queue/restart E2E, memory precision tests, task-result attribution tests, and operational diagnostics.
+
 ### Comma design reference
 
 The parts worth adopting from Comma are conceptual, not implementation-specific:

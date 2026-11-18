@@ -66,20 +66,21 @@ test('renders streamdown tables and code blocks without overlapping controls', a
     await composer.press('Enter')
 
     await expect(page.locator('.markdown-table-wrap')).toBeVisible({ timeout: 15_000 })
-    await expect(page.locator('.assistant-markdown h2')).toBeVisible()
-    await expect(page.locator('.assistant-markdown pre')).toBeVisible()
+    const assistantMarkdown = page.locator('.assistant-markdown').last()
+    await expect(assistantMarkdown.locator('h2')).toBeVisible()
+    await expect(assistantMarkdown.locator('pre')).toBeVisible()
 
     const tableBox = await page.locator('.markdown-table-wrap').boundingBox()
     const followupBox = await page.getByText('需要您确认的问题（按影响排序）', { exact: true }).boundingBox()
     if (tableBox === null || followupBox === null) throw new Error('Missing markdown layout boxes')
     expect(followupBox.y).toBeGreaterThanOrEqual(tableBox.y + tableBox.height - 1)
 
-    const assistantBox = await page.locator('.assistant-markdown').boundingBox()
-    const preBox = await page.locator('.assistant-markdown pre').boundingBox()
+    const assistantBox = await assistantMarkdown.boundingBox()
+    const preBox = await assistantMarkdown.locator('pre').boundingBox()
     if (assistantBox === null || preBox === null) throw new Error('Missing code layout boxes')
     expect(preBox.x).toBeGreaterThanOrEqual(assistantBox.x)
     expect(preBox.x + preBox.width).toBeLessThanOrEqual(assistantBox.x + assistantBox.width + 1)
-    await expect(page.locator('.assistant-markdown pre button')).toHaveCount(0)
+    await expect(assistantMarkdown.locator('pre button')).toHaveCount(0)
     await expect(page.getByText('需要您确认的问题（按影响排序）', { exact: true })).toBeVisible()
     await page.screenshot({ path: 'test-results/barn-markdown.png', fullPage: true })
   } finally {

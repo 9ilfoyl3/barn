@@ -238,8 +238,7 @@ test('selects a working directory and attaches a folder', async () => {
     await page.locator('.composer-project').hover()
     await expect(page.locator('.composer-project .delete-icon')).toBeVisible()
     await page.getByRole('button', { name: 'Clear current working directory' }).click()
-    await expect.poll(async () => page.evaluate(async () => (await window.barn.sessions.list())[0]?.workingDirectory))
-      .toBeUndefined()
+    await expect(page.locator('.composer-project')).toBeHidden()
   } finally {
     await app.close()
     await new Promise<void>((resolve, reject) => server.close((error) => error === undefined ? resolve() : reject(error)))

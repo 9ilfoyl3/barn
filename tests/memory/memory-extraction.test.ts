@@ -10,6 +10,7 @@ import { MemoryExtractionService } from '../../src/main/memory/memory-extraction
 import { MemoryService } from '../../src/main/memory/memory-service'
 import { AesGcmEventCipher } from '../../src/main/session/event-cipher'
 import { SessionStore } from '../../src/main/session/session-store'
+import { ThreadService } from '../../src/main/threads/thread-service'
 
 function fakeModel(response: string): ModelService {
   const selection: ModelSelection = { providerId: 'openai', modelId: 'memory-model' }
@@ -156,6 +157,58 @@ describe('MemoryExtractionService', () => {
     await service.runOnce(new Date(Date.now() + 60 * 60 * 1_000))
 
     expect(stream).not.toHaveBeenCalled()
+    expect(store.memories.list()).toEqual([])
+    store.close()
+  })
+
+  it('extracts one provenance-linked candidate from the Principal Thread', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'barn-thread-memory-'))
+    const store = new SessionStore(join(directory, 'sessions.db'), new AesGcmEventCipher(randomBytes(32)))
+    await store.initialize()
+    store.memories.setSettings({ enabled: true, generateMemories: true, useMemories: true, idleMinutes: 0 })
+    const threads = new ThreadService(store.threads)
+    const workspace = join(directory, 'workspace')
+    await mkdir(workspace, { recursive: true })
+    const user = threads.appendMessage({
+      role: 'user',
+      content: 'For this project, always use pnpm and run tests before a PR.',
+      metadata: { workingDirectory: workspace },
+    })
+    const assistantMessage = threads.appendMessage({
+      role: 'assistant',
+      content: 'Understood. I will use pnpm and run tests before opening a PR.',
+    })
+    const model = fakeModel(JSON.stringify({
+      memories: [{
+        kind: 'procedure',
+        scope: 'workspace',
+        title: 'Project workflow',
+        content: 'Use pnpm and run tests before opening a PR.',
+        tags: ['workflow'],
+        key: 'project-workflow',
+        confidence: 0.95,
+      }],
+    }))
+    const service = new MemoryExtractionService(store, model, {
+      threads,
+      isRouterIdle: () => true,
+    })
+    const now = new Date(Date.now() + 60 * 60 * 1_000)
+
+    await service.runOnce(now)
+
+    const candidates = store.memories.listCandidates()
+    expect(candidates).toHaveLength(1)
+    expect(candidates[0]).toMatchObject({
+      title: 'Project workflow',
+      status: 'candidate',
+      sourceAuthority: 'inferred',
+      sourceSessionIds: [],
+    })
+    expect(candidates[0]?.sourceRefs).toEqual(expect.arrayContaining([
+      `thread:primary:message:${user.id}`,
+    ]))
+    expect(store.memories.getPrincipalThreadExtractionState().lastProcessedSeq).toBe(assistantMessage.seq)
     expect(store.memories.list()).toEqual([])
     store.close()
   })
