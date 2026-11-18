@@ -10,12 +10,13 @@ import { ActionStore } from '../actions/action-store'
 import { LocalSourceStore } from '../sources/local-source-store'
 import { MemoryStore } from '../memory/memory-store'
 import { ThreadStore } from '../threads/thread-store'
+import { RouterStore } from '../router/router-store'
 
 export type SessionStatus = SessionSummary['status']
 
-// Schema 7 adds the Principal Thread and visible-message history. Older schema
+// Schema 8 adds the durable Router inbox and decision log. Older schema
 // versions are upgraded in place by idempotent store initialization.
-export const CURRENT_SCHEMA_VERSION = 7
+export const CURRENT_SCHEMA_VERSION = 8
 
 export interface NewSessionEvent {
   type: string
@@ -39,6 +40,7 @@ export class SessionStore {
   readonly localSources: LocalSourceStore
   readonly memories: MemoryStore
   readonly threads: ThreadStore
+  readonly router: RouterStore
 
   constructor(
     path: string,
@@ -52,6 +54,7 @@ export class SessionStore {
     this.localSources = new LocalSourceStore(this.database, cipher)
     this.memories = new MemoryStore(this.database, cipher)
     this.threads = new ThreadStore(this.database, cipher)
+    this.router = new RouterStore(this.database)
   }
 
   async initialize(): Promise<void> {
@@ -110,6 +113,7 @@ export class SessionStore {
     this.localSources.initialize()
     this.memories.initialize()
     this.threads.initialize()
+    this.router.initialize()
     this.database.prepare(`
       INSERT INTO schema_meta (id, version, updated_at) VALUES (1, ?, ?)
       ON CONFLICT(id) DO UPDATE SET version = excluded.version, updated_at = excluded.updated_at
@@ -119,6 +123,19 @@ export class SessionStore {
       VALUES (1, 365, NULL)
     `).run()
     this.pruneEmptySessions()
+  }
+
+  /** Run a same-connection write transaction shared by multiple repositories. */
+  transaction<T>(operation: () => T): T {
+    this.database.exec('BEGIN IMMEDIATE')
+    try {
+      const result = operation()
+      this.database.exec('COMMIT')
+      return result
+    } catch (error) {
+      this.database.exec('ROLLBACK')
+      throw error
+    }
   }
 
   schemaVersion(): number {

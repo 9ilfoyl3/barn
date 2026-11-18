@@ -5,6 +5,7 @@ import type {
   SessionLiveEvent,
   SessionSummary,
   AttachmentDescriptor,
+  AgentPromptOptions,
   SessionTimelineEvent,
 } from '../../shared/models'
 import type { WorkerToHostMessage } from '../../shared/agent-protocol'
@@ -22,6 +23,12 @@ export class AgentService {
   private readonly startingRuns = new Map<string, { cancelRequested: boolean }>()
   private readonly activeTools = new Map<string, AbortController>()
   private readonly liveListeners = new Set<(event: SessionLiveEvent) => void>()
+  private readonly promptProjections = new Map<string, {
+    projectUserMessage: boolean
+    includeMemory: boolean
+    visibleMetadata: Record<string, unknown>
+    clientMessageIdPrefix: string
+  }>()
 
   constructor(
     private readonly supervisor: WorkerSupervisor,
@@ -46,11 +53,18 @@ export class AgentService {
     attachments: AttachmentDescriptor[] = [],
     workingDirectory?: string,
     visibleText?: string,
+    options: AgentPromptOptions = {},
   ): Promise<SessionSummary> {
     const trimmed = text.trim()
     if (trimmed.length === 0) throw new Error('Prompt cannot be empty')
     const startingRun = { cancelRequested: false }
     this.startingRuns.set(sessionId, startingRun)
+    this.promptProjections.set(sessionId, {
+      projectUserMessage: options.projectUserMessage !== false,
+      includeMemory: options.includeMemory !== false,
+      visibleMetadata: options.visibleMetadata ?? {},
+      clientMessageIdPrefix: options.clientMessageIdPrefix ?? `session-assistant:${sessionId}`,
+    })
     try {
       const snapshot = await this.models.getSnapshot()
       const selection = snapshot.defaultModel
@@ -90,7 +104,7 @@ export class AgentService {
         },
         actor: { kind: 'user', id: 'desktop-user' },
       }])
-      if (userEvent !== undefined) {
+      if (userEvent !== undefined && options.projectUserMessage !== false) {
         this.threads?.appendMessage({
           clientMessageId: `session-user:${userEvent.eventId}`,
           role: 'user',
@@ -122,7 +136,9 @@ export class AgentService {
         : `\n\nAttached files and folders:\n${attachments.map((file) => `- ${file.path}`).join('\n')}`
       let memoryContext = ''
       try {
-        memoryContext = this.memory?.contextForPrompt(trimmed, workingDirectory, sessionId) ?? ''
+        memoryContext = options.includeMemory === false
+          ? ''
+          : this.memory?.contextForPrompt(trimmed, workingDirectory, sessionId) ?? ''
       } catch {
         // Memory is an enhancement; a retrieval failure must not block the user's prompt.
       }
@@ -135,6 +151,7 @@ export class AgentService {
       return this.sessions.getSession(sessionId)
     } finally {
       if (this.startingRuns.get(sessionId) === startingRun) this.startingRuns.delete(sessionId)
+      this.promptProjections.delete(sessionId)
     }
   }
 
@@ -286,13 +303,15 @@ export class AgentService {
     if (message.role !== 'assistant') return
     const text = agentMessageText(message).trim()
     if (text.length === 0) return
+    const projection = this.promptProjections.get(sessionId)
     this.threads?.appendMessage({
-      clientMessageId: `session-assistant:${event.eventId}`,
+      clientMessageId: `${projection?.clientMessageIdPrefix ?? `session-assistant:${sessionId}`}:${event.eventId}`,
       role: 'assistant',
       content: text,
       metadata: {
         sessionId,
         sessionEventId: event.eventId,
+        ...projection?.visibleMetadata,
       },
       sourceRefs: [`session:${sessionId}:event:${event.eventId}`],
     })

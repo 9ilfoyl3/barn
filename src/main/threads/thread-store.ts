@@ -94,64 +94,66 @@ export class ThreadStore {
   }
 
   appendPrimaryMessage(input: AppendVisibleMessageInput): VisibleMessage {
-    const role = requireRole(input.role)
-    const clientMessageId = normalizeClientMessageId(input.clientMessageId)
-
     this.database.exec('BEGIN IMMEDIATE')
     try {
-      const thread = this.database.prepare(`
-        SELECT id, created_at, updated_at, last_visible_seq
-        FROM principal_threads WHERE id = ?
-      `).get(PRIMARY_THREAD_ID) as ThreadRow | undefined
-      if (thread === undefined) throw new Error('Primary thread is not initialized')
-
-      if (clientMessageId !== undefined) {
-        const existing = this.database.prepare(`
-          SELECT id FROM visible_messages
-          WHERE thread_id = ? AND client_message_id = ?
-        `).get(PRIMARY_THREAD_ID, clientMessageId) as { id: string } | undefined
-        if (existing !== undefined) {
-          this.database.exec('COMMIT')
-          return this.getMessage(existing.id)
-        }
-      }
-
-      const seq = thread.last_visible_seq + 1
-      const id = randomUUID()
-      const createdAt = new Date().toISOString()
-      const payload: MessagePayload = {
-        content: input.content,
-        metadata: input.metadata ?? {},
-        sourceRefs: normalizeSourceRefs(input.sourceRefs),
-      }
-      const encrypted = this.cipher.encrypt(payload, messageAssociatedData(PRIMARY_THREAD_ID, seq))
-      this.database.prepare(`
-        INSERT INTO visible_messages (
-          id, thread_id, seq, client_message_id, role,
-          payload_ciphertext, payload_nonce, payload_tag, created_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `).run(
-        id,
-        PRIMARY_THREAD_ID,
-        seq,
-        clientMessageId ?? null,
-        role,
-        encrypted.ciphertext,
-        encrypted.nonce,
-        encrypted.tag,
-        createdAt,
-      )
-      this.database.prepare(`
-        UPDATE principal_threads
-        SET last_visible_seq = ?, updated_at = ?
-        WHERE id = ?
-      `).run(seq, createdAt, PRIMARY_THREAD_ID)
+      const message = this.appendPrimaryMessageInTransaction(input)
       this.database.exec('COMMIT')
-      return this.getMessage(id)
+      return message
     } catch (error) {
       this.database.exec('ROLLBACK')
       throw error
     }
+  }
+
+  /** Append inside an existing write transaction owned by a higher-level service. */
+  appendPrimaryMessageInTransaction(input: AppendVisibleMessageInput): VisibleMessage {
+    const role = requireRole(input.role)
+    const clientMessageId = normalizeClientMessageId(input.clientMessageId)
+    const thread = this.database.prepare(`
+      SELECT id, created_at, updated_at, last_visible_seq
+      FROM principal_threads WHERE id = ?
+    `).get(PRIMARY_THREAD_ID) as ThreadRow | undefined
+    if (thread === undefined) throw new Error('Primary thread is not initialized')
+
+    if (clientMessageId !== undefined) {
+      const existing = this.database.prepare(`
+        SELECT id FROM visible_messages
+        WHERE thread_id = ? AND client_message_id = ?
+      `).get(PRIMARY_THREAD_ID, clientMessageId) as { id: string } | undefined
+      if (existing !== undefined) return this.getPrimaryMessage(existing.id)
+    }
+
+    const seq = thread.last_visible_seq + 1
+    const id = randomUUID()
+    const createdAt = new Date().toISOString()
+    const payload: MessagePayload = {
+      content: input.content,
+      metadata: input.metadata ?? {},
+      sourceRefs: normalizeSourceRefs(input.sourceRefs),
+    }
+    const encrypted = this.cipher.encrypt(payload, messageAssociatedData(PRIMARY_THREAD_ID, seq))
+    this.database.prepare(`
+      INSERT INTO visible_messages (
+        id, thread_id, seq, client_message_id, role,
+        payload_ciphertext, payload_nonce, payload_tag, created_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      id,
+      PRIMARY_THREAD_ID,
+      seq,
+      clientMessageId ?? null,
+      role,
+      encrypted.ciphertext,
+      encrypted.nonce,
+      encrypted.tag,
+      createdAt,
+    )
+    this.database.prepare(`
+      UPDATE principal_threads
+      SET last_visible_seq = ?, updated_at = ?
+      WHERE id = ?
+    `).run(seq, createdAt, PRIMARY_THREAD_ID)
+    return this.getPrimaryMessage(id)
   }
 
   listPrimaryMessages(options: ListVisibleMessagesOptions = {}): VisibleMessage[] {
@@ -177,7 +179,7 @@ export class ThreadStore {
     return this.getPrimaryThread()
   }
 
-  private getMessage(id: string): VisibleMessage {
+  getPrimaryMessage(id: string): VisibleMessage {
     const row = this.database.prepare(`
       SELECT id, thread_id, seq, client_message_id, role,
              payload_ciphertext, payload_nonce, payload_tag, created_at

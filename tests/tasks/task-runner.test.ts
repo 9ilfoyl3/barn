@@ -61,6 +61,9 @@ describe('TaskRunner', () => {
       [],
       undefined,
       undefined,
+      expect.objectContaining({
+        visibleMetadata: { taskId: task.id },
+      }),
     )
 
     h.agent.emit({
