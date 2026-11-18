@@ -74,7 +74,7 @@ test('uses semantic browser tools to fill and submit a real page', async () => {
     })
     const state = await page.evaluate(() => window.barn.browser.getState())
     expect(state.url).toContain('/done?name=Ada')
-    expect(requests.length).toBeGreaterThanOrEqual(6)
+    expect(requests.length).toBeGreaterThanOrEqual(7)
     await page.screenshot({ path: 'test-results/barn-browser-tools.png', fullPage: true })
 
     await page.getByTestId('browser-panel').getByRole('button', { name: 'Close browser' }).click()
@@ -155,14 +155,32 @@ async function startBrowserModelServer(fixtureUrl: string, requests: Array<Recor
         connection: 'keep-alive',
       })
       if (requests.length === 1) {
-        sendFunctionCall(response, 'browser_open', { url: fixtureUrl }, 'call-open')
+        sendTextResponse(response, JSON.stringify({
+          tool: 'task.create',
+          arguments: {
+            title: 'Fill and submit the local browser form',
+            objective: 'Fill the local form with Ada and submit it.',
+            deliverable: 'The submitted form page and confirmation.',
+            constraints: ['Use the built-in browser.'],
+            acceptanceCriteria: ['The form submits with Ada.'],
+            forbiddenActions: ['Do not submit unrelated forms.'],
+            risk: 'external_write',
+            expectedArtifacts: [],
+          },
+          confidence: 0.98,
+          rationaleCodes: ['e2e_browser_task'],
+        }))
         return
       }
       if (requests.length === 2) {
-        sendFunctionCall(response, 'browser_observe', {}, 'call-observe')
+        sendFunctionCall(response, 'browser_open', { url: fixtureUrl }, 'call-open')
         return
       }
       if (requests.length === 3) {
+        sendFunctionCall(response, 'browser_observe', {}, 'call-observe')
+        return
+      }
+      if (requests.length === 4) {
         const refs = refsFromObservation(parsed)
         sendFunctionCall(response, 'browser_act', {
           actions: [
@@ -172,11 +190,11 @@ async function startBrowserModelServer(fixtureUrl: string, requests: Array<Recor
         }, 'call-act')
         return
       }
-      if (requests.length === 4) {
+      if (requests.length === 5) {
         sendFunctionCall(response, 'browser_read', { maxChars: 2_000 }, 'call-read')
         return
       }
-      if (requests.length === 5) {
+      if (requests.length === 6) {
         sendFunctionCall(response, 'browser_screenshot', {}, 'call-screenshot')
         return
       }

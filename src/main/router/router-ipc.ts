@@ -15,6 +15,7 @@ const submitSchema = z.object({
   priority: z.number().int().min(-100).max(100).optional(),
   attachments: z.array(attachmentSchema).max(50).optional(),
   workingDirectory: z.string().trim().min(1).max(4_000).optional(),
+  locale: z.enum(['en', 'zh-CN']).optional(),
 }).strict()
 
 const requestIdSchema = z.uuid()
@@ -32,6 +33,7 @@ export function registerRouterIpc(
       ...(parsed.priority === undefined ? {} : { priority: parsed.priority }),
       ...(parsed.attachments === undefined ? {} : { attachments: parsed.attachments }),
       ...(parsed.workingDirectory === undefined ? {} : { workingDirectory: parsed.workingDirectory }),
+      ...(parsed.locale === undefined ? {} : { locale: parsed.locale }),
     })
   })
 

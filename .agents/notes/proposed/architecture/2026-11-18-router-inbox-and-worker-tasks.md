@@ -71,8 +71,9 @@ A Router Turn returns one of these structured decisions:
 - `update_task`: append instructions or constraints to an existing Task.
 - `answer_task`: resolve a Task question or approval boundary.
 - `cancel_task`: cancel an existing Task with an explicit reason.
+- `schedule`: create a one-shot reminder through `schedule.create` semantics. Barn projects the resulting scheduled reminder into the same durable Task rail, with `kind=reminder` and a validated `scheduledFor` timestamp.
 
-The first implementation can reuse the existing deterministic delegation policy behind this decision contract. A model-backed Router may improve judgement later, but its output must validate against the same schema.
+The Router is model-backed and chooses from explicit tool contracts such as `reply`, `clarify`, `task.create`, `schedule.create`, `task.cancel`, and `task.update`. The runtime validates every tool name and argument before writing. Reminder/task classification is never a keyword table: the model resolves semantics and relative time, and the server rejects guessed or malformed timing. Plain unstructured model text is accepted only as a compatibility fallback to `reply`, never as permission to execute or create durable work. The Router turn itself receives no Worker tools and exposes no Thinking/tool stream to the Assistant Thread.
 
 ### Router context
 
@@ -255,7 +256,7 @@ Barn should not initially copy Comma's full swarm, provider, or BEAM/OTP machine
 ## Risks
 
 - Serial Router processing can feel slow under bursty input; queue status and later priority handling must make waiting understandable.
-- A model-backed Router may produce valid but incorrect task boundaries; deterministic policy fallbacks and a golden evaluation set are required.
+- A model-backed Router may produce valid but incorrect task boundaries; explicit tool schemas, confirmation/approval boundaries, and a golden evaluation set are required.
 - Out-of-order Task results can confuse users without strong causal anchors and compact progress rendering.
 - SQLite write contention can become visible with a large Worker pool; Worker concurrency must remain bounded.
 - A canonical Router context can grow without a compaction policy; use bounded context assembly and durable summaries rather than an infinite transcript.

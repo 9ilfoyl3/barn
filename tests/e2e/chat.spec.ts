@@ -118,7 +118,10 @@ test('streams a multi-turn conversation through the Agent Worker', async () => {
 
 
 test('selects a working directory and attaches a folder', async () => {
-  const server = await startMockModelServer(() => 'Folder inspected.')
+  let modelCalls = 0
+  const server = await startMockModelServer(() => (
+    modelCalls++ === 0 ? routerTaskDecision('Inspect the attached folder.') : 'Folder inspected.'
+  ))
   const address = server.address()
   if (address === null || typeof address === 'string') throw new Error('Mock server did not bind')
   const baseUrl = `http://127.0.0.1:${address.port}/v1`
@@ -532,11 +535,11 @@ test('selects a configured model and reasoning effort from the composer', async 
   }
 })
 
-test('interleaves live thinking, tools, and content in event order', async () => {
-  const mock = await startOrderedModelServer()
-  const address = mock.server.address()
+test('keeps Router execution activity out of the visible thread', async () => {
+  const server = await startMockModelServer(() => 'Router reply only.')
+  const address = server.address()
   if (address === null || typeof address === 'string') throw new Error('Mock server did not bind')
-  const userData = await mkdtemp(join(tmpdir(), 'barn-desktop-order-e2e-'))
+  const userData = await mkdtemp(join(tmpdir(), 'barn-router-visible-e2e-'))
   const inheritedEnv = Object.fromEntries(
     Object.entries(process.env).filter((entry): entry is [string, string] => entry[1] !== undefined),
   )
@@ -555,13 +558,13 @@ test('interleaves live thinking, tools, and content in event order', async () =>
     await page.waitForLoadState('domcontentloaded')
     await page.evaluate(async (baseUrl) => {
       await window.barn.models.saveCustomProvider({
-        id: 'ordered-provider',
-        name: 'Ordered Provider',
+        id: 'router-visible-provider',
+        name: 'Router Visible Provider',
         baseUrl,
-        api: 'openai-responses',
+        api: 'openai-completions',
         models: [{
-          id: 'ordered-model',
-          name: 'Ordered Model',
+          id: 'router-visible-model',
+          name: 'Router Visible Model',
           contextWindow: 128_000,
           maxTokens: 8_000,
           reasoning: false,
@@ -569,62 +572,43 @@ test('interleaves live thinking, tools, and content in event order', async () =>
           input: ['text'],
         }],
       })
-      await window.barn.models.saveCredential({ providerId: 'ordered-provider', apiKey: 'test-key' })
-      await window.barn.models.setDefault({ providerId: 'ordered-provider', modelId: 'ordered-model' })
+      await window.barn.models.saveCredential({ providerId: 'router-visible-provider', apiKey: 'test-key' })
+      await window.barn.models.setDefault({ providerId: 'router-visible-provider', modelId: 'router-visible-model' })
     }, `http://127.0.0.1:${address.port}/v1`)
 
     const composer = page.getByLabel('Message Barn')
-    await composer.fill('Inspect the workspace.')
+    await composer.fill('Answer this directly.')
     await composer.press('Enter')
 
-    await mock.secondStarted
-    await expect.poll(() => page
-      .locator('.live-turn .conversation-part')
-      .evaluateAll((parts) => parts.map((part) => part.getAttribute('data-part'))))
-      .toEqual(['tool-group', 'thinking'])
-    await expect(page.locator('.live-turn .tool-group button').first()).toContainText('Listed a directory')
-
-    mock.release()
-    await expect(page.getByText('The workspace looks good.', { exact: true })).toBeVisible({ timeout: 15_000 })
-    const finalParts = await page
-      .locator('.chat-message.assistant .conversation-part')
-      .evaluateAll((parts) => parts.map((part) => part.getAttribute('data-part')))
-    expect(finalParts).toEqual(['tool-group', 'thinking', 'text'])
-
-    const toolGroup = page.locator('.chat-message.assistant .tool-group')
-    const toolHeader = toolGroup.locator('button').first()
-    const assistantWidths = await page.evaluate(() => {
-      const message = document.querySelector('.chat-message.assistant')!
-      const parts = document.querySelector('.chat-message.assistant .conversation-parts')!.getBoundingClientRect().width
-      const tools = document.querySelector('.chat-message.assistant .tool-group')!.getBoundingClientRect().width
-      const style = getComputedStyle(message)
-      const content = message.getBoundingClientRect().width
-        - Number.parseFloat(style.paddingLeft)
-        - Number.parseFloat(style.paddingRight)
-        - Number.parseFloat(style.borderLeftWidth)
-        - Number.parseFloat(style.borderRightWidth)
-      return { content, parts, tools }
-    })
-    expect(assistantWidths.parts).toBeCloseTo(assistantWidths.content, 0)
-    expect(assistantWidths.tools).toBeCloseTo(assistantWidths.content, 0)
-    await expect(toolHeader).toBeVisible()
-    if (await toolHeader.getAttribute('aria-expanded') === 'false') await toolHeader.click()
-    await expect(toolHeader).toHaveAttribute('aria-expanded', 'true')
-    const toolRow = toolGroup.locator('.beautiful-tool-chip-row')
-    await expect(toolRow).toHaveCount(1)
-    await expect(toolRow).toContainText('List Dir')
-    await toolRow.click()
-    const detail = toolGroup.locator('.beautiful-tool-chip-detail')
-    await expect(detail).toBeVisible()
-    await expect(detail).toContainText('"path": "."')
-    await page.waitForTimeout(350)
-    await page.screenshot({ path: 'test-results/barn-ordered-stream.png', fullPage: true })
+    await expect(page.getByText('Router reply only.')).toBeVisible({ timeout: 15_000 })
+    await expect(page.locator('.live-turn')).toHaveCount(0)
+    await expect(page.locator('.agent-thinking-state')).toHaveCount(0)
+    await expect(page.locator('.tool-group')).toHaveCount(0)
+    await expect(page.locator('.router-message-state')).toContainText('Done')
+    await page.screenshot({ path: 'test-results/barn-router-visible-thread.png', fullPage: true })
   } finally {
-    mock.release()
     await app.close()
-    await new Promise<void>((resolve, reject) => mock.server.close((error) => error === undefined ? resolve() : reject(error)))
+    await new Promise<void>((resolve, reject) => server.close((error) => error === undefined ? resolve() : reject(error)))
   }
 })
+
+function routerTaskDecision(title: string): string {
+  return JSON.stringify({
+    tool: 'task.create',
+    arguments: {
+      title,
+      objective: title,
+      deliverable: 'Complete the requested task.',
+      constraints: [],
+      acceptanceCriteria: ['The requested task is completed.'],
+      forbiddenActions: [],
+      risk: 'none',
+      expectedArtifacts: [],
+    },
+    confidence: 0.95,
+    rationaleCodes: ['e2e_task'],
+  })
+}
 
 async function startMockModelServer(
   nextReply: () => string,
@@ -666,152 +650,4 @@ async function startMockModelServer(
   })
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
   return server
-}
-
-async function startOrderedModelServer(): Promise<{
-  server: Server
-  secondStarted: Promise<void>
-  release: () => void
-}> {
-  let requestCount = 0
-  let notifySecondStarted: (() => void) | undefined
-  let releaseSecond: (() => void) | undefined
-  const secondStarted = new Promise<void>((resolve) => { notifySecondStarted = resolve })
-  const released = new Promise<void>((resolve) => { releaseSecond = resolve })
-  const server = createServer((request, response) => {
-    if (request.method !== 'POST' || request.url !== '/v1/responses') {
-      response.writeHead(404).end()
-      return
-    }
-    request.resume()
-    request.on('end', async () => {
-      requestCount++
-      response.writeHead(200, {
-        'content-type': 'text/event-stream',
-        'cache-control': 'no-cache',
-        connection: 'keep-alive',
-      })
-      if (requestCount === 1) {
-        sendResponseFunctionCall(response, 'list_dir', { path: '.' }, 'call-list')
-        return
-      }
-      const reasoning = {
-        id: 'reasoning-order',
-        type: 'reasoning',
-        summary: [{ type: 'summary_text', text: 'I inspected the workspace.' }],
-      }
-      sendEvent(response, {
-        type: 'response.created',
-        response: { id: 'resp-order', status: 'in_progress', output: [] },
-      })
-      sendEvent(response, {
-        type: 'response.output_item.added',
-        output_index: 0,
-        item: { ...reasoning, summary: [] },
-      })
-      sendEvent(response, {
-        type: 'response.reasoning_summary_text.delta',
-        output_index: 0,
-        item_id: reasoning.id,
-        summary_index: 0,
-        delta: 'I inspected the workspace.',
-      })
-      notifySecondStarted?.()
-      await released
-      sendEvent(response, {
-        type: 'response.output_item.done',
-        output_index: 0,
-        item: reasoning,
-      })
-      const item = {
-        id: 'message-order',
-        type: 'message',
-        status: 'completed',
-        role: 'assistant',
-        content: [{ type: 'output_text', text: 'The workspace looks good.', annotations: [] }],
-      }
-      sendEvent(response, {
-        type: 'response.output_item.added',
-        output_index: 1,
-        item: { ...item, status: 'in_progress', content: [] },
-      })
-      sendEvent(response, {
-        type: 'response.output_text.delta',
-        output_index: 1,
-        item_id: item.id,
-        content_index: 0,
-        delta: 'The workspace looks good.',
-      })
-      sendEvent(response, { type: 'response.output_item.done', output_index: 1, item })
-      sendEvent(response, {
-        type: 'response.completed',
-        response: {
-          id: 'resp-order',
-          status: 'completed',
-          output: [reasoning, item],
-          usage: { input_tokens: 20, output_tokens: 8, total_tokens: 28 },
-        },
-      })
-      response.end('data: [DONE]\n\n')
-    })
-  })
-  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
-  return {
-    server,
-    secondStarted,
-    release: () => releaseSecond?.(),
-  }
-}
-
-function sendResponseFunctionCall(
-  response: import('node:http').ServerResponse,
-  name: string,
-  args: Record<string, unknown>,
-  callId: string,
-): void {
-  const item = {
-    id: `fc-${callId}`,
-    type: 'function_call',
-    status: 'completed',
-    call_id: callId,
-    name,
-    arguments: JSON.stringify(args),
-  }
-  sendEvent(response, {
-    type: 'response.created',
-    response: { id: `resp-${callId}`, status: 'in_progress', output: [] },
-  })
-  sendEvent(response, {
-    type: 'response.output_item.added',
-    output_index: 0,
-    item: { ...item, status: 'in_progress', arguments: '' },
-  })
-  sendEvent(response, {
-    type: 'response.function_call_arguments.delta',
-    output_index: 0,
-    item_id: item.id,
-    delta: item.arguments,
-  })
-  sendEvent(response, {
-    type: 'response.function_call_arguments.done',
-    output_index: 0,
-    item_id: item.id,
-    arguments: item.arguments,
-  })
-  sendEvent(response, { type: 'response.output_item.done', output_index: 0, item })
-  sendEvent(response, {
-    type: 'response.completed',
-    response: {
-      id: `resp-${callId}`,
-      status: 'completed',
-      output: [item],
-      usage: { input_tokens: 10, output_tokens: 5, total_tokens: 15 },
-    },
-  })
-  response.end('data: [DONE]\n\n')
-}
-
-function sendEvent(response: import('node:http').ServerResponse, event: Record<string, unknown>): void {
-  response.write(`event: ${String(event.type)}\n`)
-  response.write(`data: ${JSON.stringify(event)}\n\n`)
 }

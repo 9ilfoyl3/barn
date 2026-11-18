@@ -3,6 +3,7 @@ import { mkdtemp } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { _electron as electron, expect, test } from '@playwright/test'
+import { routerTaskDecisionJson } from './router-test-helpers'
 
 test('observes and acts inside open Shadow DOM and same-origin iframes', async () => {
   const fixture = await startNestedFixture()
@@ -105,9 +106,16 @@ async function startNestedModelServer(fixtureUrl: string): Promise<Server> {
         'cache-control': 'no-cache',
         connection: 'keep-alive',
       })
-      if (requestCount === 1) return sendFunctionCall(response, 'browser_open', { url: fixtureUrl }, 'nested-open')
-      if (requestCount === 2) return sendFunctionCall(response, 'browser_observe', {}, 'nested-observe')
-      if (requestCount === 3) {
+      if (requestCount === 1) {
+        return sendTextResponse(response, routerTaskDecisionJson(
+          'Fill nested browser controls',
+          'Fill controls inside the open Shadow DOM and same-origin iframe.',
+          'external_write',
+        ))
+      }
+      if (requestCount === 2) return sendFunctionCall(response, 'browser_open', { url: fixtureUrl }, 'nested-open')
+      if (requestCount === 3) return sendFunctionCall(response, 'browser_observe', {}, 'nested-observe')
+      if (requestCount === 4) {
         const refs = refsFromObservation(parsed)
         return sendFunctionCall(response, 'browser_act', {
           actions: [

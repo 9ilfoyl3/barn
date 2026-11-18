@@ -18,8 +18,7 @@
     "lint": "oxlint src tests scripts",
     "docs:check": "tsx scripts/verify-agent-notes.ts",
     "test:e2e": "electron-vite build && playwright test",
-    "security:check": "tsx scripts/verify-ipc-security.ts",
-    "router:eval": "tsx scripts/router-eval.ts"
+    "security:check": "tsx scripts/verify-ipc-security.ts"
   },
   "dependencies": {
     "@earendil-works/pi-agent-core": "1.4.0",

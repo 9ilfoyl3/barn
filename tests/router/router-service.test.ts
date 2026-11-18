@@ -3,127 +3,63 @@ import { mkdtemp } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
-import type {
-  AgentPromptOptions,
-  AttachmentDescriptor,
-  DelegationDecision,
-  RouterLiveEvent,
-  SessionSummary,
-} from '../../src/shared/models'
+import type { RouterLiveEvent } from '../../src/shared/models'
 import { AesGcmEventCipher } from '../../src/main/session/event-cipher'
 import { SessionStore } from '../../src/main/session/session-store'
 import { ThreadService } from '../../src/main/threads/thread-service'
 import { TaskService } from '../../src/main/tasks/task-service'
 import { RouterService } from '../../src/main/router/router-service'
+import type { RouterDecision, RouterDecisionEngine, RouterDecisionInput } from '../../src/main/router/router-decision'
 
-class FakeRouterAgent {
-  private readonly listeners = new Set<(event: import('../../src/shared/models').SessionLiveEvent) => void>()
+class FakeDecisionEngine implements RouterDecisionEngine {
+  readonly decide = vi.fn(async (_input: RouterDecisionInput): Promise<RouterDecision> => replyDecision())
 
-  onLiveEvent(listener: (event: import('../../src/shared/models').SessionLiveEvent) => void): () => void {
-    this.listeners.add(listener)
-    return () => this.listeners.delete(listener)
+  setDecider(decide: (input: RouterDecisionInput) => Promise<RouterDecision>): void {
+    this.decide.mockImplementation(decide)
   }
-
-  emitRunStatus(sessionId: string, status: 'idle' | 'cancelled'): void {
-    for (const listener of this.listeners) listener({
-      type: 'run.status',
-      sessionId,
-      runId: `run:${sessionId}`,
-      status,
-    })
-  }
-
-  readonly prompt = vi.fn(async (
-    executionSessionId: string,
-    _text: string,
-    _attachments: AttachmentDescriptor[] = [],
-    _workingDirectory?: string,
-    _visibleText?: string,
-    options: AgentPromptOptions = {},
-  ): Promise<SessionSummary> => {
-    const requestId = options.visibleMetadata?.routerRequestId
-    if (typeof requestId === 'string') {
-      this.threads.appendMessage({
-        clientMessageId: `fake-reply:${requestId}:${executionSessionId}`,
-        role: 'assistant',
-        content: `Reply for ${requestId}`,
-        metadata: { routerRequestId: requestId },
-        sourceRefs: [`router:${requestId}`],
-      })
-    }
-    this.emitRunStatus(executionSessionId, 'idle')
-    return idleSession(executionSessionId)
-  })
-
-  readonly cancel = vi.fn(async (sessionId: string) => {
-    this.emitRunStatus(sessionId, 'cancelled')
-  })
-
-  constructor(private readonly threads: ThreadService) {}
 }
 
 async function harness(options: {
-  classify?: (input: { text: string }) => DelegationDecision
-  prompt?: (requestId: string) => Promise<void>
+  decide?: (input: RouterDecisionInput) => Promise<RouterDecision>
 } = {}) {
   const directory = await mkdtemp(join(tmpdir(), 'barn-router-service-'))
   const sessions = new SessionStore(join(directory, 'sessions.db'), new AesGcmEventCipher(randomBytes(32)))
   await sessions.initialize()
   const threads = new ThreadService(sessions.threads)
   const tasks = new TaskService(sessions.tasks)
-  const agent = new FakeRouterAgent(threads)
-  if (options.prompt !== undefined) {
-    agent.prompt.mockImplementation(async (
-      executionSessionId: string,
-      _text: string,
-      _attachments: AttachmentDescriptor[] = [],
-      _workingDirectory?: string,
-      _visibleText?: string,
-      promptOptions: AgentPromptOptions = {},
-    ) => {
-      const requestId = String(promptOptions.visibleMetadata?.routerRequestId)
-      await options.prompt!(requestId)
-      threads.appendMessage({
-        clientMessageId: `fake-reply:${requestId}:${executionSessionId}`,
-        role: 'assistant',
-        content: `Reply for ${requestId}`,
-        metadata: { routerRequestId: requestId },
-      })
-      agent.emitRunStatus(executionSessionId, 'idle')
-      return idleSession(executionSessionId)
-    })
-  }
+  const decisions = new FakeDecisionEngine()
+  if (options.decide !== undefined) decisions.setDecider(options.decide)
   const router = new RouterService(
     sessions.router,
     threads,
     sessions,
     tasks,
-    agent,
+    decisions,
     {
-      classify: options.classify ?? (() => answerDecision()),
       createRequestId: (() => {
         let index = 0
         return () => `00000000-0000-4000-8000-${String(++index).padStart(12, '0')}`
       })(),
-      createExecutionSessionId: (() => {
-        let index = 0
-        return () => `10000000-0000-4000-8000-${String(++index).padStart(12, '0')}`
-      })(),
+      now: () => new Date('2026-11-18T00:00:00.000Z'),
+      timezone: 'Asia/Shanghai',
     },
   )
-  return { sessions, threads, tasks, agent, router }
+  return { sessions, threads, tasks, decisions, router }
 }
 
 describe('RouterService', () => {
-  it('accepts more messages while the first Router turn is still running', async () => {
+  it('accepts more messages while the first Router decision is still running', async () => {
     let releaseFirst: (() => void) | undefined
     const firstBlocked = new Promise<void>((resolve) => { releaseFirst = resolve })
     const h = await harness({
-      prompt: (requestId) => requestId.endsWith('0001') ? firstBlocked : Promise.resolve(),
+      decide: async () => {
+        if (h.decisions.decide.mock.calls.length === 1) await firstBlocked
+        return replyDecision('Router reply')
+      },
     })
     h.router.start()
     const first = await h.router.submit({ text: 'first message' })
-    await vi.waitFor(() => expect(h.agent.prompt).toHaveBeenCalledTimes(1))
+    await vi.waitFor(() => expect(h.decisions.decide).toHaveBeenCalledTimes(1))
     const second = await h.router.submit({ text: 'second message' })
 
     expect(second.request.status).toBe('queued')
@@ -132,9 +68,67 @@ describe('RouterService', () => {
       activeRequest: expect.objectContaining({ id: first.request.id, status: 'routing' }),
     })
     releaseFirst?.()
-    await vi.waitFor(() => expect(h.agent.prompt).toHaveBeenCalledTimes(2))
+    await vi.waitFor(() => expect(h.decisions.decide).toHaveBeenCalledTimes(2))
     await vi.waitFor(() => expect(h.router.getSnapshot().requests.every((request) => request.status === 'completed')).toBe(true))
     expect(h.router.getSnapshot().requests.map((request) => request.sequence)).toEqual([1, 2])
+    h.router.stop()
+    h.sessions.close()
+  })
+
+  it('projects a direct reply without creating a Session or Task', async () => {
+    const h = await harness()
+    h.router.start()
+    const submitted = await h.router.submit({ text: 'What is this?' })
+    await vi.waitFor(() => expect(h.router.getSnapshot().requests[0]?.status).toBe('completed'))
+    expect(h.tasks.list()).toEqual([])
+    expect(h.sessions.listSessions()).toEqual([])
+    const messages = h.threads.listMessages()
+    expect(messages).toHaveLength(2)
+    expect(messages[1]).toMatchObject({
+      role: 'assistant',
+      content: 'Direct Router reply',
+      metadata: expect.objectContaining({ routerRequestId: submitted.request.id }),
+    })
+    h.router.stop()
+    h.sessions.close()
+  })
+
+  it('creates a durable task from a validated task.create decision', async () => {
+    const h = await harness({ decide: async () => taskDecision() })
+    h.router.start()
+    await h.router.submit({ text: 'Research the vendor options' })
+    await vi.waitFor(() => expect(h.router.getSnapshot().requests[0]?.status).toBe('completed'))
+    const request = h.router.getSnapshot().requests[0]!
+    expect(request).toMatchObject({ decisionKind: 'create_task', taskId: expect.any(String) })
+    const task = h.tasks.get(request.taskId!)
+    expect(task).toMatchObject({ status: 'queued', kind: 'work' })
+    expect(h.threads.listMessages().at(-1)).toMatchObject({
+      role: 'assistant',
+      metadata: expect.objectContaining({
+        taskId: task.id,
+        resultCard: expect.objectContaining({ kind: 'task', title: task.title }),
+      }),
+    })
+    h.router.stop()
+    h.sessions.close()
+  })
+
+  it('creates a scheduled reminder task only when the Router chooses schedule.create', async () => {
+    const h = await harness({ decide: async () => scheduleDecision() })
+    h.router.start()
+    await h.router.submit({ text: '提醒我明天要带退货的衣服' })
+    await vi.waitFor(() => expect(h.router.getSnapshot().requests[0]?.status).toBe('completed'))
+    const request = h.router.getSnapshot().requests[0]!
+    const task = h.tasks.get(request.taskId!)
+    expect(task).toMatchObject({
+      kind: 'reminder',
+      scheduledFor: '2026-11-19T01:00:00.000Z',
+      visiblePrompt: 'Remind me to bring the clothes for return.',
+    })
+    expect(h.threads.listMessages().at(-1)?.metadata.resultCard).toMatchObject({
+      status: 'Scheduled',
+      title: task.title,
+    })
     h.router.stop()
     h.sessions.close()
   })
@@ -152,29 +146,39 @@ describe('RouterService', () => {
     h.sessions.close()
   })
 
-  it('creates a durable task and an anchored visible result for delegated work', async () => {
-    const h = await harness({
-      classify: () => taskDecision(),
+  it('applies model-driven task.cancel and task.update tools', async () => {
+    const h = await harness()
+    const task = h.tasks.create({
+      title: 'Draft the update',
+      origin: 'user',
+      prompt: 'Draft a project update.',
+      visiblePrompt: 'Draft a project update.',
     })
+    let nextDecision: RouterDecision = {
+      action: 'update_task',
+      taskId: task.id,
+      instruction: 'Keep it under 150 words.',
+      confidence: 0.95,
+      rationaleCodes: ['task_update'],
+      memoryRefs: [],
+    }
+    h.decisions.setDecider(async () => nextDecision)
     h.router.start()
-    const submitted = await h.router.submit({ text: 'Research the vendor options' })
+    await h.router.submit({ text: 'Keep the update short.' })
     await vi.waitFor(() => expect(h.router.getSnapshot().requests[0]?.status).toBe('completed'))
-    const request = h.router.getSnapshot().requests[0]!
-    expect(request).toMatchObject({
-      decisionKind: 'create_task',
-      taskId: expect.any(String),
-    })
-    expect(h.agent.prompt).not.toHaveBeenCalled()
-    const task = h.tasks.get(request.taskId!)
-    expect(task).toMatchObject({ status: 'queued', origin: 'user' })
-    const visible = h.threads.listMessages().findLast((message) => message.metadata.routerRequestId === submitted.request.id)
-    expect(visible).toMatchObject({
-      role: 'assistant',
-      metadata: expect.objectContaining({
-        taskId: task.id,
-        resultCard: expect.objectContaining({ kind: 'task', title: task.title }),
-      }),
-    })
+    expect(h.tasks.get(task.id).prompt).toContain('Additional instruction:\nKeep it under 150 words.')
+
+    nextDecision = {
+      action: 'cancel_task',
+      taskId: task.id,
+      reason: 'The user no longer needs it.',
+      confidence: 0.95,
+      rationaleCodes: ['task_cancel'],
+      memoryRefs: [],
+    }
+    await h.router.submit({ text: 'Cancel that task.' })
+    await vi.waitFor(() => expect(h.router.getSnapshot().requests[1]?.status).toBe('completed'))
+    expect(h.tasks.get(task.id).status).toBe('cancelled')
     h.router.stop()
     h.sessions.close()
   })
@@ -183,17 +187,20 @@ describe('RouterService', () => {
     let releaseFirst: (() => void) | undefined
     const firstBlocked = new Promise<void>((resolve) => { releaseFirst = resolve })
     const h = await harness({
-      prompt: (requestId) => requestId.endsWith('0001') ? firstBlocked : Promise.resolve(),
+      decide: async () => {
+        if (h.decisions.decide.mock.calls.length === 1) await firstBlocked
+        return replyDecision()
+      },
     })
     h.router.start()
     await h.router.submit({ text: 'first message' })
-    await vi.waitFor(() => expect(h.agent.prompt).toHaveBeenCalledTimes(1))
+    await vi.waitFor(() => expect(h.decisions.decide).toHaveBeenCalledTimes(1))
     const second = await h.router.submit({ text: 'second message' })
     const cancelled = await h.router.cancel(second.request.id)
     expect(cancelled.status).toBe('cancelled')
     releaseFirst?.()
     await vi.waitFor(() => expect(h.router.getSnapshot().requests[0]?.status).toBe('completed'))
-    expect(h.agent.prompt).toHaveBeenCalledTimes(1)
+    expect(h.decisions.decide).toHaveBeenCalledTimes(1)
     expect(h.router.getSnapshot().requests[1]?.status).toBe('cancelled')
     h.router.stop()
     h.sessions.close()
@@ -210,44 +217,36 @@ describe('RouterService', () => {
     h.sessions.close()
   })
 
-  it('emits queue and execution events for UI projection', async () => {
+  it('emits queue updates and validates cancellation', async () => {
     const h = await harness()
     const events: RouterLiveEvent[] = []
     h.router.onEvent((event) => events.push(event))
     h.router.start()
     await h.router.submit({ text: 'hello' })
     await vi.waitFor(() => expect(h.router.getSnapshot().requests[0]?.status).toBe('completed'))
-    expect(events.map((event) => event.type)).toEqual(expect.arrayContaining([
-      'router.request-updated',
-      'router.execution-started',
-      'router.execution-finished',
-    ]))
+    expect(events.map((event) => event.type)).toEqual(expect.arrayContaining(['router.request-updated']))
     h.router.stop()
     h.sessions.close()
   })
 })
 
-function answerDecision(): DelegationDecision {
+function replyDecision(text = 'Direct Router reply'): RouterDecision {
   return {
-    action: 'answer',
+    action: 'reply',
+    text,
     confidence: 0.95,
-    complexity: 'low',
-    risk: 'none',
-    requiredCapabilities: [],
-    missingInformation: [],
-    rationaleCodes: ['test_answer'],
+    rationaleCodes: ['router_reply'],
+    memoryRefs: [],
   }
 }
 
-function taskDecision(): DelegationDecision {
+function taskDecision(): RouterDecision {
   return {
-    action: 'task',
+    action: 'create_task',
+    title: 'Research the vendor options',
     confidence: 0.95,
-    complexity: 'medium',
-    risk: 'none',
-    requiredCapabilities: ['web'],
-    missingInformation: [],
-    rationaleCodes: ['test_task'],
+    rationaleCodes: ['router_task'],
+    memoryRefs: [],
     taskContract: {
       objective: 'Research the vendor options',
       deliverable: 'A comparison',
@@ -263,15 +262,15 @@ function taskDecision(): DelegationDecision {
   }
 }
 
-
-function idleSession(sessionId: string): SessionSummary {
+function scheduleDecision(): RouterDecision {
   return {
-    id: sessionId,
-    title: 'Router',
-    status: 'idle',
-    hasUnreadResult: false,
-    pinned: false,
-    createdAt: new Date(0).toISOString(),
-    updatedAt: new Date(0).toISOString(),
+    action: 'schedule',
+    title: 'Bring the clothes for return',
+    text: 'Remind me to bring the clothes for return.',
+    scheduledFor: '2026-11-19T01:00:00.000Z',
+    timezone: 'Asia/Shanghai',
+    confidence: 0.95,
+    rationaleCodes: ['router_reminder'],
+    memoryRefs: [],
   }
 }

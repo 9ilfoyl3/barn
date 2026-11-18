@@ -31,6 +31,8 @@ interface TaskRow {
   title: string
   status: string
   origin: string
+  kind: string
+  scheduled_for: string | null
   session_id: string | null
   approval_id: string | null
   prompt_ciphertext: Uint8Array | null
@@ -65,6 +67,8 @@ export class TaskStore {
         title TEXT NOT NULL,
         status TEXT NOT NULL,
         origin TEXT NOT NULL,
+        kind TEXT NOT NULL DEFAULT 'work',
+        scheduled_for TEXT,
         session_id TEXT REFERENCES sessions(id) ON DELETE SET NULL,
         approval_id TEXT,
         prompt_ciphertext BLOB,
@@ -109,10 +113,12 @@ export class TaskStore {
       title,
       status,
       origin: input.origin,
+      kind: input.kind ?? 'work',
       createdAt: now,
       updatedAt: now,
     }
     if (input.sessionId !== undefined) task.sessionId = input.sessionId
+    if (input.scheduledFor !== undefined) task.scheduledFor = normalizeScheduledFor(input.scheduledFor)
     if (input.prompt !== undefined) task.prompt = normalizePrompt(input.prompt)
     if (input.visiblePrompt !== undefined) task.visiblePrompt = normalizePrompt(input.visiblePrompt)
     if (input.workingDirectory !== undefined) task.workingDirectory = normalizeWorkingDirectory(input.workingDirectory)
@@ -128,17 +134,19 @@ export class TaskStore {
       : this.cipher.encrypt(JSON.stringify(task.attachments), attachmentsAssociatedData(task.id))
     this.database.prepare(`
       INSERT INTO tasks (
-        id, title, status, origin, session_id, approval_id,
+        id, title, status, origin, kind, scheduled_for, session_id, approval_id,
         prompt_ciphertext, prompt_nonce, prompt_tag,
         visible_prompt_ciphertext, visible_prompt_nonce, visible_prompt_tag,
         working_directory, attachments_ciphertext, attachments_nonce, attachments_tag,
         waiting_reason, detail, created_at, updated_at, started_at, finished_at
-      ) VALUES (?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, ?, ?, NULL, NULL)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, ?, ?, NULL, NULL)
     `).run(
       task.id,
       task.title,
       task.status,
       task.origin,
+      task.kind ?? 'work',
+      task.scheduledFor ?? null,
       task.sessionId ?? null,
       encryptedPrompt?.ciphertext ?? null,
       encryptedPrompt?.nonce ?? null,
@@ -284,9 +292,11 @@ export class TaskStore {
       title: row.title,
       status: requireStatus(row.status),
       origin: requireOrigin(row.origin),
+      kind: row.kind === 'reminder' ? 'reminder' : 'work',
       createdAt: row.created_at,
       updatedAt: row.updated_at,
     }
+    if (row.scheduled_for !== null) task.scheduledFor = row.scheduled_for
     if (row.session_id !== null) task.sessionId = row.session_id
     if (row.approval_id !== null) task.approvalId = row.approval_id
     if (row.working_directory !== null) task.workingDirectory = row.working_directory
@@ -341,6 +351,8 @@ export class TaskStore {
       ['attachments_ciphertext', 'BLOB'],
       ['attachments_nonce', 'BLOB'],
       ['attachments_tag', 'BLOB'],
+      ['kind', "TEXT NOT NULL DEFAULT 'work'"],
+      ['scheduled_for', 'TEXT'],
     ] as const
     for (const [name, type] of additions) {
       if (!columns.has(name)) this.database.exec(`ALTER TABLE tasks ADD COLUMN ${name} ${type}`)
@@ -382,6 +394,12 @@ function visiblePromptAssociatedData(taskId: string): string {
 
 function attachmentsAssociatedData(taskId: string): string {
   return `task:${taskId}:attachments`
+}
+
+function normalizeScheduledFor(value: string): string {
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) throw new Error('Task scheduled time is invalid')
+  return date.toISOString()
 }
 
 function normalizeWorkingDirectory(value: string): string {
