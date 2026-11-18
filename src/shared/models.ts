@@ -235,6 +235,7 @@ export interface RouterSubmitInput {
   priority?: number
   attachments?: AttachmentDescriptor[]
   workingDirectory?: string
+  locale?: 'en' | 'zh-CN'
 }
 
 export interface RouterSubmitResult {
@@ -266,6 +267,8 @@ export interface AgentPromptOptions {
   includeMemory?: boolean
   visibleMetadata?: Record<string, unknown>
   clientMessageIdPrefix?: string
+  visibleActivity?: boolean
+  toolPolicy?: 'default' | 'none'
 }
 
 export type DelegationAction = 'answer' | 'clarify' | 'task'
@@ -320,6 +323,8 @@ export interface Task {
   approvalId?: string
   prompt?: string
   visiblePrompt?: string
+  kind?: 'work' | 'reminder'
+  scheduledFor?: string
   workingDirectory?: string
   attachments?: AttachmentDescriptor[]
   waitingReason?: TaskWaitingReason
@@ -337,6 +342,8 @@ export interface CreateTaskInput {
   sessionId?: string
   prompt?: string
   visiblePrompt?: string
+  kind?: 'work' | 'reminder'
+  scheduledFor?: string
   workingDirectory?: string
   attachments?: AttachmentDescriptor[]
 }

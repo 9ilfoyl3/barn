@@ -24,6 +24,7 @@ import { PermissionService } from './permissions/permission-service'
 import { registerTaskIpc } from './tasks/task-ipc'
 import { registerRouterIpc } from './router/router-ipc'
 import { RouterService } from './router/router-service'
+import { ModelRouterDecisionEngine } from './router/router-decision'
 import { TaskRunner } from './tasks/task-runner'
 import { TaskService } from './tasks/task-service'
 import { SessionStore } from './session/session-store'
@@ -214,14 +215,14 @@ void app.whenReady().then(async () => {
   agentService = new AgentService(supervisor, modelService, sessionStore, tools, memoryService, threadService)
   await agentService.start()
   taskService = new TaskService(sessionStore.tasks)
-  taskRunner = new TaskRunner(agentService, taskService, sessionStore)
+  taskRunner = new TaskRunner(agentService, taskService, sessionStore, {}, threadService)
   taskRunner.start()
   routerService = new RouterService(
     sessionStore.router,
     threadService,
     sessionStore,
     taskService,
-    agentService,
+    new ModelRouterDecisionEngine(modelService, memoryService),
   )
   routerService.start()
   permissionService = new PermissionService(sessionStore.permissions, taskService)

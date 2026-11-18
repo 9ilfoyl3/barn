@@ -3,6 +3,7 @@ import { mkdtemp, readFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { _electron as electron, expect, test } from '@playwright/test'
+import { routerTaskDecisionJson } from './router-test-helpers'
 
 test('downloads through the built-in browser into the configured Downloads folder', async () => {
   const fixture = await startDownloadFixture()
@@ -112,9 +113,16 @@ async function startDownloadModelServer(fixtureUrl: string): Promise<Server> {
         'cache-control': 'no-cache',
         connection: 'keep-alive',
       })
-      if (requestCount === 1) return sendFunctionCall(response, 'browser_open', { url: fixtureUrl }, 'download-open')
-      if (requestCount === 2) return sendFunctionCall(response, 'browser_observe', {}, 'download-observe')
-      if (requestCount === 3) {
+      if (requestCount === 1) {
+        return sendTextResponse(response, routerTaskDecisionJson(
+          'Download the report from the local page',
+          'Download the report into the configured Downloads folder.',
+          'external_write',
+        ))
+      }
+      if (requestCount === 2) return sendFunctionCall(response, 'browser_open', { url: fixtureUrl }, 'download-open')
+      if (requestCount === 3) return sendFunctionCall(response, 'browser_observe', {}, 'download-observe')
+      if (requestCount === 4) {
         const ref = refFromObservation(parsed, 'Download report')
         return sendFunctionCall(response, 'browser_act', {
           actions: [{ type: 'click', ref }],

@@ -39,7 +39,7 @@ export function TaskRail({ tasks, onOpenTask, onOpenTasks }: TaskRailProps) {
                 {task.detail !== undefined && <small>{task.detail}</small>}
                 <span className="task-rail-meta">
                   <span>{task.origin === 'automation' ? t('secretary.automation') : t('secretary.you')}</span>
-                  <span>{t(`tasks.status.${task.status}`)}</span>
+                  <span>{taskStatusLabel(task, t)}</span>
                 </span>
               </span>
             </button>
@@ -48,6 +48,15 @@ export function TaskRail({ tasks, onOpenTask, onOpenTasks }: TaskRailProps) {
       )}
     </aside>
   )
+}
+
+function taskStatusLabel(
+  task: Task,
+  t: ReturnType<typeof useTranslation>['t'],
+): string {
+  return task.kind === 'reminder' && task.status === 'queued'
+    ? t('secretary.scheduled')
+    : t(`tasks.status.${task.status}`)
 }
 
 function TaskStatusIcon({ status }: { status: Task['status'] }) {

@@ -1,9 +1,11 @@
 import type { AgentPromptOptions, AttachmentDescriptor, SessionLiveEvent, Task } from '../../shared/models'
 import type { SessionStore } from '../session/session-store'
+import type { ThreadService } from '../threads/thread-service'
 import type { TaskService } from './task-service'
 
 export interface TaskRunnerOptions {
   maxConcurrent?: number
+  now?: () => Date
 }
 
 export interface TaskAgent {
@@ -28,10 +30,12 @@ interface ActiveTask {
 /** Runs queued Tasks through AgentService and projects run outcomes back into durable Task state. */
 export class TaskRunner {
   private readonly maxConcurrent: number
+  private readonly now: () => Date
   private readonly active = new Map<string, ActiveTask>()
   private readonly activeSessions = new Map<string, string>()
   private disposers: Array<() => void> = []
   private scheduled: NodeJS.Immediate | undefined
+  private wakeTimer: NodeJS.Timeout | undefined
   private draining = false
   private started = false
 
@@ -40,8 +44,10 @@ export class TaskRunner {
     private readonly tasks: Pick<TaskService, 'list' | 'updateStatus' | 'assignSession' | 'onEvent'>,
     private readonly sessions: Pick<SessionStore, 'createSession' | 'getSession'>,
     options: TaskRunnerOptions = {},
+    private readonly threads?: Pick<ThreadService, 'appendMessage'>,
   ) {
     this.maxConcurrent = Math.max(1, options.maxConcurrent ?? 1)
+    this.now = options.now ?? (() => new Date())
   }
 
   start(): void {
@@ -79,11 +85,35 @@ export class TaskRunner {
       clearImmediate(this.scheduled)
       this.scheduled = undefined
     }
+    if (this.wakeTimer !== undefined) {
+      clearTimeout(this.wakeTimer)
+      this.wakeTimer = undefined
+    }
     for (const dispose of this.disposers.splice(0)) dispose()
   }
 
   private schedule(): void {
     if (!this.started || this.scheduled !== undefined) return
+    if (this.wakeTimer !== undefined) {
+      clearTimeout(this.wakeTimer)
+      this.wakeTimer = undefined
+    }
+    if (this.active.size >= this.maxConcurrent) return
+    const now = this.now().getTime()
+    const future = this.tasks.list()
+      .filter((task) => task.status === 'queued' && !this.active.has(task.id))
+      .map((task) => ({ task, dueAt: task.scheduledFor === undefined ? now : new Date(task.scheduledFor).getTime() }))
+      .filter((entry) => Number.isFinite(entry.dueAt) && entry.dueAt > now)
+      .toSorted((left, right) => left.dueAt - right.dueAt)[0]
+    if (future !== undefined) {
+      const delay = Math.min(future.dueAt - now, 2_147_483_647)
+      this.wakeTimer = setTimeout(() => {
+        this.wakeTimer = undefined
+        this.schedule()
+      }, Math.max(1, delay))
+      this.wakeTimer.unref()
+      return
+    }
     this.scheduled = setImmediate(() => {
       this.scheduled = undefined
       void this.drain()
@@ -109,15 +139,44 @@ export class TaskRunner {
       }
     } finally {
       this.draining = false
-      if (this.started && this.active.size < this.maxConcurrent && this.nextQueuedTask() !== undefined) this.schedule()
+      if (this.started && this.active.size < this.maxConcurrent) this.schedule()
     }
   }
 
   private nextQueuedTask(): Task | undefined {
-    return this.tasks.list().find((task) => task.status === 'queued' && !this.active.has(task.id))
+    const now = this.now().getTime()
+    return this.tasks.list().find((task) => (
+      task.status === 'queued'
+      && !this.active.has(task.id)
+      && (task.scheduledFor === undefined || new Date(task.scheduledFor).getTime() <= now)
+    ))
   }
 
   private async launch(task: Task): Promise<void> {
+    if (task.kind === 'reminder') {
+      this.tasks.updateStatus(task.id, { status: 'running', detail: 'Delivering reminder.' })
+      this.threads?.appendMessage({
+        clientMessageId: `task-reminder:${task.id}`,
+        role: 'assistant',
+        content: `Reminder: ${task.visiblePrompt ?? task.title}`,
+        metadata: {
+          taskId: task.id,
+          resultCard: {
+            version: 1,
+            kind: 'task',
+            title: task.title,
+            description: 'Scheduled reminder delivered.',
+            provider: 'Barn',
+            status: 'Reminder',
+            meta: task.scheduledFor === undefined ? 'Due now' : `Scheduled for ${task.scheduledFor}`,
+          },
+        },
+        sourceRefs: [`task:${task.id}`],
+      })
+      this.tasks.updateStatus(task.id, { status: 'completed', detail: '' })
+      this.schedule()
+      return
+    }
     const session = task.sessionId === undefined
       ? this.sessions.createSession(task.title)
       : this.sessions.getSession(task.sessionId)

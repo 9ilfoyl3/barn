@@ -338,6 +338,7 @@ export function App() {
         clientMessageId,
         ...(filesToSend.length === 0 ? {} : { attachments: filesToSend }),
         ...(workingDirectory === undefined ? {} : { workingDirectory }),
+        locale: document.documentElement.lang === 'zh-CN' ? 'zh-CN' : 'en',
       })
     } catch (reason) {
       setInput(text)

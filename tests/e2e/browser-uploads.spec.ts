@@ -3,6 +3,7 @@ import { mkdir, mkdtemp, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { _electron as electron, expect, test } from '@playwright/test'
+import { routerTaskDecisionJson } from './router-test-helpers'
 
 test('uploads an authorized workspace file into a real file input', async () => {
   const fixture = await startUploadFixture()
@@ -108,9 +109,16 @@ async function startUploadModelServer(fixtureUrl: string): Promise<Server> {
         'cache-control': 'no-cache',
         connection: 'keep-alive',
       })
-      if (requestCount === 1) return sendFunctionCall(response, 'browser_open', { url: fixtureUrl }, 'upload-open')
-      if (requestCount === 2) return sendFunctionCall(response, 'browser_observe', {}, 'upload-observe')
-      if (requestCount === 3) {
+      if (requestCount === 1) {
+        return sendTextResponse(response, routerTaskDecisionJson(
+          'Upload report.txt to the local page',
+          'Upload the authorized workspace file into the local file input.',
+          'external_write',
+        ))
+      }
+      if (requestCount === 2) return sendFunctionCall(response, 'browser_open', { url: fixtureUrl }, 'upload-open')
+      if (requestCount === 3) return sendFunctionCall(response, 'browser_observe', {}, 'upload-observe')
+      if (requestCount === 4) {
         const ref = refFromObservation(parsed, 'Upload file')
         return sendFunctionCall(response, 'browser_upload', {
           ref,

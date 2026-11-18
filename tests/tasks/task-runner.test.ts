@@ -8,6 +8,7 @@ import { AesGcmEventCipher } from '../../src/main/session/event-cipher'
 import { SessionStore } from '../../src/main/session/session-store'
 import { TaskRunner } from '../../src/main/tasks/task-runner'
 import { TaskService } from '../../src/main/tasks/task-service'
+import { ThreadService } from '../../src/main/threads/thread-service'
 
 class FakeAgent {
   readonly prompt = vi.fn(async (_sessionId: string, _text: string) => {})
@@ -24,13 +25,22 @@ class FakeAgent {
   }
 }
 
-async function harness(maxConcurrent = 1) {
+async function harness(maxConcurrent = 1, options: {
+  now?: () => Date
+  threads?: ThreadService
+} = {}) {
   const directory = await mkdtemp(join(tmpdir(), 'barn-task-runner-'))
   const sessions = new SessionStore(join(directory, 'sessions.db'), new AesGcmEventCipher(randomBytes(32)))
   await sessions.initialize()
   const tasks = new TaskService(sessions.tasks)
   const agent = new FakeAgent()
-  const runner = new TaskRunner(agent, tasks, sessions, { maxConcurrent })
+  const runner = new TaskRunner(
+    agent,
+    tasks,
+    sessions,
+    { maxConcurrent, ...(options.now === undefined ? {} : { now: options.now }) },
+    options.threads,
+  )
   return { sessions, tasks, agent, runner }
 }
 
@@ -76,6 +86,45 @@ describe('TaskRunner', () => {
     await waitForTask(h.tasks, task.id, (current) => current.status === 'completed')
     h.runner.stop()
     h.sessions.close()
+  })
+
+  it('waits until scheduledFor before delivering a reminder task', async () => {
+    let now = new Date('2026-11-18T00:00:00.000Z')
+    const directory = await mkdtemp(join(tmpdir(), 'barn-task-reminder-'))
+    const sessions = new SessionStore(join(directory, 'sessions.db'), new AesGcmEventCipher(randomBytes(32)))
+    await sessions.initialize()
+    const tasks = new TaskService(sessions.tasks)
+    const threads = new ThreadService(sessions.threads)
+    const agent = new FakeAgent()
+    const runner = new TaskRunner(agent, tasks, sessions, { now: () => now }, threads)
+    runner.start()
+    const task = tasks.create({
+      title: 'Bring the return',
+      origin: 'user',
+      kind: 'reminder',
+      scheduledFor: '2026-11-18T01:00:00.000Z',
+      prompt: 'Remind me to bring the return.',
+      visiblePrompt: 'Remind me to bring the return.',
+    })
+
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    expect(tasks.get(task.id).status).toBe('queued')
+    expect(agent.prompt).not.toHaveBeenCalled()
+
+    now = new Date('2026-11-18T01:00:01.000Z')
+    runner.kick()
+    await waitForTask(tasks, task.id, (current) => current.status === 'completed')
+    expect(agent.prompt).not.toHaveBeenCalled()
+    expect(threads.listMessages().at(-1)).toMatchObject({
+      role: 'assistant',
+      content: 'Reminder: Remind me to bring the return.',
+      metadata: expect.objectContaining({
+        taskId: task.id,
+        resultCard: expect.objectContaining({ status: 'Reminder' }),
+      }),
+    })
+    runner.stop()
+    sessions.close()
   })
 
   it('waits for input instead of launching a task without instructions', async () => {

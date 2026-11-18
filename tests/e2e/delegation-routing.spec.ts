@@ -77,6 +77,7 @@ test('routes a high-confidence side-effect request through the durable Task path
 })
 
 async function startModelServer(text: string): Promise<Server> {
+  let calls = 0
   const server = createServer((request, response) => {
     if (request.method !== 'POST' || request.url !== '/v1/chat/completions') {
       response.writeHead(404).end()
@@ -84,6 +85,24 @@ async function startModelServer(text: string): Promise<Server> {
     }
     request.resume()
     request.on('end', () => {
+      calls++
+      const content = calls === 1
+        ? JSON.stringify({
+            tool: 'task.create',
+            arguments: {
+              title: 'Send an email to Alice with the project update.',
+              objective: 'Send an email to Alice with the approved project update.',
+              deliverable: 'A sent email and confirmation receipt.',
+              constraints: ['Use the approved project update.'],
+              acceptanceCriteria: ['The requested message is ready for approval.'],
+              forbiddenActions: ['Do not send without approval.'],
+              risk: 'external_write',
+              expectedArtifacts: [],
+            },
+            confidence: 0.98,
+            rationaleCodes: ['e2e_task'],
+          })
+        : text
       response.writeHead(200, {
         'content-type': 'text/event-stream',
         'cache-control': 'no-cache',
@@ -97,7 +116,7 @@ async function startModelServer(text: string): Promise<Server> {
       }
       response.write(`data: ${JSON.stringify({
         ...base,
-        choices: [{ index: 0, delta: { role: 'assistant', content: text }, finish_reason: null }],
+        choices: [{ index: 0, delta: { role: 'assistant', content }, finish_reason: null }],
       })}\n\n`)
       response.write(`data: ${JSON.stringify({
         ...base,

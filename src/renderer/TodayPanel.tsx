@@ -59,7 +59,7 @@ export function TodayPanel({ tasks, onOpenTasks, onConnectSources, onRefresh }: 
                         <strong>{task.title}</strong>
                         {task.detail !== undefined && <small>{task.detail}</small>}
                       </span>
-                      <span className={`routine-state routine-state-${task.status}`}>{t(`tasks.status.${task.status}`)}</span>
+                      <span className={`routine-state routine-state-${task.status}`}>{routineStatusLabel(task, t)}</span>
                     </button>
                   ))}
                 </div>
@@ -70,4 +70,13 @@ export function TodayPanel({ tasks, onOpenTasks, onConnectSources, onRefresh }: 
       </div>
     </section>
   )
+}
+
+function routineStatusLabel(
+  task: Task,
+  t: ReturnType<typeof useTranslation>['t'],
+): string {
+  return task.kind === 'reminder' && task.status === 'queued'
+    ? t('secretary.scheduled')
+    : t(`tasks.status.${task.status}`)
 }
