@@ -237,6 +237,38 @@ export class TaskStore {
     return this.get(taskId)
   }
 
+  /** Requeue an existing Task with additional instructions, abandoning its current execution boundary. */
+  reroute(taskId: string, instruction: string): Task {
+    const task = this.get(taskId)
+    if (task.status === 'completed' || task.status === 'cancelled') {
+      throw new Error(`A ${task.status} task cannot be rerouted`)
+    }
+    const normalized = normalizePrompt(instruction)
+    const prompt = task.prompt === undefined ? normalized : `${task.prompt}\n\nAdditional instruction:\n${normalized}`
+    const visiblePrompt = task.visiblePrompt === undefined ? normalized : `${task.visiblePrompt}\n\n${normalized}`
+    const encryptedPrompt = this.cipher.encrypt(prompt, promptAssociatedData(taskId))
+    const encryptedVisible = this.cipher.encrypt(visiblePrompt, visiblePromptAssociatedData(taskId))
+    const now = new Date().toISOString()
+    this.database.prepare(`
+      UPDATE tasks
+      SET prompt_ciphertext = ?, prompt_nonce = ?, prompt_tag = ?,
+          visible_prompt_ciphertext = ?, visible_prompt_nonce = ?, visible_prompt_tag = ?,
+          status = 'queued', session_id = NULL, waiting_reason = NULL, approval_id = NULL,
+          detail = 'Instructions updated; task requeued.', updated_at = ?, finished_at = NULL
+      WHERE id = ?
+    `).run(
+      encryptedPrompt.ciphertext,
+      encryptedPrompt.nonce,
+      encryptedPrompt.tag,
+      encryptedVisible.ciphertext,
+      encryptedVisible.nonce,
+      encryptedVisible.tag,
+      now,
+      taskId,
+    )
+    return this.get(taskId)
+  }
+
   updatePrompt(taskId: string, value: string): Task {
     const task = this.get(taskId)
     if (!['proposed', 'queued', 'waiting', 'failed'].includes(task.status)) {

@@ -29,6 +29,7 @@ export class AgentService {
     visibleMetadata: Record<string, unknown>
     clientMessageIdPrefix: string
     memoryRefs: string[]
+    projectAssistantMessage: boolean
   }>()
 
   constructor(
@@ -66,6 +67,7 @@ export class AgentService {
       visibleMetadata: options.visibleMetadata ?? {},
       clientMessageIdPrefix: options.clientMessageIdPrefix ?? `session-assistant:${sessionId}`,
       memoryRefs: [],
+      projectAssistantMessage: options.projectAssistantMessage !== false,
     })
     try {
       const snapshot = await this.models.getSnapshot()
@@ -313,6 +315,7 @@ export class AgentService {
     const text = agentMessageText(message).trim()
     if (text.length === 0) return
     const projection = this.promptProjections.get(sessionId)
+    if (projection?.projectAssistantMessage === false) return
     this.threads?.appendMessage({
       clientMessageId: `${projection?.clientMessageIdPrefix ?? `session-assistant:${sessionId}`}:${event.eventId}`,
       role: 'assistant',

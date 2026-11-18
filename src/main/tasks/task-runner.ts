@@ -46,7 +46,7 @@ export class TaskRunner {
     options: TaskRunnerOptions = {},
     private readonly threads?: Pick<ThreadService, 'appendMessage'>,
   ) {
-    this.maxConcurrent = Math.max(1, options.maxConcurrent ?? 1)
+    this.maxConcurrent = Math.max(1, options.maxConcurrent ?? 3)
     this.now = options.now ?? (() => new Date())
   }
 
@@ -57,7 +57,12 @@ export class TaskRunner {
       this.tasks.onEvent((event) => {
         const task = event.task
         if (task.status === 'queued') {
-          this.schedule()
+          const active = this.active.get(task.id)
+          if (active !== undefined && task.sessionId !== active.sessionId) {
+            void this.rerouteActive(task.id)
+          } else {
+            this.schedule()
+          }
           return
         }
         if (task.status === 'cancelled') {
@@ -100,8 +105,10 @@ export class TaskRunner {
     }
     if (this.active.size >= this.maxConcurrent) return
     const now = this.now().getTime()
-    const future = this.tasks.list()
+    const queued = this.tasks.list()
       .filter((task) => task.status === 'queued' && !this.active.has(task.id))
+    if (queued.length === 0) return
+    const future = queued
       .map((task) => ({ task, dueAt: task.scheduledFor === undefined ? now : new Date(task.scheduledFor).getTime() }))
       .filter((entry) => Number.isFinite(entry.dueAt) && entry.dueAt > now)
       .toSorted((left, right) => left.dueAt - right.dueAt)[0]
@@ -194,14 +201,22 @@ export class TaskRunner {
         task.visiblePrompt,
         {
           projectUserMessage: false,
+          projectAssistantMessage: false,
+          visibleActivity: false,
           visibleMetadata: { taskId: task.id },
           clientMessageIdPrefix: `task-assistant:${task.id}`,
         },
       )
     } catch (error) {
+      const wasActive = this.active.get(task.id)?.sessionId === session.id
       this.removeActive(task.id)
       const current = this.tasks.list().find((candidate) => candidate.id === task.id)
-      if (current !== undefined && current.status !== 'completed' && current.status !== 'cancelled') {
+      if (
+        wasActive
+        && current?.sessionId === session.id
+        && current.status !== 'completed'
+        && current.status !== 'cancelled'
+      ) {
         this.tasks.updateStatus(task.id, {
           status: 'failed',
           detail: errorMessage(error),
@@ -242,6 +257,20 @@ export class TaskRunner {
       this.updateIfActive(taskId, { status: 'completed', detail: '' })
     }
     this.schedule()
+  }
+
+  private async rerouteActive(taskId: string): Promise<void> {
+    const active = this.active.get(taskId)
+    if (active === undefined) return
+    active.cancelRequested = true
+    this.removeActive(taskId)
+    try {
+      await this.agent.cancel(active.sessionId)
+    } catch {
+      // The Task is already requeued; an already stopped Worker needs no further action.
+    } finally {
+      this.schedule()
+    }
   }
 
   private async cancelActive(taskId: string): Promise<void> {

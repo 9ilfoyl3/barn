@@ -21,7 +21,7 @@ const ROUTER_CONTEXT_MESSAGE_LIMIT = 40
 const ROUTER_LEASE_OWNER = 'desktop-router'
 
 type RouterThreads = Pick<ThreadService, 'appendMessage' | 'appendMessageInTransaction' | 'notifyMessage' | 'listMessages'>
-type RouterTasks = Pick<TaskService, 'create' | 'get' | 'list' | 'updatePrompt' | 'updateStatus'>
+type RouterTasks = Pick<TaskService, 'create' | 'get' | 'list' | 'reroute' | 'updateStatus'>
 type RouterSessions = Pick<SessionStore, 'transaction'>
 
 export interface RouterServiceOptions {
@@ -292,20 +292,19 @@ export class RouterService {
     }
 
     const task = this.tasks.get(decision.taskId)
-    if (task.prompt === undefined) throw new Error('The referenced Task has no instructions to update')
-    this.tasks.updatePrompt(task.id, `${task.prompt}\n\nAdditional instruction:\n${decision.instruction}`)
+    const rerouted = this.tasks.reroute(task.id, decision.instruction)
     const reply = this.threads.appendMessage({
       clientMessageId: `router-update:${request.id}`,
       role: 'assistant',
-      content: locale === 'zh-CN' ? `已更新“${task.title}”的任务指令。` : `Updated the instructions for “${task.title}”.`,
-      metadata: { routerRequestId: request.id, taskId: task.id },
-      sourceRefs: [`router:${request.id}`, `task:${task.id}`],
+      content: locale === 'zh-CN' ? `已更新“${task.title}”并重新排队执行。` : `Updated “${task.title}” and requeued it for execution.`,
+      metadata: { routerRequestId: request.id, taskId: rerouted.id },
+      sourceRefs: [`router:${request.id}`, `task:${rerouted.id}`],
     })
     this.finish(request.id, {
       kind: 'update_task',
       confidence: decision.confidence,
       rationaleCodes: decision.rationaleCodes,
-      taskId: task.id,
+      taskId: rerouted.id,
       replyMessageId: reply.id,
     })
   }

@@ -44,6 +44,12 @@ export class TaskService {
     return task
   }
 
+  reroute(taskId: string, instruction: string): Task {
+    const task = this.store.reroute(taskId, instruction)
+    this.emit(task)
+    return task
+  }
+
   assignSession(taskId: string, sessionId: string | null): Task {
     const task = this.store.assignSession(taskId, sessionId)
     this.emit(task)

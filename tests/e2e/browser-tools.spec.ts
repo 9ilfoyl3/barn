@@ -62,22 +62,28 @@ test('uses semantic browser tools to fill and submit a real page', async () => {
     await composer.fill('Fill the local form with Ada and submit it.')
     await composer.press('Enter')
 
-    await expect(page.getByTestId('browser-panel')).toBeVisible({ timeout: 15_000 })
     const approval = page.getByRole('alertdialog', { name: 'Browser action approval' })
     await expect(approval).toBeVisible({ timeout: 15_000 })
     await expect(approval).toContainText('Submit a form on 127.0.0.1')
     await approval.getByRole('button', { name: 'Approve browser action' }).click()
-    await expect(page.getByText('Browser task completed.').last()).toBeVisible({ timeout: 20_000 })
+    await expect.poll(async () => page.evaluate(async () => (await window.barn.tasks.list())[0]?.status), { timeout: 20_000 }).toBe('completed')
+    await expect(page.getByTestId('browser-panel')).toHaveCount(0)
     await expect.poll(async () => page.evaluate(() => window.barn.browser.getState())).toMatchObject({
       open: true,
+      visible: false,
       title: 'Submitted',
     })
     const state = await page.evaluate(() => window.barn.browser.getState())
     expect(state.url).toContain('/done?name=Ada')
     expect(requests.length).toBeGreaterThanOrEqual(7)
-    await page.screenshot({ path: 'test-results/barn-browser-tools.png', fullPage: true })
 
-    await page.getByTestId('browser-panel').getByRole('button', { name: 'Close browser' }).click()
+    const taskCard = page.locator('.assistant-result', { hasText: 'Fill and submit the local browser form' }).last()
+    await expect(taskCard.locator('.assistant-result-status')).toHaveText('Completed')
+    await taskCard.getByRole('button', { name: 'View details' }).click()
+    await expect(page.locator('.task-detail-page')).toContainText('Browser task completed.')
+    await page.screenshot({ path: 'test-results/barn-browser-task-detail.png', fullPage: true })
+
+    await page.getByRole('button', { name: 'Home' }).click()
     await expect(page.getByTestId('agent-screen')).toHaveCount(0)
     await expect(page.locator('.workspace-body')).toHaveClass(/secretary-home/)
     await expect(page.locator('.today-home-column')).toBeVisible()
@@ -100,7 +106,7 @@ test('uses semantic browser tools to fill and submit a real page', async () => {
     expect(layout.routinesRight).toBeLessThanOrEqual(layout.conversationLeft)
     expect(layout.conversationRight).toBeLessThanOrEqual(layout.tasksLeft)
     expect(layout.workspaceRight).toBeGreaterThanOrEqual(layout.conversationRight)
-    await page.screenshot({ path: 'test-results/barn-browser-closed-home.png', fullPage: true })
+    await page.screenshot({ path: 'test-results/barn-browser-background-home.png', fullPage: true })
 
     await page.locator('.workspace-header').getByRole('button', { name: 'Open browser' }).click()
     await expect(page.getByTestId('browser-panel')).toBeVisible()

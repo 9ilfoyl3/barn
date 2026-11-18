@@ -51,6 +51,7 @@ import './browser-panel.css'
 import { TaskCenter } from './TaskCenter'
 import { TodayPanel } from './TodayPanel'
 import { TaskRail } from './TaskRail'
+import { TaskDetailPage } from './TaskDetailPage'
 import { CommandPalette } from './CommandPalette'
 import './secretary.css'
 import { initializeAppLanguage } from './i18n'
@@ -89,7 +90,8 @@ export function App() {
   const [error, setError] = useState<string>()
   const [accountOpen, setAccountOpen] = useState(false)
   const [commandOpen, setCommandOpen] = useState(false)
-  const [view, setView] = useState<'conversation' | 'tasks' | 'settings'>('conversation')
+  const [view, setView] = useState<'conversation' | 'tasks' | 'task-detail' | 'settings'>('conversation')
+  const [selectedTaskId, setSelectedTaskId] = useState<string>()
   const [tasks, setTasks] = useState<Task[]>([])
   const [tasksLoading, setTasksLoading] = useState(true)
   const [taskError, setTaskError] = useState<string>()
@@ -255,13 +257,13 @@ export function App() {
   useEffect(() => {
     const unsubscribe = window.barn.browser.onEvent((event) => {
       setBrowserState(event.state)
-      setBrowserOpen(event.state.open)
-      if (event.state.open) setUtilityOpen(false)
+      setBrowserOpen(event.state.visible)
+      if (event.state.visible) setUtilityOpen(false)
     })
     void window.barn.browser.getState()
       .then((state) => {
         setBrowserState(state)
-        setBrowserOpen(state.open)
+        setBrowserOpen(state.visible)
       })
       .catch((reason: unknown) => setError(errorMessage(reason, t)))
     return unsubscribe
@@ -589,9 +591,10 @@ export function App() {
   const needsYouCount = tasks.filter((task) => ['proposed', 'waiting', 'failed'].includes(task.status)).length
   const routerQueuedCount = routerRequests.filter((request) => request.status === 'queued').length
 
-  function openTask(_task: Task): void {
+  function openTask(task: Task): void {
     setCommandOpen(false)
-    setView('tasks')
+    setSelectedTaskId(task.id)
+    setView('task-detail')
   }
 
   function routerRequestStatusLabel(request: RouterRequest): string {
@@ -629,7 +632,7 @@ export function App() {
           <kbd>{commandKey} K</kbd>
         </button>
         <div className="app-topbar-actions">
-          {view === 'conversation' && !rightPanelOpen && (
+          {!rightPanelOpen && (
             <TooltipButton
               className="icon-button secretary-action browser-toggle"
               label={t('browser.open')}
@@ -764,10 +767,24 @@ export function App() {
                 tasks={tasks}
                 loading={tasksLoading}
                 error={taskError}
-                onOpenSession={() => setView('conversation')}
+                onOpenTask={openTask}
                 onError={setTaskError}
               />
             </>
+          ) : view === 'task-detail' ? (
+            (() => {
+              const selectedTask = tasks.find((task) => task.id === selectedTaskId)
+              return selectedTask === undefined ? (
+                <div className="task-detail-page task-detail-empty">
+                  <strong>{t('tasks.emptyTitle')}</strong>
+                  <button type="button" className="task-detail-back" onClick={() => setView('tasks')}>
+                    {t('tasks.back')}
+                  </button>
+                </div>
+              ) : (
+                <TaskDetailPage task={selectedTask} onBack={() => setView('tasks')} />
+              )
+            })()
           ) : (
             <>
               {!rightPanelOpen && (
@@ -842,12 +859,21 @@ export function App() {
                             </span>
                           )
                         })()}
-                        {message.role === 'assistant' && message.resultCard !== undefined && (
-                          <AssistantResult
-                            card={message.resultCard}
-                            onOpenLink={(url) => void openResultLink(url)}
-                          />
-                        )}
+                        {message.role === 'assistant' && message.resultCard !== undefined && (() => {
+                          const task = message.taskId === undefined
+                            ? undefined
+                            : tasks.find((candidate) => candidate.id === message.taskId)
+                          const card = task !== undefined && message.resultCard?.kind === 'task'
+                            ? { ...message.resultCard, status: t(`tasks.status.${task.status}`) }
+                            : message.resultCard
+                          return (
+                            <AssistantResult
+                              card={card}
+                              onOpenLink={(url) => void openResultLink(url)}
+                              {...(task === undefined ? {} : { onOpenTask: () => openTask(task) })}
+                            />
+                          )
+                        })()}
                       </MessageBubble>
                     ))}
                     {running && displayLiveParts.length === 0 && (
@@ -973,6 +999,23 @@ export function App() {
 
         </div>
       </main>
+
+      {browserApproval !== undefined && !browserOpen && (
+        <aside className="background-browser-approval" role="alertdialog" aria-label="Browser action approval">
+          <div className="background-browser-approval-copy">
+            <strong>Approve browser action?</strong>
+            <span>{browserApproval.summary}</span>
+          </div>
+          <div className="background-browser-approval-actions">
+            <button type="button" className="is-deny" onClick={() => void resolveBrowserApproval('denied')}>
+              Deny
+            </button>
+            <button type="button" className="is-approve" aria-label="Approve browser action" onClick={() => void resolveBrowserApproval('approved')}>
+              Approve
+            </button>
+          </div>
+        </aside>
+      )}
 
       {browserOpen && !utilityOpen && (
         <BrowserPanel
