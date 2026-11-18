@@ -78,46 +78,31 @@ test('uses semantic browser tools to fill and submit a real page', async () => {
     await page.screenshot({ path: 'test-results/barn-browser-tools.png', fullPage: true })
 
     await page.getByTestId('browser-panel').getByRole('button', { name: 'Close browser' }).click()
-    const agentScreen = page.getByTestId('agent-screen')
-    await expect(agentScreen).toBeVisible()
-    await expect(agentScreen.locator('.agent-screen-kit-header')).toHaveCount(0)
-    await expect(agentScreen.locator('.agent-screen-kit-image')).toBeVisible()
-    await expect(page.locator('.workspace-body')).toHaveClass(/agent-screen-open/)
-    await expect.poll(() => agentScreen.locator('.agent-screen-live').evaluate((element) => (
-      getComputedStyle(element).boxShadow
-    ))).toBe('none')
-    await expect.poll(() => agentScreen.evaluate((element) => getComputedStyle(element).pointerEvents)).toBe('none')
-    await expect.poll(() => agentScreen.locator('.agent-screen-live').evaluate((element) => (
-      getComputedStyle(element).pointerEvents
-    ))).toBe('auto')
+    await expect(page.getByTestId('agent-screen')).toHaveCount(0)
+    await expect(page.locator('.workspace-body')).toHaveClass(/secretary-home/)
+    await expect(page.locator('.today-home-column')).toBeVisible()
+    await expect(page.locator('.conversation-view')).toBeVisible()
+    await expect(page.locator('.task-rail')).toBeVisible()
 
     const layout = await page.evaluate(() => {
+      const routines = document.querySelector('.today-home-column')!.getBoundingClientRect()
       const conversation = document.querySelector('.conversation-view')!.getBoundingClientRect()
-      const surface = document.querySelector('.conversation-surface')!.getBoundingClientRect()
+      const tasks = document.querySelector('.task-rail')!.getBoundingClientRect()
       const workspace = document.querySelector('.workspace-body')!.getBoundingClientRect()
-      const screen = document.querySelector('.agent-screen')!.getBoundingClientRect()
-      const composerRect = document.querySelector('.composer-dock')!.getBoundingClientRect()
-      const messageList = document.querySelector('.message-list')!.getBoundingClientRect()
       return {
+        routinesRight: routines.right,
+        conversationLeft: conversation.left,
         conversationRight: conversation.right,
-        conversationOverflow: getComputedStyle(document.querySelector('.conversation-view')!).overflow,
-        surfaceRight: surface.right,
+        tasksLeft: tasks.left,
         workspaceRight: workspace.right,
-        screenLeft: screen.left,
-        screenWidth: screen.width,
-        composerRight: composerRect.right,
-        messageListRight: messageList.right,
       }
     })
-    expect(layout.screenWidth).toBeLessThanOrEqual(264)
-    expect(layout.conversationRight).toBeLessThanOrEqual(layout.screenLeft + 1)
-    expect(layout.conversationOverflow).toBe('visible')
-    expect(layout.surfaceRight).toBeCloseTo(layout.workspaceRight, 0)
-    expect(layout.composerRight).toBeLessThanOrEqual(layout.screenLeft + 1)
-    expect(layout.messageListRight).toBeLessThanOrEqual(layout.screenLeft + 1)
-    await page.screenshot({ path: 'test-results/barn-agent-screen-live.png', fullPage: true })
+    expect(layout.routinesRight).toBeLessThanOrEqual(layout.conversationLeft)
+    expect(layout.conversationRight).toBeLessThanOrEqual(layout.tasksLeft)
+    expect(layout.workspaceRight).toBeGreaterThanOrEqual(layout.conversationRight)
+    await page.screenshot({ path: 'test-results/barn-browser-closed-home.png', fullPage: true })
 
-    await agentScreen.getByRole('button', { name: 'Open screen' }).click()
+    await page.locator('.workspace-header').getByRole('button', { name: 'Open browser' }).click()
     await expect(page.getByTestId('browser-panel')).toBeVisible()
     await expect(page.getByTestId('agent-screen')).toHaveCount(0)
   } finally {

@@ -40,7 +40,6 @@ import { SourceSettings } from './SourceSettings'
 import { DiagnosticsSettings } from './DiagnosticsSettings'
 import { SettingsPage } from './SettingsPage'
 import { AttachmentStrip } from './AttachmentStrip'
-import { AgentScreen } from './AgentScreen'
 import { BrowserPanel, type BrowserQuickAction } from './BrowserPanel'
 import { UtilityPanel, type UtilityTab, type UtilityTabType } from './UtilityPanel'
 import { ConversationParts, PendingThinking } from './ConversationParts'
@@ -109,7 +108,6 @@ export function App() {
     downloads: [],
     history: [],
   })
-  const [agentScreenPreview, setAgentScreenPreview] = useState<string>()
   const [pendingApprovals, setPendingApprovals] = useState<ApprovalRequest[]>([])
   const listRef = useRef<HTMLElement>(null)
   const accountAreaRef = useRef<HTMLDivElement>(null)
@@ -255,17 +253,6 @@ export function App() {
       .catch((reason: unknown) => setError(errorMessage(reason, t)))
     return unsubscribe
   }, [])
-
-  useEffect(() => {
-    if (browserOpen || browserState.url === 'about:blank') return
-    const timer = setTimeout(() => {
-      void window.barn.browser.capture()
-        .then(setAgentScreenPreview)
-        .catch(() => undefined)
-    }, 320)
-    return () => clearTimeout(timer)
-  }, [browserOpen, browserState.loading, browserState.title, browserState.url])
-
 
   useEffect(() => window.barn.lifecycle.onShowTasks(() => setView('tasks')), [])
 
@@ -637,8 +624,6 @@ export function App() {
   const workingDirectoryLabel = workingDirectory === undefined
     ? t('conversation.chooseWorkingDirectory')
     : workingDirectory.split(/[\\/]/).filter(Boolean).at(-1) ?? workingDirectory
-  const hasBrowserOperation = [...messages.flatMap((message) => message.parts), ...liveParts]
-    .some((part) => part.type === 'tool' && part.tool.name.startsWith('browser_'))
   const browserApproval = pendingApprovals.find((approval) => approval.title === 'Approve browser action')
   const needsYouCount = tasks.filter((task) => ['proposed', 'waiting', 'failed'].includes(task.status)).length
 
@@ -668,11 +653,9 @@ export function App() {
     window.barn.platform === 'darwin' ? 'platform-darwin' : '',
   ].filter(Boolean).join(' ')
   const workspaceShellClassName = rightPanelOpen ? 'workspace-shell browser-open' : 'workspace-shell'
-  const showAgentScreen = view === 'conversation' && !rightPanelOpen && hasBrowserOperation
   const workspaceBodyClassName = [
     'workspace-body',
-    showAgentScreen ? 'agent-screen-open' : '',
-    view === 'conversation' && !rightPanelOpen && !showAgentScreen ? 'secretary-home' : '',
+    view === 'conversation' && !rightPanelOpen ? 'secretary-home' : '',
   ].filter(Boolean).join(' ')
 
   return (
@@ -826,7 +809,7 @@ export function App() {
             </>
           ) : (
             <>
-              {!rightPanelOpen && !showAgentScreen && (
+              {!rightPanelOpen && (
                 <div className="today-home-column">
                   <TodayPanel
                     tasks={tasks}
@@ -1009,15 +992,8 @@ export function App() {
             </>
           )}
 
-          {view === 'conversation' && !rightPanelOpen && !showAgentScreen && (
+          {view === 'conversation' && !rightPanelOpen && (
             <TaskRail tasks={tasks} onOpenTask={openTask} onOpenTasks={() => setView('tasks')} />
-          )}
-
-          {showAgentScreen && (
-            <AgentScreen
-              preview={agentScreenPreview}
-              onOpenBrowser={() => void toggleBrowser()}
-            />
           )}
 
         </div>

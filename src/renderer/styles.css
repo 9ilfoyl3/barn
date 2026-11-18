@@ -2459,19 +2459,6 @@ select:focus-visible {
   content: "";
 }
 
-/* Keep the conversation scrollbar at the workspace edge while the Agent Screen
-   still occupies its own layout column. The oversized surface slides under the
-   transparent screen gutter; its padding keeps messages and controls clear. */
-.workspace-body.agent-screen-open .conversation-view {
-  overflow: visible;
-}
-
-.workspace-body.agent-screen-open .conversation-surface {
-  width: calc(100% + var(--agent-screen-width, clamp(216px, 20vw, 264px)));
-  margin-right: calc(-1 * var(--agent-screen-width, clamp(216px, 20vw, 264px)));
-  padding-right: var(--agent-screen-width, clamp(216px, 20vw, 264px));
-}
-
 .conversation-view .composer-dock > * {
   position: relative;
   z-index: 1;
