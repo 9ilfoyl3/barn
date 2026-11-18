@@ -74,14 +74,12 @@ test('renders the sessionless personal-secretary workspace and structured result
     await expect(page.locator('.barn-prompt-inline')).toBeVisible()
 
     const layout = await page.evaluate(() => {
-      const bounds = (selector: string) => document.querySelector(selector)!.getBoundingClientRect()
-      return {
-        rail: bounds('.app-rail'),
-        workspace: bounds('.workspace-shell'),
-        routines: bounds('.today-home-column'),
-        conversation: bounds('.conversation-view'),
-        tasks: bounds('.task-rail'),
-      }
+      const rail = document.querySelector('.app-rail')!.getBoundingClientRect()
+      const workspace = document.querySelector('.workspace-shell')!.getBoundingClientRect()
+      const routines = document.querySelector('.today-home-column')!.getBoundingClientRect()
+      const conversation = document.querySelector('.conversation-view')!.getBoundingClientRect()
+      const tasks = document.querySelector('.task-rail')!.getBoundingClientRect()
+      return { rail, workspace, routines, conversation, tasks }
     })
     expect(layout.rail.right).toBeLessThanOrEqual(layout.workspace.left)
     expect(layout.routines.right).toBeLessThanOrEqual(layout.conversation.left)
