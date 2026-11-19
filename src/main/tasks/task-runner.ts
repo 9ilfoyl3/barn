@@ -6,6 +6,7 @@ import type { TaskService } from './task-service'
 export interface TaskRunnerOptions {
   maxConcurrent?: number
   now?: () => Date
+  routerRequestIdForTask?: (taskId: string) => string | undefined
 }
 
 export interface TaskAgent {
@@ -31,6 +32,7 @@ interface ActiveTask {
 export class TaskRunner {
   private readonly maxConcurrent: number
   private readonly now: () => Date
+  private readonly routerRequestIdForTask: (taskId: string) => string | undefined
   private readonly active = new Map<string, ActiveTask>()
   private readonly activeSessions = new Map<string, string>()
   private disposers: Array<() => void> = []
@@ -41,13 +43,14 @@ export class TaskRunner {
 
   constructor(
     private readonly agent: TaskAgent,
-    private readonly tasks: Pick<TaskService, 'list' | 'updateStatus' | 'assignSession' | 'onEvent'>,
-    private readonly sessions: Pick<SessionStore, 'createSession' | 'getSession'>,
+    private readonly tasks: Pick<TaskService, 'list' | 'updateStatus' | 'rescheduleReminder' | 'assignSession' | 'onEvent'>,
+    private readonly sessions: Pick<SessionStore, 'createSession' | 'getSession' | 'read'>,
     options: TaskRunnerOptions = {},
     private readonly threads?: Pick<ThreadService, 'appendMessage'>,
   ) {
     this.maxConcurrent = Math.max(1, options.maxConcurrent ?? 3)
     this.now = options.now ?? (() => new Date())
+    this.routerRequestIdForTask = options.routerRequestIdForTask ?? (() => undefined)
   }
 
   start(): void {
@@ -162,25 +165,25 @@ export class TaskRunner {
   private async launch(task: Task): Promise<void> {
     if (task.kind === 'reminder') {
       this.tasks.updateStatus(task.id, { status: 'running', detail: 'Delivering reminder.' })
+      const routerRequestId = this.routerRequestIdForTask(task.id)
       this.threads?.appendMessage({
         clientMessageId: `task-reminder:${task.id}`,
         role: 'assistant',
-        content: `Reminder: ${task.visiblePrompt ?? task.title}`,
+        content: reminderDeliveryText(task.visiblePrompt ?? task.title),
         metadata: {
           taskId: task.id,
-          resultCard: {
-            version: 1,
-            kind: 'task',
-            title: task.title,
-            description: 'Scheduled reminder delivered.',
-            provider: 'Barn',
-            status: 'Reminder',
-            meta: task.scheduledFor === undefined ? 'Due now' : `Scheduled for ${task.scheduledFor}`,
-          },
+          routineId: task.id,
+          routineDelivery: true,
+          ...(routerRequestId === undefined ? {} : { routerRequestId }),
         },
         sourceRefs: [`task:${task.id}`],
       })
-      this.tasks.updateStatus(task.id, { status: 'completed', detail: '' })
+      const nextOccurrence = nextReminderOccurrence(task)
+      if (nextOccurrence === undefined) {
+        this.tasks.updateStatus(task.id, { status: 'completed', detail: '' })
+      } else {
+        this.tasks.rescheduleReminder(task.id, nextOccurrence)
+      }
       this.schedule()
       return
     }
@@ -248,6 +251,7 @@ export class TaskRunner {
         status: 'failed',
         detail: event.error ?? 'Task execution failed.',
       })
+      void this.projectTaskResult(taskId, event.sessionId, event.error)
     } else if (event.status === 'cancelled' || active.cancelRequested) {
       this.updateIfActive(taskId, {
         status: 'cancelled',
@@ -255,8 +259,35 @@ export class TaskRunner {
       })
     } else {
       this.updateIfActive(taskId, { status: 'completed', detail: '' })
+      void this.projectTaskResult(taskId, event.sessionId)
     }
     this.schedule()
+  }
+
+  private async projectTaskResult(taskId: string, sessionId: string, error?: string): Promise<void> {
+    const task = this.tasks.list().find((candidate) => candidate.id === taskId)
+    if (task === undefined) return
+    const result = finalAssistantMessage(this.sessions.read(sessionId))
+    const content = result?.text.trim() || (error === undefined ? '' : `任务“${task.title}”执行失败：${error}`)
+    if (content.length === 0) return
+    const routerRequestId = this.routerRequestIdForTask(taskId)
+    this.threads?.appendMessage({
+      clientMessageId: `task-result:${taskId}:${result?.eventId ?? 'failed'}`,
+      role: 'assistant',
+      content,
+      metadata: {
+        taskId,
+        sessionId,
+        taskResult: true,
+        ...(result === undefined ? {} : { sessionEventId: result.eventId }),
+        ...(routerRequestId === undefined ? {} : { routerRequestId }),
+      },
+      sourceRefs: [
+        `task:${taskId}`,
+        `session:${sessionId}`,
+        ...(routerRequestId === undefined ? [] : [`router:${routerRequestId}`]),
+      ],
+    })
   }
 
   private async rerouteActive(taskId: string): Promise<void> {
@@ -297,6 +328,54 @@ export class TaskRunner {
     this.active.delete(taskId)
     if (this.activeSessions.get(active.sessionId) === taskId) this.activeSessions.delete(active.sessionId)
   }
+}
+
+function finalAssistantMessage(events: ReturnType<SessionStore['read']>): { eventId: string; text: string } | undefined {
+  for (let index = events.length - 1; index >= 0; index--) {
+    const event = events[index]
+    if (event?.type !== 'agent.message' || !isRecord(event.data) || !isRecord(event.data.message)) continue
+    if (event.data.message.role !== 'assistant') continue
+    const text = agentMessageText(event.data.message.content).trim()
+    if (text.length > 0) return { eventId: event.eventId, text }
+  }
+  return undefined
+}
+
+function agentMessageText(content: unknown): string {
+  if (typeof content === 'string') return content
+  if (!Array.isArray(content)) return ''
+  return content.flatMap((part): string[] => (
+    isRecord(part) && part.type === 'text' && typeof part.text === 'string' ? [part.text] : []
+  )).join('\n')
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function nextReminderOccurrence(task: Task): string | undefined {
+  if ((task.recurrence ?? 'none') === 'none' || task.scheduledFor === undefined) return undefined
+  const previous = new Date(task.scheduledFor)
+  if (Number.isNaN(previous.getTime())) return undefined
+  const days = task.recurrence === 'weekly' ? 7 : 1
+  let next = new Date(previous.getTime() + days * 24 * 60 * 60 * 1_000)
+  if (task.recurrence === 'weekdays') {
+    while (isWeekend(next, task.timezone)) next = new Date(next.getTime() + 24 * 60 * 60 * 1_000)
+  }
+  return next.toISOString()
+}
+
+function isWeekend(date: Date, timezone: string | undefined): boolean {
+  const weekday = new Intl.DateTimeFormat('en-US', {
+    weekday: 'short',
+    ...(timezone === undefined ? {} : { timeZone: timezone }),
+  }).format(date)
+  return weekday === 'Sat' || weekday === 'Sun'
+}
+
+function reminderDeliveryText(text: string): string {
+  if (!/[\u3400-\u9fff]/u.test(text)) return `Reminder: ${text}`
+  return `提醒：${text.replace(/^提醒我(?:要|去)?\s*/u, '').trim()}`
 }
 
 function errorMessage(error: unknown): string {

@@ -55,15 +55,17 @@ test('accepts new messages while the serial Router is still responding', async (
     await composer.press('Enter')
 
     await expect(page.getByLabel('User message').getByText('What is the second answer?', { exact: true })).toBeVisible()
-    await expect(page.locator('.router-message-state').filter({ hasText: 'Queued' })).toBeVisible()
+    await expect(page.locator('.barn-thinking-indicator')).toContainText('Thinking')
+    await expect(page.locator('.assistant-reply-run')).toHaveCount(0)
 
     const queuedSnapshot = await page.evaluate(async () => window.barn.router.getSnapshot())
     expect(queuedSnapshot.requests).toHaveLength(2)
     expect(queuedSnapshot.requests.map((request) => request.sequence)).toEqual([1, 2])
     expect(queuedSnapshot.requests[0]).toMatchObject({ status: 'routing' })
     expect(queuedSnapshot.requests[1]).toMatchObject({ status: 'queued' })
-    await expect(page.locator('.router-message-state').filter({ hasText: 'Routing' })).toBeVisible()
+    await expect(page.locator('.barn-thinking-indicator')).toBeVisible()
 
+    await page.waitForTimeout(260)
     await page.screenshot({ path: 'test-results/barn-router-queue-waiting.png', fullPage: true })
     model.releaseFirst()
     await expect(page.getByText('First response').last()).toBeVisible({ timeout: 15_000 })
@@ -71,6 +73,7 @@ test('accepts new messages while the serial Router is still responding', async (
     await expect.poll(async () => page.evaluate(async () => (await window.barn.router.getSnapshot()).requests.every((request) => request.status === 'completed')))
       .toBe(true)
     expect(model.requestCount()).toBe(2)
+    await expect(page.locator('.barn-thinking-indicator')).toHaveCount(0)
     await page.screenshot({ path: 'test-results/barn-router-queue.png', fullPage: true })
   } finally {
     await app.close()

@@ -57,11 +57,32 @@ test('runs independent Tasks in parallel and keeps Worker progress out of the ma
     await expect.poll(async () => page.evaluate(async () => (await window.barn.sessions.list()).length), { timeout: 15_000 }).toBe(2)
     expect(await page.evaluate(async () => (await window.barn.threads.getSnapshot()).messages)).toEqual([])
 
-    model.release()
+    model.releaseA()
+    await expect.poll(async () => page.evaluate(async (taskId) => (await window.barn.tasks.get(taskId)).status, tasks[0]!.id), { timeout: 15_000 }).toBe('completed')
+    expect(await page.evaluate(async (taskId) => (await window.barn.tasks.get(taskId)).status, tasks[1]!.id)).toBe('running')
+    await expect.poll(async () => page.evaluate(async () => (await window.barn.threads.getSnapshot()).messages.length)).toBe(1)
+    const midwayThread = await page.evaluate(async () => (await window.barn.threads.getSnapshot()).messages)
+    expect(midwayThread[0]).toMatchObject({ role: 'assistant', content: 'Task A completed.' })
+    await page.screenshot({ path: 'test-results/barn-task-incremental-result.png', fullPage: true })
+
+    model.releaseB()
     await expect.poll(async () => page.evaluate(async (taskIds) => Promise.all(
       taskIds.map((id) => window.barn.tasks.get(id).then((task) => task.status)),
     ), tasks.map((task) => task.id)), { timeout: 15_000 }).toEqual(['completed', 'completed'])
-    expect(await page.evaluate(async () => (await window.barn.threads.getSnapshot()).messages)).toEqual([])
+    await expect.poll(async () => page.evaluate(async () => (await window.barn.threads.getSnapshot()).messages.length)).toBe(2)
+    const thread = await page.evaluate(async () => (await window.barn.threads.getSnapshot()).messages)
+    expect(thread).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        role: 'assistant',
+        content: 'Task A completed.',
+        metadata: expect.objectContaining({ taskResult: true }),
+      }),
+      expect.objectContaining({
+        role: 'assistant',
+        content: 'Task B completed.',
+        metadata: expect.objectContaining({ taskResult: true }),
+      }),
+    ]))
     await page.screenshot({ path: 'test-results/barn-task-parallel.png', fullPage: true })
   } finally {
     await app.close()
@@ -72,11 +93,14 @@ test('runs independent Tasks in parallel and keeps Worker progress out of the ma
 async function startParallelModelServer(): Promise<{
   server: Server
   startedCount: () => number
-  release: () => void
+  releaseA: () => void
+  releaseB: () => void
 }> {
   let started = 0
-  let releaseRequests: (() => void) | undefined
-  const released = new Promise<void>((resolve) => { releaseRequests = resolve })
+  let releaseRequestA: (() => void) | undefined
+  let releaseRequestB: (() => void) | undefined
+  const releasedA = new Promise<void>((resolve) => { releaseRequestA = resolve })
+  const releasedB = new Promise<void>((resolve) => { releaseRequestB = resolve })
   const server = createServer((request, response) => {
     if (request.method !== 'POST' || request.url !== '/v1/chat/completions') {
       response.writeHead(404).end()
@@ -87,8 +111,9 @@ async function startParallelModelServer(): Promise<{
     request.on('data', (chunk: string) => { body += chunk })
     request.on('end', async () => {
       started++
-      await released
-      const text = body.includes('Complete task A') ? 'Task A completed.' : 'Task B completed.'
+      const taskA = body.includes('Complete task A')
+      await (taskA ? releasedA : releasedB)
+      const text = taskA ? 'Task A completed.' : 'Task B completed.'
       response.writeHead(200, {
         'content-type': 'text/event-stream',
         'cache-control': 'no-cache',
@@ -116,5 +141,5 @@ async function startParallelModelServer(): Promise<{
     server.once('error', reject)
     server.listen(0, '127.0.0.1', resolve)
   })
-  return { server, startedCount: () => started, release: () => releaseRequests?.() }
+  return { server, startedCount: () => started, releaseA: () => releaseRequestA?.(), releaseB: () => releaseRequestB?.() }
 }

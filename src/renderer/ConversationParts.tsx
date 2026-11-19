@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Streamdown, type Components } from 'streamdown'
 import ToolChips, { type ToolStep } from '@/components/beautiful-ui/original/primitives/ToolChips'
+import { ThinkingIndicator, type ThinkingState } from '@/components/agents-ui/agent-thinking-indicator'
 import {
   groupConversationParts,
   type ChatMessage,
@@ -150,31 +151,22 @@ function truncate(value: string, maxLength: number): string {
 
 type ThinkingConversationPart = Extract<ConversationPart, { type: 'thinking' }>
 
-export function PendingThinking() {
+export interface PendingThinkingProps {
+  label?: string
+  detail?: string
+  state?: ThinkingState
+}
+
+export function PendingThinking({ label, detail, state = 'composing' }: PendingThinkingProps) {
   const { t } = useTranslation()
-  const [expanded, setExpanded] = useState(true)
   return (
-    <div role="status" aria-live="polite">
-      <ToolChips
-        className="barn-tool-chips agent-thinking-pending"
-        diffLines={{}}
-        diffs={[]}
-        expanded={expanded}
-        labels={{ header: t('conversation.thinking') }}
-        onOpenChange={setExpanded}
-        steps={[{
-          id: 'pending',
-          icon: 'think',
-          label: t('conversation.thinking'),
-          chip: t('conversation.working'),
-          mono: false,
-          detailMono: false,
-          detail: [],
-          status: 'running',
-        }]}
-        visibleStepCount={1}
-      />
-    </div>
+    <ThinkingIndicator
+      className="barn-thinking-indicator"
+      state={state}
+      size={20}
+      label={label ?? t('conversation.thinkingNow')}
+      {...(detail === undefined ? {} : { detail })}
+    />
   )
 }
 

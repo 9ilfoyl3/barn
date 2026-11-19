@@ -54,7 +54,7 @@ test('observes and acts inside open Shadow DOM and same-origin iframes', async (
     await composer.fill('Fill controls inside the nested page regions.')
     await composer.press('Enter')
     await expect.poll(async () => page.evaluate(async () => (await window.barn.tasks.list())[0]?.status), { timeout: 20_000 }).toBe('completed')
-    await expect.poll(async () => page.evaluate(() => window.barn.browser.getState().then((state) => state.title))).toBe('Shadow:Ada / Frame:Hello')
+    await expect.poll(async () => page.evaluate(() => window.barn.browser.getState())).toMatchObject({ open: false, visible: false })
     await expect(page.getByTestId('browser-panel')).toHaveCount(0)
     await page.locator('.task-rail-card').click()
     await expect(page.locator('.task-detail-page')).toContainText('Nested action completed.')

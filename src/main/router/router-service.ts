@@ -6,9 +6,7 @@ import type {
   RouterSnapshot,
   RouterSubmitInput,
   RouterSubmitResult,
-  Task,
   VisibleMessage,
-  VisibleResultCard,
 } from '../../shared/models'
 import type { SessionStore } from '../session/session-store'
 import type { TaskService } from '../tasks/task-service'
@@ -21,7 +19,7 @@ const ROUTER_CONTEXT_MESSAGE_LIMIT = 40
 const ROUTER_LEASE_OWNER = 'desktop-router'
 
 type RouterThreads = Pick<ThreadService, 'appendMessage' | 'appendMessageInTransaction' | 'notifyMessage' | 'listMessages'>
-type RouterTasks = Pick<TaskService, 'create' | 'get' | 'list' | 'reroute' | 'updateStatus'>
+type RouterTasks = Pick<TaskService, 'create' | 'get' | 'list' | 'reroute' | 'updateRoutine' | 'updateStatus'>
 type RouterSessions = Pick<SessionStore, 'transaction'>
 
 export interface RouterServiceOptions {
@@ -230,13 +228,11 @@ export class RouterService {
         ...(workingDirectory === undefined ? {} : { workingDirectory }),
         ...(attachments.length === 0 ? {} : { attachments }),
       })
-      const message = this.projectTask(request, task, locale, 'queued')
       this.finish(request.id, {
         kind: 'create_task',
         confidence: decision.confidence,
         rationaleCodes: decision.rationaleCodes,
         taskId: task.id,
-        replyMessageId: message.id,
       })
       return
     }
@@ -248,22 +244,68 @@ export class RouterService {
         status: 'queued',
         kind: 'reminder',
         scheduledFor: decision.scheduledFor,
+        recurrence: decision.recurrence,
+        timezone: decision.timezone,
         prompt: decision.text,
         visiblePrompt: decision.text,
       })
-      const message = this.projectTask(
-        request,
-        task,
-        locale,
-        'scheduled',
-        formatSchedule(decision.scheduledFor, decision.timezone, locale),
-      )
+      const scheduledLabel = recurrenceScheduleLabel(decision, locale)
+      const reminderText = locale === 'zh-CN'
+        ? decision.text.replace(/^提醒我(?:要|去)?\s*/u, '').trim()
+        : decision.text
+      const reply = this.threads.appendMessage({
+        clientMessageId: `router-schedule:${request.id}`,
+        role: 'assistant',
+        content: locale === 'zh-CN'
+          ? `好，${scheduledLabel} 我会提醒你：${reminderText}`
+          : `Okay. I’ll remind you on ${scheduledLabel}: ${reminderText}`,
+        metadata: { routerRequestId: request.id, taskId: task.id, routineId: task.id },
+        sourceRefs: [`router:${request.id}`, `task:${task.id}`],
+      })
       this.finish(request.id, {
         kind: 'create_task',
         confidence: decision.confidence,
         rationaleCodes: decision.rationaleCodes,
         taskId: task.id,
-        replyMessageId: message.id,
+        replyMessageId: reply.id,
+      })
+      return
+    }
+
+    if (decision.action === 'update_routine') {
+      const task = this.tasks.get(decision.taskId)
+      if (task.kind !== 'reminder') throw new Error('routine.update can only modify reminder routines')
+      const updated = this.tasks.updateRoutine(task.id, {
+        title: decision.title,
+        text: decision.text,
+        scheduledFor: decision.scheduledFor,
+        recurrence: decision.recurrence,
+        timezone: decision.timezone,
+      })
+      const scheduledLabel = formatRoutineLabel(
+        decision.scheduledFor,
+        decision.timezone,
+        decision.recurrence,
+        locale,
+      )
+      const reminderText = locale === 'zh-CN'
+        ? decision.text.replace(/^提醒我(?:要|去)?\s*/u, '').trim()
+        : decision.text
+      const reply = this.threads.appendMessage({
+        clientMessageId: `router-routine-update:${request.id}`,
+        role: 'assistant',
+        content: locale === 'zh-CN'
+          ? `好，已改为${scheduledLabel}提醒你：${reminderText}`
+          : `Updated. I’ll remind you ${scheduledLabel}: ${reminderText}`,
+        metadata: { routerRequestId: request.id, taskId: updated.id, routineId: updated.id },
+        sourceRefs: [`router:${request.id}`, `task:${updated.id}`],
+      })
+      this.finish(request.id, {
+        kind: 'update_task',
+        confidence: decision.confidence,
+        rationaleCodes: decision.rationaleCodes,
+        taskId: updated.id,
+        replyMessageId: reply.id,
       })
       return
     }
@@ -293,52 +335,11 @@ export class RouterService {
 
     const task = this.tasks.get(decision.taskId)
     const rerouted = this.tasks.reroute(task.id, decision.instruction)
-    const reply = this.threads.appendMessage({
-      clientMessageId: `router-update:${request.id}`,
-      role: 'assistant',
-      content: locale === 'zh-CN' ? `已更新“${task.title}”并重新排队执行。` : `Updated “${task.title}” and requeued it for execution.`,
-      metadata: { routerRequestId: request.id, taskId: rerouted.id },
-      sourceRefs: [`router:${request.id}`, `task:${rerouted.id}`],
-    })
     this.finish(request.id, {
       kind: 'update_task',
       confidence: decision.confidence,
       rationaleCodes: decision.rationaleCodes,
       taskId: rerouted.id,
-      replyMessageId: reply.id,
-    })
-  }
-
-  private projectTask(
-    request: RouterRequest,
-    task: Task,
-    locale: 'en' | 'zh-CN',
-    status: 'queued' | 'scheduled',
-    scheduledLabel?: string,
-  ): VisibleMessage {
-    const resultCard: VisibleResultCard = {
-      version: 1,
-      kind: 'task',
-      title: task.title,
-      description: task.kind === 'reminder'
-        ? (locale === 'zh-CN' ? '到达提醒时间后，Barn 会在会话中显示这条提醒。' : 'Barn will surface this reminder when it is due.')
-        : (locale === 'zh-CN' ? 'Barn 已将这项工作加入持久任务队列，进度可在右侧任务中查看。' : 'Barn queued this as durable work. Progress is available in Tasks.'),
-      provider: 'Barn',
-      status: status === 'scheduled'
-        ? (locale === 'zh-CN' ? '已排期' : 'Scheduled')
-        : (locale === 'zh-CN' ? '排队中' : 'Queued'),
-      meta: status === 'scheduled'
-        ? (locale === 'zh-CN' ? `计划时间：${scheduledLabel ?? ''}` : `Scheduled for ${scheduledLabel ?? ''}`)
-        : (locale === 'zh-CN' ? '由 Router 委派' : 'Router delegated this request'),
-    }
-    return this.threads.appendMessage({
-      clientMessageId: `router-task:${request.id}`,
-      role: 'assistant',
-      content: task.kind === 'reminder'
-        ? (locale === 'zh-CN' ? `我会提醒你：${task.visiblePrompt ?? task.title}` : `I’ll remind you: ${task.visiblePrompt ?? task.title}.`)
-        : (locale === 'zh-CN' ? `我已将“${task.title}”加入任务队列。` : `I’ve queued “${task.title}” as a task.`),
-      metadata: { routerRequestId: request.id, taskId: task.id, resultCard },
-      sourceRefs: [`router:${request.id}`, `task:${task.id}`],
     })
   }
 
@@ -359,6 +360,35 @@ export class RouterService {
 
 function taskPrompt(objective: string, contract: NonNullable<Extract<RouterDecision, { action: 'create_task' }>['taskContract']>): string {
   return `${objective}\n\nTask contract:\n${JSON.stringify(contract, null, 2)}`
+}
+
+function recurrenceScheduleLabel(
+  decision: Extract<RouterDecision, { action: 'schedule' }>,
+  locale: 'en' | 'zh-CN',
+): string {
+  return formatRoutineLabel(decision.scheduledFor, decision.timezone, decision.recurrence, locale)
+}
+
+function formatRoutineLabel(
+  scheduledFor: string,
+  timezone: string,
+  recurrence: Extract<RouterDecision, { action: 'schedule' }>['recurrence'],
+  locale: 'en' | 'zh-CN',
+): string {
+  if (recurrence === 'none') return formatSchedule(scheduledFor, timezone, locale)
+  const time = new Intl.DateTimeFormat(locale, {
+    hour: '2-digit',
+    minute: '2-digit',
+    timeZone: timezone,
+  }).format(new Date(scheduledFor))
+  if (locale === 'zh-CN') {
+    if (recurrence === 'daily') return `每天 ${time}`
+    if (recurrence === 'weekdays') return `每个工作日 ${time}`
+    return `每周 ${time}`
+  }
+  if (recurrence === 'daily') return `every day at ${time}`
+  if (recurrence === 'weekdays') return `every weekday at ${time}`
+  return `every week at ${time}`
 }
 
 function formatSchedule(value: string, timezone: string, locale: 'en' | 'zh-CN'): string {

@@ -38,7 +38,7 @@ import { getRuntimeCapabilities } from './platform/runtime-capabilities'
 import { AlwaysOnLifecycle } from './lifecycle/always-on-lifecycle'
 import { BrowserService } from './browser/browser-service'
 import { registerBrowserIpc } from './browser/browser-ipc'
-import { BrowserToolService } from './browser/browser-tools'
+import { BrowserToolService, type BrowserToolContext } from './browser/browser-tools'
 import { BrowserSessionStore } from './browser/browser-session-store'
 import { TerminalService } from './terminal/terminal-service'
 import { registerTerminalIpc } from './terminal/terminal-ipc'
@@ -64,6 +64,7 @@ let lifecycle: AlwaysOnLifecycle | undefined
 let diagnosticsService: DiagnosticsService | undefined
 let memoryExtractionService: MemoryExtractionService | undefined
 let browserService: BrowserService | undefined
+const taskBrowserServices = new Map<string, BrowserService>()
 let terminalService: TerminalService | undefined
 let maintenanceTimer: NodeJS.Timeout | undefined
 let isQuitting = false
@@ -115,6 +116,8 @@ async function createWindow(): Promise<void> {
   window.on('closed', () => {
     browserService?.dispose()
     browserService = undefined
+    for (const browser of taskBrowserServices.values()) browser.dispose()
+    taskBrowserServices.clear()
     if (mainWindow === window) mainWindow = undefined
   })
 
@@ -166,6 +169,19 @@ function trustedSender(event: IpcMainInvokeEvent): boolean {
     || (devUrl !== undefined && url.startsWith(devUrl))
 }
 
+function getTaskBrowser(context: BrowserToolContext): BrowserService | undefined {
+  if (mainWindow === undefined || mainWindow.isDestroyed()) return undefined
+  const key = context.sessionId ?? 'unscoped'
+  const existing = taskBrowserServices.get(key)
+  if (existing !== undefined) return existing
+  const browser = new BrowserService(mainWindow, undefined, {
+    partition: `barn-task-browser:${key}`,
+    publishEvents: false,
+  })
+  taskBrowserServices.set(key, browser)
+  return browser
+}
+
 void app.whenReady().then(async () => {
   nativeTheme.on('updated', () => mainWindow?.setBackgroundColor(windowBackgroundColor()))
   const userData = app.getPath('userData')
@@ -192,7 +208,7 @@ void app.whenReady().then(async () => {
   const threadService = new ThreadService(sessionStore.threads)
   terminalService = new TerminalService(outputRoot, privateTempRoot)
   const browserTools = new BrowserToolService({
-    getBrowser: () => browserService,
+    getBrowser: getTaskBrowser,
     workspaceRoot,
     outputRoot,
     privateTempRoot,
@@ -215,8 +231,6 @@ void app.whenReady().then(async () => {
   agentService = new AgentService(supervisor, modelService, sessionStore, tools, memoryService, threadService)
   await agentService.start()
   taskService = new TaskService(sessionStore.tasks)
-  taskRunner = new TaskRunner(agentService, taskService, sessionStore, {}, threadService)
-  taskRunner.start()
   routerService = new RouterService(
     sessionStore.router,
     threadService,
@@ -224,6 +238,10 @@ void app.whenReady().then(async () => {
     taskService,
     new ModelRouterDecisionEngine(modelService, memoryService),
   )
+  taskRunner = new TaskRunner(agentService, taskService, sessionStore, {
+    routerRequestIdForTask: (taskId) => routerService?.getSnapshot().requests.findLast((request) => request.taskId === taskId)?.id,
+  }, threadService)
+  taskRunner.start()
   routerService.start()
   permissionService = new PermissionService(sessionStore.permissions, taskService)
   actionService = new ActionService(sessionStore.actions, permissionService)
@@ -305,6 +323,8 @@ app.on('before-quit', () => {
   memoryExtractionService = undefined
   browserService?.dispose()
   browserService = undefined
+  for (const browser of taskBrowserServices.values()) browser.dispose()
+  taskBrowserServices.clear()
   terminalService?.disposeAll()
   terminalService = undefined
   if (maintenanceTimer !== undefined) clearInterval(maintenanceTimer)

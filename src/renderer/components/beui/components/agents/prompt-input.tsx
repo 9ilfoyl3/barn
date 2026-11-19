@@ -24,7 +24,7 @@ import {
   SelectItem,
   SelectTrigger,
 } from "@/components/beui/components/motion/select";
-import { SPRING_SWAP } from "@/components/beui/lib/ease";
+import { SPRING_LAYOUT, SPRING_SWAP } from "@/components/beui/lib/ease";
 import { cn } from "@/components/beui/lib/utils";
 import { promptTextSegments } from "@/composer-links";
 
@@ -205,6 +205,22 @@ function renderEditorContent(editor: HTMLDivElement, value: string): void {
   if (selection) restoreEditorSelection(editor, selection);
 }
 
+function normalizeEditorValue(value: string): string {
+  return value.trim().length === 0 ? "" : value;
+}
+
+function clearEditor(editor: HTMLDivElement): void {
+  editor.replaceChildren();
+  editor.dataset.renderValue = "";
+  editor.dataset.hasLinks = "false";
+  const selection = window.getSelection();
+  const range = document.createRange();
+  range.selectNodeContents(editor);
+  range.collapse(false);
+  selection?.removeAllRanges();
+  selection?.addRange(range);
+}
+
 export function PromptInput({
   value,
   defaultValue = "",
@@ -245,6 +261,7 @@ export function PromptInput({
     defaultModel ?? models[0]?.value,
   );
   const [actionsOpen, setActionsOpen] = useState(false);
+  const [multiline, setMultiline] = useState(false);
   const currentValue = value ?? internalValue;
   const currentModelValue = model ?? internalModel;
   const currentModel = models.find(
@@ -272,6 +289,20 @@ export function PromptInput({
     }
     renderEditorContent(editor, currentValue);
   }, [currentValue, hasWebLinks]);
+
+  useLayoutEffect(() => {
+    const editor = editorRef.current;
+    if (!editor) return;
+    if (currentValue.length === 0) {
+      setMultiline(false);
+      return;
+    }
+    const style = getComputedStyle(editor);
+    const lineHeight = Number.parseFloat(style.lineHeight) || 20;
+    const verticalPadding = (Number.parseFloat(style.paddingTop) || 0) + (Number.parseFloat(style.paddingBottom) || 0);
+    const contentHeight = editor.scrollHeight - verticalPadding;
+    if (currentValue.includes("\n") || contentHeight > lineHeight * 1.5) setMultiline(true);
+  }, [currentValue]);
 
   const setValue = (next: string) => {
     if (value === undefined) setInternalValue(next);
@@ -338,8 +369,11 @@ export function PromptInput({
   };
 
   return (
-    <form
+    <motion.form
+      layout
+      transition={reduce ? { duration: 0 } : SPRING_LAYOUT}
       onSubmit={submit}
+      data-multiline={multiline ? "true" : "false"}
       className={cn(
         "relative w-full rounded-lg border border-border/80 bg-background p-2 transition-colors focus-within:border-foreground/25",
         disabled && "opacity-60",
@@ -364,7 +398,9 @@ export function PromptInput({
           onInput?.(event);
           const editor = editorRef.current;
           if (!editor) return;
-          setValue(editorText(editor));
+          const next = normalizeEditorValue(editorText(editor));
+          if (next.length === 0) clearEditor(editor);
+          setValue(next);
         }}
         onKeyDown={handleKeyDown}
         onPaste={(event) => {
@@ -384,9 +420,10 @@ export function PromptInput({
           composingRef.current = false;
           const editor = editorRef.current;
           if (!editor) return;
-          const next = editorText(editor);
+          const next = normalizeEditorValue(editorText(editor));
           setValue(next);
-          renderEditorContent(editor, next);
+          if (next.length === 0) clearEditor(editor);
+          else renderEditorContent(editor, next);
         }}
         style={{
           minHeight: `${minRows * 24}px`,
@@ -395,7 +432,11 @@ export function PromptInput({
         className="prompt-input-editor scrollbar-hide"
       />
 
-      <div className="mt-1 flex min-h-8 items-center gap-1">
+      <motion.div
+        layout
+        transition={reduce ? { duration: 0 } : SPRING_LAYOUT}
+        className="mt-1 flex min-h-8 items-center gap-1"
+      >
         {actions.length ? (
           <MorphPopover open={actionsOpen} onOpenChange={setActionsOpen}>
             <MorphPopoverTrigger>
@@ -528,7 +569,7 @@ export function PromptInput({
             </motion.span>
           </AnimatePresence>
         </Button>
-      </div>
-    </form>
+      </motion.div>
+    </motion.form>
   );
 }

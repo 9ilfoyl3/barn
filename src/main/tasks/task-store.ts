@@ -9,6 +9,8 @@ import type {
   TaskStatus,
   TaskStatusUpdate,
   TaskWaitingReason,
+  RoutineRecurrence,
+  UpdateRoutineInput,
 } from '../../shared/models'
 
 const ACTIVE_STATUSES: readonly TaskStatus[] = ['waiting', 'running', 'queued', 'proposed']
@@ -33,6 +35,8 @@ interface TaskRow {
   origin: string
   kind: string
   scheduled_for: string | null
+  recurrence: string | null
+  timezone: string | null
   session_id: string | null
   approval_id: string | null
   prompt_ciphertext: Uint8Array | null
@@ -69,6 +73,8 @@ export class TaskStore {
         origin TEXT NOT NULL,
         kind TEXT NOT NULL DEFAULT 'work',
         scheduled_for TEXT,
+        recurrence TEXT,
+        timezone TEXT,
         session_id TEXT REFERENCES sessions(id) ON DELETE SET NULL,
         approval_id TEXT,
         prompt_ciphertext BLOB,
@@ -119,6 +125,8 @@ export class TaskStore {
     }
     if (input.sessionId !== undefined) task.sessionId = input.sessionId
     if (input.scheduledFor !== undefined) task.scheduledFor = normalizeScheduledFor(input.scheduledFor)
+    if (input.recurrence !== undefined) task.recurrence = input.recurrence
+    if (input.timezone !== undefined) task.timezone = normalizeTimezone(input.timezone)
     if (input.prompt !== undefined) task.prompt = normalizePrompt(input.prompt)
     if (input.visiblePrompt !== undefined) task.visiblePrompt = normalizePrompt(input.visiblePrompt)
     if (input.workingDirectory !== undefined) task.workingDirectory = normalizeWorkingDirectory(input.workingDirectory)
@@ -134,12 +142,12 @@ export class TaskStore {
       : this.cipher.encrypt(JSON.stringify(task.attachments), attachmentsAssociatedData(task.id))
     this.database.prepare(`
       INSERT INTO tasks (
-        id, title, status, origin, kind, scheduled_for, session_id, approval_id,
+        id, title, status, origin, kind, scheduled_for, recurrence, timezone, session_id, approval_id,
         prompt_ciphertext, prompt_nonce, prompt_tag,
         visible_prompt_ciphertext, visible_prompt_nonce, visible_prompt_tag,
         working_directory, attachments_ciphertext, attachments_nonce, attachments_tag,
         waiting_reason, detail, created_at, updated_at, started_at, finished_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, ?, ?, NULL, NULL)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, ?, ?, NULL, NULL)
     `).run(
       task.id,
       task.title,
@@ -147,6 +155,8 @@ export class TaskStore {
       task.origin,
       task.kind ?? 'work',
       task.scheduledFor ?? null,
+      task.recurrence ?? null,
+      task.timezone ?? null,
       task.sessionId ?? null,
       encryptedPrompt?.ciphertext ?? null,
       encryptedPrompt?.nonce ?? null,
@@ -297,6 +307,54 @@ export class TaskStore {
     return this.get(taskId)
   }
 
+  updateRoutine(taskId: string, input: UpdateRoutineInput): Task {
+    const task = this.get(taskId)
+    if (task.kind !== 'reminder') throw new Error('Only reminder routines can be updated as routines')
+    const title = requireTitle(input.title)
+    const text = normalizePrompt(input.text)
+    const scheduledFor = normalizeScheduledFor(input.scheduledFor)
+    const recurrence = requireRecurrence(input.recurrence)
+    const timezone = normalizeTimezone(input.timezone)
+    const encryptedPrompt = this.cipher.encrypt(text, promptAssociatedData(taskId))
+    const encryptedVisible = this.cipher.encrypt(text, visiblePromptAssociatedData(taskId))
+    const now = new Date().toISOString()
+    this.database.prepare(`
+      UPDATE tasks
+      SET title = ?, status = 'queued', scheduled_for = ?, recurrence = ?, timezone = ?,
+          prompt_ciphertext = ?, prompt_nonce = ?, prompt_tag = ?,
+          visible_prompt_ciphertext = ?, visible_prompt_nonce = ?, visible_prompt_tag = ?,
+          detail = NULL, started_at = NULL, finished_at = NULL, updated_at = ?
+      WHERE id = ?
+    `).run(
+      title,
+      scheduledFor,
+      recurrence,
+      timezone,
+      encryptedPrompt.ciphertext,
+      encryptedPrompt.nonce,
+      encryptedPrompt.tag,
+      encryptedVisible.ciphertext,
+      encryptedVisible.nonce,
+      encryptedVisible.tag,
+      now,
+      taskId,
+    )
+    return this.get(taskId)
+  }
+
+  rescheduleReminder(taskId: string, scheduledFor: string): Task {
+    const task = this.get(taskId)
+    if (task.kind !== 'reminder') throw new Error('Only reminder routines can be rescheduled')
+    const now = new Date().toISOString()
+    this.database.prepare(`
+      UPDATE tasks
+      SET status = 'queued', scheduled_for = ?, detail = NULL,
+          started_at = NULL, finished_at = NULL, updated_at = ?
+      WHERE id = ?
+    `).run(normalizeScheduledFor(scheduledFor), now, taskId)
+    return this.get(taskId)
+  }
+
   assignSession(taskId: string, sessionId: string | null): Task {
     this.get(taskId)
     if (sessionId !== null) this.requireSession(sessionId)
@@ -329,6 +387,8 @@ export class TaskStore {
       updatedAt: row.updated_at,
     }
     if (row.scheduled_for !== null) task.scheduledFor = row.scheduled_for
+    if (row.recurrence !== null) task.recurrence = requireRecurrence(row.recurrence)
+    if (row.timezone !== null) task.timezone = row.timezone
     if (row.session_id !== null) task.sessionId = row.session_id
     if (row.approval_id !== null) task.approvalId = row.approval_id
     if (row.working_directory !== null) task.workingDirectory = row.working_directory
@@ -364,6 +424,9 @@ export class TaskStore {
       }, attachmentsAssociatedData(row.id)) as string
       task.attachments = normalizeAttachments(JSON.parse(raw) as AttachmentDescriptor[])
     }
+    if (task.kind === 'reminder' && task.recurrence === undefined) {
+      task.recurrence = inferLegacyRecurrence(`${task.title} ${task.visiblePrompt ?? ''} ${task.prompt ?? ''}`)
+    }
     return task
   }
 
@@ -385,6 +448,8 @@ export class TaskStore {
       ['attachments_tag', 'BLOB'],
       ['kind', "TEXT NOT NULL DEFAULT 'work'"],
       ['scheduled_for', 'TEXT'],
+      ['recurrence', 'TEXT'],
+      ['timezone', 'TEXT'],
     ] as const
     for (const [name, type] of additions) {
       if (!columns.has(name)) this.database.exec(`ALTER TABLE tasks ADD COLUMN ${name} ${type}`)
@@ -400,6 +465,29 @@ export class TaskStore {
 /** Whether a task still represents work that can progress. */
 export function isActiveTask(task: Pick<Task, 'status'>): boolean {
   return ACTIVE_STATUSES.includes(task.status)
+}
+
+function inferLegacyRecurrence(value: string): RoutineRecurrence {
+  if (/(每天|每日|\bdaily\b|every\s+day)/iu.test(value)) return 'daily'
+  if (/(工作日|\bweekdays?\b)/iu.test(value)) return 'weekdays'
+  if (/(每周|\bweekly\b|every\s+week)/iu.test(value)) return 'weekly'
+  return 'none'
+}
+
+function requireRecurrence(value: string): RoutineRecurrence {
+  if (value === 'none' || value === 'daily' || value === 'weekdays' || value === 'weekly') return value
+  throw new Error(`Unknown routine recurrence: ${value}`)
+}
+
+function normalizeTimezone(value: string): string {
+  const timezone = value.trim()
+  if (timezone.length === 0 || timezone.length > 100) throw new Error('Routine timezone is invalid')
+  try {
+    new Intl.DateTimeFormat('en-US', { timeZone: timezone }).format()
+  } catch {
+    throw new Error(`Unknown routine timezone: ${timezone}`)
+  }
+  return timezone
 }
 
 function requireTitle(value: string): string {

@@ -4,7 +4,7 @@ import type {
   Context,
   SimpleStreamOptions,
 } from '@earendil-works/pi-ai'
-import { resolveReasoningEffort, type ModelSelection, type Task, type TaskContract } from '../../shared/models'
+import { resolveReasoningEffort, type ModelSelection, type RoutineRecurrence, type Task, type TaskContract } from '../../shared/models'
 import type { ModelService } from '../models/model-service'
 import type { MemoryService } from '../memory/memory-service'
 import type { VisibleMessage } from '../../shared/models'
@@ -48,9 +48,23 @@ const decisionSchema = z.discriminatedUnion('tool', [
       text: z.string().trim().min(1).max(20_000),
       scheduledFor: z.string().datetime({ offset: true }),
       timezone: z.string().trim().min(1).max(100),
+      recurrence: z.enum(['none', 'daily', 'weekdays', 'weekly']).default('none'),
     }).strict(),
     confidence: z.number().min(0).max(1).default(0.9),
     rationaleCodes: z.array(z.string().min(1).max(80)).max(20).default(['scheduled_reminder']),
+  }).strict(),
+  z.object({
+    tool: z.literal('routine.update'),
+    arguments: z.object({
+      taskId: z.string().uuid(),
+      title: z.string().trim().min(1).max(200),
+      text: z.string().trim().min(1).max(20_000),
+      scheduledFor: z.string().datetime({ offset: true }),
+      timezone: z.string().trim().min(1).max(100),
+      recurrence: z.enum(['none', 'daily', 'weekdays', 'weekly']),
+    }).strict(),
+    confidence: z.number().min(0).max(1).default(0.9),
+    rationaleCodes: z.array(z.string().min(1).max(80)).max(20).default(['routine_update']),
   }).strict(),
   z.object({
     tool: z.literal('task.cancel'),
@@ -101,6 +115,19 @@ export type RouterDecision =
       text: string
       scheduledFor: string
       timezone: string
+      recurrence: RoutineRecurrence
+      confidence: number
+      rationaleCodes: string[]
+      memoryRefs: string[]
+    }
+  | {
+      action: 'update_routine'
+      taskId: string
+      title: string
+      text: string
+      scheduledFor: string
+      timezone: string
+      recurrence: RoutineRecurrence
       confidence: number
       rationaleCodes: string[]
       memoryRefs: string[]
@@ -178,6 +205,8 @@ export class ModelRouterDecisionEngine implements RouterDecisionEngine {
               status: task.status,
               kind: task.kind ?? 'work',
               scheduledFor: task.scheduledFor ?? null,
+              recurrence: task.recurrence ?? 'none',
+              timezone: task.timezone ?? null,
             })),
             recentVisibleContext: recentContext(input.recentMessages),
             memoryContext: memory.context || null,
@@ -219,8 +248,8 @@ Use when a required target, time, attachment, scope, permission, or decision is 
 Use for durable work that needs tools, files, browser, connectors, shell, research, multiple steps, external effects, deliverables, monitoring, or work that must continue after this reply. Make the objective self-contained. Include explicit acceptance criteria.
 
 4. schedule.create
-{"tool":"schedule.create","arguments":{"title":"...","text":"...","scheduledFor":"ISO-8601 with offset","timezone":"IANA timezone"},"confidence":0..1,"rationaleCodes":["..."]}
-Use for a one-shot reminder whose exact message and time are known. This creates a scheduled Task in Barn. "Remind me tomorrow to return the clothes" is schedule.create, not reply and not task.create. Resolve relative dates from currentTime and timezone. If the clock time is missing, choose 09:00 local and state it in title/text. If the date/time is genuinely ambiguous, use clarify.
+{"tool":"schedule.create","arguments":{"title":"...","text":"...","scheduledFor":"ISO-8601 with offset","timezone":"IANA timezone","recurrence":"none|daily|weekdays|weekly"},"confidence":0..1,"rationaleCodes":["..."]}
+Use for reminders and routines whose exact message and time are known. This creates a scheduled routine in Barn. "Remind me tomorrow to return the clothes" is schedule.create with recurrence none. "Remind me every day at 3pm" is schedule.create with recurrence daily and scheduledFor set to the next 3pm occurrence. Use weekdays for Monday-Friday and weekly for once a week. Resolve relative dates from currentTime and timezone. If the clock time is missing, choose 09:00 local and state it in title/text. If the date/time is genuinely ambiguous, use clarify.
 
 5. task.cancel
 {"tool":"task.cancel","arguments":{"taskId":"UUID","reason":"optional"},"confidence":0..1,"rationaleCodes":["..."]}
@@ -229,6 +258,10 @@ Use only when the user clearly refers to an existing Task in activeTasks and ask
 6. task.update
 {"tool":"task.update","arguments":{"taskId":"UUID","instruction":"..."},"confidence":0..1,"rationaleCodes":["..."]}
 Use only when the user clearly refers to an existing Task in activeTasks and adds instructions or constraints.
+
+7. routine.update
+{"tool":"routine.update","arguments":{"taskId":"UUID","title":"...","text":"...","scheduledFor":"ISO-8601 with offset","timezone":"IANA timezone","recurrence":"none|daily|weekdays|weekly"},"confidence":0..1,"rationaleCodes":["..."]}
+Use only when the user asks to change the time, recurrence, title, or reminder text of an existing reminder/routine in activeTasks. Preserve the taskId and compute the next occurrence in the requested timezone.
 
 Routing principles:
 - Prefer reply for simple bounded answers.
@@ -332,6 +365,21 @@ function toRouterDecision(
       text: value.arguments.text,
       scheduledFor: value.arguments.scheduledFor,
       timezone: value.arguments.timezone,
+      recurrence: value.arguments.recurrence,
+      confidence: value.confidence,
+      rationaleCodes: value.rationaleCodes,
+      memoryRefs,
+    }
+  }
+  if (value.tool === 'routine.update') {
+    return {
+      action: 'update_routine',
+      taskId: value.arguments.taskId,
+      title: value.arguments.title,
+      text: value.arguments.text,
+      scheduledFor: value.arguments.scheduledFor,
+      timezone: value.arguments.timezone,
+      recurrence: value.arguments.recurrence,
       confidence: value.confidence,
       rationaleCodes: value.rationaleCodes,
       memoryRefs,

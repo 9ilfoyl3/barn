@@ -587,7 +587,7 @@ test('keeps Router execution activity out of the visible thread', async () => {
     await expect(page.locator('.live-turn')).toHaveCount(0)
     await expect(page.locator('.agent-thinking-state')).toHaveCount(0)
     await expect(page.locator('.tool-group')).toHaveCount(0)
-    await expect(page.locator('.router-message-state')).toContainText('Done')
+    await expect(page.locator('.barn-thinking-indicator')).toHaveCount(0)
     await page.screenshot({ path: 'test-results/barn-router-visible-thread.png', fullPage: true })
   } finally {
     await app.close()

@@ -30,6 +30,64 @@ export interface ChatMessage {
   resultCard?: VisibleResultCard
   routerRequestId?: string
   taskId?: string
+  routineDelivery?: boolean
+}
+
+export interface AssistantReplyView {
+  message: ChatMessage
+  sourceUser?: ChatMessage
+  quotedUser?: ChatMessage
+}
+
+export type ConversationMessageGroup =
+  | { kind: 'user'; key: string; message: ChatMessage }
+  | { kind: 'assistant'; key: string; replies: AssistantReplyView[] }
+  | { kind: 'proactive'; key: string; message: ChatMessage }
+
+/** Group assistant turns so adjacent replies can share one continuous guide line. */
+export function groupConversationMessages(messages: ChatMessage[]): ConversationMessageGroup[] {
+  const groups: ConversationMessageGroup[] = []
+  const users: ChatMessage[] = []
+  let assistantGroup: Extract<ConversationMessageGroup, { kind: 'assistant' }> | undefined
+
+  for (const message of messages) {
+    if (message.role === 'user') {
+      assistantGroup = undefined
+      users.push(message)
+      groups.push({ kind: 'user', key: `user:${message.key}`, message })
+      continue
+    }
+
+    if (message.routineDelivery === true) {
+      assistantGroup = undefined
+      groups.push({ kind: 'proactive', key: `proactive:${message.key}`, message })
+      continue
+    }
+
+    if (assistantGroup === undefined) {
+      assistantGroup = { kind: 'assistant', key: `assistant:${message.key}`, replies: [] }
+      groups.push(assistantGroup)
+    }
+
+    const sourceUser = sourceUserFor(message, users)
+    const isContinuation = assistantGroup.replies.length > 0
+    const quoteNeeded = isContinuation && sourceUser !== undefined
+    assistantGroup.replies.push({
+      message,
+      ...(sourceUser === undefined ? {} : { sourceUser }),
+      ...(quoteNeeded ? { quotedUser: sourceUser } : {}),
+    })
+  }
+
+  return groups
+}
+
+function sourceUserFor(assistant: ChatMessage, users: ChatMessage[]): ChatMessage | undefined {
+  if (assistant.routerRequestId !== undefined) {
+    const requestUser = users.findLast((user) => user.routerRequestId === assistant.routerRequestId)
+    if (requestUser !== undefined) return requestUser
+  }
+  return users.at(-1)
 }
 
 export type ConversationDisplayPart =
@@ -289,6 +347,7 @@ export function chatMessagesFromThread(messages: VisibleMessage[]): ChatMessage[
       ? message.metadata.routerRequestId
       : undefined
     const taskId = typeof message.metadata.taskId === 'string' ? message.metadata.taskId : undefined
+    const routineDelivery = message.metadata.routineDelivery === true
     return [{
       key: `thread:${message.id}`,
       role: message.role,
@@ -298,6 +357,7 @@ export function chatMessagesFromThread(messages: VisibleMessage[]): ChatMessage[
       ...(resultCard === undefined ? {} : { resultCard }),
       ...(routerRequestId === undefined ? {} : { routerRequestId }),
       ...(taskId === undefined ? {} : { taskId }),
+      ...(routineDelivery ? { routineDelivery: true } : {}),
     }]
   })
 }
@@ -337,6 +397,7 @@ export function mergeThreadAndSessionMessages(
           ...(threadMessage.resultCard === undefined ? {} : { resultCard: threadMessage.resultCard }),
           ...(threadMessage.routerRequestId === undefined ? {} : { routerRequestId: threadMessage.routerRequestId }),
           ...(threadMessage.taskId === undefined ? {} : { taskId: threadMessage.taskId }),
+          ...(threadMessage.routineDelivery === true ? { routineDelivery: true } : {}),
         }
   })
 }

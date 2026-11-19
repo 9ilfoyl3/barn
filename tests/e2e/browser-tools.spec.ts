@@ -69,12 +69,9 @@ test('uses semantic browser tools to fill and submit a real page', async () => {
     await expect.poll(async () => page.evaluate(async () => (await window.barn.tasks.list())[0]?.status), { timeout: 20_000 }).toBe('completed')
     await expect(page.getByTestId('browser-panel')).toHaveCount(0)
     await expect.poll(async () => page.evaluate(() => window.barn.browser.getState())).toMatchObject({
-      open: true,
+      open: false,
       visible: false,
-      title: 'Submitted',
     })
-    const state = await page.evaluate(() => window.barn.browser.getState())
-    expect(state.url).toContain('/done?name=Ada')
     expect(requests.length).toBeGreaterThanOrEqual(7)
 
     const taskCard = page.locator('.assistant-result', { hasText: 'Fill and submit the local browser form' }).last()
@@ -82,6 +79,12 @@ test('uses semantic browser tools to fill and submit a real page', async () => {
     await taskCard.getByRole('button', { name: 'View details' }).click()
     await expect(page.locator('.task-detail-page')).toContainText('Browser task completed.')
     await page.screenshot({ path: 'test-results/barn-browser-task-detail.png', fullPage: true })
+
+    await page.evaluate(async (url) => { await window.barn.browser.open(url) }, fixtureUrl)
+    await expect.poll(async () => page.evaluate(async () => (await window.barn.browser.getState()).title)).toBe('Browser Form')
+    const userBrowser = await page.evaluate(() => window.barn.browser.getState())
+    expect(userBrowser.url).toBe(fixtureUrl)
+    await page.evaluate(async () => { await window.barn.browser.close() })
 
     await page.getByRole('button', { name: 'Home' }).click()
     await expect(page.getByTestId('agent-screen')).toHaveCount(0)

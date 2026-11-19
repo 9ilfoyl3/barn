@@ -167,6 +167,17 @@ export function SideChatView({
                 <ConversationParts parts={liveParts} role="assistant" keyPrefix="live" />
               </MessageBubble>
             )}
+            {liveParts.length === 0 && pending && (
+              <MessageBubble
+                aria-label={t('conversation.barnMessage')}
+                align="start"
+                className="chat-message assistant live-turn activity-turn"
+                role="article"
+                variant="ghost"
+              >
+                <PendingThinking label={t('conversation.thinkingNow')} />
+              </MessageBubble>
+            )}
           </MessageBubbleGroup>
         )}
       </section>
