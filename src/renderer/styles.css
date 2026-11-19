@@ -298,12 +298,7 @@ select:focus-visible {
   transition:
     border-color 160ms ease,
     background 160ms ease,
-    color 160ms ease,
-    transform 160ms ease;
-}
-
-.sidebar-toggle:active {
-  transform: scale(0.94);
+    color 160ms ease;
 }
 
 .sidebar-toggle-header {
@@ -333,8 +328,7 @@ select:focus-visible {
   transition:
     border-color 150ms ease,
     background 150ms ease,
-    color 150ms ease,
-    transform 150ms ease;
+    color 150ms ease;
 }
 
 .icon-button:hover,
@@ -342,10 +336,6 @@ select:focus-visible {
   border-color: var(--line);
   background: color-mix(in srgb, var(--panel) 54%, transparent);
   color: var(--text);
-}
-
-.icon-button:active {
-  transform: scale(0.96);
 }
 
 .ui-tooltip-content {
@@ -869,10 +859,6 @@ select:focus-visible {
 .session-row-action:hover {
   background: color-mix(in srgb, var(--text) 8%, transparent);
   color: var(--text);
-}
-
-.session-row-action:active {
-  transform: scale(0.94);
 }
 
 .visually-hidden {

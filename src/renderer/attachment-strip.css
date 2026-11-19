@@ -199,10 +199,6 @@
   outline-offset: 2px;
 }
 
-.attachment-remove:active {
-  transform: scale(0.96);
-}
-
 .attachment-remove:disabled {
   border-color: var(--line);
   background: var(--disabled-surface);

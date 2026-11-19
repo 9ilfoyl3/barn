@@ -51,10 +51,9 @@ test('turns a reminder into a scheduled task without entering a tool Session', a
 
     await expect(page.locator('.assistant-result')).toHaveCount(0)
     await expect(page.locator('.barn-thinking-indicator')).toHaveCount(0)
-    await expect(page.locator('.routine-card')).toContainText('带退货的衣服')
+    await expect(page.locator('.routine-card')).toHaveCount(0)
     await expect(page.locator('.task-rail-card')).toHaveCount(0)
     await expect(page.locator('.chat-message.assistant')).toContainText('每天')
-    await expect(page.locator('.routine-card')).toContainText('每天')
     await expect(page.locator('.agent-thinking-state')).toHaveCount(0)
     await expect(page.locator('.tool-group')).toHaveCount(0)
     await expect(page.locator('.live-turn')).toHaveCount(0)

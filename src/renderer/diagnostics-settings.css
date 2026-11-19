@@ -118,10 +118,6 @@
   outline-offset: 2px;
 }
 
-.diagnostics-retention-actions button:active:not(:disabled) {
-  transform: translateY(1px);
-}
-
 .diagnostics-retention small,
 .diagnostics-path,
 .diagnostics-muted {

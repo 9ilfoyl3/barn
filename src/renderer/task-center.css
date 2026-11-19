@@ -244,10 +244,6 @@
   outline-offset: 2px;
 }
 
-.task-action:active:not(:disabled) {
-  transform: translateY(1px);
-}
-
 .task-action:disabled {
   border-color: var(--line);
   background: var(--disabled-surface);

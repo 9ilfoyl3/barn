@@ -85,13 +85,6 @@ button.composer-project-icon {
   outline-offset: 2px;
 }
 
-.composer-project-icon:active,
-.composer-project-picker:active,
-.context-chip:active,
-.composer-add-menu button:active {
-  transform: translateY(1px);
-}
-
 .composer-project-icon:disabled,
 .composer-project-picker:disabled,
 .context-chip:disabled,

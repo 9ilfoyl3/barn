@@ -47,17 +47,12 @@
   color: var(--text-faint);
   transition:
     background-color 160ms ease,
-    color 160ms ease,
-    transform 160ms ease;
+    color 160ms ease;
 }
 
 .routine-home-panel .today-panel-actions button:hover {
   background: var(--panel-raised);
   color: var(--text);
-}
-
-.routine-home-panel .today-panel-actions button:active {
-  transform: scale(0.92);
 }
 
 .routine-home-body {
@@ -152,17 +147,12 @@
   font-size: 11px;
   transition:
     background-color 160ms ease,
-    border-color 160ms ease,
-    transform 160ms ease;
+    border-color 160ms ease;
 }
 
 .routine-home-empty > button:hover {
   border-color: var(--text-faint);
   background: var(--panel-raised);
-}
-
-.routine-home-empty > button:active {
-  transform: scale(0.97);
 }
 
 .workspace-body.secretary-home > .task-rail {
@@ -225,22 +215,6 @@
   background: var(--panel);
   padding: 12px;
   box-shadow: none;
-  transition:
-    border-color 180ms ease,
-    background-color 180ms ease,
-    box-shadow 180ms ease,
-    transform 180ms cubic-bezier(0.22, 1, 0.36, 1);
-}
-
-.task-rail-card:hover {
-  border-color: var(--line-strong);
-  background: color-mix(in srgb, var(--panel) 92%, var(--panel-raised));
-  box-shadow: var(--card-shadow);
-  transform: translateY(-1px);
-}
-
-.task-rail-card:active {
-  transform: translateY(0) scale(0.995);
 }
 
 .task-rail-state {
@@ -336,16 +310,11 @@
   cursor: pointer;
   transition:
     background-color 180ms ease,
-    color 180ms ease,
-    transform 160ms ease;
+    color 180ms ease;
 }
 
 .task-rail-filter-button:hover {
   background: var(--panel-raised);
-}
-
-.task-rail-filter-button:active {
-  transform: scale(0.94);
 }
 
 .task-rail-filter-dot {
@@ -605,7 +574,6 @@
   .routine-home-empty > button,
   .routine-home-panel .today-panel-actions button,
   .task-rail-heading button,
-  .task-rail-card,
   .task-rail-state,
   .task-rail-filter-button,
   .task-rail-filter-dot,
@@ -699,17 +667,12 @@
   cursor: pointer;
   transition:
     background-color 160ms ease,
-    color 160ms ease,
-    transform 160ms ease;
+    color 160ms ease;
 }
 
 .routines-header > button:hover {
   background: var(--panel-raised);
   color: var(--text);
-}
-
-.routines-header > button:active {
-  transform: scale(0.92);
 }
 
 .routine-card-list {
@@ -723,6 +686,7 @@
 }
 
 .routine-card {
+  position: relative;
   display: flex;
   width: 100%;
   min-width: 0;
@@ -732,24 +696,108 @@
   border: 1px solid color-mix(in srgb, var(--line) 92%, transparent);
   border-radius: 12px;
   background: var(--panel);
-  padding: 12px;
+  padding: 12px 32px 12px 12px;
   color: var(--text);
   cursor: pointer;
   text-align: left;
-  transition:
-    border-color 180ms ease,
-    background-color 180ms ease,
-    transform 180ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .routine-card:hover {
   border-color: var(--line-strong);
   background: color-mix(in srgb, var(--panel) 92%, var(--panel-raised));
-  transform: translateY(-1px);
 }
 
-.routine-card:active {
-  transform: translateY(0) scale(0.995);
+.routine-card-open {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  border: 0;
+  border-radius: inherit;
+  background: transparent;
+  cursor: pointer;
+}
+
+.routine-card-open:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent) 72%, transparent);
+  outline-offset: 2px;
+}
+
+.routine-card > :not(.routine-card-open):not(.routine-card-acknowledge) {
+  position: relative;
+  z-index: 1;
+  pointer-events: none;
+}
+
+.routine-card-acknowledge {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 2;
+  display: grid;
+  width: 22px;
+  height: 22px;
+  place-items: center;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  padding: 0;
+  color: var(--text-faint);
+  cursor: pointer;
+  opacity: 0;
+  pointer-events: none;
+  visibility: hidden;
+  transition:
+    background-color 160ms ease,
+    color 160ms ease,
+    opacity 140ms ease,
+    visibility 0s linear 140ms;
+}
+
+.routine-card:hover .routine-card-acknowledge,
+.routine-card:focus-within .routine-card-acknowledge,
+.routine-card-acknowledge:focus-visible {
+  opacity: 1;
+  pointer-events: auto;
+  visibility: visible;
+  transition-delay: 0s;
+}
+
+.routine-card-acknowledge:hover {
+  background: var(--panel-raised);
+  color: var(--text-dim);
+}
+
+.routine-card-acknowledge:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--green) 72%, transparent);
+  outline-offset: 2px;
+}
+
+.routine-card-acknowledge svg path {
+  stroke-dasharray: 24;
+  stroke-dashoffset: 0;
+}
+
+.routine-card-acknowledge.is-confirming {
+  background: var(--green);
+  color: var(--panel);
+  cursor: default;
+  opacity: 1;
+  pointer-events: none;
+  visibility: visible;
+}
+
+.routine-card-acknowledge.is-confirming svg path {
+  animation: routine-check-draw 320ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes routine-check-draw {
+  from {
+    stroke-dashoffset: 24;
+  }
+
+  to {
+    stroke-dashoffset: 0;
+  }
 }
 
 .routine-card-title {
@@ -787,9 +835,17 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .routines-header > button,
-  .routine-card {
+  .routines-header > button {
     transition: none;
+  }
+
+  .routine-card-acknowledge,
+  .routine-card-acknowledge.is-confirming {
+    transition: none;
+  }
+
+  .routine-card-acknowledge.is-confirming svg path {
+    animation: none;
   }
 }
 

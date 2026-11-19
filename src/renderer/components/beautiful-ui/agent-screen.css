@@ -115,12 +115,6 @@
   outline-offset: 2px;
 }
 
-.agent-screen-kit-button:active,
-.agent-screen-kit-header button:active,
-.agent-screen-kit-media-wrap button:active {
-  transform: translateY(1px);
-}
-
 .agent-screen-kit-button:disabled,
 .agent-screen-kit-header button:disabled,
 .agent-screen-kit-media-wrap button:disabled {
@@ -228,10 +222,7 @@
 
 @media (prefers-reduced-motion: reduce) {
   .agent-screen-kit-loader.is-spinning,
-  .agent-screen-kit-step-icon.is-spinning,
-  .agent-screen-kit-button:active,
-  .agent-screen-kit-header button:active,
-  .agent-screen-kit-media-wrap button:active {
+  .agent-screen-kit-step-icon.is-spinning {
     animation: none;
     transform: none;
     transition: none;
