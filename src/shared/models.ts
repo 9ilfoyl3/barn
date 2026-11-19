@@ -384,6 +384,7 @@ export interface TaskBridge {
   updateStatus(taskId: string, update: TaskStatusUpdate): Promise<Task>
   updatePrompt(taskId: string, prompt: string): Promise<Task>
   assignSession(taskId: string, sessionId: string | null): Promise<Task>
+  continueTask(taskId: string, text: string, attachments?: AttachmentDescriptor[]): Promise<Task>
   onEvent(listener: (event: TaskLiveEvent) => void): () => void
 }
 

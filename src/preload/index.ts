@@ -151,6 +151,7 @@ const tasks: TaskBridge = {
   updateStatus: (taskId: string, update: TaskStatusUpdate) => ipcRenderer.invoke('tasks:update-status', { taskId, update }),
   updatePrompt: (taskId: string, prompt: string) => ipcRenderer.invoke('tasks:update-prompt', { taskId, prompt }),
   assignSession: (taskId: string, sessionId: string | null) => ipcRenderer.invoke('tasks:assign-session', { taskId, sessionId }),
+  continueTask: (taskId: string, text: string, attachments?: AttachmentDescriptor[]) => ipcRenderer.invoke('tasks:continue', { taskId, text, attachments }),
   onEvent: (listener: (event: TaskLiveEvent) => void) => {
     const handler = (_event: Electron.IpcRendererEvent, liveEvent: TaskLiveEvent): void => listener(liveEvent)
     ipcRenderer.on('tasks:event', handler)

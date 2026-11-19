@@ -119,7 +119,12 @@
   overflow-x: hidden;
   overflow-y: auto;
   padding: 20px 0 32px;
-  scrollbar-gutter: stable;
+  scrollbar-width: none;
+}
+
+.task-detail-thread::-webkit-scrollbar {
+  width: 0;
+  height: 0;
 }
 
 .task-detail-date {
@@ -131,10 +136,11 @@
   text-align: center;
 }
 
-.task-detail-message-list {
+.task-detail-page .task-detail-thread .task-detail-message-list {
   width: 100%;
   gap: 20px;
-  padding: 0 0 22px 32px;
+  margin: 0;
+  padding: 0 0 22px 36px;
 }
 
 .task-detail-message-list .chat-message.user {
@@ -142,12 +148,15 @@
 }
 
 .task-detail-message-list .assistant-reply-run {
+  position: relative;
+  isolation: isolate;
   width: calc(100% + 32px);
   margin-left: -32px;
   padding-left: 32px;
 }
 
 .task-detail-message-list .assistant-reply-run::before {
+  z-index: 0;
   top: -20px;
   bottom: 12px;
   left: 6px;
@@ -158,6 +167,7 @@
 
 .task-detail-actor-turn {
   position: relative;
+  z-index: 1;
   display: block;
   width: fit-content;
   max-width: min(628px, 100%);
@@ -176,6 +186,7 @@
   border-radius: 999px;
   background: var(--text);
   color: var(--panel);
+  box-shadow: 0 0 0 2px var(--panel);
 }
 
 .task-detail-actor-router .task-detail-actor-avatar {
@@ -357,7 +368,7 @@
 .task-detail-composer-dock {
   width: min(744px, calc(100% - 72px));
   margin: 0 auto;
-  padding: 8px 0 18px;
+  padding: 8px 0 18px 36px;
 }
 
 .task-detail-composer-dock > .attachment-strip {

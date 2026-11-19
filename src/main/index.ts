@@ -21,6 +21,7 @@ import { registerPermissionIpc } from './permissions/permission-ipc'
 import { registerLocalSourceIpc } from './sources/local-source-ipc'
 import { LocalSourceService } from './sources/local-source-service'
 import { PermissionService } from './permissions/permission-service'
+import { TaskConversationService } from './tasks/task-conversation-service'
 import { registerTaskIpc } from './tasks/task-ipc'
 import { registerRouterIpc } from './router/router-ipc'
 import { RouterService } from './router/router-service'
@@ -55,6 +56,7 @@ let modelService: ModelService | undefined
 let sessionStore: SessionStore | undefined
 let agentService: AgentService | undefined
 let taskService: TaskService | undefined
+let taskConversationService: TaskConversationService | undefined
 let taskRunner: TaskRunner | undefined
 let routerService: RouterService | undefined
 let permissionService: PermissionService | undefined
@@ -231,6 +233,7 @@ void app.whenReady().then(async () => {
   agentService = new AgentService(supervisor, modelService, sessionStore, tools, memoryService, threadService)
   await agentService.start()
   taskService = new TaskService(sessionStore.tasks)
+  taskConversationService = new TaskConversationService(taskService, sessionStore, threadService)
   routerService = new RouterService(
     sessionStore.router,
     threadService,
@@ -253,7 +256,7 @@ void app.whenReady().then(async () => {
   registerSessionIpc(sessionStore, agentService, join(workspaceRoot, 'attachments'), trustedSender, () => nativeLocale())
   registerThreadIpc(threadService, trustedSender)
   registerDelegationIpc(trustedSender)
-  registerTaskIpc(taskService, trustedSender)
+  registerTaskIpc(taskService, taskConversationService, trustedSender)
   registerRouterIpc(routerService, trustedSender)
   registerPermissionIpc(permissionService, trustedSender)
   registerLocalSourceIpc(localSourceService, trustedSender)

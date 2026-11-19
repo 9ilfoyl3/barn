@@ -315,7 +315,8 @@ describe('TaskRunner', () => {
     const reroutedRun = await vi.waitFor(async () => {
       const current = h.tasks.get(task.id)
       expect(current.status).toBe('running')
-      expect(current.sessionId).not.toBe(firstRun.sessionId)
+      expect(h.agent.prompt).toHaveBeenCalledTimes(2)
+      expect(current.sessionId).toBe(firstRun.sessionId)
       return current
     })
     expect(reroutedRun.prompt).toContain('Use Baidu instead of Xinhua.')
@@ -351,10 +352,12 @@ describe('TaskRunner', () => {
     h.tasks.reroute(task.id, 'Use Baidu instead.')
     await vi.waitFor(() => expect(h.agent.cancel).toHaveBeenCalledWith(firstRun.sessionId))
     rejectFirstPrompt?.(new Error('Worker cancelled'))
-    const reroutedRun = await waitForTask(h.tasks, task.id, (current) => (
-      current.status === 'running' && current.sessionId !== firstRun.sessionId
-    ))
-    expect(reroutedRun.status).toBe('running')
+    await vi.waitFor(() => {
+      expect(h.agent.prompt).toHaveBeenCalledTimes(2)
+      expect(h.tasks.get(task.id).status).toBe('running')
+    })
+    const reroutedRun = h.tasks.get(task.id)
+    expect(reroutedRun.sessionId).toBe(firstRun.sessionId)
 
     h.agent.emit({
       type: 'run.status',

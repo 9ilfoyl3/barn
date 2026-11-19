@@ -60,8 +60,7 @@ export class TaskRunner {
       this.tasks.onEvent((event) => {
         const task = event.task
         if (task.status === 'queued') {
-          const active = this.active.get(task.id)
-          if (active !== undefined && task.sessionId !== active.sessionId) {
+          if (this.active.has(task.id)) {
             void this.rerouteActive(task.id)
           } else {
             this.schedule()
@@ -202,8 +201,8 @@ export class TaskRunner {
     this.active.set(task.id, active)
     this.activeSessions.set(session.id, task.id)
     try {
-      this.tasks.assignSession(task.id, session.id)
       this.tasks.updateStatus(task.id, { status: 'running', detail: 'Task execution started.' })
+      this.tasks.assignSession(task.id, session.id)
       await this.agent.prompt(
         session.id,
         task.prompt!,

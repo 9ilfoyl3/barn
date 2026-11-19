@@ -97,11 +97,13 @@ export function TaskDetailPage({ task, onBack }: { task: Task; onBack: () => voi
       try {
         const events = await window.barn.sessions.getEvents(activeId)
         if (isCancelled) return
-        const projected = messagesFromEvents(events).map((message, index): ChatMessage => {
+        const projectedBase = messagesFromEvents(events)
+        const hasActorRoles = projectedBase.some((message) => message.actorRole !== undefined)
+        const projected = projectedBase.map((message, index): ChatMessage => {
           if (message.role === 'assistant') {
             return { ...message, actorRole: message.actorRole ?? 'worker' }
           }
-          if (index > 0) return message
+          if (index > 0 || hasActorRoles) return message
           return {
             ...message,
             role: 'assistant',
@@ -228,13 +230,7 @@ export function TaskDetailPage({ task, onBack }: { task: Task; onBack: () => voi
     setPending(true)
     setError(undefined)
     try {
-      const sessionId = await ensureTaskSession()
-      await window.barn.sessions.prompt({
-        sessionId,
-        text,
-        attachments: filesToSend,
-        ...(workingDirectory === undefined ? {} : { workingDirectory }),
-      })
+      await window.barn.tasks.continueTask(task.id, text, filesToSend)
     } catch (reason) {
       setOptimisticMessages((current) => current.filter((message) => message.key !== optimisticKey))
       setPending(false)

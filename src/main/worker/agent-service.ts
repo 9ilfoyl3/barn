@@ -109,6 +109,7 @@ export class AgentService {
             timestamp: Date.now(),
           },
           attachments,
+          ...(visibleText === undefined ? {} : { visibleText: visibleText.trim() }),
           ...(options.userActorRole === undefined ? {} : { actorRole: options.userActorRole }),
         },
         actor: options.userActorRole === 'router'

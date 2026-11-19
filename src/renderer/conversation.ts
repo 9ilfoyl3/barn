@@ -173,7 +173,9 @@ export function messagesFromEvents(events: SessionTimelineEvent[]): ChatMessage[
     const message = event.data.message
     const actorRole = visibleActorRole(event.data.actorRole)
     if (message.role === 'user') {
-      const rawText = contentText(message.content)
+      const rawText = typeof event.data.visibleText === 'string' && event.data.visibleText.trim().length > 0
+        ? event.data.visibleText
+        : contentText(message.content)
       const legacy = splitLegacyAttachments(rawText)
       const explicitAttachments = attachmentList(event.data.attachments)
       messages.push({

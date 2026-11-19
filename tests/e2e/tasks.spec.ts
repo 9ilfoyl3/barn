@@ -210,6 +210,7 @@ test('opens a task agent conversation with properties and accepts a follow-up me
   try {
     const page = await app.firstWindow()
     await page.waitForLoadState('domcontentloaded')
+    await app.evaluate(({ nativeTheme }) => { nativeTheme.themeSource = 'light' })
     await page.setViewportSize({ width: 1440, height: 900 })
     await page.evaluate(async (url) => {
       await window.barn.models.saveCustomProvider({
@@ -266,12 +267,79 @@ test('opens a task agent conversation with properties and accepts a follow-up me
     const userMessage = detail.locator('.task-detail-message-list .chat-message.user[data-align="end"]')
     await expect(userMessage).toContainText('Please continue with a short follow-up.', { timeout: 500 })
     await page.screenshot({ path: 'test-results/barn-task-detail-user-message.png', fullPage: true })
+    const geometry = await detail.evaluate((root) => {
+      const rect = (selector: string) => {
+        const element = root.querySelector<HTMLElement>(selector)
+        const box = element?.getBoundingClientRect()
+        const style = element === undefined || element === null ? undefined : getComputedStyle(element)
+        return box === undefined ? undefined : {
+          left: box.left,
+          right: box.right,
+          width: box.width,
+          paddingLeft: style?.paddingLeft,
+          paddingRight: style?.paddingRight,
+          marginLeft: style?.marginLeft,
+          marginRight: style?.marginRight,
+        }
+      }
+      return {
+        thread: rect('.task-detail-thread'),
+        list: rect('.task-detail-message-list'),
+        assistant: rect('[data-actor-role="router"]'),
+        composerDock: rect('.task-detail-composer-dock'),
+        composer: rect('.task-detail-prompt-input'),
+        user: rect('.chat-message.user'),
+      }
+    })
+    expect(geometry.assistant).toBeDefined()
+    expect(geometry.composer).toBeDefined()
+    expect(geometry.user).toBeDefined()
+    expect(Math.abs(geometry.assistant!.left - geometry.composer!.left)).toBeLessThanOrEqual(1)
+    expect(Math.abs(geometry.composer!.right - geometry.user!.right)).toBeLessThanOrEqual(1)
+    await expect.poll(async () => page.evaluate(
+      (taskId) => window.barn.tasks.get(taskId).then((current) => current.status),
+      task.id,
+    ), { timeout: 5_000 }).toMatch(/queued|running/)
+    await page.locator('.app-rail-button', { hasText: 'Home' }).click()
+    await expect(page.locator('.assistant-live-activity')).toContainText('Working on task')
+    await expect(page.locator('.assistant-live-activity')).toContainText('Summarize the project notes')
+    await page.screenshot({ path: 'test-results/barn-task-progress-orbs.png', fullPage: true })
+    await page.locator('.task-nav-button').click()
+    await page.locator('.task-row', { hasText: 'Summarize the project notes' })
+      .getByRole('button', { name: 'View details', exact: true })
+      .click()
     await expect.poll(async () => page.evaluate(
       (sessionId) => window.barn.sessions.getEvents(sessionId).then((events) => (
         JSON.stringify(events).includes('Please continue with a short follow-up.')
       )),
       completed.sessionId!,
     ), { timeout: 15_000 }).toBe(true)
+    await expect.poll(async () => page.evaluate(
+      (sessionId) => window.barn.sessions.getEvents(sessionId).then((events) => (
+        JSON.stringify(events).match(/Task detail agent reply\./g)?.length ?? 0
+      )),
+      completed.sessionId!,
+    ), { timeout: 15_000 }).toBeGreaterThanOrEqual(2)
+    await expect.poll(async () => page.evaluate(
+      (taskId) => window.barn.tasks.get(taskId).then((current) => current.status),
+      task.id,
+    ), { timeout: 15_000 }).toBe('completed')
+
+    const taskThread = await page.evaluate(() => window.barn.threads.getSnapshot())
+    const continuedTask = await page.evaluate((taskId) => window.barn.tasks.get(taskId), task.id)
+    expect(continuedTask.sessionId).toBe(completed.sessionId)
+    expect(taskThread.messages).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        role: 'user',
+        content: 'Please continue with a short follow-up.',
+        metadata: expect.objectContaining({ taskId: task.id }),
+      }),
+      expect.objectContaining({
+        role: 'assistant',
+        metadata: expect.objectContaining({ taskId: task.id, taskResult: true }),
+      }),
+    ]))
+    await page.screenshot({ path: 'test-results/barn-task-detail-continued.png', fullPage: true })
   } finally {
     await app.close()
     await new Promise<void>((resolve, reject) => server.close((error) => error === undefined ? resolve() : reject(error)))

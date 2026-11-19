@@ -18,7 +18,7 @@ Task instructions are encrypted with the Desktop session cipher before storage. 
 
 **Run every task on the renderer thread.** Rejected because work would stop when the window closes and would couple task lifecycle to UI rendering.
 
-**Create a new Session for every retry.** Rejected because an intentional retry should be able to continue its prior transcript. Only crash recovery detaches the interrupted Session.
+**Create a new Session for every retry or task follow-up.** Rejected because an intentional retry or later task message should continue the prior transcript. Only crash recovery detaches the interrupted Session.
 
 **Allow unlimited concurrent task launches.** Rejected for the first implementation because local compute, provider limits, and user attention are finite. One slot is predictable; the option remains injectable for tests and later settings.
 
@@ -28,6 +28,8 @@ Task instructions are encrypted with the Desktop session cipher before storage. 
 
 - Queued Tasks automatically run after creation or restart when instructions are available.
 - Task state follows Agent run outcome without renderer involvement.
+- Task follow-up messages are visible to both the Router-side Principal Thread and the Worker Session, and keep one continuous Task transcript.
+- A completed Task can be reopened by a follow-up message; cancelling and queued/running transitions still terminate at the same Task and Router result projections.
 - Worker crashes and model-start failures become visible Task failures.
 - Restart recovery avoids duplicate prompts inside one Session, but external side-effect idempotency is deferred to the action outbox module.
 - Task titles, lifecycle details, and failure messages remain SQLite metadata; task instructions are encrypted.

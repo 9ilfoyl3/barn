@@ -89,9 +89,8 @@ test('reroutes an active Task in place and keeps Worker progress in the Task det
         messages: messages.messages,
       }
     }, task.id)
-    expect(result.task.sessionId).toBeDefined()
-    expect(result.task.sessionId).not.toBe(firstSessionId)
-    expect(result.sessions).toHaveLength(2)
+    expect(result.task.sessionId).toBe(firstSessionId)
+    expect(result.sessions).toHaveLength(1)
     expect(model.workerPrompts().at(-1)).toContain('Baidu')
     expect(result.messages.some((message) => message.role === 'assistant' && JSON.stringify(message.content).includes('Baidu news result'))).toBe(true)
     expect(result.messages.some((message) => message.role === 'assistant' && JSON.stringify(message.content).includes('requeued it for execution'))).toBe(false)
