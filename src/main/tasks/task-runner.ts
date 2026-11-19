@@ -111,11 +111,16 @@ export class TaskRunner {
     const queued = this.tasks.list()
       .filter((task) => task.status === 'queued' && !this.active.has(task.id))
     if (queued.length === 0) return
-    const future = queued
-      .map((task) => ({ task, dueAt: task.scheduledFor === undefined ? now : new Date(task.scheduledFor).getTime() }))
-      .filter((entry) => Number.isFinite(entry.dueAt) && entry.dueAt > now)
-      .toSorted((left, right) => left.dueAt - right.dueAt)[0]
-    if (future !== undefined) {
+    const scheduled = queued.map((task) => ({
+      task,
+      dueAt: task.scheduledFor === undefined ? now : new Date(task.scheduledFor).getTime(),
+    }))
+    const due = scheduled.filter((entry) => !Number.isFinite(entry.dueAt) || entry.dueAt <= now)
+    if (due.length === 0) {
+      const future = scheduled
+        .filter((entry) => Number.isFinite(entry.dueAt) && entry.dueAt > now)
+        .toSorted((left, right) => left.dueAt - right.dueAt)[0]
+      if (future === undefined) return
       const delay = Math.min(future.dueAt - now, 2_147_483_647)
       this.wakeTimer = setTimeout(() => {
         this.wakeTimer = undefined
