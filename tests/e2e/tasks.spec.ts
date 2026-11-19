@@ -188,6 +188,90 @@ test('shows needs-you, in-progress, and recent tasks with usable actions', async
 })
 
 
+test('opens a task agent conversation with properties and accepts a follow-up message', async () => {
+  const server = await startMockModelServer('Task detail agent reply.')
+  const address = server.address()
+  if (address === null || typeof address === 'string') throw new Error('Mock server did not bind')
+  const baseUrl = `http://127.0.0.1:${address.port}/v1`
+  const userData = await mkdtemp(join(tmpdir(), 'barn-desktop-task-detail-e2e-'))
+  const inheritedEnv = Object.fromEntries(
+    Object.entries(process.env).filter((entry): entry is [string, string] => entry[1] !== undefined),
+  )
+  const app = await electron.launch({
+    args: ['.'],
+    env: {
+      ...inheritedEnv,
+      ELECTRON_DISABLE_SECURITY_WARNINGS: 'true',
+      BARN_USER_DATA_DIR: userData,
+      BARN_UI_LANGUAGE: 'en',
+    },
+  })
+
+  try {
+    const page = await app.firstWindow()
+    await page.waitForLoadState('domcontentloaded')
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.evaluate(async (url) => {
+      await window.barn.models.saveCustomProvider({
+        id: 'task-detail-provider',
+        name: 'Task Detail Provider',
+        baseUrl: url,
+        api: 'openai-completions',
+        models: [{
+          id: 'task-detail-model',
+          name: 'Task Detail Model',
+          contextWindow: 128_000,
+          maxTokens: 8_000,
+          reasoning: false,
+          reasoningEfforts: [],
+          input: ['text'],
+        }],
+      })
+      await window.barn.models.saveCredential({ providerId: 'task-detail-provider', apiKey: 'test-key' })
+      await window.barn.models.setDefault({ providerId: 'task-detail-provider', modelId: 'task-detail-model' })
+    }, baseUrl)
+
+    const task = await page.evaluate(() => window.barn.tasks.create({
+      title: 'Summarize the project notes',
+      origin: 'user',
+      prompt: 'Summarize the latest project notes in one paragraph.',
+    }))
+    await expect.poll(async () => page.evaluate(
+      (taskId) => window.barn.tasks.get(taskId).then((current) => current.status),
+      task.id,
+    ), { timeout: 15_000 }).toBe('completed')
+    const completed = await page.evaluate((taskId) => window.barn.tasks.get(taskId), task.id)
+    expect(completed.sessionId).toBeDefined()
+
+    await page.locator('.task-nav-button').click()
+    await page.locator('.task-row', { hasText: 'Summarize the project notes' })
+      .getByRole('button', { name: 'View details', exact: true })
+      .click()
+
+    const detail = page.locator('.task-detail-page')
+    await expect(detail.getByRole('heading', { name: 'Summarize the project notes' })).toBeVisible()
+    await expect(detail).toContainText('Summarize the latest project notes in one paragraph.')
+    await expect(detail).toContainText('Task detail agent reply.')
+    await expect(detail.getByRole('complementary', { name: 'Properties' })).toContainText('Completed')
+    await expect(detail.getByRole('complementary', { name: 'Properties' })).toContainText('Created from')
+    await expect(detail.getByRole('button', { name: 'Add tag' })).toBeVisible()
+    await page.screenshot({ path: 'test-results/barn-task-detail-agent-chat.png', fullPage: true })
+
+    const composer = detail.getByRole('textbox', { name: 'Message task agent' })
+    await composer.fill('Please continue with a short follow-up.')
+    await composer.press('Enter')
+    await expect.poll(async () => page.evaluate(
+      (sessionId) => window.barn.sessions.getEvents(sessionId).then((events) => (
+        JSON.stringify(events).includes('Please continue with a short follow-up.')
+      )),
+      completed.sessionId!,
+    ), { timeout: 15_000 }).toBe(true)
+  } finally {
+    await app.close()
+    await new Promise<void>((resolve, reject) => server.close((error) => error === undefined ? resolve() : reject(error)))
+  }
+})
+
 test('requires durable approval before a task can resume', async () => {
   const server = await startMockModelServer('Approved task completed.')
   const address = server.address()

@@ -1029,9 +1029,9 @@ export function App() {
             {needsYouCount > 0 && <span className="app-rail-count task-nav-count">{needsYouCount}</span>}
           </button>
           <button
-            className={railButtonClassName(view === 'tasks')}
+            className={railButtonClassName(view === 'tasks' || view === 'task-detail')}
             type="button"
-            aria-current={view === 'tasks' ? 'page' : undefined}
+            aria-current={view === 'tasks' || view === 'task-detail' ? 'page' : undefined}
             onClick={() => setView('tasks')}
           >
             <ListTodo size={19} aria-hidden="true" />
