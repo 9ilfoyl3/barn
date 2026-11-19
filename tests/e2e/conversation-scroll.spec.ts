@@ -61,6 +61,10 @@ test('opens a persisted conversation scrolled to the latest message', async () =
     await expect(page.locator('.conversation-fade-top')).toHaveAttribute('data-visible', 'false')
     await expect(page.locator('.conversation-fade-bottom')).toHaveAttribute('data-visible', 'true')
     await page.screenshot({ path: 'test-results/barn-conversation-scroll-top.png', fullPage: true })
+    const surface = page.locator('.conversation-surface')
+    await expect(surface).toHaveClass(/is-scrolling/)
+    await page.waitForTimeout(800)
+    await expect(surface).not.toHaveClass(/is-scrolling/)
   } finally {
     await app.close()
   }

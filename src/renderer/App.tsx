@@ -291,6 +291,25 @@ export function App() {
   }, [browserOpen, liveParts, messages, syncConversationFades, threadMessages, utilityOpen, view])
 
   useEffect(() => {
+    const timers = new WeakMap<HTMLElement, number>()
+    const onScroll = (event: Event): void => {
+      const target = event.target
+      if (!(target instanceof HTMLElement)) return
+      target.classList.add('is-scrolling')
+      const previous = timers.get(target)
+      if (previous !== undefined) window.clearTimeout(previous)
+      timers.set(target, window.setTimeout(() => {
+        target.classList.remove('is-scrolling')
+        timers.delete(target)
+      }, 700))
+    }
+    document.addEventListener('scroll', onScroll, true)
+    return () => {
+      document.removeEventListener('scroll', onScroll, true)
+    }
+  }, [])
+
+  useEffect(() => {
     activeSessionIdRef.current = activeSessionId
     setMessages([])
     setLiveParts([])
