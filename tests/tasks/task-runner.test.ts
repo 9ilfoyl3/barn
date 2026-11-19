@@ -73,6 +73,8 @@ describe('TaskRunner', () => {
       undefined,
       expect.objectContaining({
         projectUserMessage: false,
+        userActorRole: 'router',
+        assistantActorRole: 'worker',
         visibleMetadata: { taskId: task.id },
       }),
     )

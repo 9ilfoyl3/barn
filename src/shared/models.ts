@@ -264,6 +264,10 @@ export interface RouterBridge {
 /** Host-only projection controls for a model execution. */
 export interface AgentPromptOptions {
   projectUserMessage?: boolean
+  /** Source identity recorded on the user-side Session event. Task launches record Router as the source. */
+  userActorRole?: 'router' | 'worker'
+  /** Source identity recorded on assistant Session events for this prompt. */
+  assistantActorRole?: 'router' | 'worker'
   includeMemory?: boolean
   visibleMetadata?: Record<string, unknown>
   clientMessageIdPrefix?: string

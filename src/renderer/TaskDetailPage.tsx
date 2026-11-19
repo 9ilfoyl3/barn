@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import {
   ArrowLeft,
+  Bot,
   CalendarClock,
   Check,
   Circle,
@@ -15,18 +16,19 @@ import {
   Paperclip,
   Plus,
   Repeat2,
+  Route,
   Sparkles,
-  UserRound,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import type { AttachmentDescriptor, SessionLiveEvent, Task } from '../shared/models'
 import { attachmentDisplayName } from '../shared/attachments'
 import { AttachmentStrip } from './AttachmentStrip'
 import { ConversationParts, PendingThinking } from './ConversationParts'
-import { MessageBubble } from '@/components/beui/components/agents/message-bubble'
+import { MessageBubble, MessageBubbleGroup } from '@/components/beui/components/agents/message-bubble'
 import { PromptInput } from '@/components/beui/components/agents/prompt-input'
 import {
   applyLiveEvent,
+  groupConversationMessages,
   messagesFromEvents,
   type ChatMessage,
   type ConversationPart,
@@ -42,6 +44,7 @@ export function TaskDetailPage({ task, onBack }: { task: Task; onBack: () => voi
   const locale = i18n.language === 'zh-CN' ? 'zh-CN' : 'en'
   const [activeSessionId, setActiveSessionId] = useState(task.sessionId)
   const [messages, setMessages] = useState<ChatMessage[]>([])
+  const [optimisticMessages, setOptimisticMessages] = useState<ChatMessage[]>([])
   const [liveParts, setLiveParts] = useState<ConversationPart[]>([])
   const [input, setInput] = useState('')
   const [attachments, setAttachments] = useState<AttachmentDescriptor[]>([])
@@ -64,6 +67,7 @@ export function TaskDetailPage({ task, onBack }: { task: Task; onBack: () => voi
   useEffect(() => {
     setActiveSessionId(task.sessionId)
     setMessages([])
+    setOptimisticMessages([])
     setLiveParts([])
     setInput('')
     setAttachments([])
@@ -89,16 +93,30 @@ export function TaskDetailPage({ task, onBack }: { task: Task; onBack: () => voi
       unsubscribe()
     }
 
-    async function loadMessages(sessionId: string, isCancelled: boolean): Promise<void> {
+    async function loadMessages(activeId: string, isCancelled: boolean): Promise<void> {
       try {
-        const events = await window.barn.sessions.getEvents(sessionId)
+        const events = await window.barn.sessions.getEvents(activeId)
         if (isCancelled) return
-        const projected = messagesFromEvents(events).map((message, index) => (
-          message.role === 'user' && index === 0 && task.visiblePrompt !== undefined
-            ? { ...message, parts: [{ type: 'text' as const, text: task.visiblePrompt }] }
-            : message
-        ))
+        const projected = messagesFromEvents(events).map((message, index): ChatMessage => {
+          if (message.role === 'assistant') {
+            return { ...message, actorRole: message.actorRole ?? 'worker' }
+          }
+          if (index > 0) return message
+          return {
+            ...message,
+            role: 'assistant',
+            actorRole: 'router',
+            ...(task.visiblePrompt === undefined
+              ? {}
+              : { parts: [{ type: 'text' as const, text: task.visiblePrompt }] }),
+          }
+        })
         setMessages(projected)
+        setOptimisticMessages((current) => current.filter((optimistic) => (
+          !projected.some((message) => (
+            message.role === 'user' && messageText(message).trim() === messageText(optimistic).trim()
+          ))
+        )))
         setError(undefined)
       } catch (reason) {
         if (!isCancelled) setError(errorMessage(reason))
@@ -138,7 +156,7 @@ export function TaskDetailPage({ task, onBack }: { task: Task; onBack: () => voi
     const thread = threadRef.current
     if (thread === null) return
     thread.scrollTop = thread.scrollHeight
-  }, [messages, liveParts, pending, error])
+  }, [messages, optimisticMessages, liveParts, pending, error])
 
   useEffect(() => {
     if (!tagMenuOpen) return
@@ -155,6 +173,8 @@ export function TaskDetailPage({ task, onBack }: { task: Task; onBack: () => voi
   }, [])
 
   const initialMessages = messages.length > 0 ? messages : messagesFromTask(task)
+  const displayMessages = [...initialMessages, ...optimisticMessages]
+  const messageGroups = groupConversationMessages(displayMessages)
   const timestampValue = task.startedAt ?? task.createdAt
   const timestamp = new Date(timestampValue)
   const validTimestamp = !Number.isNaN(timestamp.getTime())
@@ -193,8 +213,18 @@ export function TaskDetailPage({ task, onBack }: { task: Task; onBack: () => voi
     const text = value.trim()
     if (text.length === 0 || pending) return
     const filesToSend = attachments
+    const optimisticKey = `optimistic:${crypto.randomUUID()}`
+    const optimistic: ChatMessage = {
+      key: optimisticKey,
+      role: 'user',
+      parts: [{ type: 'text', text }],
+      attachments: filesToSend,
+      isError: false,
+      createdAt: new Date().toISOString(),
+    }
     setInput('')
     setAttachments([])
+    setOptimisticMessages((current) => [...current, optimistic])
     setPending(true)
     setError(undefined)
     try {
@@ -206,6 +236,7 @@ export function TaskDetailPage({ task, onBack }: { task: Task; onBack: () => voi
         ...(workingDirectory === undefined ? {} : { workingDirectory }),
       })
     } catch (reason) {
+      setOptimisticMessages((current) => current.filter((message) => message.key !== optimisticKey))
       setPending(false)
       setInput(text)
       setAttachments(filesToSend)
@@ -270,50 +301,51 @@ export function TaskDetailPage({ task, onBack }: { task: Task; onBack: () => voi
     })
   }
 
-  function renderMessage(message: ChatMessage) {
-    const user = message.role === 'user'
+  function renderUserMessage(message: ChatMessage) {
     return (
-      <article
-        className={`task-detail-message task-detail-message-${message.role}`}
+      <MessageBubble
+        aria-label={t('conversation.userMessage')}
+        align="end"
+        className={`chat-message thread-message user${message.isError ? ' error' : ''}`}
         data-message-key={message.key}
         key={message.key}
+        role="article"
+        variant="ghost"
       >
-        <span className="task-detail-message-avatar" aria-hidden="true">
-          {user ? <UserRound size={12} /> : <Sparkles size={12} />}
+        <ConversationParts parts={message.parts} role={message.role} keyPrefix={message.key} />
+        {renderAttachments(message)}
+      </MessageBubble>
+    )
+  }
+
+  function renderAssistantMessage(message: ChatMessage) {
+    const actorRole = message.actorRole ?? 'worker'
+    return (
+      <div
+        className={`assistant-reply-segment task-detail-actor-turn task-detail-actor-${actorRole}`}
+        data-actor-role={actorRole}
+        key={message.key}
+      >
+        <span className="task-detail-actor-avatar" aria-hidden="true">
+          {actorRole === 'router' ? <Route size={12} /> : <Bot size={12} />}
         </span>
-        <div className="task-detail-message-stack">
-          <span className="task-detail-message-author">
-            {user ? t('tasks.senderYou') : t('tasks.taskAgent')}
+        <div className="task-detail-actor-copy">
+          <span className="task-detail-actor-name">
+            {actorRole === 'router' ? t('tasks.routerAgent') : t('tasks.workerAgent')}
           </span>
           <MessageBubble
+            aria-label={actorRole === 'router' ? t('tasks.routerAgent') : t('tasks.workerAgent')}
             align="start"
-            className="task-detail-message-bubble"
+            className={`chat-message thread-message assistant${message.isError ? ' error' : ''}`}
+            data-message-key={message.key}
             role="article"
             variant="ghost"
           >
-            <ConversationParts
-              parts={message.parts}
-              role={message.role}
-              keyPrefix={message.key}
-            />
-            {message.attachments.length > 0 && (
-              <div className="task-detail-message-attachments">
-                {message.attachments.map((file) => (
-                  <span
-                    className="task-detail-message-attachment"
-                    key={`${message.key}:${file.path}`}
-                    title={attachmentDisplayName(file)}
-                  >
-                    {file.kind === 'directory' ? <Folder size={11} /> : <Paperclip size={11} />}
-                    <span>{attachmentDisplayName(file)}</span>
-                    {file.size > 0 && <small>{formatFileSize(file.size)}</small>}
-                  </span>
-                ))}
-              </div>
-            )}
+            <ConversationParts parts={message.parts} role={message.role} keyPrefix={message.key} />
+            {renderAttachments(message)}
           </MessageBubble>
         </div>
-      </article>
+      </div>
     )
   }
 
@@ -353,25 +385,47 @@ export function TaskDetailPage({ task, onBack }: { task: Task; onBack: () => voi
                 <span>{t('tasks.loadingDetails')}</span>
               </div>
             )}
-            {initialMessages.map(renderMessage)}
-            {(pending || liveParts.length > 0) && (
-              <article className="task-detail-message task-detail-message-assistant task-detail-live-message">
-                <span className="task-detail-message-avatar" aria-hidden="true">
-                  <Sparkles size={12} />
-                </span>
-                <div className="task-detail-message-stack">
-                  <span className="task-detail-message-author">{t('tasks.taskAgent')}</span>
-                  {liveParts.length === 0 ? (
-                    <PendingThinking label={t('conversation.thinkingNow')} />
-                  ) : (
-                    <MessageBubble align="start" className="task-detail-message-bubble" role="article" variant="ghost">
-                      <ConversationParts parts={liveParts} role="assistant" keyPrefix="task-live" />
-                    </MessageBubble>
-                  )}
+            <MessageBubbleGroup className="message-list task-detail-message-list" spacing="default">
+              {messageGroups.map((group) => {
+                if (group.kind === 'user') return renderUserMessage(group.message)
+                if (group.kind === 'proactive') {
+                  return (
+                    <div className="proactive-message" key={group.key}>
+                      <div className="assistant-reply-run">
+                        {renderAssistantMessage(group.message)}
+                      </div>
+                    </div>
+                  )
+                }
+                return (
+                  <div className="assistant-reply-run" key={group.key}>
+                    {group.replies.map((reply) => renderAssistantMessage(reply.message))}
+                  </div>
+                )
+              })}
+              {(pending || liveParts.length > 0) && (
+                <div className="assistant-reply-run task-detail-live-run">
+                  <div className="assistant-reply-segment task-detail-actor-turn task-detail-actor-worker">
+                    <span className="task-detail-actor-avatar" aria-hidden="true">
+                      <Bot size={12} />
+                    </span>
+                    <div className="task-detail-actor-copy">
+                      <span className="task-detail-actor-name">{t('tasks.workerAgent')}</span>
+                      {liveParts.length === 0 ? (
+                        <div className="task-detail-thinking-state">
+                          <PendingThinking label={t('conversation.thinkingNow')} />
+                        </div>
+                      ) : (
+                        <MessageBubble align="start" className="chat-message thread-message assistant" role="article" variant="ghost">
+                          <ConversationParts parts={liveParts} role="assistant" keyPrefix="task-live" />
+                        </MessageBubble>
+                      )}
+                    </div>
+                  </div>
                 </div>
-              </article>
-            )}
-            {!loading && initialMessages.length === 0 && liveParts.length === 0 && !pending && (
+              )}
+            </MessageBubbleGroup>
+            {!loading && displayMessages.length === 0 && liveParts.length === 0 && !pending && (
               <div className="task-detail-thread-empty">
                 <Sparkles size={18} aria-hidden="true" />
                 <p>{t('tasks.chatEmpty')}</p>
@@ -541,12 +595,39 @@ function messagesFromTask(task: Task): ChatMessage[] {
   if (prompt === undefined || prompt.trim().length === 0) return []
   return [{
     key: `task-prompt:${task.id}`,
-    role: 'user',
+    role: 'assistant',
+    actorRole: 'router',
     parts: [{ type: 'text', text: prompt }],
     attachments: task.attachments ?? [],
     isError: false,
     createdAt: task.createdAt,
   }]
+}
+
+function renderAttachments(message: ChatMessage) {
+  if (message.attachments.length === 0) return null
+  return (
+    <div className={message.role === 'user' ? 'message-attachments' : 'task-detail-message-attachments'}>
+      {message.attachments.map((file) => {
+        const name = attachmentDisplayName(file)
+        return (
+          <span
+            className="task-detail-message-attachment"
+            key={`${message.key}:${file.path}`}
+            title={name}
+          >
+            {file.kind === 'directory' ? <Folder size={11} /> : <Paperclip size={11} />}
+            <span>{name}</span>
+            {file.size > 0 && <small>{formatFileSize(file.size)}</small>}
+          </span>
+        )
+      })}
+    </div>
+  )
+}
+
+function messageText(message: ChatMessage): string {
+  return message.parts.flatMap((part) => part.type === 'text' ? [part.text] : []).join('\n')
 }
 
 function isSameLocalDay(left: Date, right: Date): boolean {

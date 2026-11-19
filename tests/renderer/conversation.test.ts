@@ -56,6 +56,33 @@ describe('conversation timeline', () => {
     })
   })
 
+  it('keeps Router and Worker turns distinct in a task session', () => {
+    const events: SessionTimelineEvent[] = [
+      timelineEvent('event-router', 1, {
+        actorRole: 'router',
+        message: { role: 'user', content: 'Summarize the project notes.' },
+      }),
+      timelineEvent('event-worker', 2, {
+        actorRole: 'worker',
+        message: { role: 'assistant', content: 'I will read the notes.' },
+      }),
+      timelineEvent('event-user', 3, {
+        message: { role: 'user', content: 'Include the latest decisions.' },
+      }),
+      timelineEvent('event-worker-final', 4, {
+        actorRole: 'worker',
+        message: { role: 'assistant', content: 'The summary is ready.' },
+      }),
+    ]
+
+    expect(messagesFromEvents(events)).toMatchObject([
+      { role: 'assistant', actorRole: 'router', parts: [{ type: 'text', text: 'Summarize the project notes.' }] },
+      { role: 'assistant', actorRole: 'worker', parts: [{ type: 'text', text: 'I will read the notes.' }] },
+      { role: 'user', parts: [{ type: 'text', text: 'Include the latest decisions.' }] },
+      { role: 'assistant', actorRole: 'worker', parts: [{ type: 'text', text: 'The summary is ready.' }] },
+    ])
+  })
+
   it('appends live events without moving existing segments', () => {
     let parts = applyLiveEvent([], liveEvent({ type: 'assistant.thinking', delta: 'I' }))
     parts = applyLiveEvent(parts, liveEvent({ type: 'assistant.thinking', delta: ' need context.' }))

@@ -213,6 +213,8 @@ export class TaskRunner {
         {
           projectUserMessage: false,
           projectAssistantMessage: false,
+          userActorRole: 'router',
+          assistantActorRole: 'worker',
           visibleActivity: false,
           visibleMetadata: { taskId: task.id },
           clientMessageIdPrefix: `task-assistant:${task.id}`,

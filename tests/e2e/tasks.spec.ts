@@ -1,4 +1,4 @@
-import { createServer, type Server } from 'node:http'
+import { createServer, type Server, type ServerResponse } from 'node:http'
 import { mkdtemp } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -189,7 +189,7 @@ test('shows needs-you, in-progress, and recent tasks with usable actions', async
 
 
 test('opens a task agent conversation with properties and accepts a follow-up message', async () => {
-  const server = await startMockModelServer('Task detail agent reply.')
+  const server = await startMockModelServer('Task detail agent reply.', 1_000)
   const address = server.address()
   if (address === null || typeof address === 'string') throw new Error('Mock server did not bind')
   const baseUrl = `http://127.0.0.1:${address.port}/v1`
@@ -252,6 +252,9 @@ test('opens a task agent conversation with properties and accepts a follow-up me
     await expect(detail.getByRole('heading', { name: 'Summarize the project notes' })).toBeVisible()
     await expect(detail).toContainText('Summarize the latest project notes in one paragraph.')
     await expect(detail).toContainText('Task detail agent reply.')
+    await expect(detail.locator('[data-actor-role="router"]')).toContainText('Router')
+    await expect(detail.locator('[data-actor-role="router"]')).toContainText('Summarize the latest project notes in one paragraph.')
+    await expect(detail.locator('[data-actor-role="worker"]')).toContainText('Worker')
     await expect(detail.getByRole('complementary', { name: 'Properties' })).toContainText('Completed')
     await expect(detail.getByRole('complementary', { name: 'Properties' })).toContainText('Created from')
     await expect(detail.getByRole('button', { name: 'Add tag' })).toBeVisible()
@@ -260,6 +263,9 @@ test('opens a task agent conversation with properties and accepts a follow-up me
     const composer = detail.getByRole('textbox', { name: 'Message task agent' })
     await composer.fill('Please continue with a short follow-up.')
     await composer.press('Enter')
+    const userMessage = detail.locator('.task-detail-message-list .chat-message.user[data-align="end"]')
+    await expect(userMessage).toContainText('Please continue with a short follow-up.', { timeout: 500 })
+    await page.screenshot({ path: 'test-results/barn-task-detail-user-message.png', fullPage: true })
     await expect.poll(async () => page.evaluate(
       (sessionId) => window.barn.sessions.getEvents(sessionId).then((events) => (
         JSON.stringify(events).includes('Please continue with a short follow-up.')
@@ -351,7 +357,7 @@ test('requires durable approval before a task can resume', async () => {
   }
 })
 
-async function startMockModelServer(text: string): Promise<Server> {
+async function startMockModelServer(text: string, delayMs = 0): Promise<Server> {
   const server = createServer((request, response) => {
     if (request.method !== 'POST' || request.url !== '/v1/chat/completions') {
       response.writeHead(404).end()
@@ -359,29 +365,34 @@ async function startMockModelServer(text: string): Promise<Server> {
     }
     request.resume()
     request.on('end', () => {
-      response.writeHead(200, {
-        'content-type': 'text/event-stream',
-        'cache-control': 'no-cache',
-        connection: 'keep-alive',
-      })
-      const base = {
-        id: 'chatcmpl-task',
-        object: 'chat.completion.chunk',
-        created: Math.floor(Date.now() / 1000),
-        model: 'task-model',
-      }
-      response.write(`data: ${JSON.stringify({
-        ...base,
-        choices: [{ index: 0, delta: { role: 'assistant', content: text }, finish_reason: null }],
-      })}\n\n`)
-      response.write(`data: ${JSON.stringify({
-        ...base,
-        choices: [{ index: 0, delta: {}, finish_reason: 'stop' }],
-        usage: { prompt_tokens: 5, completion_tokens: 4, total_tokens: 9 },
-      })}\n\n`)
-      response.end('data: [DONE]\n\n')
+      if (delayMs > 0) setTimeout(() => writeTaskModelResponse(response, text), delayMs)
+      else writeTaskModelResponse(response, text)
     })
   })
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
   return server
+}
+
+function writeTaskModelResponse(response: ServerResponse, text: string): void {
+  response.writeHead(200, {
+    'content-type': 'text/event-stream',
+    'cache-control': 'no-cache',
+    connection: 'keep-alive',
+  })
+  const base = {
+    id: 'chatcmpl-task',
+    object: 'chat.completion.chunk',
+    created: Math.floor(Date.now() / 1000),
+    model: 'task-model',
+  }
+  response.write(`data: ${JSON.stringify({
+    ...base,
+    choices: [{ index: 0, delta: { role: 'assistant', content: text }, finish_reason: null }],
+  })}\n\n`)
+  response.write(`data: ${JSON.stringify({
+    ...base,
+    choices: [{ index: 0, delta: {}, finish_reason: 'stop' }],
+    usage: { prompt_tokens: 5, completion_tokens: 4, total_tokens: 9 },
+  })}\n\n`)
+  response.end('data: [DONE]\n\n')
 }

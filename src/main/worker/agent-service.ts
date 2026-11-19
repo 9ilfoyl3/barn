@@ -25,6 +25,8 @@ export class AgentService {
   private readonly liveListeners = new Set<(event: SessionLiveEvent) => void>()
   private readonly promptProjections = new Map<string, {
     projectUserMessage: boolean
+    userActorRole?: 'router' | 'worker'
+    assistantActorRole?: 'router' | 'worker'
     includeMemory: boolean
     visibleMetadata: Record<string, unknown>
     clientMessageIdPrefix: string
@@ -63,6 +65,8 @@ export class AgentService {
     this.startingRuns.set(sessionId, startingRun)
     this.promptProjections.set(sessionId, {
       projectUserMessage: options.projectUserMessage !== false,
+      ...(options.userActorRole === undefined ? {} : { userActorRole: options.userActorRole }),
+      ...(options.assistantActorRole === undefined ? {} : { assistantActorRole: options.assistantActorRole }),
       includeMemory: options.includeMemory !== false,
       visibleMetadata: options.visibleMetadata ?? {},
       clientMessageIdPrefix: options.clientMessageIdPrefix ?? `session-assistant:${sessionId}`,
@@ -105,8 +109,11 @@ export class AgentService {
             timestamp: Date.now(),
           },
           attachments,
+          ...(options.userActorRole === undefined ? {} : { actorRole: options.userActorRole }),
         },
-        actor: { kind: 'user', id: 'desktop-user' },
+        actor: options.userActorRole === 'router'
+          ? { kind: 'agent', id: 'router' }
+          : { kind: 'user', id: 'desktop-user' },
       }])
       if (userEvent !== undefined && options.projectUserMessage !== false) {
         this.threads?.appendMessage({
@@ -214,9 +221,15 @@ export class AgentService {
     switch (message.type) {
       case 'session.append': {
         try {
+          const projection = this.promptProjections.get(message.sessionId)
           const sessionEvent = this.sessions.append(message.sessionId, [{
             type: 'agent.message',
-            data: { message: message.message },
+            data: {
+              message: message.message,
+              ...(projection?.assistantActorRole === undefined
+                ? {}
+                : { actorRole: projection.assistantActorRole }),
+            },
             actor: actorForMessage(message.message),
           }])[0]
           if (sessionEvent === undefined) throw new Error('Session event was not persisted')
