@@ -227,13 +227,9 @@
   max-width: min(600px, 100%);
   margin: 0;
   border: 0;
-  border-radius: 20px;
-  background: color-mix(in srgb, var(--panel-raised) 72%, var(--panel));
+  border-radius: var(--assistant-bubble-radius);
+  background: var(--assistant-bubble-bg);
   padding: 10px 13px;
-}
-
-.task-detail-actor-router .task-detail-actor-copy > .chat-message.assistant {
-  background: color-mix(in srgb, var(--panel-raised) 60%, var(--panel));
 }
 
 .task-detail-actor-copy .conversation-parts {
@@ -277,17 +273,6 @@
 .task-detail-message-attachment small {
   color: var(--text-faint);
   font-size: 9px;
-}
-
-.task-detail-thinking-state {
-  border: 1px solid color-mix(in srgb, var(--line) 72%, transparent);
-  border-radius: 20px;
-  background: color-mix(in srgb, var(--panel-raised) 72%, var(--panel));
-  padding: 10px 13px;
-}
-
-.task-detail-thinking-state .barn-thinking-indicator {
-  padding: 0;
 }
 
 .task-detail-loading {

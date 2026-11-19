@@ -408,9 +408,7 @@ export function TaskDetailPage({ task, onBack }: { task: Task; onBack: () => voi
                     <div className="task-detail-actor-copy">
                       <span className="task-detail-actor-name">{t('tasks.workerAgent')}</span>
                       {liveParts.length === 0 ? (
-                        <div className="task-detail-thinking-state">
-                          <PendingThinking label={t('conversation.thinkingNow')} />
-                        </div>
+                        <PendingThinking label={t('conversation.thinkingNow')} />
                       ) : (
                         <MessageBubble align="start" className="chat-message thread-message assistant" role="article" variant="ghost">
                           <ConversationParts parts={liveParts} role="assistant" keyPrefix="task-live" />

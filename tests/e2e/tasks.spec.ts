@@ -303,6 +303,7 @@ test('opens a task agent conversation with properties and accepts a follow-up me
     await page.locator('.app-rail-button', { hasText: 'Home' }).click()
     await expect(page.locator('.assistant-live-activity')).toContainText('Working on task')
     await expect(page.locator('.assistant-live-activity')).toContainText('Summarize the project notes')
+    await page.waitForTimeout(300)
     await page.screenshot({ path: 'test-results/barn-task-progress-orbs.png', fullPage: true })
     await page.locator('.task-nav-button').click()
     await page.locator('.task-row', { hasText: 'Summarize the project notes' })
