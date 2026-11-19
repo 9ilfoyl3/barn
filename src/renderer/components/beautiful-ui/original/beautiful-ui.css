@@ -446,14 +446,6 @@
   filter: saturate(0.9) brightness(1.04);
 }
 
-.records-quiet-button:active,
-.records-secondary-button:active,
-.records-primary-button:active,
-.records-select-button:active,
-.records-add-calculation:active {
-  transform: scale(0.96);
-}
-
 .records-database-icon {
   display: inline-flex;
   color: var(--green);
@@ -721,10 +713,6 @@
 .records-checkbox:hover .records-checkbox-box {
   border-color: oklch(0.773 0.016 251.194);
   background: oklch(0.966 0.003 228.784);
-}
-
-.records-checkbox:active .records-checkbox-box {
-  transform: scale(0.96);
 }
 
 .records-checkbox input:focus-visible + .records-checkbox-box {

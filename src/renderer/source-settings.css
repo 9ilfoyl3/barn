@@ -161,10 +161,6 @@
   cursor: default;
 }
 
-.source-settings-panel button:active:not(:disabled) {
-  transform: translateY(1px);
-}
-
 .source-settings-footer-actions {
   display: flex;
   flex-wrap: wrap;

@@ -64,10 +64,6 @@
   outline-offset: 2px;
 }
 
-.settings-section-card button:active:not(:disabled) {
-  transform: translateY(1px);
-}
-
 .settings-section-card button:disabled {
   border-color: var(--line);
   background: var(--disabled-surface);

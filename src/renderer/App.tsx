@@ -86,6 +86,27 @@ const HOME_PANE_LIMITS: Record<HomePane, { min: number; max: number }> = {
   tasks: { min: 272, max: 420 },
 }
 
+const ACKNOWLEDGED_ROUTINES_STORAGE_KEY = 'barn.acknowledged-routines'
+
+function readAcknowledgedRoutineIds(): Set<string> {
+  try {
+    const raw = window.localStorage.getItem(ACKNOWLEDGED_ROUTINES_STORAGE_KEY)
+    if (raw === null) return new Set()
+    const parsed: unknown = JSON.parse(raw)
+    return new Set(Array.isArray(parsed) ? parsed.filter((value): value is string => typeof value === 'string').slice(-200) : [])
+  } catch {
+    return new Set()
+  }
+}
+
+function persistAcknowledgedRoutineIds(ids: Set<string>): void {
+  try {
+    window.localStorage.setItem(ACKNOWLEDGED_ROUTINES_STORAGE_KEY, JSON.stringify([...ids].slice(-200)))
+  } catch {
+    // Acknowledgement remains effective for the current app session.
+  }
+}
+
 function clampPaneWidth(side: HomePane, width: number): number {
   const limit = HOME_PANE_LIMITS[side]
   return Math.round(Math.min(limit.max, Math.max(limit.min, width)))
@@ -116,6 +137,7 @@ export function App() {
   const [tasks, setTasks] = useState<Task[]>([])
   const [tasksLoading, setTasksLoading] = useState(true)
   const [taskError, setTaskError] = useState<string>()
+  const [acknowledgedRoutineIds, setAcknowledgedRoutineIds] = useState(readAcknowledgedRoutineIds)
   const [conversationFades, setConversationFades] = useState({ top: false, bottom: false })
   const [homePaneWidths, setHomePaneWidths] = useState(DEFAULT_HOME_PANE_WIDTHS)
   const [resizingHomePane, setResizingHomePane] = useState<HomePane>()
@@ -520,6 +542,24 @@ export function App() {
     }
   }
 
+  function acknowledgeRoutine(routineId: string): void {
+    setAcknowledgedRoutineIds((current) => {
+      if (current.has(routineId)) return current
+      const next = new Set(current)
+      next.add(routineId)
+      persistAcknowledgedRoutineIds(next)
+      return next
+    })
+  }
+
+  function openRoutine(routineId: string): void {
+    const surface = listRef.current
+    if (surface === null) return
+    const message = [...surface.querySelectorAll<HTMLElement>('.chat-message[data-message-key]')]
+      .find((candidate) => candidate.dataset.messageKey === routineId)
+    message?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  }
+
   async function chooseWorkingDirectory(): Promise<void> {
     try {
       const selected = await window.barn.sessions.chooseDirectory()
@@ -725,15 +765,23 @@ export function App() {
     ? t('conversation.chooseWorkingDirectory')
     : workingDirectory.split(/[\\/]/).filter(Boolean).at(-1) ?? workingDirectory
   const browserApproval = pendingApprovals.find((approval) => approval.title === 'Approve browser action')
-  const routines = tasks
-    .filter((task) => (
-      task.kind === 'reminder'
-      && task.status !== 'completed'
-      && task.status !== 'cancelled'
-    ))
-    .toSorted((left, right) => (
-      (left.scheduledFor ?? left.updatedAt).localeCompare(right.scheduledFor ?? right.updatedAt)
-    ))
+  const routines = displayMessages
+    .filter((message) => message.routineDelivery === true && !acknowledgedRoutineIds.has(message.key))
+    .slice(-20)
+    .toReversed()
+    .map((message) => {
+      const text = message.parts
+        .flatMap((part) => part.type === 'text' ? [part.text] : [])
+        .join(' ')
+        .trim()
+      return {
+        id: message.key,
+        title: message.routineTitle ?? text,
+        ...(message.routinePrompt === undefined ? {} : { body: message.routinePrompt }),
+        ...(message.routineRecurrence === undefined ? {} : { recurrence: message.routineRecurrence }),
+        ...(message.createdAt === undefined ? {} : { deliveredAt: message.createdAt }),
+      }
+    })
   const workTasks = tasks.filter((task) => task.kind !== 'reminder')
   const needsYouCount = workTasks.filter((task) => ['proposed', 'waiting', 'failed'].includes(task.status)).length
   const messageActivity = resolveMessageActivity(routerRequests, tasks, pending)
@@ -1099,8 +1147,9 @@ export function App() {
                 <div className="today-home-column">
                   <TodayPanel
                     routines={routines}
-                    onOpenRoutine={openTask}
+                    onAcknowledgeRoutine={acknowledgeRoutine}
                     onConnectSources={() => setSourceSettingsOpen(true)}
+                    onOpenRoutine={openRoutine}
                     onRefresh={() => void refreshTasks()}
                   />
                 </div>

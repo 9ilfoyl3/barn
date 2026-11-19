@@ -3,6 +3,7 @@ import type {
   SessionLiveEvent,
   SessionTimelineEvent,
   VisibleMessage,
+  RoutineRecurrence,
   VisibleResultCard,
   VisibleResultCardKind,
 } from '../shared/models'
@@ -31,6 +32,10 @@ export interface ChatMessage {
   routerRequestId?: string
   taskId?: string
   routineDelivery?: boolean
+  routineTitle?: string
+  routinePrompt?: string
+  routineRecurrence?: RoutineRecurrence
+  createdAt?: string
 }
 
 export interface AssistantReplyView {
@@ -348,6 +353,11 @@ export function chatMessagesFromThread(messages: VisibleMessage[]): ChatMessage[
       : undefined
     const taskId = typeof message.metadata.taskId === 'string' ? message.metadata.taskId : undefined
     const routineDelivery = message.metadata.routineDelivery === true
+    const routineTitle = typeof message.metadata.routineTitle === 'string' ? message.metadata.routineTitle : undefined
+    const routinePrompt = typeof message.metadata.routinePrompt === 'string' ? message.metadata.routinePrompt : undefined
+    const routineRecurrence = message.metadata.routineRecurrence === 'daily' || message.metadata.routineRecurrence === 'weekdays' || message.metadata.routineRecurrence === 'weekly'
+      ? message.metadata.routineRecurrence
+      : message.metadata.routineRecurrence === 'none' ? 'none' : undefined
     return [{
       key: `thread:${message.id}`,
       role: message.role,
@@ -358,6 +368,10 @@ export function chatMessagesFromThread(messages: VisibleMessage[]): ChatMessage[
       ...(routerRequestId === undefined ? {} : { routerRequestId }),
       ...(taskId === undefined ? {} : { taskId }),
       ...(routineDelivery ? { routineDelivery: true } : {}),
+      ...(routineTitle === undefined ? {} : { routineTitle }),
+      ...(routinePrompt === undefined ? {} : { routinePrompt }),
+      ...(routineRecurrence === undefined ? {} : { routineRecurrence }),
+      createdAt: message.createdAt,
     }]
   })
 }
@@ -398,6 +412,10 @@ export function mergeThreadAndSessionMessages(
           ...(threadMessage.routerRequestId === undefined ? {} : { routerRequestId: threadMessage.routerRequestId }),
           ...(threadMessage.taskId === undefined ? {} : { taskId: threadMessage.taskId }),
           ...(threadMessage.routineDelivery === true ? { routineDelivery: true } : {}),
+          ...(threadMessage.routineTitle === undefined ? {} : { routineTitle: threadMessage.routineTitle }),
+          ...(threadMessage.routinePrompt === undefined ? {} : { routinePrompt: threadMessage.routinePrompt }),
+          ...(threadMessage.routineRecurrence === undefined ? {} : { routineRecurrence: threadMessage.routineRecurrence }),
+          ...(threadMessage.createdAt === undefined ? {} : { createdAt: threadMessage.createdAt }),
         }
   })
 }

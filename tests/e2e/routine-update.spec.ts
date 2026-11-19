@@ -48,8 +48,7 @@ test('updates an existing recurring routine without showing Thinking Orbs', asyn
     const composer = page.getByLabel('给 Barn 发消息')
     await composer.fill('每天下午三点提醒我起来站一下')
     await composer.press('Enter')
-    await expect(page.locator('.routine-card')).toContainText('每天')
-    await expect(page.locator('.routine-card')).toContainText('15:00')
+    await expect(page.locator('.routine-card')).toHaveCount(0)
     await expect(page.locator('.barn-thinking-indicator')).toHaveCount(0)
 
     await composer.fill('不要三点提醒我了，每天下午四点提醒我起来站一下吧')
@@ -70,8 +69,7 @@ test('updates an existing recurring routine without showing Thinking Orbs', asyn
       timezone: 'Asia/Shanghai',
       status: 'queued',
     })
-    await expect(page.locator('.routine-card')).toContainText('16:00')
-    await expect(page.locator('.routine-card')).toContainText('每天')
+    await expect(page.locator('.routine-card')).toHaveCount(0)
     await expect(page.locator('.barn-thinking-indicator')).toHaveCount(0)
     await expect(page.locator('.chat-message.assistant').last()).toContainText('每天 16:00')
     await expect(page.locator('.task-rail-card')).toHaveCount(0)

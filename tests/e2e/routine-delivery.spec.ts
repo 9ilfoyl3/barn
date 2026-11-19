@@ -45,7 +45,36 @@ test('delivers a due routine as a chat message without placing it in Tasks', asy
     })
     await expect(page.locator('.assistant-reply-run')).toHaveCount(0)
     await expect(page.locator('.proactive-message')).toContainText('提醒：带衣服。')
+    await expect(page.locator('.routine-card')).toContainText('提醒：带衣服')
+    await expect(page.locator('.routine-card')).toContainText('提醒我带衣服。')
+    await expect(page.locator('.routine-card')).toContainText('已推送')
+    await page.locator('.routine-card').hover()
+    await expect(page.locator('.routine-card-acknowledge')).toBeVisible()
+    await page.screenshot({ path: 'test-results/barn-routine-card.png', fullPage: true })
+    await page.locator('.routine-card-open').click()
+    await expect(page.locator('.routine-card')).toHaveCount(1)
+    const acknowledge = page.locator('.routine-card-acknowledge')
+    await acknowledge.click()
+    await expect(acknowledge).toHaveClass(/is-confirming/)
+    await page.waitForTimeout(220)
+    const confirmingColors = await acknowledge.evaluate((element) => {
+      const probe = document.createElement('span')
+      probe.style.position = 'fixed'
+      probe.style.background = 'var(--green)'
+      document.body.append(probe)
+      const expected = getComputedStyle(probe).backgroundColor
+      const actual = getComputedStyle(element as HTMLElement).backgroundColor
+      probe.remove()
+      return { actual, expected }
+    })
+    expect(confirmingColors.actual).toBe(confirmingColors.expected)
+    await page.screenshot({ path: 'test-results/barn-routine-card-confirming.png', fullPage: true })
     await expect(page.locator('.routine-card')).toHaveCount(0)
+    await expect(page.locator('.proactive-message')).toContainText('提醒：带衣服。')
+    await page.reload()
+    await page.waitForLoadState('domcontentloaded')
+    await expect(page.locator('.routine-card')).toHaveCount(0)
+    await expect(page.locator('.proactive-message')).toContainText('提醒：带衣服。')
     await expect(page.locator('.task-rail-card')).toHaveCount(0)
     await page.screenshot({ path: 'test-results/barn-routine-delivery.png', fullPage: true })
   } finally {

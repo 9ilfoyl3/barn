@@ -193,17 +193,6 @@
   outline-offset: 2px;
 }
 
-.browser-tab-select:active,
-.browser-tab-close:active,
-.browser-new-tab:active,
-.browser-download-button:active,
-.browser-panel-close:active,
-.browser-toolbar button:active:not(:disabled),
-.browser-approval-actions button:active,
-.browser-newtab-grid button:active {
-  transform: translateY(1px);
-}
-
 .browser-approval-bar {
   display: flex;
   min-width: 0;
@@ -604,15 +593,7 @@
 
 @media (prefers-reduced-motion: reduce) {
   .workspace-shell > .browser-panel,
-  .browser-spinner,
-  .browser-tab-select:active,
-  .browser-tab-close:active,
-  .browser-new-tab:active,
-  .browser-download-button:active,
-  .browser-panel-close:active,
-  .browser-toolbar button:active:not(:disabled),
-  .browser-approval-actions button:active,
-  .browser-newtab-grid button:active {
+  .browser-spinner {
     animation: none;
     transform: none;
     transition: none;

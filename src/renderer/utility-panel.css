@@ -283,12 +283,6 @@
   font-size: 11px;
 }
 
-.utility-tab button:active,
-.utility-action:active,
-.side-chat-composer button:active {
-  transform: translateY(1px);
-}
-
 .utility-tab button:disabled,
 .utility-action:disabled,
 .side-chat-composer button:disabled {
