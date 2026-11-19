@@ -133,44 +133,56 @@
 
 .task-detail-message-list {
   width: 100%;
-  gap: 18px;
-  padding: 0 0 22px;
+  gap: 20px;
+  padding: 0 0 22px 32px;
 }
 
 .task-detail-message-list .chat-message.user {
-  max-width: min(72%, 620px);
+  max-width: min(500px, 72%);
 }
 
-.task-detail-message-list .chat-message.assistant {
-  width: fit-content;
-  max-width: min(82%, 700px);
+.task-detail-message-list .assistant-reply-run {
+  width: calc(100% + 32px);
+  margin-left: -32px;
+  padding-left: 32px;
+}
+
+.task-detail-message-list .assistant-reply-run::before {
+  top: -20px;
+  bottom: 12px;
+  left: 6px;
+  border-color: color-mix(in srgb, var(--line-strong) 54%, transparent);
+  border-top-width: 2px;
+  border-left-width: 2px;
 }
 
 .task-detail-actor-turn {
-  --reply-guide-left: 24px;
-  display: grid;
-  min-width: 0;
-  grid-template-columns: 21px minmax(0, 1fr);
-  align-items: start;
-  column-gap: 8px;
+  position: relative;
+  display: block;
+  width: fit-content;
+  max-width: min(628px, 100%);
 }
 
 .task-detail-actor-avatar {
+  position: absolute;
+  z-index: 2;
+  bottom: 0;
+  left: -32px;
   display: grid;
-  width: 19px;
-  height: 19px;
+  width: 16px;
+  height: 16px;
   place-items: center;
-  margin-top: 21px;
-  border: 1px solid color-mix(in srgb, var(--line-strong) 74%, transparent);
+  border: 0;
   border-radius: 999px;
-  background: var(--panel);
-  color: var(--text-dim);
+  background: var(--text);
+  color: var(--panel);
 }
 
 .task-detail-actor-router .task-detail-actor-avatar {
-  border-color: color-mix(in srgb, var(--accent) 32%, var(--line));
-  background: color-mix(in srgb, var(--accent) 12%, var(--panel));
-  color: var(--accent);
+  border: 1px solid color-mix(in srgb, var(--line-strong) 72%, transparent);
+  border-radius: 5px;
+  background: var(--panel-raised);
+  color: var(--text);
 }
 
 .task-detail-actor-worker .task-detail-actor-avatar {
@@ -180,30 +192,37 @@
 
 .task-detail-actor-copy {
   display: flex;
+  width: fit-content;
   min-width: 0;
+  max-width: 100%;
   flex-direction: column;
   align-items: flex-start;
-  gap: 4px;
 }
 
 .task-detail-actor-name {
-  min-height: 18px;
-  color: var(--text-dim);
+  min-height: 16px;
+  margin-bottom: 2px;
+  padding-left: 13px;
+  color: var(--text-faint);
   font-size: 11px;
-  font-weight: 500;
-  line-height: 18px;
+  font-weight: 450;
+  line-height: 16px;
 }
 
 .task-detail-actor-copy > .chat-message.assistant {
   position: relative;
   z-index: 1;
   width: fit-content;
-  max-width: min(100%, 700px);
-  margin-block: 0;
+  max-width: min(600px, 100%);
+  margin: 0;
+  border: 0;
+  border-radius: 20px;
+  background: color-mix(in srgb, var(--panel-raised) 72%, var(--panel));
+  padding: 10px 13px;
 }
 
-.task-detail-actor-router .task-detail-actor-name {
-  color: color-mix(in srgb, var(--accent) 74%, var(--text-dim));
+.task-detail-actor-router .task-detail-actor-copy > .chat-message.assistant {
+  background: color-mix(in srgb, var(--panel-raised) 60%, var(--panel));
 }
 
 .task-detail-actor-copy .conversation-parts {
@@ -212,9 +231,9 @@
 }
 
 .task-detail-actor-copy .message-copy {
-  font-size: 13px;
+  font-size: 13.5px;
   font-weight: 450;
-  line-height: 1.62;
+  line-height: 1.65;
 }
 
 .task-detail-message-attachments {
@@ -250,10 +269,10 @@
 }
 
 .task-detail-thinking-state {
-  border: 1px solid color-mix(in srgb, var(--line) 78%, transparent);
-  border-radius: 18px;
-  background: color-mix(in srgb, var(--panel-raised) 54%, var(--panel));
-  padding: 9px 13px;
+  border: 1px solid color-mix(in srgb, var(--line) 72%, transparent);
+  border-radius: 20px;
+  background: color-mix(in srgb, var(--panel-raised) 72%, var(--panel));
+  padding: 10px 13px;
 }
 
 .task-detail-thinking-state .barn-thinking-indicator {
