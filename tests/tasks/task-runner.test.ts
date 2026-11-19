@@ -183,6 +183,36 @@ describe('TaskRunner', () => {
     sessions.close()
   })
 
+  it('runs due routines even when future routines are queued', async () => {
+    let now = new Date('2026-11-19T08:00:02.000Z')
+    const h = await harness(1, { now: () => now })
+    h.runner.start()
+    const future = h.tasks.create({
+      title: 'Tomorrow reminder',
+      origin: 'user',
+      kind: 'reminder',
+      scheduledFor: '2026-11-20T01:00:00.000Z',
+      prompt: 'Tomorrow reminder.',
+      visiblePrompt: 'Tomorrow reminder.',
+    })
+    const due = h.tasks.create({
+      title: 'Due now',
+      origin: 'user',
+      kind: 'reminder',
+      scheduledFor: '2026-11-19T07:59:00.000Z',
+      prompt: 'Due now.',
+      visiblePrompt: 'Due now.',
+    })
+
+    await waitForTask(h.tasks, due.id, (current) => current.status === 'completed')
+    expect(h.tasks.get(future.id).status).toBe('queued')
+    now = new Date('2026-11-20T01:00:01.000Z')
+    h.runner.kick()
+    await waitForTask(h.tasks, future.id, (current) => current.status === 'completed')
+    h.runner.stop()
+    h.sessions.close()
+  })
+
   it('reschedules a recurring routine after delivering the current occurrence', async () => {
     const h = await harness()
     const threads = new ThreadService(h.sessions.threads)

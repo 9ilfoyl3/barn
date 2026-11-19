@@ -3943,3 +3943,29 @@ select:focus-visible {
 .barn-tool-chips .beautiful-tool-chip-detail .font-mono {
   color: var(--text-dim);
 }
+
+/* Scrollbar thumbs appear only while a container is actively scrolling. */
+*:not(.is-scrolling) {
+  scrollbar-color: transparent transparent;
+}
+
+*:not(.is-scrolling)::-webkit-scrollbar-thumb,
+*:not(.is-scrolling)::-webkit-scrollbar-thumb:hover {
+  background: transparent;
+}
+
+.is-scrolling {
+  scrollbar-color: color-mix(in srgb, var(--text-faint) 38%, transparent) transparent;
+}
+
+.is-scrolling::-webkit-scrollbar-thumb,
+.is-scrolling::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--text-faint) 55%, transparent);
+  background-clip: content-box;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  ::-webkit-scrollbar-thumb {
+    transition: none;
+  }
+}
