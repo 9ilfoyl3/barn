@@ -10,6 +10,10 @@ const createTaskSchema = z.object({
   sessionId: z.string().uuid().optional(),
   prompt: z.string().trim().min(1).max(2_000_000).optional(),
   visiblePrompt: z.string().trim().min(1).max(2_000_000).optional(),
+  kind: z.enum(['work', 'reminder']).optional(),
+  scheduledFor: z.string().trim().min(1).max(100).optional(),
+  recurrence: z.enum(['none', 'daily', 'weekdays', 'weekly']).optional(),
+  timezone: z.string().trim().min(1).max(100).optional(),
   workingDirectory: z.string().trim().min(1).max(4_000).optional(),
   attachments: z.array(z.object({
     name: z.string().trim().min(1).max(500),
@@ -59,6 +63,10 @@ export function registerTaskIpc(
       ...(parsed.sessionId === undefined ? {} : { sessionId: parsed.sessionId }),
       ...(parsed.prompt === undefined ? {} : { prompt: parsed.prompt }),
       ...(parsed.visiblePrompt === undefined ? {} : { visiblePrompt: parsed.visiblePrompt }),
+      ...(parsed.kind === undefined ? {} : { kind: parsed.kind }),
+      ...(parsed.scheduledFor === undefined ? {} : { scheduledFor: parsed.scheduledFor }),
+      ...(parsed.recurrence === undefined ? {} : { recurrence: parsed.recurrence }),
+      ...(parsed.timezone === undefined ? {} : { timezone: parsed.timezone }),
       ...(parsed.workingDirectory === undefined ? {} : { workingDirectory: parsed.workingDirectory }),
       ...(parsed.attachments === undefined ? {} : { attachments: parsed.attachments }),
     })

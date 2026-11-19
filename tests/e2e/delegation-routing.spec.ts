@@ -50,8 +50,7 @@ test('routes a high-confidence side-effect request through the durable Task path
     await composer.fill(request)
     await composer.press('Enter')
 
-    await expect(page.locator('.router-message-state')).toContainText('Task queued')
-    await expect(page.getByText(`I’ve queued “${request}” as a task.`)).toBeVisible()
+    await expect(page.locator('.barn-thinking-indicator')).toBeVisible()
     await expect.poll(async () => page.evaluate(async () => (await window.barn.tasks.list()).length)).toBe(1)
     const task = await page.evaluate(async () => (await window.barn.tasks.list())[0])
     expect(task).toMatchObject({ title: request, origin: 'user' })
@@ -60,6 +59,7 @@ test('routes a high-confidence side-effect request through the durable Task path
     await expect(page.locator('.task-rail-card', { hasText: request })).toBeVisible()
 
     await expect.poll(async () => page.evaluate(async (taskId) => (await window.barn.tasks.get(taskId)).status, task!.id), { timeout: 15_000 }).toBe('completed')
+    await expect(page.locator('.barn-thinking-indicator')).toHaveCount(0)
     await page.locator('.task-rail-card').click()
     await expect(page.locator('.task-detail-page')).toContainText('The requested message is ready for approval.')
     const thread = await page.evaluate(async () => (await window.barn.threads.getSnapshot()).messages)
@@ -68,11 +68,15 @@ test('routes a high-confidence side-effect request through the durable Task path
       expect.objectContaining({ role: 'user', content: request }),
       expect.objectContaining({
         role: 'assistant',
-        content: `I’ve queued “${request}” as a task.`,
-        metadata: expect.objectContaining({ taskId: task!.id }),
+        content: 'The requested message is ready for approval.',
+        metadata: expect.objectContaining({
+          taskId: task!.id,
+          taskResult: true,
+          routerRequestId: expect.any(String),
+        }),
       }),
     ]))
-    expect(thread.some((message) => message.content === 'The requested message is ready for approval.')).toBe(false)
+    expect(thread.some((message) => String(message.content).includes('queued'))).toBe(false)
     expect(thread.find((message) => message.role === 'user')?.content).not.toContain('Task contract:')
   } finally {
     await app.close()

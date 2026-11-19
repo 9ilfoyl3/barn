@@ -313,6 +313,7 @@ export interface DelegationBridge {
 export type TaskStatus = 'proposed' | 'queued' | 'running' | 'waiting' | 'completed' | 'failed' | 'cancelled'
 export type TaskOrigin = 'user' | 'automation'
 export type TaskWaitingReason = 'input' | 'approval'
+export type RoutineRecurrence = 'none' | 'daily' | 'weekdays' | 'weekly'
 
 /** Durable user-facing work, independent of any one Session used to execute it. */
 export interface Task {
@@ -326,6 +327,8 @@ export interface Task {
   visiblePrompt?: string
   kind?: 'work' | 'reminder'
   scheduledFor?: string
+  recurrence?: RoutineRecurrence
+  timezone?: string
   workingDirectory?: string
   attachments?: AttachmentDescriptor[]
   waitingReason?: TaskWaitingReason
@@ -345,6 +348,8 @@ export interface CreateTaskInput {
   visiblePrompt?: string
   kind?: 'work' | 'reminder'
   scheduledFor?: string
+  recurrence?: RoutineRecurrence
+  timezone?: string
   workingDirectory?: string
   attachments?: AttachmentDescriptor[]
 }
@@ -353,6 +358,14 @@ export interface TaskStatusUpdate {
   status: TaskStatus
   waitingReason?: TaskWaitingReason
   detail?: string
+}
+
+export interface UpdateRoutineInput {
+  title: string
+  text: string
+  scheduledFor: string
+  recurrence: RoutineRecurrence
+  timezone: string
 }
 
 export type TaskLiveEvent = {

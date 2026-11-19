@@ -49,9 +49,12 @@ test('turns a reminder into a scheduled task without entering a tool Session', a
     await composer.fill('提醒我明天要带退货的衣服')
     await composer.press('Enter')
 
-    await expect(page.locator('.assistant-result')).toContainText('带退货的衣服')
-    await expect(page.locator('.router-message-state')).toContainText('任务已创建')
-    await expect(page.locator('.task-rail-card')).toContainText('已排期')
+    await expect(page.locator('.assistant-result')).toHaveCount(0)
+    await expect(page.locator('.barn-thinking-indicator')).toHaveCount(0)
+    await expect(page.locator('.routine-card')).toContainText('带退货的衣服')
+    await expect(page.locator('.task-rail-card')).toHaveCount(0)
+    await expect(page.locator('.chat-message.assistant')).toContainText('每天')
+    await expect(page.locator('.routine-card')).toContainText('每天')
     await expect(page.locator('.agent-thinking-state')).toHaveCount(0)
     await expect(page.locator('.tool-group')).toHaveCount(0)
     await expect(page.locator('.live-turn')).toHaveCount(0)
@@ -60,7 +63,9 @@ test('turns a reminder into a scheduled task without entering a tool Session', a
     expect(tasks).toHaveLength(1)
     expect(tasks[0]).toMatchObject({
       kind: 'reminder',
-      scheduledFor: '2026-11-19T01:00:00.000Z',
+      scheduledFor: '2026-11-20T01:00:00.000Z',
+      recurrence: 'daily',
+      timezone: 'Asia/Shanghai',
       visiblePrompt: '提醒我带退货的衣服。',
       status: 'queued',
     })
@@ -78,8 +83,9 @@ async function startReminderRouterServer(): Promise<Server> {
     arguments: {
       title: '带退货的衣服',
       text: '提醒我带退货的衣服。',
-      scheduledFor: '2026-11-19T01:00:00.000Z',
+      scheduledFor: '2026-11-20T01:00:00.000Z',
       timezone: 'Asia/Shanghai',
+      recurrence: 'daily',
     },
     confidence: 0.98,
     rationaleCodes: ['scheduled_reminder'],

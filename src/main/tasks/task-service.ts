@@ -3,6 +3,7 @@ import type {
   Task,
   TaskLiveEvent,
   TaskStatusUpdate,
+  UpdateRoutineInput,
 } from '../../shared/models'
 import { TaskStore } from './task-store'
 
@@ -46,6 +47,18 @@ export class TaskService {
 
   reroute(taskId: string, instruction: string): Task {
     const task = this.store.reroute(taskId, instruction)
+    this.emit(task)
+    return task
+  }
+
+  rescheduleReminder(taskId: string, scheduledFor: string): Task {
+    const task = this.store.rescheduleReminder(taskId, scheduledFor)
+    this.emit(task)
+    return task
+  }
+
+  updateRoutine(taskId: string, input: UpdateRoutineInput): Task {
+    const task = this.store.updateRoutine(taskId, input)
     this.emit(task)
     return task
   }

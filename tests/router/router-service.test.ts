@@ -102,13 +102,8 @@ describe('RouterService', () => {
     expect(request).toMatchObject({ decisionKind: 'create_task', taskId: expect.any(String) })
     const task = h.tasks.get(request.taskId!)
     expect(task).toMatchObject({ status: 'queued', kind: 'work' })
-    expect(h.threads.listMessages().at(-1)).toMatchObject({
-      role: 'assistant',
-      metadata: expect.objectContaining({
-        taskId: task.id,
-        resultCard: expect.objectContaining({ kind: 'task', title: task.title }),
-      }),
-    })
+    expect(h.threads.listMessages()).toHaveLength(1)
+    expect(request.replyMessageId).toBeUndefined()
     h.router.stop()
     h.sessions.close()
   })
@@ -125,10 +120,13 @@ describe('RouterService', () => {
       scheduledFor: '2026-11-19T01:00:00.000Z',
       visiblePrompt: 'Remind me to bring the clothes for return.',
     })
-    expect(h.threads.listMessages().at(-1)?.metadata.resultCard).toMatchObject({
-      status: 'Scheduled',
-      title: task.title,
+    const reply = h.threads.listMessages().at(-1)
+    expect(reply).toMatchObject({
+      role: 'assistant',
+      metadata: expect.objectContaining({ taskId: task.id, routineId: task.id }),
     })
+    expect(reply?.content).toContain('remind you')
+    expect(reply?.metadata.resultCard).toBeUndefined()
     h.router.stop()
     h.sessions.close()
   })
@@ -142,6 +140,53 @@ describe('RouterService', () => {
     expect(h.router.getSnapshot().requests).toHaveLength(1)
     await vi.waitFor(() => expect(h.router.getSnapshot().requests[0]?.status).toBe('completed'))
     expect(h.threads.listMessages()).toHaveLength(2)
+    h.router.stop()
+    h.sessions.close()
+  })
+
+  it('updates an existing routine schedule and recurrence directly', async () => {
+    const h = await harness()
+    const routine = h.tasks.create({
+      title: '每日15:00提醒：起来站一下',
+      origin: 'user',
+      kind: 'reminder',
+      scheduledFor: '2026-11-19T07:00:00.000Z',
+      recurrence: 'daily',
+      timezone: 'Asia/Shanghai',
+      prompt: '提醒我下午三点起来站一下。',
+      visiblePrompt: '提醒我下午三点起来站一下。',
+    })
+    h.decisions.setDecider(async () => ({
+      action: 'update_routine',
+      taskId: routine.id,
+      title: '每日16:00提醒：起来站一下',
+      text: '每天下午四点提醒我起来站一下。',
+      scheduledFor: '2026-11-19T08:00:00.000Z',
+      timezone: 'Asia/Shanghai',
+      recurrence: 'daily',
+      confidence: 0.98,
+      rationaleCodes: ['routine_update'],
+      memoryRefs: [],
+    }))
+    h.router.start()
+    await h.router.submit({
+      text: '不要三点提醒我了，每天下午四点提醒我起来站一下吧',
+      locale: 'zh-CN',
+    })
+    await vi.waitFor(() => expect(h.router.getSnapshot().requests[0]?.status).toBe('completed'))
+    expect(h.tasks.get(routine.id)).toMatchObject({
+      title: '每日16:00提醒：起来站一下',
+      status: 'queued',
+      scheduledFor: '2026-11-19T08:00:00.000Z',
+      recurrence: 'daily',
+      timezone: 'Asia/Shanghai',
+      visiblePrompt: '每天下午四点提醒我起来站一下。',
+    })
+    expect(h.threads.listMessages().at(-1)).toMatchObject({
+      role: 'assistant',
+      content: expect.stringContaining('每天 16:00'),
+      metadata: expect.objectContaining({ routerRequestId: expect.any(String), routineId: routine.id }),
+    })
     h.router.stop()
     h.sessions.close()
   })
@@ -269,6 +314,7 @@ function scheduleDecision(): RouterDecision {
     text: 'Remind me to bring the clothes for return.',
     scheduledFor: '2026-11-19T01:00:00.000Z',
     timezone: 'Asia/Shanghai',
+    recurrence: 'none',
     confidence: 0.95,
     rationaleCodes: ['router_reminder'],
     memoryRefs: [],

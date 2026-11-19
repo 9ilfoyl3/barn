@@ -231,8 +231,6 @@ void app.whenReady().then(async () => {
   agentService = new AgentService(supervisor, modelService, sessionStore, tools, memoryService, threadService)
   await agentService.start()
   taskService = new TaskService(sessionStore.tasks)
-  taskRunner = new TaskRunner(agentService, taskService, sessionStore, {}, threadService)
-  taskRunner.start()
   routerService = new RouterService(
     sessionStore.router,
     threadService,
@@ -240,6 +238,10 @@ void app.whenReady().then(async () => {
     taskService,
     new ModelRouterDecisionEngine(modelService, memoryService),
   )
+  taskRunner = new TaskRunner(agentService, taskService, sessionStore, {
+    routerRequestIdForTask: (taskId) => routerService?.getSnapshot().requests.findLast((request) => request.taskId === taskId)?.id,
+  }, threadService)
+  taskRunner.start()
   routerService.start()
   permissionService = new PermissionService(sessionStore.permissions, taskService)
   actionService = new ActionService(sessionStore.actions, permissionService)

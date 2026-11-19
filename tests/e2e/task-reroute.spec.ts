@@ -49,7 +49,6 @@ test('reroutes an active Task in place and keeps Worker progress in the Task det
     await composer.fill('Search recent news on Xinhua.')
     await composer.press('Enter')
 
-    await expect(page.locator('.assistant-result')).toContainText('News scan')
     await expect.poll(async () => {
       const tasks = await page.evaluate(async () => window.barn.tasks.list())
       return tasks.find((entry) => entry.title === 'News scan')?.status
@@ -71,7 +70,8 @@ test('reroutes an active Task in place and keeps Worker progress in the Task det
     await composer.fill('从百度上看新闻，不要从新华网看')
     await composer.press('Enter')
     await expect(page.getByLabel('User message').getByText('从百度上看新闻，不要从新华网看', { exact: true })).toBeVisible()
-    await expect(page.getByText('Updated “News scan” and requeued it for execution.')).toBeVisible()
+    await expect(page.locator('.barn-thinking-indicator')).toBeVisible()
+    await expect(page.getByText('Updated “News scan” and requeued it for execution.')).toHaveCount(0)
 
     await expect.poll(async () => page.evaluate(async (taskId) => {
       const current = await window.barn.tasks.get(taskId)
@@ -93,7 +93,10 @@ test('reroutes an active Task in place and keeps Worker progress in the Task det
     expect(result.task.sessionId).not.toBe(firstSessionId)
     expect(result.sessions).toHaveLength(2)
     expect(model.workerPrompts().at(-1)).toContain('Baidu')
-    expect(result.messages.some((message) => message.role === 'assistant' && JSON.stringify(message.content).includes('Baidu news result'))).toBe(false)
+    expect(result.messages.some((message) => message.role === 'assistant' && JSON.stringify(message.content).includes('Baidu news result'))).toBe(true)
+    expect(result.messages.some((message) => message.role === 'assistant' && JSON.stringify(message.content).includes('requeued it for execution'))).toBe(false)
+    await page.waitForTimeout(200)
+    await page.screenshot({ path: 'test-results/barn-task-reroute-result.png', fullPage: true })
 
     await page.locator('.task-rail-card', { hasText: 'News scan' }).click()
     await expect(page.locator('.task-detail-page')).toContainText('Baidu news result')

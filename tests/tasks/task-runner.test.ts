@@ -88,6 +88,61 @@ describe('TaskRunner', () => {
     h.sessions.close()
   })
 
+  it('projects the final task answer into the principal thread with its Router request', async () => {
+    const h = await harness()
+    const threads = new ThreadService(h.sessions.threads)
+    h.runner.stop()
+    const runner = new TaskRunner(
+      h.agent,
+      h.tasks,
+      h.sessions,
+      {
+        maxConcurrent: 1,
+        routerRequestIdForTask: () => 'router-task-result',
+      },
+      threads,
+    )
+    runner.start()
+    const task = h.tasks.create({
+      title: 'Summarize the project notes',
+      origin: 'user',
+      prompt: 'Read the notes and produce a concise summary.',
+    })
+    const running = await waitForTask(h.tasks, task.id, (current) => current.status === 'running')
+    h.sessions.append(running.sessionId!, [{
+      type: 'agent.message',
+      data: {
+        message: {
+          role: 'assistant',
+          content: 'The notes cover three decisions and two follow-ups.',
+          timestamp: Date.now(),
+        },
+      },
+      actor: { kind: 'agent', id: 'barn' },
+    }])
+    h.agent.emit({
+      type: 'run.status',
+      sessionId: running.sessionId!,
+      runId: 'run-result',
+      status: 'idle',
+    })
+
+    await waitForTask(h.tasks, task.id, (current) => current.status === 'completed')
+    await vi.waitFor(() => {
+      expect(threads.listMessages().at(-1)).toMatchObject({
+        role: 'assistant',
+        content: 'The notes cover three decisions and two follow-ups.',
+        metadata: expect.objectContaining({
+          taskId: task.id,
+          taskResult: true,
+          routerRequestId: 'router-task-result',
+        }),
+      })
+    })
+    runner.stop()
+    h.sessions.close()
+  })
+
   it('waits until scheduledFor before delivering a reminder task', async () => {
     let now = new Date('2026-11-18T00:00:00.000Z')
     const directory = await mkdtemp(join(tmpdir(), 'barn-task-reminder-'))
@@ -120,11 +175,46 @@ describe('TaskRunner', () => {
       content: 'Reminder: Remind me to bring the return.',
       metadata: expect.objectContaining({
         taskId: task.id,
-        resultCard: expect.objectContaining({ status: 'Reminder' }),
+        routineId: task.id,
+        routineDelivery: true,
       }),
     })
     runner.stop()
     sessions.close()
+  })
+
+  it('reschedules a recurring routine after delivering the current occurrence', async () => {
+    const h = await harness()
+    const threads = new ThreadService(h.sessions.threads)
+    h.runner.stop()
+    const runner = new TaskRunner(h.agent, h.tasks, h.sessions, { maxConcurrent: 1 }, threads)
+    runner.start()
+    const previous = new Date(Date.now() - 1_000).toISOString()
+    const task = h.tasks.create({
+      title: 'Stand up',
+      origin: 'user',
+      kind: 'reminder',
+      scheduledFor: previous,
+      recurrence: 'daily',
+      timezone: 'Asia/Shanghai',
+      prompt: 'Stand up for a moment.',
+      visiblePrompt: 'Stand up for a moment.',
+    })
+
+    await vi.waitFor(() => {
+      const current = h.tasks.get(task.id)
+      expect(current.status).toBe('queued')
+      expect(current.scheduledFor).toBeDefined()
+      expect(new Date(current.scheduledFor!).getTime()).toBeGreaterThan(Date.now())
+    })
+    expect(h.tasks.get(task.id).recurrence).toBe('daily')
+    expect(threads.listMessages().at(-1)).toMatchObject({
+      role: 'assistant',
+      content: 'Reminder: Stand up for a moment.',
+      metadata: expect.objectContaining({ routineDelivery: true }),
+    })
+    runner.stop()
+    h.sessions.close()
   })
 
   it('waits for input instead of launching a task without instructions', async () => {
