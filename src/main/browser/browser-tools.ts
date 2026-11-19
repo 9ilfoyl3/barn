@@ -84,7 +84,7 @@ export interface BrowserToolContext {
 }
 
 export interface BrowserToolServiceOptions {
-  getBrowser: () => BrowserService | undefined
+  getBrowser: (context: BrowserToolContext) => BrowserService | undefined
   workspaceRoot: string
   outputRoot: string
   privateTempRoot: string
@@ -107,7 +107,7 @@ export class BrowserToolService {
   ): Promise<ToolExecutionResult> {
     try {
       signal?.throwIfAborted()
-      const browser = this.requireBrowser()
+      const browser = this.requireBrowser(context)
       signal?.throwIfAborted()
       switch (toolName) {
         case 'browser_open': {
@@ -241,8 +241,8 @@ export class BrowserToolService {
     return canonical
   }
 
-  private requireBrowser(): BrowserService {
-    const browser = this.options.getBrowser()
+  private requireBrowser(context: BrowserToolContext): BrowserService {
+    const browser = this.options.getBrowser(context)
     if (browser === undefined) throw new Error('Browser is unavailable')
     return browser
   }

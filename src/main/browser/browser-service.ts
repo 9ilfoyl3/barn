@@ -1,13 +1,18 @@
 import { randomUUID } from 'node:crypto'
 import { existsSync, mkdirSync } from 'node:fs'
 import { basename, extname, join } from 'node:path'
-import { app, BrowserWindow, session, shell, WebContentsView, type DownloadItem } from 'electron'
+import { app, BrowserWindow, session, shell, WebContentsView, type DownloadItem, type Session } from 'electron'
 import type { BrowserBounds, BrowserDownloadState, BrowserHistoryEntry, BrowserLiveEvent, BrowserState, BrowserTabState } from '../../shared/models'
 import { isAllowedBrowserUrl, normalizeBrowserUrl } from './browser-policy'
 import { BrowserSessionStore } from './browser-session-store'
 import { classifyPageActions, collectPageSnapshot, performPageActions, readPageText, type PageAction, type PageSnapshot } from './page-script'
 
 const browserPartition = 'persist:barn-agent-browser'
+
+export interface BrowserServiceOptions {
+  partition?: string
+  publishEvents?: boolean
+}
 
 interface BrowserTab {
   id: string
@@ -19,7 +24,8 @@ interface BrowserTab {
 }
 
 export class BrowserService {
-  private readonly browserSession = session.fromPartition(browserPartition)
+  private readonly browserSession: Session
+  private readonly publishEvents: boolean
   private readonly tabs: BrowserTab[] = []
   private readonly downloads: BrowserDownloadState[] = []
   private readonly history: BrowserHistoryEntry[] = []
@@ -34,7 +40,10 @@ export class BrowserService {
   constructor(
     private readonly window: BrowserWindow,
     private readonly sessionStore?: BrowserSessionStore,
+    options: BrowserServiceOptions = {},
   ) {
+    this.browserSession = session.fromPartition(options.partition ?? browserPartition)
+    this.publishEvents = options.publishEvents ?? true
     this.browserSession.setPermissionRequestHandler((_webContents, _permission, callback) => callback(false))
     this.browserSession.setPermissionCheckHandler(() => false)
     this.browserSession.on('will-download', this.handleWillDownload)
@@ -579,6 +588,7 @@ export class BrowserService {
 
   private emit(): void {
     this.schedulePersist()
+    if (!this.publishEvents) return
     if (this.window.isDestroyed() || this.window.webContents.isDestroyed()) return
     const event: BrowserLiveEvent = { type: 'state', state: this.getState() }
     this.window.webContents.send('browser:event', event)

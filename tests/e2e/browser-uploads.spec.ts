@@ -57,10 +57,10 @@ test('uploads an authorized workspace file into a real file input', async () => 
     await composer.fill('Upload report.txt to the local page.')
     await composer.press('Enter')
     await expect.poll(async () => page.evaluate(async () => (await window.barn.tasks.list())[0]?.status), { timeout: 20_000 }).toBe('completed')
-    await expect.poll(async () => page.evaluate(() => window.barn.browser.getState().then((state) => state.title))).toBe('File selected')
-    const state = await page.evaluate(() => window.barn.browser.getState())
-    expect(state.url).toBe(fixtureUrl)
-    expect(state.visible).toBe(false)
+    await expect.poll(async () => page.evaluate(() => window.barn.browser.getState())).toMatchObject({
+      open: false,
+      visible: false,
+    })
     await expect(page.getByTestId('browser-panel')).toHaveCount(0)
     await page.locator('.task-rail-card').click()
     await expect(page.locator('.task-detail-page')).toContainText('Upload completed.')
