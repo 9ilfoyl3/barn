@@ -25,7 +25,7 @@ test('opens the personal secretary workspace and model configuration', async () 
       await Promise.all(element.getAnimations().map((animation) => animation.finished))
     })
 
-    await expect(window.getByRole('heading', { name: 'Routines' })).toBeVisible()
+    await expect(window.locator('.routines-header')).toBeVisible()
     await expect(window.getByRole('heading', { name: 'Tasks' })).toBeVisible()
     await expect(window.locator('.secretary-presence')).toBeVisible()
     await expect(window.getByRole('button', { name: /New session/i })).toHaveCount(0)

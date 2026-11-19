@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import 'streamdown/styles.css'
 import {
@@ -20,7 +20,6 @@ import {
   Stethoscope,
   Trash2,
   Wrench,
-  X,
 } from 'lucide-react'
 import type {
   ApprovalRequest,
@@ -53,13 +52,18 @@ import { TodayPanel } from './TodayPanel'
 import { TaskRail } from './TaskRail'
 import { TaskDetailPage } from './TaskDetailPage'
 import { CommandPalette } from './CommandPalette'
+import { isExecutingTask, resolveMessageActivity } from './message-activity'
 import './secretary.css'
+import './home-redesign.css'
+import './agent-activity.css'
+import './conversation-guide.css'
 import { initializeAppLanguage } from './i18n'
 import { TooltipButton } from './components/TooltipButton'
 import { MessageBubble, MessageBubbleGroup } from '@/components/beui/components/agents/message-bubble'
 import { PromptInput } from '@/components/beui/components/agents/prompt-input'
 import {
   applyLiveEvent,
+  groupConversationMessages,
   mergeThreadAndSessionMessages,
   messagesFromEvents,
   type ChatMessage,
@@ -68,6 +72,23 @@ import {
 
 function railButtonClassName(active: boolean): string {
   return active ? 'app-rail-button active' : 'app-rail-button'
+}
+
+type HomePane = 'routines' | 'tasks'
+
+const DEFAULT_HOME_PANE_WIDTHS: Record<HomePane, number> = {
+  routines: 320,
+  tasks: 304,
+}
+
+const HOME_PANE_LIMITS: Record<HomePane, { min: number; max: number }> = {
+  routines: { min: 248, max: 430 },
+  tasks: { min: 272, max: 420 },
+}
+
+function clampPaneWidth(side: HomePane, width: number): number {
+  const limit = HOME_PANE_LIMITS[side]
+  return Math.round(Math.min(limit.max, Math.max(limit.min, width)))
 }
 
 export function App() {
@@ -95,6 +116,9 @@ export function App() {
   const [tasks, setTasks] = useState<Task[]>([])
   const [tasksLoading, setTasksLoading] = useState(true)
   const [taskError, setTaskError] = useState<string>()
+  const [conversationFades, setConversationFades] = useState({ top: false, bottom: false })
+  const [homePaneWidths, setHomePaneWidths] = useState(DEFAULT_HOME_PANE_WIDTHS)
+  const [resizingHomePane, setResizingHomePane] = useState<HomePane>()
   const [browserOpen, setBrowserOpen] = useState(false)
   const [utilityOpen, setUtilityOpen] = useState(false)
   const [utilityTabs, setUtilityTabs] = useState<UtilityTab[]>([])
@@ -113,10 +137,22 @@ export function App() {
   })
   const [pendingApprovals, setPendingApprovals] = useState<ApprovalRequest[]>([])
   const listRef = useRef<HTMLElement>(null)
+  const composerDockRef = useRef<HTMLDivElement>(null)
   const accountAreaRef = useRef<HTMLDivElement>(null)
   const accountTriggerRef = useRef<HTMLButtonElement>(null)
   const activeSessionIdRef = useRef<string | undefined>(undefined)
   const draftSessionIdRef = useRef<string | undefined>(undefined)
+  const homePaneResizeRef = useRef<{ side: HomePane; startX: number; startWidth: number; pointerId: number } | undefined>(undefined)
+
+  const syncConversationFades = useCallback((): void => {
+    const surface = listRef.current
+    if (surface === null) return
+    const next = {
+      top: surface.scrollTop > 2,
+      bottom: surface.scrollHeight - surface.scrollTop - surface.clientHeight > 2,
+    }
+    setConversationFades((current) => current.top === next.top && current.bottom === next.bottom ? current : next)
+  }, [])
 
   useEffect(() => {
     void initializeAppLanguage()
@@ -211,6 +247,49 @@ export function App() {
     }
   }, [accountOpen])
 
+  useLayoutEffect(() => {
+    const dock = composerDockRef.current
+    const surface = listRef.current
+    if (dock === null || surface === null) return
+    let frame: number | undefined
+    const syncComposerSpace = (): void => {
+      const distanceFromBottom = surface.scrollHeight - surface.scrollTop - surface.clientHeight
+      const keepAtBottom = distanceFromBottom <= 96
+      const dockHeight = Math.ceil(dock.getBoundingClientRect().height)
+      const safeBottom = Math.max(64, dockHeight - 38)
+      surface.style.setProperty('--composer-safe-bottom', `${safeBottom}px`)
+      surface.parentElement?.style.setProperty('--composer-safe-bottom', `${safeBottom}px`)
+      if (!keepAtBottom) {
+        syncConversationFades()
+        return
+      }
+      if (frame !== undefined) cancelAnimationFrame(frame)
+      frame = requestAnimationFrame(() => {
+        surface.scrollTop = surface.scrollHeight
+        syncConversationFades()
+      })
+    }
+    const observer = typeof ResizeObserver === 'undefined' ? undefined : new ResizeObserver(syncComposerSpace)
+    observer?.observe(dock)
+    const initialFrame = requestAnimationFrame(syncComposerSpace)
+    return () => {
+      cancelAnimationFrame(initialFrame)
+      if (frame !== undefined) cancelAnimationFrame(frame)
+      observer?.disconnect()
+    }
+  }, [browserOpen, syncConversationFades, utilityOpen, view])
+
+  useEffect(() => {
+    const surface = listRef.current
+    if (surface === null) return
+    syncConversationFades()
+    const observer = typeof ResizeObserver === 'undefined' ? undefined : new ResizeObserver(syncConversationFades)
+    observer?.observe(surface)
+    const content = surface.querySelector('.message-list')
+    if (content !== null) observer?.observe(content)
+    return () => observer?.disconnect()
+  }, [browserOpen, liveParts, messages, syncConversationFades, threadMessages, utilityOpen, view])
+
   useEffect(() => {
     activeSessionIdRef.current = activeSessionId
     setMessages([])
@@ -271,10 +350,57 @@ export function App() {
 
   useEffect(() => window.barn.lifecycle.onShowTasks(() => setView('tasks')), [])
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const element = listRef.current
-    if (element !== null) element.scrollTop = element.scrollHeight
-  }, [messages, liveParts, threadMessages])
+    if (element === null) return
+    let secondFrame: number | undefined
+    const firstFrame = requestAnimationFrame(() => {
+      element.scrollTop = element.scrollHeight
+      secondFrame = requestAnimationFrame(() => {
+        element.scrollTop = element.scrollHeight
+        syncConversationFades()
+      })
+    })
+    return () => {
+      cancelAnimationFrame(firstFrame)
+      if (secondFrame !== undefined) cancelAnimationFrame(secondFrame)
+    }
+  }, [activeSessionId, browserOpen, messages, liveParts, syncConversationFades, threadMessages, utilityOpen, view])
+
+  useLayoutEffect(() => {
+    const container = listRef.current
+    if (container === null) return
+    let frame: number | undefined
+    const alignGuideLines = (): void => {
+      const userMessages = new Map(
+        [...container.querySelectorAll<HTMLElement>('.chat-message.user[data-message-key]')]
+          .map((message) => [message.dataset.messageKey, message]),
+      )
+      for (const run of container.querySelectorAll<HTMLElement>('.assistant-reply-run[data-source-message-key]')) {
+        const key = run.dataset.sourceMessageKey
+        const user = key === undefined ? undefined : userMessages.get(key)
+        if (user === undefined) continue
+        const runRect = run.getBoundingClientRect()
+        const userRect = user.getBoundingClientRect()
+        const guideTop = userRect.top + userRect.height / 2 - runRect.top
+        run.style.setProperty('--reply-guide-top', `${Math.round(guideTop)}px`)
+      }
+    }
+    const schedule = (): void => {
+      if (frame !== undefined) cancelAnimationFrame(frame)
+      frame = requestAnimationFrame(alignGuideLines)
+    }
+    schedule()
+    const observer = typeof ResizeObserver === 'undefined' ? undefined : new ResizeObserver(schedule)
+    const messageList = container.querySelector('.message-list')
+    if (messageList !== null) observer?.observe(messageList)
+    window.addEventListener('resize', schedule)
+    return () => {
+      if (frame !== undefined) cancelAnimationFrame(frame)
+      observer?.disconnect()
+      window.removeEventListener('resize', schedule)
+    }
+  }, [browserOpen, liveParts, messages, threadMessages, utilityOpen, view])
 
   async function loadSession(sessionId: string): Promise<void> {
     try {
@@ -335,25 +461,17 @@ export function App() {
     setAttachments([])
     setError(undefined)
     try {
-      await window.barn.router.submit({
+      const result = await window.barn.router.submit({
         text,
         clientMessageId,
         ...(filesToSend.length === 0 ? {} : { attachments: filesToSend }),
         ...(workingDirectory === undefined ? {} : { workingDirectory }),
         locale: document.documentElement.lang === 'zh-CN' ? 'zh-CN' : 'en',
       })
+      setRouterRequests((current) => upsertRouterRequest(current, result.request))
     } catch (reason) {
       setInput(text)
       setAttachments(filesToSend)
-      setError(errorMessage(reason, t))
-    }
-  }
-
-  async function cancelRouterRequest(requestId: string): Promise<void> {
-    try {
-      const request = await window.barn.router.cancel(requestId)
-      setRouterRequests((current) => upsertRouterRequest(current, request))
-    } catch (reason) {
       setError(errorMessage(reason, t))
     }
   }
@@ -588,8 +706,134 @@ export function App() {
     ? t('conversation.chooseWorkingDirectory')
     : workingDirectory.split(/[\\/]/).filter(Boolean).at(-1) ?? workingDirectory
   const browserApproval = pendingApprovals.find((approval) => approval.title === 'Approve browser action')
-  const needsYouCount = tasks.filter((task) => ['proposed', 'waiting', 'failed'].includes(task.status)).length
-  const routerQueuedCount = routerRequests.filter((request) => request.status === 'queued').length
+  const routines = tasks
+    .filter((task) => (
+      task.kind === 'reminder'
+      && task.status !== 'completed'
+      && task.status !== 'cancelled'
+    ))
+    .toSorted((left, right) => (
+      (left.scheduledFor ?? left.updatedAt).localeCompare(right.scheduledFor ?? right.updatedAt)
+    ))
+  const workTasks = tasks.filter((task) => task.kind !== 'reminder')
+  const needsYouCount = workTasks.filter((task) => ['proposed', 'waiting', 'failed'].includes(task.status)).length
+  const messageActivity = resolveMessageActivity(routerRequests, tasks, pending)
+  const activityDetail = messageActivity?.kind === 'task'
+    ? t(
+        messageActivity.activeTaskCount > 1
+          ? messageActivity.task.status === 'queued'
+            ? 'conversation.taskProgressQueuedMore'
+            : 'conversation.taskProgressRunningMore'
+          : messageActivity.task.status === 'queued'
+            ? 'conversation.taskProgressQueued'
+            : 'conversation.taskProgressRunning',
+        { title: messageActivity.task.title, count: messageActivity.activeTaskCount },
+      )
+    : undefined
+  const hasStreamingAssistantText = displayLiveParts.some((part) => part.type === 'text' && part.text.trim().length > 0)
+  const showMessageActivity = messageActivity !== undefined && !hasStreamingAssistantText
+  const conversationIdle = displayMessages.length === 0
+    && displayLiveParts.length === 0
+    && !running
+    && messageActivity === undefined
+  const completedDisplayMessages = displayMessages.filter((message) => {
+    if (
+      message.role === 'assistant'
+      && message.resultCard?.kind === 'task'
+      && (message.resultCard.meta === '由 Router 委派' || message.resultCard.meta === 'Router delegated this request')
+    ) {
+      return false
+    }
+    if (message.role !== 'assistant' || message.taskId === undefined || message.resultCard?.kind !== 'task') return true
+    const task = tasks.find((candidate) => candidate.id === message.taskId)
+    return task === undefined || !isExecutingTask(task)
+  })
+  const messageGroups = groupConversationMessages(completedDisplayMessages)
+  const activityState = messageActivity?.kind === 'task' ? 'working' : 'composing'
+  const activityLabel = messageActivity?.kind === 'task'
+    ? messageActivity.task.status === 'queued'
+      ? t('conversation.taskQueued')
+      : t('conversation.taskWorking')
+    : t('conversation.thinkingNow')
+
+  function renderUserMessage(message: ChatMessage) {
+    return (
+      <MessageBubble
+        aria-label={t('conversation.userMessage')}
+        align="end"
+        className={`chat-message thread-message ${message.role}${message.isError ? ' error' : ''}`}
+        data-message-key={message.key}
+        key={message.key}
+        role="article"
+        variant="ghost"
+      >
+        <ConversationParts
+          parts={message.parts}
+          role={message.role}
+          keyPrefix={message.key}
+        />
+        {message.attachments.length > 0 && (
+          <div className="message-attachments">
+            {message.attachments.map((file) => {
+              const name = attachmentDisplayName(file)
+              return (
+                <span className="message-attachment" key={`${message.key}:${file.path}`} title={name}>
+                  {file.kind === 'directory' ? <Folder size={11} /> : <Paperclip size={11} />}
+                  <span>{name}</span>
+                  {file.size > 0 && <small>{formatFileSize(file.size)}</small>}
+                </span>
+              )
+            })}
+          </div>
+        )}
+      </MessageBubble>
+    )
+  }
+
+  function renderAssistantMessage(message: ChatMessage) {
+    return (
+      <MessageBubble
+        aria-label={t('conversation.barnMessage')}
+        align="start"
+        className={`chat-message thread-message ${message.role}${message.isError ? ' error' : ''}`}
+        data-message-key={message.key}
+        role="article"
+        variant="ghost"
+      >
+        <ConversationParts
+          parts={message.parts}
+          role={message.role}
+          keyPrefix={message.key}
+        />
+        {message.resultCard !== undefined && (() => {
+          const task = message.taskId === undefined
+            ? undefined
+            : tasks.find((candidate) => candidate.id === message.taskId)
+          const card = task !== undefined && message.resultCard?.kind === 'task'
+            ? { ...message.resultCard, status: t(`tasks.status.${task.status}`) }
+            : message.resultCard
+          return (
+            <AssistantResult
+              card={card}
+              onOpenLink={(url) => void openResultLink(url)}
+              {...(task === undefined ? {} : { onOpenTask: () => openTask(task) })}
+            />
+          )
+        })()}
+      </MessageBubble>
+    )
+  }
+
+  function replyQuotePreview(message: ChatMessage): string {
+    const text = message.parts
+      .flatMap((part) => part.type === 'text' ? [part.text] : [])
+      .join(' ')
+      .replaceAll(/\s+/g, ' ')
+      .trim()
+    if (text.length > 0) return text.length > 72 ? `${text.slice(0, 71)}…` : text
+    const attachment = message.attachments[0]
+    return attachment === undefined ? t('conversation.userMessage') : attachmentDisplayName(attachment)
+  }
 
   function openTask(task: Task): void {
     setCommandOpen(false)
@@ -597,23 +841,62 @@ export function App() {
     setView('task-detail')
   }
 
-  function routerRequestStatusLabel(request: RouterRequest): string {
-    if (request.status === 'queued') return t('router.queued')
-    if (request.status === 'routing') return t('router.routing')
-    if (request.status === 'cancelled') return t('router.cancelled')
-    if (request.status === 'failed') return t('router.failed')
-    if (request.decisionKind === 'create_task') return t('router.taskQueued')
-    return t('router.completed')
-  }
-
   function draftSessionId(): string {
     draftSessionIdRef.current ??= crypto.randomUUID()
     return draftSessionIdRef.current
   }
 
+  function beginHomePaneResize(side: HomePane, event: ReactPointerEvent<HTMLDivElement>): void {
+    if (event.button !== 0) return
+    event.preventDefault()
+    event.currentTarget.setPointerCapture(event.pointerId)
+    homePaneResizeRef.current = {
+      side,
+      startX: event.clientX,
+      startWidth: homePaneWidths[side],
+      pointerId: event.pointerId,
+    }
+    setResizingHomePane(side)
+  }
+
+  function moveHomePaneResize(event: ReactPointerEvent<HTMLDivElement>): void {
+    const active = homePaneResizeRef.current
+    if (active === undefined || active.pointerId !== event.pointerId) return
+    const physicalDelta = event.clientX - active.startX
+    const widthDelta = active.side === 'routines' ? physicalDelta : -physicalDelta
+    const nextWidth = clampPaneWidth(active.side, active.startWidth + widthDelta)
+    setHomePaneWidths((current) => current[active.side] === nextWidth ? current : { ...current, [active.side]: nextWidth })
+  }
+
+  function finishHomePaneResize(event: ReactPointerEvent<HTMLDivElement>): void {
+    const active = homePaneResizeRef.current
+    if (active === undefined || active.pointerId !== event.pointerId) return
+    homePaneResizeRef.current = undefined
+    setResizingHomePane(undefined)
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId)
+    }
+  }
+
+  function nudgeHomePane(side: HomePane, event: ReactKeyboardEvent<HTMLDivElement>): void {
+    if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return
+    event.preventDefault()
+    const physicalDelta = event.key === 'ArrowRight' ? 16 : -16
+    const widthDelta = side === 'routines' ? physicalDelta : -physicalDelta
+    setHomePaneWidths((current) => ({
+      ...current,
+      [side]: clampPaneWidth(side, current[side] + widthDelta),
+    }))
+  }
+
+  function resetHomePane(side: HomePane): void {
+    setHomePaneWidths((current) => ({ ...current, [side]: DEFAULT_HOME_PANE_WIDTHS[side] }))
+  }
+
   const appShellClassName = [
     'app-shell',
     'secretary-shell',
+    'js',
     window.barn.platform === 'darwin' ? 'platform-darwin' : '',
   ].filter(Boolean).join(' ')
   const workspaceShellClassName = rightPanelOpen ? 'workspace-shell browser-open' : 'workspace-shell'
@@ -621,6 +904,12 @@ export function App() {
     'workspace-body',
     view === 'conversation' && !rightPanelOpen ? 'secretary-home' : '',
   ].filter(Boolean).join(' ')
+  const homeLayoutStyle = view === 'conversation' && !rightPanelOpen
+    ? ({
+        '--home-routines-width': `${homePaneWidths.routines}px`,
+        '--home-tasks-width': `${homePaneWidths.tasks}px`,
+      } as CSSProperties)
+    : undefined
 
   return (
     <div className={appShellClassName}>
@@ -753,7 +1042,7 @@ export function App() {
 
       <div className={workspaceShellClassName} data-testid="workspace-shell">
         <main className="workspace">
-        <div className={workspaceBodyClassName}>
+        <div className={workspaceBodyClassName} style={homeLayoutStyle}>
           {view === 'settings' ? (
             <SettingsPage
               onOpenModels={() => setSettingsOpen(true)}
@@ -764,7 +1053,7 @@ export function App() {
             <>
               <h1 className="visually-hidden">{t('tasks.title')}</h1>
               <TaskCenter
-                tasks={tasks}
+                tasks={workTasks}
                 loading={tasksLoading}
                 error={taskError}
                 onOpenTask={openTask}
@@ -790,8 +1079,8 @@ export function App() {
               {!rightPanelOpen && (
                 <div className="today-home-column">
                   <TodayPanel
-                    tasks={tasks}
-                    onOpenTasks={() => setView('tasks')}
+                    routines={routines}
+                    onOpenRoutine={openTask}
                     onConnectSources={() => setSourceSettingsOpen(true)}
                     onRefresh={() => void refreshTasks()}
                   />
@@ -800,9 +1089,10 @@ export function App() {
               <div className="conversation-view">
               <section
                 ref={listRef}
-                className={displayMessages.length === 0 && displayLiveParts.length === 0 && !running ? 'conversation-surface empty-conversation' : 'conversation-surface chat-surface'}
+                onScroll={syncConversationFades}
+                className={conversationIdle ? 'conversation-surface empty-conversation' : 'conversation-surface chat-surface'}
               >
-                {displayMessages.length === 0 && displayLiveParts.length === 0 && !running ? (
+                {conversationIdle ? (
                   <div className="secretary-empty-state">
                     <span className="secretary-presence" aria-hidden="true">
                       <Sparkles size={21} />
@@ -812,101 +1102,70 @@ export function App() {
                   </div>
                 ) : (
                   <MessageBubbleGroup className="message-list" spacing="default">
-                    {displayMessages.map((message) => (
-                      <MessageBubble
-                        aria-label={message.role === 'user' ? t('conversation.userMessage') : t('conversation.barnMessage')}
-                        align={message.role === 'user' ? 'end' : 'start'}
-                        className={`chat-message thread-message ${message.role}${message.isError ? ' error' : ''}`}
-                        key={message.key}
-                        role="article"
-                        variant="ghost"
-                      >
-                        <ConversationParts
-                          parts={message.parts}
-                          role={message.role}
-                          keyPrefix={message.key}
-                        />
-                        {message.role === 'user' && message.attachments.length > 0 && (
-                          <div className="message-attachments">
-                            {message.attachments.map((file) => {
-                              const name = attachmentDisplayName(file)
-                              return (
-                                <span className="message-attachment" key={`${message.key}:${file.path}`} title={name}>
-                                  {file.kind === 'directory' ? <Folder size={11} /> : <Paperclip size={11} />}
-                                  <span>{name}</span>
-                                  {file.size > 0 && <small>{formatFileSize(file.size)}</small>}
+                    {messageGroups.map((group) => {
+                      if (group.kind === 'user') return renderUserMessage(group.message)
+                      if (group.kind === 'proactive') {
+                        return (
+                          <div className="proactive-message" key={group.key}>
+                            {renderAssistantMessage(group.message)}
+                          </div>
+                        )
+                      }
+                      return (
+                        <div
+                          className="assistant-reply-run"
+                          data-source-message-key={group.replies[0]?.sourceUser?.key}
+                          key={group.key}
+                        >
+                          {group.replies.map((reply) => (
+                            <div className="assistant-reply-segment" key={reply.message.key}>
+                              {reply.quotedUser !== undefined && (
+                                <span
+                                  className="assistant-reply-quote"
+                                  data-quoted-message-key={reply.quotedUser.key}
+                                  title={replyQuotePreview(reply.quotedUser)}
+                                >
+                                  {replyQuotePreview(reply.quotedUser)}
                                 </span>
-                              )
-                            })}
+                              )}
+                              {renderAssistantMessage(reply.message)}
+                            </div>
+                          ))}
+                        </div>
+                      )
+                    })}
+                    {(showMessageActivity || displayLiveParts.length > 0) && (
+                      <div className="assistant-live-turn" key={messageActivity?.id ?? 'assistant-live'}>
+                        {messageActivity !== undefined && showMessageActivity && (
+                          <div
+                            aria-label={t('conversation.barnMessage')}
+                            className="assistant-live-activity"
+                            role="article"
+                          >
+                            <PendingThinking
+                              state={activityState}
+                              label={activityLabel}
+                              {...(activityDetail === undefined ? {} : { detail: activityDetail })}
+                            />
                           </div>
                         )}
-                        {message.role === 'user' && message.routerRequestId !== undefined && (() => {
-                          const request = routerRequests.find((candidate) => candidate.id === message.routerRequestId)
-                          if (request === undefined) return null
-                          return (
-                            <span className="router-message-state" data-status={request.status}>
-                              <span>{routerRequestStatusLabel(request)}</span>
-                              {(request.status === 'queued' || request.status === 'routing') && (
-                                <button
-                                  className="router-request-cancel"
-                                  type="button"
-                                  aria-label={t('router.cancelRequest')}
-                                  onClick={() => void cancelRouterRequest(request.id)}
-                                >
-                                  <X size={11} aria-hidden="true" />
-                                </button>
-                              )}
-                            </span>
-                          )
-                        })()}
-                        {message.role === 'assistant' && message.resultCard !== undefined && (() => {
-                          const task = message.taskId === undefined
-                            ? undefined
-                            : tasks.find((candidate) => candidate.id === message.taskId)
-                          const card = task !== undefined && message.resultCard?.kind === 'task'
-                            ? { ...message.resultCard, status: t(`tasks.status.${task.status}`) }
-                            : message.resultCard
-                          return (
-                            <AssistantResult
-                              card={card}
-                              onOpenLink={(url) => void openResultLink(url)}
-                              {...(task === undefined ? {} : { onOpenTask: () => openTask(task) })}
+                        {displayLiveParts.length > 0 && (
+                          <MessageBubble
+                            aria-label={t('conversation.barnMessage')}
+                            className="chat-message assistant streaming live-turn"
+                            role="article"
+                            variant="ghost"
+                          >
+                            <ConversationParts
+                              parts={displayLiveParts}
+                              role="assistant"
+                              keyPrefix="live"
                             />
-                          )
-                        })()}
-                      </MessageBubble>
-                    ))}
-                    {running && displayLiveParts.length === 0 && (
-                      <MessageBubble
-                        aria-label={t('conversation.barnMessage')}
-                        className="chat-message assistant live-turn"
-                        role="article"
-                        variant="ghost"
-                      >
-                        <PendingThinking />
-                      </MessageBubble>
-                    )}
-                    {displayLiveParts.length > 0 && (
-                      <MessageBubble
-                        aria-label={t('conversation.barnMessage')}
-                        className="chat-message assistant streaming live-turn"
-                        role="article"
-                        variant="ghost"
-                      >
-                        <ConversationParts
-                          parts={displayLiveParts}
-                          role="assistant"
-                          keyPrefix="live"
-                        />
-                      </MessageBubble>
+                          </MessageBubble>
+                        )}
+                      </div>
                     )}
                   </MessageBubbleGroup>
-                )}
-
-                {routerQueuedCount > 0 && (
-                  <div className="router-queue-summary" role="status">
-                    {t('router.queueSummary', { count: routerQueuedCount })}
-                  </div>
                 )}
 
                 {error !== undefined && (
@@ -916,7 +1175,18 @@ export function App() {
                 )}
               </section>
 
-              <div className="composer-dock">
+              <span
+                className="conversation-fade conversation-fade-top"
+                data-visible={conversationFades.top}
+                aria-hidden="true"
+              />
+              <span
+                className="conversation-fade conversation-fade-bottom"
+                data-visible={conversationFades.bottom}
+                aria-hidden="true"
+              />
+
+              <div ref={composerDockRef} className="composer-dock">
                 <div className={workingDirectory === undefined ? 'composer-project composer-project-empty' : 'composer-project'}>
                   {workingDirectory === undefined ? (
                     <span className="composer-project-icon">
@@ -994,7 +1264,53 @@ export function App() {
           )}
 
           {view === 'conversation' && !rightPanelOpen && (
-            <TaskRail tasks={tasks} onOpenTask={openTask} onOpenTasks={() => setView('tasks')} />
+            <>
+              <TaskRail tasks={workTasks} onOpenTask={openTask} onOpenTasks={() => setView('tasks')} />
+              <div
+                className="home-pane-divider home-pane-divider-routines"
+                role="separator"
+                aria-orientation="vertical"
+                aria-label={t('secretary.resizeRoutines')}
+                aria-valuemin={HOME_PANE_LIMITS.routines.min}
+                aria-valuemax={HOME_PANE_LIMITS.routines.max}
+                aria-valuenow={homePaneWidths.routines}
+                data-resizing={resizingHomePane === 'routines'}
+                tabIndex={0}
+                title={t('secretary.resizePane')}
+                onPointerDown={(event) => beginHomePaneResize('routines', event)}
+                onPointerMove={moveHomePaneResize}
+                onPointerUp={finishHomePaneResize}
+                onPointerCancel={finishHomePaneResize}
+                onDoubleClick={() => resetHomePane('routines')}
+                onKeyDown={(event) => nudgeHomePane('routines', event)}
+              >
+                <span className="home-pane-divider-line" aria-hidden="true" />
+                <span className="home-pane-divider-grip" aria-hidden="true" />
+                <span className="home-pane-divider-tooltip" aria-hidden="true">{t('secretary.resizePane')}</span>
+              </div>
+              <div
+                className="home-pane-divider home-pane-divider-tasks"
+                role="separator"
+                aria-orientation="vertical"
+                aria-label={t('secretary.resizeTasks')}
+                aria-valuemin={HOME_PANE_LIMITS.tasks.min}
+                aria-valuemax={HOME_PANE_LIMITS.tasks.max}
+                aria-valuenow={homePaneWidths.tasks}
+                data-resizing={resizingHomePane === 'tasks'}
+                tabIndex={0}
+                title={t('secretary.resizePane')}
+                onPointerDown={(event) => beginHomePaneResize('tasks', event)}
+                onPointerMove={moveHomePaneResize}
+                onPointerUp={finishHomePaneResize}
+                onPointerCancel={finishHomePaneResize}
+                onDoubleClick={() => resetHomePane('tasks')}
+                onKeyDown={(event) => nudgeHomePane('tasks', event)}
+              >
+                <span className="home-pane-divider-line" aria-hidden="true" />
+                <span className="home-pane-divider-grip" aria-hidden="true" />
+                <span className="home-pane-divider-tooltip" aria-hidden="true">{t('secretary.resizePane')}</span>
+              </div>
+            </>
           )}
 
         </div>
@@ -1053,7 +1369,7 @@ export function App() {
 
       <CommandPalette
         open={commandOpen}
-        tasks={tasks}
+        tasks={workTasks}
         onClose={() => setCommandOpen(false)}
         onOpenTask={openTask}
         onOpenTasks={() => {

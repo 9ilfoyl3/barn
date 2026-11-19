@@ -1,0 +1,160 @@
+/* Hallmark · page: Barn Desktop conversation · genre: modern-minimal · theme: barn-native · redesign: extend · scope: component · built: the project */
+/* Hallmark · pre-emit critique: P5 H5 E5 S5 R5 V4 · weakest: V, the guide stays quieter than the answer it connects */
+
+:root {
+  --reply-guide-left: 20px;
+  --reply-guide-width: 3px;
+  --reply-guide-gap: 4px;
+}
+
+.assistant-reply-run {
+  position: relative;
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  align-self: stretch;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.assistant-reply-run::before {
+  position: absolute;
+  top: var(--reply-guide-top, -36px);
+  bottom: 14px;
+  left: var(--reply-guide-left);
+  width: 24px;
+  border-top: var(--reply-guide-width) solid color-mix(in srgb, var(--line-strong) 66%, transparent);
+  border-left: var(--reply-guide-width) solid color-mix(in srgb, var(--line-strong) 66%, transparent);
+  border-top-left-radius: 11px;
+  content: "";
+  pointer-events: none;
+}
+
+.assistant-reply-segment {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  align-items: flex-start;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.assistant-reply-quote {
+  position: relative;
+  z-index: 2;
+  display: block;
+  overflow: hidden;
+  max-width: min(calc(100% - var(--reply-guide-left) - var(--reply-guide-width) - var(--reply-guide-gap)), 420px);
+  margin-left: calc(var(--reply-guide-left) + var(--reply-guide-width) + var(--reply-guide-gap));
+  border: 1px solid color-mix(in srgb, var(--line) 88%, transparent);
+  border-radius: 999px;
+  background: var(--panel);
+  padding: 4px 8px;
+  color: var(--text-faint);
+  font-size: 10px;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  animation: reply-quote-enter 180ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.assistant-reply-segment > .chat-message.assistant {
+  position: relative;
+  z-index: 1;
+  margin-block: 2px;
+}
+
+.secretary-shell .chat-message.user,
+.secretary-shell .chat-message.assistant {
+  border-radius: 18px;
+}
+
+@keyframes reply-quote-enter {
+  from {
+    opacity: 0;
+    transform: translateX(-4px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .assistant-reply-quote {
+    animation: none;
+  }
+}
+
+.proactive-message {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  align-self: stretch;
+  flex-direction: column;
+}
+
+:root {
+  --chat-user-bubble: light-dark(#4053e8, #8996ff);
+}
+
+.secretary-shell .chat-message.user {
+  border: 0;
+  background: var(--chat-user-bubble);
+}
+
+.secretary-shell .chat-message.assistant {
+  border: 0;
+  background: color-mix(in srgb, var(--panel-raised) 42%, var(--panel));
+}
+
+.secretary-shell .chat-message .conversation-parts {
+  font-weight: 500;
+}
+
+.conversation-fade {
+  position: absolute;
+  right: 12px;
+  left: 0;
+  z-index: 4;
+  height: 36px;
+  opacity: 1;
+  pointer-events: none;
+  transition: opacity 160ms ease;
+  -webkit-backdrop-filter: blur(4px);
+  backdrop-filter: blur(4px);
+}
+
+.js .conversation-fade {
+  opacity: 0;
+}
+
+.js .conversation-fade[data-visible="true"] {
+  opacity: 1;
+}
+
+.conversation-fade-top {
+  top: 0;
+  background: linear-gradient(
+    to bottom,
+    var(--panel) 0%,
+    color-mix(in srgb, var(--panel) 88%, transparent) 42%,
+    transparent 100%
+  );
+  -webkit-mask-image: linear-gradient(to bottom, black 0%, transparent 100%);
+  mask-image: linear-gradient(to bottom, black 0%, transparent 100%);
+}
+
+.conversation-fade-bottom {
+  bottom: var(--composer-safe-bottom, 64px);
+  background: linear-gradient(
+    to top,
+    var(--panel) 0%,
+    color-mix(in srgb, var(--panel) 88%, transparent) 42%,
+    transparent 100%
+  );
+  -webkit-mask-image: linear-gradient(to top, black 0%, transparent 100%);
+  mask-image: linear-gradient(to top, black 0%, transparent 100%);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .conversation-fade {
+    transition: none;
+  }
+}

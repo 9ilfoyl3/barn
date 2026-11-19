@@ -69,9 +69,30 @@ test('renders the sessionless personal-secretary workspace and structured result
     await expect(page.locator('.secretary-shell')).toBeVisible()
     await expect(page.locator('.app-topbar .secretary-search')).toBeVisible()
     await expect(page.locator('.app-rail')).toBeVisible()
-    await expect(page.locator('.today-panel-heading')).toBeVisible()
+    await expect(page.locator('.routines-header')).toBeVisible()
     await expect(page.locator('.task-rail')).toBeVisible()
     await expect(page.locator('.barn-prompt-inline')).toBeVisible()
+
+    const divider = page.locator('.home-pane-divider-routines')
+    const dividerLine = divider.locator('.home-pane-divider-line')
+    await expect.poll(async () => dividerLine.evaluate((node) => getComputedStyle(node).opacity)).toBe('0')
+    await expect.poll(async () => {
+      const box = await divider.boundingBox()
+      if (box === null) return false
+      await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
+      return divider.evaluate((node) => node.matches(':hover'))
+    }, { timeout: 5000 }).toBe(true)
+    await expect.poll(
+      async () => dividerLine.evaluate((node) => getComputedStyle(node).opacity),
+      { timeout: 3000 },
+    ).toBe('1')
+
+    await page.getByRole('button', { name: 'Completed', exact: true }).click()
+    await expect(page.getByText('No completed tasks yet', { exact: true })).toBeVisible()
+    await page.getByRole('button', { name: 'Review', exact: true }).click()
+    await expect(page.locator('.task-rail-card')).toHaveCount(2)
+    await page.mouse.move(700, 40)
+    await expect.poll(async () => dividerLine.evaluate((node) => getComputedStyle(node).opacity)).toBe('0')
 
     const layout = await page.evaluate(() => {
       const rail = document.querySelector('.app-rail')!.getBoundingClientRect()
@@ -79,11 +100,14 @@ test('renders the sessionless personal-secretary workspace and structured result
       const routines = document.querySelector('.today-home-column')!.getBoundingClientRect()
       const conversation = document.querySelector('.conversation-view')!.getBoundingClientRect()
       const tasks = document.querySelector('.task-rail')!.getBoundingClientRect()
-      return { rail, workspace, routines, conversation, tasks }
+      const messageList = document.querySelector('.message-list')!.getBoundingClientRect()
+      const composerDock = document.querySelector('.composer-dock')!.getBoundingClientRect()
+      return { rail, workspace, routines, conversation, tasks, messageList, composerDock }
     })
     expect(layout.rail.right).toBeLessThanOrEqual(layout.workspace.left)
     expect(layout.routines.right).toBeLessThanOrEqual(layout.conversation.left)
     expect(layout.conversation.right).toBeLessThanOrEqual(layout.tasks.left)
+    expect(Math.abs(layout.messageList.width - layout.composerDock.width)).toBeLessThanOrEqual(1)
     await expect(page.locator('.session-row')).toHaveCount(0)
     await expect(page.getByRole('button', { name: /New session/i })).toHaveCount(0)
     await expect(page.getByText('Side Chat', { exact: true })).toHaveCount(0)

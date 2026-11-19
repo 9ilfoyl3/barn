@@ -1,70 +1,92 @@
-import { RefreshCw, SlidersHorizontal, Sparkles, UserRound } from 'lucide-react'
+/* Hallmark · dismissed F4 · the refresh control is a utility action, not a competing primary action */
+import { Blocks, CalendarDays, Cloud, Mail, RefreshCw } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import type { Task } from '../shared/models'
 
 export interface TodayPanelProps {
-  tasks: Task[]
-  onOpenTasks: () => void
+  routines: Task[]
+  onOpenRoutine: (routine: Task) => void
   onConnectSources: () => void
   onRefresh: () => void
 }
 
-export function TodayPanel({ tasks, onOpenTasks, onConnectSources, onRefresh }: TodayPanelProps) {
+const routineApps = [
+  { icon: Blocks, tone: 'accent' },
+  { icon: Mail, tone: 'warning' },
+  { icon: CalendarDays, tone: 'green' },
+  { icon: Cloud, tone: 'link' },
+] as const
+
+const routineCardTones = ['accent', 'warning', 'green', 'link'] as const
+
+export function TodayPanel({ routines, onOpenRoutine, onConnectSources, onRefresh }: TodayPanelProps) {
   const { t } = useTranslation()
-  const needsYou = tasks.filter((task) => ['proposed', 'waiting', 'failed'].includes(task.status))
-  const active = tasks.filter((task) => ['queued', 'running'].includes(task.status))
-  const routines = [...needsYou, ...active].slice(0, 6)
-  const routineGroups = [
-    { origin: 'automation' as const, tasks: routines.filter((task) => task.origin === 'automation') },
-    { origin: 'user' as const, tasks: routines.filter((task) => task.origin === 'user') },
-  ].filter((group) => group.tasks.length > 0)
+  const hour = new Date().getHours()
+  const greeting = hour < 12
+    ? t('secretary.goodMorning')
+    : hour < 18
+      ? t('secretary.goodAfternoon')
+      : t('secretary.goodEvening')
+  const orderedRoutines = routines.toSorted((left, right) => (
+    (left.scheduledFor ?? left.updatedAt).localeCompare(right.scheduledFor ?? right.updatedAt)
+  ))
 
   return (
-    <section className="today-panel" aria-labelledby="today-routines-title">
-      <header className="today-panel-heading">
-        <h1 id="today-routines-title">{t('secretary.routines')}</h1>
-        <div className="today-panel-actions">
-          <button type="button" aria-label={t('secretary.refreshRoutines')} onClick={onRefresh}>
-            <RefreshCw size={14} aria-hidden="true" />
-          </button>
-          <button type="button" aria-label={t('secretary.viewAll')} onClick={onOpenTasks}>
-            <SlidersHorizontal size={14} aria-hidden="true" />
-          </button>
+    <section className="today-panel routine-home-panel" aria-labelledby="today-routines-title">
+      <header className="routines-header">
+        <div className="routines-heading-copy">
+          <h1 id="today-routines-title">{greeting}</h1>
+          <p>{t('secretary.routineCount', { count: orderedRoutines.length })}</p>
         </div>
+        <button type="button" aria-label={t('secretary.refreshRoutines')} title={t('secretary.refreshRoutines')} onClick={onRefresh}>
+          <RefreshCw size={15} aria-hidden="true" />
+        </button>
       </header>
 
-      <div className="today-panel-body">
-        {routineGroups.length === 0 ? (
-          <div className="routine-empty-state">
-            <span className="routine-empty-mark" aria-hidden="true"><Sparkles size={16} /></span>
+      <div className="today-panel-body routine-home-body">
+        {orderedRoutines.length === 0 ? (
+          <div className="routine-empty-state routine-home-empty">
+            <div className="routine-app-stack" aria-hidden="true">
+              {routineApps.map(({ icon: Icon, tone }) => (
+                <span className={`routine-app-token routine-app-token-${tone}`} key={tone}>
+                  <Icon size={14} />
+                </span>
+              ))}
+            </div>
             <strong>{t('secretary.routinesEmptyTitle')}</strong>
-            <p>{t('secretary.routinesEmpty')}</p>
+            <p>{t('secretary.routinesEmptyDescription')}</p>
             <button type="button" onClick={onConnectSources}>{t('secretary.connectApps')}</button>
           </div>
         ) : (
-          <div className="routine-group-list">
-            {routineGroups.map((group) => (
-              <section className="routine-group" key={group.origin} aria-label={group.origin === 'automation' ? t('secretary.automation') : t('secretary.you')}>
-                <header className="routine-group-heading">
-                  <span className={`routine-provider-mark routine-provider-${group.origin}`} aria-hidden="true">
-                    {group.origin === 'automation' ? <Sparkles size={14} /> : <UserRound size={14} />}
+          <div className="routine-card-list">
+            {orderedRoutines.map((routine, index) => {
+              const tone = routineCardTones[index % routineCardTones.length]
+              return (
+                <button
+                  className="routine-card"
+                  type="button"
+                  key={routine.id}
+                  onClick={() => onOpenRoutine(routine)}
+                >
+                  <span className="routine-card-heading">
+                    <strong className="routine-card-title">{routine.title}</strong>
                   </span>
-                  <strong>{group.origin === 'automation' ? t('secretary.automation') : t('secretary.you')}</strong>
-                  <span>{group.tasks.length}</span>
-                </header>
-                <div className="routine-group-actions">
-                  {group.tasks.map((task) => (
-                    <button className="routine-row" type="button" key={task.id} onClick={onOpenTasks}>
-                      <span className="routine-copy">
-                        <strong>{task.title}</strong>
-                        {task.detail !== undefined && <small>{task.detail}</small>}
-                      </span>
-                      <span className={`routine-state routine-state-${task.status}`}>{routineStatusLabel(task, t)}</span>
-                    </button>
-                  ))}
-                </div>
-              </section>
-            ))}
+                  {routine.visiblePrompt !== undefined && (
+                    <span className="routine-card-quote">{routine.visiblePrompt}</span>
+                  )}
+                  <span className="routine-card-tags">
+                    <span className={`routine-card-tag routine-card-tag-${tone}`}>
+                      <i aria-hidden="true" />
+                      {routineRecurrenceLabel(routine, t)}
+                    </span>
+                    <span className="routine-card-tag routine-card-tag-app">
+                      <b className="routine-card-app-mark" aria-hidden="true">B</b>
+                      {t('secretary.routineProvider')}
+                    </span>
+                  </span>
+                </button>
+              )
+            })}
           </div>
         )}
       </div>
@@ -72,11 +94,12 @@ export function TodayPanel({ tasks, onOpenTasks, onConnectSources, onRefresh }: 
   )
 }
 
-function routineStatusLabel(
-  task: Task,
+function routineRecurrenceLabel(
+  routine: Task,
   t: ReturnType<typeof useTranslation>['t'],
 ): string {
-  return task.kind === 'reminder' && task.status === 'queued'
-    ? t('secretary.scheduled')
-    : t(`tasks.status.${task.status}`)
+  if (routine.recurrence === 'daily') return t('secretary.recurrenceDaily')
+  if (routine.recurrence === 'weekdays') return t('secretary.recurrenceWeekdays')
+  if (routine.recurrence === 'weekly') return t('secretary.recurrenceWeekly')
+  return t('secretary.scheduled')
 }

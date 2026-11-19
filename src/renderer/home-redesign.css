@@ -1,0 +1,1125 @@
+/* Hallmark · page: Barn Desktop home · genre: modern-minimal · theme: barn-native · redesign: extend · scope: app · built: the project */
+/* Hallmark · pre-emit critique: P5 H5 E5 S5 R4 V5 · weakest: V, the reference-led home stays inside Barn's existing token and type system */
+/* Hallmark · dismissed F4 · the paired header icons are utility controls, not competing primary actions */
+/* Hallmark · dismissed F7 · compact category tags intentionally use pill geometry to match the supplied reference */
+
+.workspace-body.secretary-home {
+  grid-template-columns:
+    var(--home-routines-width, 320px)
+    minmax(0, 1fr)
+    var(--home-tasks-width, 304px);
+}
+
+.today-home-column {
+  border-right: 0;
+  background: var(--panel);
+}
+
+.workspace-body.secretary-home > .task-rail {
+  border-left: 0;
+  background: var(--panel);
+}
+
+.today-home-column .routine-home-panel {
+  gap: 0;
+  padding: 24px;
+}
+
+.routine-home-panel .today-panel-heading {
+  min-height: 30px;
+}
+
+.routine-home-panel .today-panel-heading h1 {
+  font-size: 14px;
+  font-weight: 610;
+  letter-spacing: -0.02em;
+  text-wrap: balance;
+}
+
+.routine-home-panel .today-panel-actions {
+  gap: 2px;
+}
+
+.routine-home-panel .today-panel-actions button {
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  color: var(--text-faint);
+  transition:
+    background-color 160ms ease,
+    color 160ms ease,
+    transform 160ms ease;
+}
+
+.routine-home-panel .today-panel-actions button:hover {
+  background: var(--panel-raised);
+  color: var(--text);
+}
+
+.routine-home-panel .today-panel-actions button:active {
+  transform: scale(0.92);
+}
+
+.routine-home-body {
+  display: flex;
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+  padding-top: 0;
+}
+
+.routine-home-empty {
+  width: min(100%, 236px);
+  margin: auto;
+  padding: 0 0 8vh;
+  gap: 12px;
+  animation: routine-empty-enter 260ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.routine-app-stack {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 8px;
+  padding-left: 4px;
+}
+
+.routine-app-token {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  margin-left: -4px;
+  place-items: center;
+  border: 2px solid var(--panel);
+  border-radius: 999px;
+  background: var(--panel-raised);
+  color: var(--text-faint);
+  box-shadow: var(--card-shadow);
+  transition:
+    transform 180ms cubic-bezier(0.22, 1, 0.36, 1),
+    background-color 180ms ease,
+    color 180ms ease;
+}
+
+.routine-app-token:hover {
+  transform: translateY(-2px);
+}
+
+.routine-app-token-accent {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.routine-app-token-warning {
+  background: color-mix(in srgb, var(--warning) 12%, var(--panel));
+  color: var(--warning);
+}
+
+.routine-app-token-green {
+  background: color-mix(in srgb, var(--green) 12%, var(--panel));
+  color: var(--green);
+}
+
+.routine-app-token-link {
+  background: color-mix(in srgb, var(--link) 11%, var(--panel));
+  color: var(--link);
+}
+
+.routine-home-empty strong {
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 590;
+}
+
+.routine-home-empty p {
+  max-width: 220px;
+  margin: 0;
+  color: var(--text-faint);
+  font-size: 11px;
+  line-height: 1.55;
+  text-wrap: pretty;
+}
+
+.routine-home-empty > button {
+  min-height: 32px;
+  margin-top: 4px;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  background: var(--panel);
+  padding: 0 16px;
+  color: var(--text);
+  cursor: pointer;
+  font-size: 11px;
+  transition:
+    background-color 160ms ease,
+    border-color 160ms ease,
+    transform 160ms ease;
+}
+
+.routine-home-empty > button:hover {
+  border-color: var(--text-faint);
+  background: var(--panel-raised);
+}
+
+.routine-home-empty > button:active {
+  transform: scale(0.97);
+}
+
+.workspace-body.secretary-home > .task-rail {
+  gap: 0;
+  overflow: hidden;
+  padding: 24px 20px 16px;
+}
+
+.routine-home-panel button:disabled,
+.task-rail button:disabled {
+  border-color: var(--line);
+  background: var(--disabled-surface);
+  color: var(--text-faint);
+  cursor: default;
+  transform: none;
+}
+
+.task-rail-heading {
+  min-height: 30px;
+}
+
+.task-rail-heading h2 {
+  font-size: 14px;
+  font-weight: 610;
+  letter-spacing: -0.02em;
+  text-wrap: balance;
+}
+
+.task-rail-heading button {
+  border-radius: 999px;
+  padding: 4px 2px;
+  color: var(--text-faint);
+  font-size: 10px;
+  transition: color 160ms ease;
+}
+
+.task-rail-heading button:hover {
+  color: var(--text);
+}
+
+.task-rail-scroll {
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding: 0 2px 8px;
+  scrollbar-gutter: stable;
+}
+
+.task-rail-list {
+  display: grid;
+  gap: 8px;
+  animation: task-rail-list-enter 220ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.task-rail-card {
+  grid-template-columns: 24px minmax(0, 1fr);
+  gap: 8px;
+  border-radius: 14px;
+  background: var(--panel);
+  padding: 12px;
+  box-shadow: none;
+  transition:
+    border-color 180ms ease,
+    background-color 180ms ease,
+    box-shadow 180ms ease,
+    transform 180ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.task-rail-card:hover {
+  border-color: var(--line-strong);
+  background: color-mix(in srgb, var(--panel) 92%, var(--panel-raised));
+  box-shadow: var(--card-shadow);
+  transform: translateY(-1px);
+}
+
+.task-rail-card:active {
+  transform: translateY(0) scale(0.995);
+}
+
+.task-rail-state {
+  width: 24px;
+  height: 24px;
+  background: transparent;
+  color: var(--text-faint);
+  transition:
+    background-color 160ms ease,
+    color 160ms ease;
+}
+
+.task-rail-card-main {
+  display: grid;
+  min-width: 0;
+  gap: 8px;
+}
+
+.task-rail-card-main > strong {
+  display: -webkit-box;
+  overflow: hidden;
+  color: var(--text);
+  font-size: 12.5px;
+  font-weight: 610;
+  letter-spacing: -0.012em;
+  line-height: 1.4;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.task-rail-tags {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.task-rail-tag {
+  display: inline-flex;
+  min-height: 22px;
+  align-items: center;
+  gap: 4px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--panel);
+  padding: 0 8px;
+  color: var(--text-dim);
+  font-size: 9.5px;
+  line-height: 1;
+}
+
+.task-rail-tag i {
+  width: 6px;
+  height: 6px;
+  flex: 0 0 auto;
+  border-radius: 999px;
+  background: var(--text-faint);
+}
+
+.task-rail-tag-origin-automation i {
+  background: var(--accent);
+}
+
+.task-rail-tag-origin-user i {
+  background: var(--text-faint);
+}
+
+.task-rail-updated {
+  color: var(--text-faint);
+  font-size: 9.5px;
+  line-height: 1.3;
+}
+
+.task-rail-filter {
+  display: grid;
+  min-height: 36px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  align-items: center;
+  gap: 2px;
+  padding: 2px;
+}
+
+.task-rail-filter-button {
+  position: relative;
+  display: flex;
+  height: 32px;
+  min-width: 0;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  cursor: pointer;
+  transition:
+    background-color 180ms ease,
+    color 180ms ease,
+    transform 160ms ease;
+}
+
+.task-rail-filter-button:hover {
+  background: var(--panel-raised);
+}
+
+.task-rail-filter-button:active {
+  transform: scale(0.94);
+}
+
+.task-rail-filter-dot {
+  width: 4px;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--text-faint);
+  opacity: 0.55;
+  transform: scale(1);
+  transition:
+    opacity 180ms ease,
+    transform 180ms ease;
+}
+
+.task-rail-filter-active-content {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  border-radius: inherit;
+  font-size: 10px;
+  font-weight: 610;
+  opacity: 1;
+  white-space: nowrap;
+  transform: scale(1);
+  transition:
+    opacity 180ms ease,
+    transform 180ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.js .task-rail-filter-active-content {
+  opacity: 0;
+  transform: scale(0.94);
+}
+
+.js .task-rail-filter-button.active .task-rail-filter-dot {
+  opacity: 0;
+  transform: scale(0.5);
+}
+
+.js .task-rail-filter-button.active .task-rail-filter-active-content {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.task-rail-filter-button-needsYou.active {
+  background: color-mix(in srgb, var(--warning) 12%, var(--panel));
+  color: var(--warning);
+}
+
+.task-rail-filter-button-active.active {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.task-rail-filter-button-completed.active {
+  background: color-mix(in srgb, var(--green) 12%, var(--panel));
+  color: var(--green);
+}
+
+.task-rail-filter-button-failed.active {
+  background: color-mix(in srgb, var(--danger) 11%, var(--panel));
+  color: var(--danger);
+}
+
+.task-rail-filter-empty {
+  display: grid;
+  min-height: 220px;
+  place-items: center;
+  align-content: center;
+  gap: 8px;
+  padding: 24px 12px 8vh;
+  text-align: center;
+  animation: task-rail-list-enter 220ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.task-rail-filter-empty-mark {
+  display: grid;
+  width: 36px;
+  height: 36px;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--panel);
+  color: var(--text-faint);
+}
+
+.task-rail-filter-empty strong {
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.task-rail-filter-empty p {
+  max-width: 190px;
+  margin: 0;
+  color: var(--text-faint);
+  font-size: 10.5px;
+  line-height: 1.5;
+  text-wrap: pretty;
+}
+
+.home-pane-divider {
+  position: absolute;
+  z-index: 12;
+  top: 0;
+  bottom: 0;
+  width: 16px;
+  transform: translateX(-50%);
+  cursor: col-resize;
+  touch-action: none;
+}
+
+.home-pane-divider-routines {
+  left: var(--home-routines-width, 320px);
+}
+
+.home-pane-divider-tasks {
+  left: calc(100% - var(--home-tasks-width, 304px));
+}
+
+.home-pane-divider-line {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 1px;
+  background: var(--line-strong);
+  opacity: 1;
+  transform: translateX(-50%);
+  transition: opacity 160ms ease;
+}
+
+.js .home-pane-divider-line {
+  opacity: 0;
+}
+
+.home-pane-divider-grip {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 5px;
+  height: 38px;
+  border-radius: 999px;
+  background: var(--line-strong);
+  opacity: 1;
+  transform: translate(-50%, -50%) scaleY(1);
+  transition:
+    opacity 160ms ease,
+    transform 180ms cubic-bezier(0.22, 1, 0.36, 1),
+    background-color 160ms ease;
+}
+
+.home-pane-divider-tooltip {
+  position: absolute;
+  top: 50%;
+  left: calc(50% + 13px);
+  border-radius: 7px;
+  background: var(--text);
+  padding: 8px;
+  color: var(--panel);
+  font-size: 10px;
+  line-height: 1;
+  opacity: 1;
+  pointer-events: none;
+  transform: translate(4px, -50%) scale(0.96);
+  transition:
+    opacity 160ms ease,
+    transform 180ms cubic-bezier(0.22, 1, 0.36, 1);
+  white-space: nowrap;
+}
+
+.js .home-pane-divider-grip {
+  opacity: 0;
+  transform: translate(-50%, -50%) scaleY(0.72);
+}
+
+.js .home-pane-divider-tooltip {
+  opacity: 0;
+  transform: translate(4px, -50%) scale(0.96);
+}
+
+.home-pane-divider:hover,
+.home-pane-divider:focus-visible,
+.home-pane-divider[data-resizing="true"] {
+  outline: none;
+}
+
+.js .home-pane-divider:hover .home-pane-divider-line,
+.js .home-pane-divider:focus-visible .home-pane-divider-line,
+.js .home-pane-divider[data-resizing="true"] .home-pane-divider-line {
+  opacity: 1;
+}
+
+.js .home-pane-divider:hover .home-pane-divider-grip,
+.js .home-pane-divider:focus-visible .home-pane-divider-grip,
+.js .home-pane-divider[data-resizing="true"] .home-pane-divider-grip {
+  background: var(--text-faint);
+  opacity: 1;
+  transform: translate(-50%, -50%) scaleY(1);
+}
+
+.js .home-pane-divider:hover .home-pane-divider-tooltip,
+.js .home-pane-divider:focus-visible .home-pane-divider-tooltip,
+.js .home-pane-divider[data-resizing="true"] .home-pane-divider-tooltip {
+  opacity: 1;
+  transform: translate(0, -50%) scale(1);
+}
+
+.home-pane-divider:focus-visible .home-pane-divider-grip {
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.home-pane-divider[data-resizing="true"] {
+  cursor: col-resize;
+}
+
+@keyframes routine-empty-enter {
+  from {
+    opacity: 0;
+    transform: translateY(5px);
+  }
+}
+
+@keyframes task-rail-list-enter {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+
+@media (max-width: 1180px) {
+  .workspace-body.secretary-home {
+    grid-template-columns:
+      minmax(248px, var(--home-routines-width, 320px))
+      minmax(0, 1fr)
+      minmax(272px, var(--home-tasks-width, 304px));
+  }
+}
+
+@media (max-width: 980px) {
+  .home-pane-divider {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .routine-home-empty,
+  .task-rail-list,
+  .task-rail-filter-empty {
+    animation: none;
+  }
+
+  .routine-app-token,
+  .routine-home-empty > button,
+  .routine-home-panel .today-panel-actions button,
+  .task-rail-heading button,
+  .task-rail-card,
+  .task-rail-state,
+  .task-rail-filter-button,
+  .task-rail-filter-dot,
+  .task-rail-filter-active-content,
+  .home-pane-divider-line,
+  .home-pane-divider-grip,
+  .home-pane-divider-tooltip {
+    transition: none;
+  }
+}
+
+/* The conversation body and composer share one measure. The composer dock also
+   owns an opaque fade below the input so scrolled messages cannot show through
+   the pill's rounded corners or the strip underneath it. */
+.workspace-body.secretary-home .conversation-view {
+  --conversation-width: min(700px, calc(100% - 56px));
+  --home-composer-width: min(700px, calc(100% - 56px - 22px));
+}
+
+.workspace-body.secretary-home .message-list {
+  width: var(--conversation-width);
+}
+
+.workspace-body.secretary-home .conversation-view .composer-dock {
+  width: var(--home-composer-width);
+}
+
+.workspace-body.secretary-home .conversation-view .composer-dock::before {
+  top: 18px;
+  bottom: 0;
+  height: auto;
+  background: linear-gradient(to bottom, transparent 0, var(--panel) 20px, var(--panel) 100%);
+}
+
+/* Keep short conversations near the composer without letting scrolled content
+   disappear behind it. The bottom reserve only needs to cover the dock itself. */
+.workspace-body.secretary-home .chat-surface .message-list {
+  margin-top: auto;
+  padding-bottom: var(--composer-safe-bottom, 64px);
+  scroll-padding-bottom: var(--composer-safe-bottom, 64px);
+}
+
+/* Routines are scheduled assistance, not Tasks. The left pane mirrors the
+   compact inbox treatment: greeting, count, then one bordered routine card. */
+.routine-home-panel {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.routines-header {
+  display: flex;
+  min-width: 0;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.routines-heading-copy {
+  display: grid;
+  min-width: 0;
+  gap: 4px;
+}
+
+.routines-heading-copy h1 {
+  overflow-wrap: break-word;
+  margin: 0;
+  color: var(--text);
+  font-size: 16px;
+  font-weight: 620;
+  letter-spacing: -0.025em;
+  line-height: 1.3;
+}
+
+.routines-heading-copy p {
+  margin: 0;
+  color: var(--text-faint);
+  font-size: 10.5px;
+  line-height: 1.4;
+}
+
+.routines-header > button {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-faint);
+  cursor: pointer;
+  transition:
+    background-color 160ms ease,
+    color 160ms ease,
+    transform 160ms ease;
+}
+
+.routines-header > button:hover {
+  background: var(--panel-raised);
+  color: var(--text);
+}
+
+.routines-header > button:active {
+  transform: scale(0.92);
+}
+
+.routine-card-list {
+  display: grid;
+  width: 100%;
+  min-height: 0;
+  align-content: start;
+  gap: 12px;
+  overflow-y: auto;
+  padding: 16px 2px 8px;
+}
+
+.routine-card {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  align-items: stretch;
+  flex-direction: column;
+  gap: 8px;
+  border: 1px solid color-mix(in srgb, var(--line) 92%, transparent);
+  border-radius: 12px;
+  background: var(--panel);
+  padding: 12px;
+  color: var(--text);
+  cursor: pointer;
+  text-align: left;
+  transition:
+    border-color 180ms ease,
+    background-color 180ms ease,
+    transform 180ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.routine-card:hover {
+  border-color: var(--line-strong);
+  background: color-mix(in srgb, var(--panel) 92%, var(--panel-raised));
+  transform: translateY(-1px);
+}
+
+.routine-card:active {
+  transform: translateY(0) scale(0.995);
+}
+
+.routine-card-title {
+  overflow-wrap: anywhere;
+  color: var(--text);
+  font-size: 12.5px;
+  font-weight: 610;
+  letter-spacing: -0.01em;
+  line-height: 1.5;
+}
+
+.routine-card-quote {
+  display: -webkit-box;
+  overflow: hidden;
+  border-left: 2px solid var(--line-strong);
+  padding-left: 8px;
+  color: var(--text-dim);
+  font-size: 10.5px;
+  line-height: 1.55;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.routine-card-source {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--text-faint);
+  font-size: 9.5px;
+  line-height: 1.3;
+}
+
+.routine-card-source svg {
+  flex: 0 0 auto;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .routines-header > button,
+  .routine-card {
+    transition: none;
+  }
+}
+
+/* Rich task and routine cards: tinted state marks, colored category dots,
+   and a compact app badge echo the reference card system. */
+.task-rail-state {
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  background: var(--panel-raised);
+}
+
+.task-rail-card-proposed .task-rail-state,
+.task-rail-card-waiting .task-rail-state {
+  background: color-mix(in srgb, var(--warning) 13%, var(--panel));
+  color: var(--warning);
+}
+
+.task-rail-card-running .task-rail-state,
+.task-rail-card-queued .task-rail-state {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.task-rail-card-completed .task-rail-state {
+  background: color-mix(in srgb, var(--green) 13%, var(--panel));
+  color: var(--green);
+}
+
+.task-rail-card-failed .task-rail-state {
+  background: color-mix(in srgb, var(--danger) 12%, var(--panel));
+  color: var(--danger);
+}
+
+.task-rail-tag {
+  min-height: 24px;
+  gap: 4px;
+  padding: 0 8px;
+  font-size: 10px;
+}
+
+.task-rail-tag i {
+  width: 7px;
+  height: 7px;
+  background: var(--text-faint);
+}
+
+.task-rail-tag-category-proposed i,
+.task-rail-tag-category-waiting i {
+  background: var(--warning);
+}
+
+.task-rail-tag-category-running i,
+.task-rail-tag-category-queued i {
+  background: var(--accent);
+}
+
+.task-rail-tag-category-completed i {
+  background: var(--green);
+}
+
+.task-rail-tag-category-failed i {
+  background: var(--danger);
+}
+
+.task-rail-tag-app {
+  padding-left: 4px;
+}
+
+.task-rail-app-mark {
+  display: grid;
+  width: 15px;
+  height: 15px;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: 999px;
+  background: var(--text);
+  color: var(--panel);
+  font-size: 8px;
+  font-style: normal;
+  font-weight: 720;
+  line-height: 1;
+}
+
+.task-rail-tag-app-user .task-rail-app-mark {
+  background: var(--text-faint);
+}
+
+.routine-card {
+  gap: 8px;
+}
+
+.routine-card-heading {
+  display: block;
+  min-width: 0;
+}
+
+.routine-card-title {
+  padding-top: 0;
+}
+
+.routine-card-quote,
+.routine-card-tags {
+  margin-left: 0;
+}
+
+.routine-card-tags {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.routine-card-tag {
+  display: inline-flex;
+  min-height: 24px;
+  align-items: center;
+  gap: 4px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--panel);
+  padding: 0 8px;
+  color: var(--text-dim);
+  font-size: 10px;
+  line-height: 1;
+}
+
+.routine-card-tag i {
+  width: 7px;
+  height: 7px;
+  flex: 0 0 auto;
+  border-radius: 999px;
+  background: var(--text-faint);
+}
+
+.routine-card-tag-accent i {
+  background: var(--accent);
+}
+
+.routine-card-tag-warning i {
+  background: var(--warning);
+}
+
+.routine-card-tag-green i {
+  background: var(--green);
+}
+
+.routine-card-tag-link i {
+  background: var(--link);
+}
+
+.routine-card-tag-app {
+  padding-left: 4px;
+}
+
+.routine-card-app-mark {
+  display: grid;
+  width: 15px;
+  height: 15px;
+  place-items: center;
+  border-radius: 999px;
+  background: var(--text);
+  color: var(--panel);
+  font-size: 8px;
+  font-style: normal;
+  font-weight: 720;
+  line-height: 1;
+}
+
+
+/* Four semantic task states use neutral filter pills with colored glyphs. */
+.task-rail-filter-button-active.active,
+.task-rail-filter-button-review.active,
+.task-rail-filter-button-completed.active,
+.task-rail-filter-button-cancelled.active {
+  background: var(--panel-raised);
+  color: var(--text);
+}
+
+.task-rail-filter-button-active .task-rail-filter-active-content svg {
+  color: var(--text-dim);
+}
+
+.task-rail-filter-button-review .task-rail-filter-active-content,
+.task-rail-filter-button-review .task-review-alert {
+  color: var(--warning);
+}
+
+.task-rail-filter-button-completed .task-rail-filter-active-content svg {
+  color: var(--green);
+}
+
+.task-rail-filter-button-cancelled .task-rail-filter-active-content svg {
+  color: var(--danger);
+}
+
+.task-review-icon {
+  position: relative;
+  display: inline-grid;
+  flex: 0 0 auto;
+  place-items: center;
+}
+
+.task-review-alert {
+  position: absolute;
+  right: -1px;
+  bottom: -1px;
+  display: grid;
+  width: 7px;
+  height: 7px;
+  place-items: center;
+  border-radius: 999px;
+  background: var(--panel);
+  font-size: 7px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.task-rail-state {
+  background: transparent;
+}
+
+.task-rail-card-proposed .task-rail-state,
+.task-rail-card-waiting .task-rail-state {
+  background: transparent;
+  color: var(--warning);
+}
+
+.task-rail-card-running .task-rail-state,
+.task-rail-card-queued .task-rail-state {
+  background: transparent;
+  color: var(--text-dim);
+}
+
+.task-rail-card-completed .task-rail-state {
+  background: transparent;
+  color: var(--green);
+}
+
+.task-rail-card-failed .task-rail-state,
+.task-rail-card-cancelled .task-rail-state {
+  background: transparent;
+  color: var(--danger);
+}
+
+/* Blend the scrolling task cards into the fixed status switcher without a hard
+   clipping edge. The overlay sits above the scroll region and below the pills. */
+.workspace-body.secretary-home > .task-rail {
+  position: relative;
+}
+
+.workspace-body.secretary-home .task-rail-filter {
+  position: relative;
+  z-index: 2;
+  background: var(--panel);
+}
+
+
+
+.workspace-body.secretary-home .task-rail-scroll {
+  padding-top: 16px;
+  padding-bottom: 0;
+}
+
+
+
+.workspace-body.secretary-home .task-rail-scroll-shell {
+  position: relative;
+  display: flex;
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+}
+
+.workspace-body.secretary-home .task-rail-scroll {
+  width: 100%;
+  height: 100%;
+}
+
+.task-rail-fade {
+  position: absolute;
+  right: 12px;
+  left: 0;
+  z-index: 3;
+  height: 36px;
+  opacity: 1;
+  pointer-events: none;
+  transition: opacity 160ms ease;
+  -webkit-backdrop-filter: blur(4px);
+  backdrop-filter: blur(4px);
+}
+
+.js .task-rail-fade {
+  opacity: 0;
+}
+
+.js .task-rail-fade[data-visible="true"] {
+  opacity: 1;
+}
+
+.task-rail-fade-top {
+  top: 0;
+  background: linear-gradient(
+    to bottom,
+    var(--panel) 0%,
+    color-mix(in srgb, var(--panel) 88%, transparent) 42%,
+    transparent 100%
+  );
+  -webkit-mask-image: linear-gradient(to bottom, black 0%, transparent 100%);
+  mask-image: linear-gradient(to bottom, black 0%, transparent 100%);
+}
+
+.task-rail-fade-bottom {
+  bottom: 0;
+  background: linear-gradient(
+    to top,
+    var(--panel) 0%,
+    color-mix(in srgb, var(--panel) 88%, transparent) 42%,
+    transparent 100%
+  );
+  -webkit-mask-image: linear-gradient(to top, black 0%, transparent 100%);
+  mask-image: linear-gradient(to top, black 0%, transparent 100%);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .task-rail-fade {
+    transition: none;
+  }
+}
+
+.workspace-body.secretary-home .task-rail-filter {
+  margin-top: 16px;
+}
