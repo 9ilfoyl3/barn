@@ -257,6 +257,7 @@ export class TaskRunner {
       externalEffectReceipts: [],
     }
     this.tasks.recordResult(taskId, result)
+    this.recordResultForRouter(active.workerSessionId, taskId, result)
     void this.projectTaskResult(taskId, active.workerSessionId, result, answer.eventId)
     this.schedule()
   }
@@ -281,6 +282,7 @@ export class TaskRunner {
       externalEffectReceipts: [],
     }
     this.tasks.recordResult(taskId, result)
+    this.recordResultForRouter(active.workerSessionId, taskId, result)
     if (status === 'failed') void this.projectTaskResult(taskId, active.workerSessionId, result)
     this.schedule()
   }
@@ -303,6 +305,22 @@ export class TaskRunner {
         clientMessageIdPrefix: `task-assistant:${task.id}`,
       },
     )
+  }
+
+  private recordResultForRouter(
+    sessionId: string,
+    taskId: string,
+    result: TaskResultEnvelope,
+  ): void {
+    try {
+      this.sessions.append(sessionId, [{
+        type: 'task.result',
+        data: { taskId, result },
+        actor: { kind: 'agent', id: 'router' },
+      }])
+    } catch {
+      // The durable Task result remains authoritative even if its coordination context cannot be appended.
+    }
   }
 
   private async projectTaskResult(

@@ -77,7 +77,7 @@ test('reroutes an active Task in place and keeps Worker progress in the Task det
       const current = await window.barn.tasks.get(taskId)
       return current.status
     }, task.id), { timeout: 15_000 }).toBe('completed')
-    await expect.poll(() => model.workerStarted(), { timeout: 15_000 }).toBe(3)
+    await expect.poll(() => model.workerStarted(), { timeout: 15_000 }).toBe(2)
 
     const result = await page.evaluate(async (taskId) => {
       const current = await window.barn.tasks.get(taskId)
@@ -127,6 +127,15 @@ async function startRerouteModelServer(): Promise<{
     request.setEncoding('utf8')
     request.on('data', (chunk: string) => { body += chunk })
     request.on('end', () => {
+      if (body.includes("You are Barn's Task Router")) {
+        sendText(response, JSON.stringify({
+          tool: 'worker.dispatch',
+          arguments: {},
+          confidence: 0.98,
+          rationaleCodes: ['e2e_worker_dispatch'],
+        }))
+        return
+      }
       if (body.includes("You are Barn's Router")) {
         const activeTasks = extractActiveTasks(body)
         const context = extractRouterContext(body)
@@ -172,7 +181,9 @@ async function startRerouteModelServer(): Promise<{
         })
         return
       }
-      sendText(response, 'Baidu news result')
+      setTimeout(() => {
+        if (!response.destroyed) sendText(response, 'Baidu news result')
+      }, 750)
     })
   })
   await new Promise<void>((resolve, reject) => {

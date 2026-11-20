@@ -505,6 +505,12 @@ export type TaskLiveEvent = {
   task: Task
 }
 
+export interface TaskContinuationResult {
+  task: Task
+  delivery: 'worker' | 'router'
+  replyMessageId?: string
+}
+
 export interface TaskBridge {
   list(): Promise<Task[]>
   get(taskId: string): Promise<Task>
@@ -512,7 +518,7 @@ export interface TaskBridge {
   updateStatus(taskId: string, update: TaskStatusUpdate): Promise<Task>
   updatePrompt(taskId: string, prompt: string): Promise<Task>
   assignSession(taskId: string, sessionId: string | null): Promise<Task>
-  continueTask(taskId: string, text: string, attachments?: AttachmentDescriptor[]): Promise<Task>
+  continueTask(taskId: string, text: string, attachments?: AttachmentDescriptor[]): Promise<TaskContinuationResult>
   onEvent(listener: (event: TaskLiveEvent) => void): () => void
 }
 
