@@ -219,6 +219,19 @@ export type ConnectorCallResult =
       message: string
     }
 
+export interface ConnectorActionSummary {
+  id: string
+  title: string
+  summary: string
+  details?: string
+  status: 'pending_approval' | 'queued' | 'running' | 'succeeded' | 'failed' | 'cancelled'
+  attempts: number
+  lastError?: string
+  createdAt: string
+  updatedAt: string
+  completedAt?: string
+}
+
 export interface ConnectorBridge {
   listDefinitions(): Promise<ConnectorDefinition[]>
   list(): Promise<ConnectorInstance[]>
@@ -228,6 +241,7 @@ export interface ConnectorBridge {
   saveCredentials(input: SaveConnectorCredentialsInput): Promise<ConnectorInstance>
   test(connectorId: string): Promise<ConnectorTestResult>
   call(input: ConnectorCallInput): Promise<ConnectorCallResult>
+  listActions(): Promise<ConnectorActionSummary[]>
 }
 
 export type VisibleMessageRole = 'user' | 'assistant' | 'system'

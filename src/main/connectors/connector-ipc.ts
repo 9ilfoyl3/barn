@@ -76,6 +76,11 @@ export function registerConnectorIpc(
     return connectors.test(idSchema.parse(connectorId))
   })
 
+  ipcMain.handle('connectors:list-actions', (event) => {
+    requireTrusted(event, isTrustedSender)
+    return connectors.listActions()
+  })
+
   ipcMain.handle('connectors:call', (event, input: unknown) => {
     requireTrusted(event, isTrustedSender)
     return connectors.call(callSchema.parse(input))

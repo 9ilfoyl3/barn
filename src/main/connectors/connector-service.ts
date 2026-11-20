@@ -19,6 +19,7 @@ import type { ConnectorStore } from './connector-store'
 import type { ConnectorAdapter, ConnectorDefinitionMap, ConnectorRecord } from './types'
 
 export interface ConnectorActionService {
+  list(): ActionRecord[]
   enqueue(input: ActionRequestInput): ActionRecord
   registerHandler(handler: {
     kind: string
@@ -125,6 +126,26 @@ export class ConnectorService {
       this.store.setError(connectorId, message)
       return { ok: false, message, latencyMs: Date.now() - startedAt }
     }
+  }
+
+  listActions(): import('../../shared/models').ConnectorActionSummary[] {
+    const actions = this.getActions()
+    if (actions === undefined) return []
+    return actions.list()
+      .filter((action) => action.kind === 'connector.effect')
+      .slice(0, 20)
+      .map((action) => ({
+        id: action.id,
+        title: action.title,
+        summary: action.summary,
+        ...(action.details === undefined ? {} : { details: action.details }),
+        status: action.status,
+        attempts: action.attempts,
+        ...(action.lastError === undefined ? {} : { lastError: action.lastError }),
+        createdAt: action.createdAt,
+        updatedAt: action.updatedAt,
+        ...(action.completedAt === undefined ? {} : { completedAt: action.completedAt }),
+      }))
   }
 
   async call(input: ConnectorCallInput, sessionId?: string): Promise<ConnectorCallResult> {
