@@ -1,8 +1,11 @@
+import { Type } from 'typebox'
 import { z } from 'zod'
 import type {
   AssistantMessageEventStream,
   Context,
   SimpleStreamOptions,
+  Tool,
+  ToolCall,
 } from '@earendil-works/pi-ai'
 import { resolveReasoningEffort, type ModelSelection, type RoutineRecurrence, type Task, type TaskContract } from '../../shared/models'
 import type { ModelService } from '../models/model-service'
@@ -85,6 +88,26 @@ const decisionSchema = z.discriminatedUnion('tool', [
     rationaleCodes: z.array(z.string().min(1).max(80)).max(20).default(['explicit_update']),
   }).strict(),
 ])
+
+const ROUTER_DECISION_TOOL: Tool = {
+  name: 'route_decision',
+  description: 'Choose exactly one Router action for the current user message. The runtime validates the arguments before applying any effect.',
+  parameters: Type.Object({
+    tool: Type.Union([
+      Type.Literal('reply'),
+      Type.Literal('clarify'),
+      Type.Literal('task.create'),
+      Type.Literal('schedule.create'),
+      Type.Literal('routine.update'),
+      Type.Literal('task.cancel'),
+      Type.Literal('task.update'),
+    ]),
+    arguments: Type.Record(Type.String(), Type.Unknown()),
+    confidence: Type.Number({ minimum: 0, maximum: 1 }),
+    rationaleCodes: Type.Array(Type.String({ minLength: 1, maxLength: 80 }), { minItems: 1, maxItems: 20 }),
+  }),
+  constrainedSampling: { type: 'json_schema', strict: 'prefer' },
+}
 
 export type RouterDecision =
   | {
@@ -189,7 +212,7 @@ export class ModelRouterDecisionEngine implements RouterDecisionEngine {
     } catch {
       // Confirmed memory is optional and must never block routing.
     }
-    const context: Context = {
+    const baseContext: Context = {
       messages: [
         { role: 'system', content: routerSystemPrompt(), timestamp: input.now.getTime() },
         {
@@ -216,26 +239,54 @@ export class ModelRouterDecisionEngine implements RouterDecisionEngine {
           timestamp: input.now.getTime(),
         },
       ],
+      tools: [ROUTER_DECISION_TOOL],
     }
     const reasoning = resolveReasoningEffort(snapshot.defaultReasoningEffort, descriptor.reasoningEfforts)
-    const stream = this.model.streamSimple(selection, context, {
-      maxTokens: 2_000,
-      cacheRetention: 'none',
-      ...(reasoning === undefined ? {} : { reasoning }),
-      ...(signal === undefined ? {} : { signal }),
-    } satisfies SimpleStreamOptions)
-    const raw = await collectText(stream)
-    const decision = parseDecisionResponse(raw)
-    return toRouterDecision(decision, memory.sourceRefs)
+    let repairHint: string | undefined
+    let lastError: unknown
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const context: Context = repairHint === undefined
+        ? baseContext
+        : {
+            ...baseContext,
+            messages: [
+              ...baseContext.messages,
+              {
+                role: 'user',
+                content: `${repairHint}
+Call the route_decision tool now. Do not answer in prose. If native tool calls are unavailable, return only the tool arguments as strict JSON.`,
+                timestamp: input.now.getTime(),
+              },
+            ],
+          }
+      const options: SimpleStreamOptions = {
+        maxTokens: 2_000,
+        cacheRetention: 'none',
+        toolChoice: 'auto',
+        ...(reasoning === undefined ? {} : { reasoning }),
+        ...(signal === undefined ? {} : { signal }),
+      }
+      const output = await collectRouterOutput(this.model.streamSimple(selection, context, options))
+      try {
+        const decision = output.toolCall === undefined
+          ? parseDecisionResponse(output.text)
+          : parseToolCallDecision(output.toolCall)
+        return toRouterDecision(decision, memory.sourceRefs)
+      } catch (error) {
+        lastError = error
+        repairHint = routerRepairHint(error, output)
+      }
+    }
+    throw lastError instanceof Error ? lastError : new Error('Router returned an invalid tool decision')
   }
 }
 
 function routerSystemPrompt(): string {
   return `You are Barn's Router, the single coordinator for a sessionless personal assistant.
 
-You do not execute the user's work yourself. You choose exactly one tool call and return strict JSON only.
+You do not execute the user's work yourself. Call the route_decision tool exactly once and do not answer in prose.
 
-Available tools and their argument schemas:
+Available Router actions and their argument schemas:
 
 1. reply
 {"tool":"reply","arguments":{"text":"..."},"confidence":0..1,"rationaleCodes":["..."]}
@@ -272,7 +323,7 @@ Routing principles:
 - Do not create a Task for a request that is only a question about the current conversation.
 - Do not claim a Task or reminder is completed; choose the tool and let the runtime persist it.
 - Do not call reply and another tool in the same response.
-- Output JSON only. No markdown fences, prose, or commentary.`
+- Call route_decision once. If native tool calls are unavailable, output only its arguments as strict JSON with no markdown fences, prose, or commentary.`
 }
 
 function recentContext(messages: VisibleMessage[]): Array<{ role: string; content: string }> {
@@ -413,13 +464,31 @@ function visibleText(content: unknown): string {
   }).join('\n')
 }
 
-async function collectText(stream: AssistantMessageEventStream): Promise<string> {
+async function collectRouterOutput(stream: AssistantMessageEventStream): Promise<{ text: string; toolCall?: ToolCall }> {
   let text = ''
+  let toolCall: ToolCall | undefined
   for await (const event of stream) {
     if (event.type === 'text_delta') text += event.delta
+    if (event.type === 'toolcall_end') toolCall = event.toolCall
     if (event.type === 'error') throw new Error(event.error.errorMessage ?? 'Router model failed')
     if (event.type === 'done') break
     if (text.length > MAX_RESPONSE_CHARS) throw new Error('Router response was too large')
   }
-  return text
+  return { text, ...(toolCall === undefined ? {} : { toolCall }) }
+}
+
+function parseToolCallDecision(toolCall: ToolCall): z.infer<typeof decisionSchema> {
+  if (toolCall.name !== ROUTER_DECISION_TOOL.name) {
+    throw new Error(`Router called an unknown tool: ${toolCall.name}`)
+  }
+  if (toolCall.argumentsError !== undefined) throw new Error(toolCall.argumentsError)
+  return decisionSchema.parse(toolCall.arguments)
+}
+
+function routerRepairHint(error: unknown, output: { text: string; toolCall?: ToolCall }): string {
+  const detail = error instanceof Error ? error.message.slice(0, 1_200) : String(error).slice(0, 1_200)
+  const raw = output.toolCall === undefined
+    ? output.text.trim().slice(0, 1_200)
+    : JSON.stringify(output.toolCall).slice(0, 1_200)
+  return `Your previous response did not match the route_decision schema: ${detail}\nPrevious response: ${raw || '(empty)'}`
 }
