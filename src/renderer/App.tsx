@@ -1211,11 +1211,7 @@ export function App() {
                       )
                     })}
                     {(showMessageActivity || displayLiveParts.length > 0) && (
-                      <ReplyGuideGroup
-                        className="assistant-live-turn"
-                        guide="anchored"
-                        key={messageActivity?.id ?? 'assistant-live'}
-                      >
+                      <div className="assistant-live-turn" key={messageActivity?.id ?? 'assistant-live'}>
                         {messageActivity !== undefined && showMessageActivity && (
                           <div
                             aria-label={t('conversation.barnMessage')}
@@ -1230,20 +1226,22 @@ export function App() {
                           </div>
                         )}
                         {displayLiveParts.length > 0 && (
-                          <MessageBubble
-                            aria-label={t('conversation.barnMessage')}
-                            className="chat-message assistant streaming live-turn"
-                            role="article"
-                            variant="ghost"
-                          >
-                            <ConversationParts
-                              parts={displayLiveParts}
-                              role="assistant"
-                              keyPrefix="live"
-                            />
-                          </MessageBubble>
+                          <ReplyGuideGroup guide="anchored">
+                            <MessageBubble
+                              aria-label={t('conversation.barnMessage')}
+                              className="chat-message assistant streaming live-turn"
+                              role="article"
+                              variant="ghost"
+                            >
+                              <ConversationParts
+                                parts={displayLiveParts}
+                                role="assistant"
+                                keyPrefix="live"
+                              />
+                            </MessageBubble>
+                          </ReplyGuideGroup>
                         )}
-                      </ReplyGuideGroup>
+                      </div>
                     )}
                 {taskResultMessages.map((message) => {
                   const task = message.taskId === undefined
