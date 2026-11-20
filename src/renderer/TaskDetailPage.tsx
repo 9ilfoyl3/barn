@@ -345,6 +345,30 @@ export function TaskDetailPage({ task, onBack }: { task: Task; onBack: () => voi
     )
   }
 
+  function renderLiveAssistant() {
+    return (
+      <div
+        className="assistant-reply-segment task-detail-actor-turn task-detail-actor-worker"
+        data-testid="task-live-assistant"
+        key="task-live"
+      >
+        <span className="task-detail-actor-avatar" aria-hidden="true">
+          <Bot size={12} />
+        </span>
+        <div className="task-detail-actor-copy">
+          <span className="task-detail-actor-name">{t('tasks.workerAgent')}</span>
+          {liveParts.length === 0 ? (
+            <PendingThinking label={t('conversation.thinkingNow')} />
+          ) : (
+            <MessageBubble align="start" className="chat-message thread-message assistant" role="article" variant="ghost">
+              <ConversationParts parts={liveParts} role="assistant" keyPrefix="task-live" />
+            </MessageBubble>
+          )}
+        </div>
+      </div>
+    )
+  }
+
   return (
     <section className="task-detail-page" aria-label={task.title}>
       <header className="task-detail-header">
@@ -393,33 +417,24 @@ export function TaskDetailPage({ task, onBack }: { task: Task; onBack: () => voi
                     </div>
                   )
                 }
+                const includeLive = (pending || liveParts.length > 0)
+                  && groupIndex === messageGroups.length - 1
+                const anchored = messageGroups[groupIndex - 1]?.kind === 'user'
+                const assistantCount = group.replies.length + (includeLive ? 1 : 0)
                 return (
                   <div
                     className="assistant-reply-run"
-                    data-guide={messageGroups[groupIndex - 1]?.kind === 'user' ? 'attached' : 'none'}
+                    data-guide={anchored ? 'anchored' : assistantCount > 1 ? 'straight' : 'none'}
                     key={group.key}
                   >
                     {group.replies.map((reply) => renderAssistantMessage(reply.message))}
+                    {includeLive && renderLiveAssistant()}
                   </div>
                 )
               })}
-              {(pending || liveParts.length > 0) && (
-                <div className="assistant-reply-run task-detail-live-run" data-guide="attached">
-                  <div className="assistant-reply-segment task-detail-actor-turn task-detail-actor-worker">
-                    <span className="task-detail-actor-avatar" aria-hidden="true">
-                      <Bot size={12} />
-                    </span>
-                    <div className="task-detail-actor-copy">
-                      <span className="task-detail-actor-name">{t('tasks.workerAgent')}</span>
-                      {liveParts.length === 0 ? (
-                        <PendingThinking label={t('conversation.thinkingNow')} />
-                      ) : (
-                        <MessageBubble align="start" className="chat-message thread-message assistant" role="article" variant="ghost">
-                          <ConversationParts parts={liveParts} role="assistant" keyPrefix="task-live" />
-                        </MessageBubble>
-                      )}
-                    </div>
-                  </div>
+              {(pending || liveParts.length > 0) && messageGroups.at(-1)?.kind !== 'assistant' && (
+                <div className="assistant-reply-run task-detail-live-run" data-guide="anchored">
+                  {renderLiveAssistant()}
                 </div>
               )}
             </MessageBubbleGroup>

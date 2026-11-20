@@ -260,7 +260,7 @@ test('opens a task agent conversation with properties and accepts a follow-up me
     await expect(detail.locator('[data-actor-role="router"]')).toContainText('Router')
     await expect(detail.locator('[data-actor-role="router"]')).toContainText('Summarize the latest project notes in one paragraph.')
     await expect(detail.locator('[data-actor-role="worker"]')).toContainText('Worker')
-    await expect(detail.locator('.assistant-reply-run[data-guide="none"]')).toHaveCount(1)
+    await expect(detail.locator('.assistant-reply-run[data-guide="straight"]')).toHaveCount(1)
     await expect(detail.getByRole('complementary', { name: 'Properties' })).toContainText('Completed')
     await expect(detail.getByRole('complementary', { name: 'Properties' })).toContainText('Created from')
     await expect(detail.getByRole('button', { name: 'Add tag' })).toBeVisible()
@@ -269,10 +269,10 @@ test('opens a task agent conversation with properties and accepts a follow-up me
     const composer = detail.getByRole('textbox', { name: 'Message task agent' })
     await composer.fill('Please continue with a short follow-up.')
     await page.evaluate((taskId) => {
-      const state = window as unknown as { __barnTaskProgress?: string[] }
-      state.__barnTaskProgress = []
+      const state = window as unknown as { barnTaskProgress?: string[] }
+      state.barnTaskProgress = []
       window.barn.tasks.onEvent((event) => {
-        if (event.task.id === taskId) state.__barnTaskProgress?.push(event.task.status)
+        if (event.task.id === taskId) state.barnTaskProgress?.push(event.task.status)
       })
     }, task.id)
     await composer.press('Enter')
@@ -308,10 +308,10 @@ test('opens a task agent conversation with properties and accepts a follow-up me
     expect(geometry.user).toBeDefined()
     expect(Math.abs(geometry.assistant!.left - geometry.composer!.left)).toBeLessThanOrEqual(1)
     expect(Math.abs(geometry.composer!.right - geometry.user!.right)).toBeLessThanOrEqual(1)
-    await expect(detail.locator('.assistant-reply-run[data-guide="attached"]')).toHaveCount(1)
+    await expect(detail.locator('.assistant-reply-run[data-guide="anchored"]')).toHaveCount(1)
     await expect.poll(async () => page.evaluate(() => {
-      const state = window as unknown as { __barnTaskProgress?: string[] }
-      return state.__barnTaskProgress?.some((status) => status === 'queued' || status === 'running') ?? false
+      const state = window as unknown as { barnTaskProgress?: string[] }
+      return state.barnTaskProgress?.some((status) => status === 'queued' || status === 'running') ?? false
     }), { timeout: 5_000 }).toBe(true)
     await page.locator('.task-nav-button').click()
     await page.locator('.task-row', { hasText: 'Summarize the project notes' })

@@ -159,6 +159,25 @@
   display: none;
 }
 
+.task-detail-message-list .assistant-reply-run[data-guide="straight"]::before {
+  display: none;
+}
+
+.task-detail-message-list
+  .assistant-reply-run[data-guide="straight"]
+  .task-detail-actor-turn
+  + .task-detail-actor-turn::before {
+  position: absolute;
+  z-index: 0;
+  top: -20px;
+  bottom: 16px;
+  left: -26px;
+  width: 2px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--line-strong) 54%, transparent);
+  content: "";
+}
+
 .task-detail-message-list .assistant-reply-run::before {
   z-index: 0;
   top: -20px;
