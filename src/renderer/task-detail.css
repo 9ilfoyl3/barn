@@ -148,44 +148,14 @@
 }
 
 .task-detail-message-list .assistant-reply-run {
-  position: relative;
+  --reply-guide-left: 6px;
+  --reply-guide-straight-left: -26px;
+  --reply-guide-straight-top: -20px;
+  --reply-guide-straight-bottom: 16px;
   isolation: isolate;
   width: calc(100% + 32px);
   margin-left: -32px;
   padding-left: 32px;
-}
-
-.task-detail-message-list .assistant-reply-run[data-guide="none"]::before {
-  display: none;
-}
-
-.task-detail-message-list .assistant-reply-run[data-guide="straight"]::before {
-  display: none;
-}
-
-.task-detail-message-list
-  .assistant-reply-run[data-guide="straight"]
-  .task-detail-actor-turn
-  + .task-detail-actor-turn::before {
-  position: absolute;
-  z-index: 0;
-  top: -20px;
-  bottom: 16px;
-  left: -26px;
-  width: 2px;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--line-strong) 54%, transparent);
-  content: "";
-}
-
-.task-detail-message-list .assistant-reply-run::before {
-  z-index: 0;
-  top: -20px;
-  bottom: 12px;
-  left: 6px;
-  border-color: color-mix(in srgb, var(--line-strong) 54%, transparent);
-  border-top-width: 2px;
-  border-left-width: 2px;
 }
 
 .task-detail-actor-turn {

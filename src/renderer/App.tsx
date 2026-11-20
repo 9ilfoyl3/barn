@@ -51,6 +51,7 @@ import { TaskCenter } from './TaskCenter'
 import { TodayPanel } from './TodayPanel'
 import { TaskRail } from './TaskRail'
 import { TaskDetailPage } from './TaskDetailPage'
+import { ReplyGuideGroup } from './ReplyGuideGroup'
 import { CommandPalette } from './CommandPalette'
 import { isExecutingTask, resolveMessageActivity } from './message-activity'
 import './secretary.css'
@@ -1180,9 +1181,10 @@ export function App() {
                         )
                       }
                       return (
-                        <div
-                          className="assistant-reply-run"
+                        <ReplyGuideGroup
+                          className="assistant-reply-group"
                           data-source-message-key={group.replies[0]?.sourceUser?.key}
+                          guide="anchored"
                           key={group.key}
                         >
                           {group.replies.map((reply) => (
@@ -1199,11 +1201,15 @@ export function App() {
                               {renderAssistantMessage(reply.message)}
                             </div>
                           ))}
-                        </div>
+                        </ReplyGuideGroup>
                       )
                     })}
                     {(showMessageActivity || displayLiveParts.length > 0) && (
-                      <div className="assistant-live-turn" key={messageActivity?.id ?? 'assistant-live'}>
+                      <ReplyGuideGroup
+                        className="assistant-live-turn"
+                        guide="anchored"
+                        key={messageActivity?.id ?? 'assistant-live'}
+                      >
                         {messageActivity !== undefined && showMessageActivity && (
                           <div
                             aria-label={t('conversation.barnMessage')}
@@ -1231,7 +1237,7 @@ export function App() {
                             />
                           </MessageBubble>
                         )}
-                      </div>
+                      </ReplyGuideGroup>
                     )}
                   </MessageBubbleGroup>
                 )}

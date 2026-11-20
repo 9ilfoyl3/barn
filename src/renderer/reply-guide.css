@@ -1,0 +1,70 @@
+/* Hallmark · page: Barn Desktop conversation · genre: modern-minimal · theme: barn-native · redesign: extend · scope: component · built: the project */
+
+:root {
+  --reply-guide-left: 20px;
+  --reply-guide-width: 2px;
+  --reply-guide-gap: 4px;
+  --reply-guide-top: -20px;
+  --reply-guide-bottom: 12px;
+  --reply-guide-bend: 24px;
+  --reply-guide-color: color-mix(in srgb, var(--line-strong) 54%, transparent);
+  --reply-guide-straight-left: 6px;
+  --reply-guide-straight-top: -20px;
+  --reply-guide-straight-bottom: 12px;
+}
+
+.assistant-reply-run {
+  position: relative;
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  align-self: stretch;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.assistant-reply-run::before {
+  position: absolute;
+  z-index: 0;
+  top: var(--reply-guide-top);
+  bottom: var(--reply-guide-bottom);
+  left: var(--reply-guide-left);
+  width: var(--reply-guide-bend);
+  border-top: var(--reply-guide-width) solid var(--reply-guide-color);
+  border-left: var(--reply-guide-width) solid var(--reply-guide-color);
+  border-top-left-radius: 11px;
+  content: "";
+  pointer-events: none;
+}
+
+.assistant-reply-run[data-guide="none"]::before {
+  display: none;
+}
+
+.assistant-reply-run[data-guide="straight"]::before {
+  display: none;
+}
+
+.assistant-reply-run[data-guide="straight"]
+  > .assistant-reply-segment
+  + .assistant-reply-segment::before {
+  position: absolute;
+  z-index: 0;
+  top: var(--reply-guide-straight-top);
+  bottom: var(--reply-guide-straight-bottom);
+  left: var(--reply-guide-straight-left);
+  width: var(--reply-guide-width);
+  border-radius: 999px;
+  background: var(--reply-guide-color);
+  content: "";
+  pointer-events: none;
+}
+
+.assistant-reply-segment {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  align-items: flex-start;
+  flex-direction: column;
+  gap: 8px;
+}

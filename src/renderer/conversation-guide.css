@@ -1,44 +1,6 @@
 /* Hallmark · page: Barn Desktop conversation · genre: modern-minimal · theme: barn-native · redesign: extend · scope: component · built: the project */
 /* Hallmark · pre-emit critique: P5 H5 E5 S5 R5 V4 · weakest: V, the guide stays quieter than the answer it connects */
 
-:root {
-  --reply-guide-left: 20px;
-  --reply-guide-width: 3px;
-  --reply-guide-gap: 4px;
-}
-
-.assistant-reply-run {
-  position: relative;
-  display: flex;
-  width: 100%;
-  min-width: 0;
-  align-self: stretch;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.assistant-reply-run::before {
-  position: absolute;
-  top: var(--reply-guide-top, -36px);
-  bottom: 14px;
-  left: var(--reply-guide-left);
-  width: 24px;
-  border-top: var(--reply-guide-width) solid color-mix(in srgb, var(--line-strong) 66%, transparent);
-  border-left: var(--reply-guide-width) solid color-mix(in srgb, var(--line-strong) 66%, transparent);
-  border-top-left-radius: 11px;
-  content: "";
-  pointer-events: none;
-}
-
-.assistant-reply-segment {
-  position: relative;
-  display: flex;
-  min-width: 0;
-  align-items: flex-start;
-  flex-direction: column;
-  gap: 8px;
-}
-
 .assistant-reply-quote {
   position: relative;
   z-index: 2;

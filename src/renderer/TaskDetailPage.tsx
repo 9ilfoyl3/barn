@@ -25,6 +25,7 @@ import { attachmentDisplayName } from '../shared/attachments'
 import { AttachmentStrip } from './AttachmentStrip'
 import { ConversationParts, PendingThinking } from './ConversationParts'
 import { MessageBubble, MessageBubbleGroup } from '@/components/beui/components/agents/message-bubble'
+import { ReplyGuideGroup } from './ReplyGuideGroup'
 import { PromptInput } from '@/components/beui/components/agents/prompt-input'
 import {
   applyLiveEvent,
@@ -411,9 +412,9 @@ export function TaskDetailPage({ task, onBack }: { task: Task; onBack: () => voi
                 if (group.kind === 'proactive') {
                   return (
                     <div className="proactive-message" key={group.key}>
-                      <div className="assistant-reply-run">
+                      <ReplyGuideGroup guide="none">
                         {renderAssistantMessage(group.message)}
-                      </div>
+                      </ReplyGuideGroup>
                     </div>
                   )
                 }
@@ -422,20 +423,19 @@ export function TaskDetailPage({ task, onBack }: { task: Task; onBack: () => voi
                 const anchored = messageGroups[groupIndex - 1]?.kind === 'user'
                 const assistantCount = group.replies.length + (includeLive ? 1 : 0)
                 return (
-                  <div
-                    className="assistant-reply-run"
-                    data-guide={anchored ? 'anchored' : assistantCount > 1 ? 'straight' : 'none'}
+                  <ReplyGuideGroup
+                    guide={anchored ? 'anchored' : assistantCount > 1 ? 'straight' : 'none'}
                     key={group.key}
                   >
                     {group.replies.map((reply) => renderAssistantMessage(reply.message))}
                     {includeLive && renderLiveAssistant()}
-                  </div>
+                  </ReplyGuideGroup>
                 )
               })}
               {(pending || liveParts.length > 0) && messageGroups.at(-1)?.kind !== 'assistant' && (
-                <div className="assistant-reply-run task-detail-live-run" data-guide="anchored">
+                <ReplyGuideGroup className="task-detail-live-run" guide="anchored">
                   {renderLiveAssistant()}
-                </div>
+                </ReplyGuideGroup>
               )}
             </MessageBubbleGroup>
             {!loading && displayMessages.length === 0 && liveParts.length === 0 && !pending && (
