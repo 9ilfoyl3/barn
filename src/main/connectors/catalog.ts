@@ -47,7 +47,30 @@ export const EMAIL_CONNECTOR: ConnectorDefinition = {
   ],
 }
 
-export const BUILT_IN_CONNECTORS: readonly ConnectorDefinition[] = [EMAIL_CONNECTOR]
+
+export const DINGTALK_CONNECTOR: ConnectorDefinition = {
+  kind: 'dingtalk',
+  name: 'DingTalk',
+  description: 'Send text or Markdown messages to a DingTalk group robot with optional signing.',
+  icon: 'message-circle',
+  configFields: [
+    { key: 'keyword', label: 'Security keyword', type: 'text', required: false, placeholder: 'Optional robot keyword' },
+  ],
+  credentialFields: [
+    { key: 'webhookUrl', label: 'Robot webhook URL', type: 'password', required: true, placeholder: 'https://oapi.dingtalk.com/robot/send?access_token=...' },
+    { key: 'secret', label: 'Signing secret', type: 'password', required: false },
+  ],
+  capabilities: [
+    {
+      id: 'dingtalk.send',
+      name: 'Send DingTalk message',
+      description: 'Send a text or Markdown message to the configured DingTalk group robot.',
+      risk: 'external-write',
+    },
+  ],
+}
+
+export const BUILT_IN_CONNECTORS: readonly ConnectorDefinition[] = [EMAIL_CONNECTOR, DINGTALK_CONNECTOR]
 
 export function builtinConnectorDefinitions(): Map<string, ConnectorDefinition> {
   return new Map(BUILT_IN_CONNECTORS.map((definition) => [definition.kind, definition]))
