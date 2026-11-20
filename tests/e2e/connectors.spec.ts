@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { _electron as electron, expect, test } from '@playwright/test'
 
-test('configures and removes an email connector from settings', async () => {
+test('configures and removes an email connector from the plugins page', async () => {
   const userData = await mkdtemp(join(tmpdir(), 'barn-desktop-connectors-e2e-'))
   const inheritedEnv = Object.fromEntries(
     Object.entries(process.env).filter((entry): entry is [string, string] => entry[1] !== undefined),
@@ -22,25 +22,40 @@ test('configures and removes an email connector from settings', async () => {
     const page = await app.firstWindow()
     await page.waitForLoadState('domcontentloaded')
 
-    await page.locator('.account-row').click()
-    await page.getByRole('menuitem', { name: 'Connectors' }).click()
-    const dialog = page.getByRole('dialog', { name: 'Connectors' })
-    await expect(dialog).toBeVisible()
-    await expect(dialog.getByText('No connectors yet')).toBeVisible()
+    await page.locator('.app-rail-button', { hasText: 'Plugins' }).click()
+    const plugins = page.locator('.plugins-page')
+    await expect(plugins).toBeVisible()
+    await expect(plugins.getByRole('tab', { name: 'Plugins' })).toBeVisible()
+    await expect(plugins.getByText('MCP servers')).toBeVisible()
+    await expect(plugins.locator('[data-plugin-kind="email"]')).toContainText('Email')
+    await page.screenshot({ path: 'test-results/barn-plugins-catalog.png', fullPage: true })
 
-    await dialog.locator('.connector-definition-card', { hasText: 'Email' }).click()
-    await dialog.getByRole('textbox', { name: 'Connection name' }).fill('Work mail')
-    await dialog.getByRole('textbox', { name: 'Email address' }).fill('person@example.com')
-    await dialog.getByRole('textbox', { name: 'IMAP server' }).fill('imap.example.com')
-    await dialog.getByRole('spinbutton', { name: 'IMAP port' }).fill('993')
-    await dialog.getByRole('textbox', { name: 'SMTP server' }).fill('smtp.example.com')
-    await dialog.getByRole('spinbutton', { name: 'SMTP port' }).fill('465')
-    await dialog.getByRole('textbox', { name: 'Username' }).fill('person@example.com')
-    await dialog.getByLabel('Password or app password').fill('app-password')
-    await dialog.getByRole('button', { name: 'Save', exact: true }).click()
+    await plugins.getByRole('tab', { name: 'Skills' }).click()
+    await expect(plugins.getByText('Skills are coming soon')).toBeVisible()
+    await plugins.getByRole('tab', { name: 'Plugins' }).click()
+    await plugins.getByRole('searchbox', { name: 'Search plugins' }).fill('DingTalk')
+    await expect(plugins.locator('[data-plugin-kind="email"]')).toHaveCount(0)
+    await expect(plugins.locator('[data-plugin-kind="dingtalk"]')).toContainText('DingTalk')
+    await plugins.getByRole('button', { name: 'Clear search' }).click()
 
-    await expect(dialog.locator('.connector-row')).toContainText('Work mail')
-    await expect(dialog.locator('.connector-row')).toContainText('Ready')
+    await plugins.locator('[data-plugin-kind="email"]').getByRole('button', { name: 'Add Email' }).click()
+    await plugins.getByRole('textbox', { name: 'Connection name' }).fill('Work mail')
+    await plugins.getByRole('textbox', { name: 'Email address' }).fill('person@example.com')
+    await plugins.getByRole('textbox', { name: 'IMAP server' }).fill('imap.example.com')
+    await plugins.getByRole('spinbutton', { name: 'IMAP port' }).fill('993')
+    await plugins.getByRole('textbox', { name: 'SMTP server' }).fill('smtp.example.com')
+    await plugins.getByRole('spinbutton', { name: 'SMTP port' }).fill('465')
+    await plugins.getByRole('textbox', { name: 'Username' }).fill('person@example.com')
+    await plugins.getByLabel('Password or app password').fill('app-password')
+    await plugins.getByRole('button', { name: 'Save', exact: true }).click()
+
+    await expect(plugins.locator('.plugin-instance-row')).toContainText('Work mail')
+    await expect(plugins.locator('.plugin-instance-row')).toContainText('Ready')
+    await plugins.getByRole('button', { name: 'Back to plugins' }).click()
+    const emailPlugin = plugins.locator('[data-plugin-kind="email"]')
+    await expect(emailPlugin).toContainText('1 connection')
+    await emailPlugin.getByRole('button', { name: 'Manage Email' }).click()
+    await expect(plugins.locator('.plugin-instance-row')).toContainText('Work mail')
     await expect.poll(async () => page.evaluate(async () => {
       const instances = await window.barn.connectors.list()
       return instances.map((instance) => ({
@@ -50,10 +65,10 @@ test('configures and removes an email connector from settings', async () => {
       }))
     })).toEqual([{ name: 'Work mail', configured: true, status: 'ready' }])
 
-    await page.screenshot({ path: 'test-results/barn-connectors.png', fullPage: true })
+    await page.screenshot({ path: 'test-results/barn-plugins-page.png', fullPage: true })
     page.once('dialog', (confirmation) => void confirmation.accept())
-    await dialog.getByRole('button', { name: 'Remove connector' }).click()
-    await expect(dialog.getByText('No connectors yet')).toBeVisible()
+    await plugins.getByRole('button', { name: 'Remove connector' }).click()
+    await expect(plugins.getByText('No connections yet')).toBeVisible()
     await expect.poll(async () => page.evaluate(async () => (await window.barn.connectors.list()).length)).toBe(0)
   } finally {
     await app.close()
@@ -61,7 +76,7 @@ test('configures and removes an email connector from settings', async () => {
 })
 
 
-test('configures and removes a signed DingTalk robot', async () => {
+test('configures and removes a signed DingTalk robot from the plugins page', async () => {
   const userData = await mkdtemp(join(tmpdir(), 'barn-desktop-dingtalk-e2e-'))
   const inheritedEnv = Object.fromEntries(
     Object.entries(process.env).filter((entry): entry is [string, string] => entry[1] !== undefined),
@@ -80,19 +95,18 @@ test('configures and removes a signed DingTalk robot', async () => {
     const page = await app.firstWindow()
     await page.waitForLoadState('domcontentloaded')
 
-    await page.locator('.account-row').click()
-    await page.getByRole('menuitem', { name: 'Connectors' }).click()
-    const dialog = page.getByRole('dialog', { name: 'Connectors' })
-    await expect(dialog).toBeVisible()
-    await dialog.locator('.connector-definition-card', { hasText: 'DingTalk' }).click()
-    await dialog.getByRole('textbox', { name: 'Connection name' }).fill('Team robot')
-    await dialog.getByRole('textbox', { name: 'Security keyword' }).fill('Barn')
-    await dialog.getByLabel('Robot webhook URL').fill('https://oapi.dingtalk.com/robot/send?access_token=test-token')
-    await dialog.getByLabel('Signing secret').fill('test-secret')
-    await dialog.getByRole('button', { name: 'Save', exact: true }).click()
+    await page.locator('.app-rail-button', { hasText: 'Plugins' }).click()
+    const plugins = page.locator('.plugins-page')
+    await expect(plugins).toBeVisible()
+    await plugins.locator('[data-plugin-kind="dingtalk"]').getByRole('button', { name: 'Add DingTalk' }).click()
+    await plugins.getByRole('textbox', { name: 'Connection name' }).fill('Team robot')
+    await plugins.getByRole('textbox', { name: 'Security keyword' }).fill('Barn')
+    await plugins.getByLabel('Robot webhook URL').fill('https://oapi.dingtalk.com/robot/send?access_token=test-token')
+    await plugins.getByLabel('Signing secret').fill('test-secret')
+    await plugins.getByRole('button', { name: 'Save', exact: true }).click()
 
-    await expect(dialog.locator('.connector-row')).toContainText('Team robot')
-    await expect(dialog.locator('.connector-row')).toContainText('Ready')
+    await expect(plugins.locator('.plugin-instance-row')).toContainText('Team robot')
+    await expect(plugins.locator('.plugin-instance-row')).toContainText('Ready')
     await expect.poll(async () => page.evaluate(async () => {
       const instances = await window.barn.connectors.list()
       return instances.map((instance) => ({
@@ -105,8 +119,8 @@ test('configures and removes a signed DingTalk robot', async () => {
 
     await page.screenshot({ path: 'test-results/barn-dingtalk.png', fullPage: true })
     page.once('dialog', (confirmation) => void confirmation.accept())
-    await dialog.getByRole('button', { name: 'Remove connector' }).click()
-    await expect(dialog.getByText('No connectors yet')).toBeVisible()
+    await plugins.getByRole('button', { name: 'Remove connector' }).click()
+    await expect(plugins.getByText('No connections yet')).toBeVisible()
   } finally {
     await app.close()
   }

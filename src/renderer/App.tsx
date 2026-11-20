@@ -38,7 +38,7 @@ import { ModelSettings } from './ModelSettings'
 import { ModelPicker } from './ModelPicker'
 import { LanguagePicker } from './LanguagePicker'
 import { SourceSettings } from './SourceSettings'
-import { ConnectorSettings } from './ConnectorSettings'
+import { PluginsPage } from './PluginsPage'
 import { DiagnosticsSettings } from './DiagnosticsSettings'
 import { SettingsPage } from './SettingsPage'
 import { AttachmentStrip } from './AttachmentStrip'
@@ -119,7 +119,6 @@ export function App() {
   const [snapshot, setSnapshot] = useState<ModelConfigSnapshot>()
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [sourceSettingsOpen, setSourceSettingsOpen] = useState(false)
-  const [connectorSettingsOpen, setConnectorSettingsOpen] = useState(false)
   const [diagnosticsOpen, setDiagnosticsOpen] = useState(false)
   const [modelSelectionBusy, setModelSelectionBusy] = useState(false)
   const [sessions, setSessions] = useState<SessionSummary[]>([])
@@ -135,7 +134,7 @@ export function App() {
   const [error, setError] = useState<string>()
   const [accountOpen, setAccountOpen] = useState(false)
   const [commandOpen, setCommandOpen] = useState(false)
-  const [view, setView] = useState<'conversation' | 'tasks' | 'task-detail' | 'settings'>('conversation')
+  const [view, setView] = useState<'conversation' | 'tasks' | 'task-detail' | 'plugins' | 'settings'>('conversation')
   const [selectedTaskId, setSelectedTaskId] = useState<string>()
   const [tasks, setTasks] = useState<Task[]>([])
   const [tasksLoading, setTasksLoading] = useState(true)
@@ -1071,9 +1070,10 @@ export function App() {
             <span>{t('navigation.apps')}</span>
           </button>
           <button
-            className={railButtonClassName(false)}
+            className={railButtonClassName(view === 'plugins')}
             type="button"
-            onClick={() => setConnectorSettingsOpen(true)}
+            aria-current={view === 'plugins' ? 'page' : undefined}
+            onClick={() => setView('plugins')}
           >
             <Plug size={19} aria-hidden="true" />
             <span>{t('navigation.plugins')}</span>
@@ -1109,7 +1109,7 @@ export function App() {
             <button className="account-menu-item" type="button" role="menuitem" onClick={() => { setAccountOpen(false); setView('settings') }}>
               <Settings2 size={14} /><span>{t('sidebar.settings')}</span><ChevronRight className="account-menu-chevron" size={13} />
             </button>
-            <button className="account-menu-item" type="button" role="menuitem" onClick={() => { setAccountOpen(false); setConnectorSettingsOpen(true) }}>
+            <button className="account-menu-item" type="button" role="menuitem" onClick={() => { setAccountOpen(false); setView('plugins') }}>
               <Plug size={14} /><span>{t('navigation.plugins')}</span><ChevronRight className="account-menu-chevron" size={13} />
             </button>
             <button className="account-menu-item" type="button" role="menuitem" onClick={() => { setAccountOpen(false); setSourceSettingsOpen(true) }}>
@@ -1129,10 +1129,12 @@ export function App() {
       <div className={workspaceShellClassName} data-testid="workspace-shell">
         <main className="workspace">
         <div className={workspaceBodyClassName} style={homeLayoutStyle}>
-          {view === 'settings' ? (
+          {view === 'plugins' ? (
+            <PluginsPage />
+          ) : view === 'settings' ? (
             <SettingsPage
               onOpenModels={() => setSettingsOpen(true)}
-              onOpenConnectors={() => setConnectorSettingsOpen(true)}
+              onOpenPlugins={() => setView('plugins')}
               onOpenSources={() => setSourceSettingsOpen(true)}
               onOpenDiagnostics={() => setDiagnosticsOpen(true)}
             />
@@ -1172,7 +1174,7 @@ export function App() {
                   <TodayPanel
                     routines={routines}
                     onAcknowledgeRoutine={acknowledgeRoutine}
-                    onConnectSources={() => setConnectorSettingsOpen(true)}
+                    onConnectSources={() => setView('plugins')}
                     onOpenRoutine={openRoutine}
                     onRefresh={() => void refreshTasks()}
                   />
@@ -1503,7 +1505,6 @@ export function App() {
           onClose={() => setSettingsOpen(false)}
         />
       )}
-      {connectorSettingsOpen && <ConnectorSettings onClose={() => setConnectorSettingsOpen(false)} />}
       {sourceSettingsOpen && <SourceSettings onClose={() => setSourceSettingsOpen(false)} />}
       {diagnosticsOpen && <DiagnosticsSettings onClose={() => setDiagnosticsOpen(false)} />}
     </div>

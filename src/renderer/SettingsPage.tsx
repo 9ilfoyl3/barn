@@ -4,12 +4,12 @@ import './settings-page.css'
 
 export interface SettingsPageProps {
   onOpenModels: () => void
-  onOpenConnectors: () => void
+  onOpenPlugins: () => void
   onOpenSources: () => void
   onOpenDiagnostics: () => void
 }
 
-export function SettingsPage({ onOpenModels, onOpenConnectors, onOpenSources, onOpenDiagnostics }: SettingsPageProps) {
+export function SettingsPage({ onOpenModels, onOpenPlugins, onOpenSources, onOpenDiagnostics }: SettingsPageProps) {
   const { t } = useTranslation()
   const sections = [
     {
@@ -24,7 +24,7 @@ export function SettingsPage({ onOpenModels, onOpenConnectors, onOpenSources, on
       icon: <Plug size={16} aria-hidden="true" />,
       title: t('appSettings.connectorsTitle'),
       description: t('appSettings.connectorsDescription'),
-      action: onOpenConnectors,
+      action: onOpenPlugins,
     },
     {
       key: 'sources',
