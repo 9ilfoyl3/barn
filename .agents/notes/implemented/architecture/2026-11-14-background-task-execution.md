@@ -12,7 +12,7 @@ A durable Task without an execution owner remains only a record. The Desktop nee
 
 The runner subscribes to Session live events. A completed Agent turn marks the Task `completed`; a failed or cancelled run marks it `failed` or `cancelled`; a Worker crash marks the active Task failed instead of leaving it running forever. Task changes are serialized through the same Task service used by IPC. Cancelling a Task asks AgentService to cancel its Session.
 
-A message sent inside a Task belongs to the Task conversation, not the Principal Thread. `TaskConversationService` appends it once to the Task Session and requeues the Task. The TaskRunner gives both participants the same user turn in order: an Agent-backed Router turn writes its reply with `actorRole: router`, followed by the Worker run whose final assistant message uses `actorRole: worker`. Both turns share the Task Session, so Router and Worker replies remain in one continuous Task transcript. Requiring an active run first cancels that run.
+A message sent inside a Task belongs to the Task conversation, not the Principal Thread. `TaskConversationService` appends it once to the Task Session and requeues the Task. The TaskRunner gives both participants the same user turn concurrently: an Agent-backed Router turn runs in a hidden child Session and writes its result with `actorRole: router`, while the Worker runs in the Task Session and writes its result with `actorRole: worker`. Router results are copied into the Task Session as they finish, so whichever participant completes first becomes visible first. Task participant status events drive the Task detail Thinking Orbs while either participant remains active. Requiring an active run first cancels both participant Sessions.
 
 The Principal Thread never receives Task-internal user messages or their raw Router/Worker replies. It receives Task progress through Thinking Orbs and Task rail state and the final Worker result as `taskResult` metadata. The main conversation renders that result as a standalone Task notice outside reply guides.
 
@@ -35,7 +35,8 @@ Task instructions are encrypted with the Desktop session cipher before storage. 
 - Queued Tasks automatically run after creation or restart when instructions are available.
 - Task state follows Agent run outcome without renderer involvement.
 - Task follow-up messages are stored once in the Task Session and processed by both Router and Worker participants.
-- A completed Task can be reopened by a follow-up message; Router and Worker turns alternate in the same Task transcript before completion.
+- A completed Task can be reopened by a follow-up message; Router and Worker run in parallel, and each result appears in the Task transcript as soon as it completes.
+- The Task detail Orbs summarize the participants still running and update when one finishes.
 - The Principal Thread receives only Task progress and a standalone result notice, never Task-internal user bubbles or reply guides.
 - Worker crashes and model-start failures become visible Task failures.
 - Restart recovery avoids duplicate prompts inside one Session, but external side-effect idempotency is deferred to the action outbox module.

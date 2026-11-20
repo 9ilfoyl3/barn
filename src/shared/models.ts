@@ -328,6 +328,7 @@ export interface Task {
   status: TaskStatus
   origin: TaskOrigin
   sessionId?: string
+  routerSessionId?: string
   approvalId?: string
   prompt?: string
   visiblePrompt?: string
@@ -374,10 +375,20 @@ export interface UpdateRoutineInput {
   timezone: string
 }
 
-export type TaskLiveEvent = {
-  type: 'task.updated'
-  task: Task
-}
+export type TaskParticipantRole = 'router' | 'worker'
+export type TaskParticipantState = 'running' | 'completed' | 'failed'
+export type TaskParticipantStatuses = Partial<Record<TaskParticipantRole, TaskParticipantState>>
+
+export type TaskLiveEvent =
+  | {
+      type: 'task.updated'
+      task: Task
+    }
+  | {
+      type: 'task.participants'
+      taskId: string
+      participants: TaskParticipantStatuses
+    }
 
 export interface TaskBridge {
   list(): Promise<Task[]>

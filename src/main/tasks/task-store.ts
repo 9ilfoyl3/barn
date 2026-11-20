@@ -38,6 +38,7 @@ interface TaskRow {
   recurrence: string | null
   timezone: string | null
   session_id: string | null
+  router_session_id: string | null
   approval_id: string | null
   prompt_ciphertext: Uint8Array | null
   prompt_nonce: Uint8Array | null
@@ -76,6 +77,7 @@ export class TaskStore {
         recurrence TEXT,
         timezone TEXT,
         session_id TEXT REFERENCES sessions(id) ON DELETE SET NULL,
+        router_session_id TEXT REFERENCES sessions(id) ON DELETE SET NULL,
         approval_id TEXT,
         prompt_ciphertext BLOB,
         prompt_nonce BLOB,
@@ -365,6 +367,16 @@ export class TaskStore {
     return this.get(taskId)
   }
 
+  assignRouterSession(taskId: string, sessionId: string | null): Task {
+    this.get(taskId)
+    if (sessionId !== null) this.requireSession(sessionId)
+    const now = new Date().toISOString()
+    this.database.prepare(`
+      UPDATE tasks SET router_session_id = ?, updated_at = ? WHERE id = ?
+    `).run(sessionId, now, taskId)
+    return this.get(taskId)
+  }
+
   /** Running work cannot survive a process restart; return it to the queue for the next runtime. */
   recoverInterruptedTasks(): number {
     const now = new Date().toISOString()
@@ -390,6 +402,7 @@ export class TaskStore {
     if (row.recurrence !== null) task.recurrence = requireRecurrence(row.recurrence)
     if (row.timezone !== null) task.timezone = row.timezone
     if (row.session_id !== null) task.sessionId = row.session_id
+    if (row.router_session_id !== null) task.routerSessionId = row.router_session_id
     if (row.approval_id !== null) task.approvalId = row.approval_id
     if (row.working_directory !== null) task.workingDirectory = row.working_directory
     if (row.waiting_reason !== null) task.waitingReason = requireWaitingReason(row.waiting_reason)
@@ -435,6 +448,7 @@ export class TaskStore {
     const columns = new Set((this.database.prepare('PRAGMA table_info(tasks)').all() as Array<{ name: string }>)
       .map((column) => column.name))
     const additions = [
+      ['router_session_id', 'TEXT'],
       ['approval_id', 'TEXT'],
       ['prompt_ciphertext', 'BLOB'],
       ['prompt_nonce', 'BLOB'],

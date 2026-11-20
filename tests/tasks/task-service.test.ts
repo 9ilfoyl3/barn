@@ -24,9 +24,10 @@ describe('TaskService', () => {
     unsubscribe()
     tasks.updateStatus(task.id, { status: 'completed' })
 
-    expect(events).toHaveLength(3)
-    expect(events.map((event) => event.task.status)).toEqual(['queued', 'queued', 'running'])
-    expect(events[1]?.task.sessionId).toBe(session.id)
+    const taskEvents = events.filter((event) => event.type === 'task.updated')
+    expect(taskEvents).toHaveLength(3)
+    expect(taskEvents.map((event) => event.task.status)).toEqual(['queued', 'queued', 'running'])
+    expect(taskEvents[1]?.task.sessionId).toBe(session.id)
     store.close()
   })
 })

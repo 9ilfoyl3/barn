@@ -31,6 +31,7 @@ import type {
   SessionSummary,
   Task,
   TaskLiveEvent,
+  TaskParticipantStatuses,
   VisibleMessage,
 } from '../shared/models'
 import { attachmentDisplayName } from '../shared/attachments'
@@ -125,6 +126,7 @@ export function App() {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [threadMessages, setThreadMessages] = useState<VisibleMessage[]>([])
   const [routerRequests, setRouterRequests] = useState<RouterRequest[]>([])
+  const [taskParticipantStatuses, setTaskParticipantStatuses] = useState<Record<string, TaskParticipantStatuses>>({})
   const [input, setInput] = useState('')
   const [attachments, setAttachments] = useState<AttachmentDescriptor[]>([])
   const [workingDirectory, setWorkingDirectory] = useState<string>()
@@ -454,7 +456,17 @@ export function App() {
   }
 
   function handleTaskEvent(event: TaskLiveEvent): void {
-    setTasks((current) => upsertTask(current, event.task))
+    if (event.type === 'task.updated') {
+      setTasks((current) => upsertTask(current, event.task))
+      return
+    }
+    setTaskParticipantStatuses((current) => ({
+      ...current,
+      [event.taskId]: {
+        ...current[event.taskId],
+        ...event.participants,
+      },
+    }))
   }
 
   function handleLiveEvent(event: SessionLiveEvent): void {
@@ -1145,7 +1157,11 @@ export function App() {
                   </button>
                 </div>
               ) : (
-                <TaskDetailPage task={selectedTask} onBack={() => setView('tasks')} />
+                <TaskDetailPage
+                  participantStatuses={taskParticipantStatuses[selectedTask.id]}
+                  task={selectedTask}
+                  onBack={() => setView('tasks')}
+                />
               )
             })()
           ) : (

@@ -269,15 +269,26 @@ test('opens a task agent conversation with properties and accepts a follow-up me
     const composer = detail.getByRole('textbox', { name: 'Message task agent' })
     await composer.fill('Please continue with a short follow-up.')
     await page.evaluate((taskId) => {
-      const state = window as unknown as { barnTaskProgress?: string[] }
+      const state = window as unknown as {
+        barnTaskProgress?: string[]
+        barnTaskParticipants?: Array<Record<string, string>>
+      }
       state.barnTaskProgress = []
+      state.barnTaskParticipants = []
       window.barn.tasks.onEvent((event) => {
-        if (event.task.id === taskId) state.barnTaskProgress?.push(event.task.status)
+        if (event.type === 'task.updated' && event.task.id === taskId) {
+          state.barnTaskProgress?.push(event.task.status)
+        }
+        if (event.type === 'task.participants' && event.taskId === taskId) {
+          state.barnTaskParticipants?.push(event.participants as Record<string, string>)
+        }
       })
     }, task.id)
     await composer.press('Enter')
     const userMessage = detail.locator('.task-detail-message-list .chat-message.user[data-align="end"]')
     await expect(userMessage).toContainText('Please continue with a short follow-up.', { timeout: 500 })
+    await page.waitForTimeout(300)
+    await expect(detail.locator('[data-testid="task-participant-orbs"]')).toContainText('Router and Worker are thinking')
     await page.screenshot({ path: 'test-results/barn-task-detail-user-message.png', fullPage: true })
     const geometry = await detail.evaluate((root) => {
       const rect = (selector: string) => {
@@ -347,6 +358,21 @@ test('opens a task agent conversation with properties and accepts a follow-up me
       }),
     ]))
     await page.screenshot({ path: 'test-results/barn-task-detail-continued.png', fullPage: true })
+
+    const participantSequence = await page.evaluate(() => {
+      const state = window as unknown as { barnTaskParticipants?: Array<Record<string, string>> }
+      const merged: Record<string, string> = {}
+      let sawOneFinished = false
+      for (const update of state.barnTaskParticipants ?? []) {
+        Object.assign(merged, update)
+        const running = Object.values(merged).filter((status) => status === 'running').length
+        const finished = Object.values(merged).filter((status) => status === 'completed').length
+        if (running === 1 && finished === 1) sawOneFinished = true
+      }
+      return { sawOneFinished, events: state.barnTaskParticipants ?? [] }
+    })
+    expect(participantSequence.events.length).toBeGreaterThanOrEqual(3)
+    expect(participantSequence.sawOneFinished).toBe(true)
 
     await page.locator('.app-rail-button', { hasText: 'Home' }).click()
     await expect(page.locator('.task-result-notice')).toContainText('Task detail agent reply.')
