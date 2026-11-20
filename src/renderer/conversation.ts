@@ -390,6 +390,7 @@ export function chatMessagesFromThread(messages: VisibleMessage[]): ChatMessage[
     const taskId = typeof message.metadata.taskId === 'string' ? message.metadata.taskId : undefined
     const actorRole = visibleActorRole(message.metadata.actorRole)
     const taskResult = message.metadata.taskResult === true
+    const routerError = message.metadata.routerError === true
     const routineDelivery = message.metadata.routineDelivery === true
     const routineTitle = typeof message.metadata.routineTitle === 'string' ? message.metadata.routineTitle : undefined
     const routinePrompt = typeof message.metadata.routinePrompt === 'string' ? message.metadata.routinePrompt : undefined
@@ -402,7 +403,7 @@ export function chatMessagesFromThread(messages: VisibleMessage[]): ChatMessage[
       ...(actorRole === undefined ? {} : { actorRole }),
       parts: [{ type: 'text', text }],
       attachments: attachmentNames(message.metadata).map((name) => ({ name, path: name, size: 0 })),
-      isError: false,
+      isError: routerError,
       ...(resultCard === undefined ? {} : { resultCard }),
       ...(routerRequestId === undefined ? {} : { routerRequestId }),
       ...(taskId === undefined ? {} : { taskId }),

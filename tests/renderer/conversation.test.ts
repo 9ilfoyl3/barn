@@ -98,6 +98,25 @@ describe('conversation timeline', () => {
     ])
   })
 
+  it('renders a durable Router failure as an error message', () => {
+    const messages = chatMessagesFromThread([{
+      id: 'router-error',
+      threadId: 'thread',
+      seq: 1,
+      role: 'assistant',
+      content: 'This request did not complete.',
+      metadata: { routerError: true, routerRequestId: 'request-1' },
+      sourceRefs: ['router:request-1'],
+      createdAt: '2026-11-20T00:00:00.000Z',
+    }])
+
+    expect(messages[0]).toMatchObject({
+      role: 'assistant',
+      isError: true,
+      routerRequestId: 'request-1',
+    })
+  })
+
   it('marks a Task result from the Principal Thread so it stays outside reply guides', () => {
     const messages = chatMessagesFromThread([{
       id: 'task-result',
