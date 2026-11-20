@@ -1,4 +1,5 @@
-import type { AgentPromptOptions, AttachmentDescriptor, SessionLiveEvent, Task } from '../../shared/models'
+import { randomUUID } from 'node:crypto'
+import type { AgentPromptOptions, AttachmentDescriptor, SessionLiveEvent, Task, TaskParticipantRole } from '../../shared/models'
 import type { SessionStore } from '../session/session-store'
 import type { ThreadService } from '../threads/thread-service'
 import type { TaskService } from './task-service'
@@ -24,7 +25,9 @@ export interface TaskAgent {
 
 interface ActiveTask {
   taskId: string
-  sessionId: string
+  workerSessionId: string
+  routerSessionId?: string
+  pending: Set<TaskParticipantRole>
   cancelRequested: boolean
 }
 
@@ -43,8 +46,11 @@ export class TaskRunner {
 
   constructor(
     private readonly agent: TaskAgent,
-    private readonly tasks: Pick<TaskService, 'list' | 'updateStatus' | 'rescheduleReminder' | 'assignSession' | 'onEvent'>,
-    private readonly sessions: Pick<SessionStore, 'createSession' | 'getSession' | 'read'>,
+    private readonly tasks: Pick<
+      TaskService,
+      'list' | 'updateStatus' | 'rescheduleReminder' | 'assignSession' | 'assignRouterSession' | 'emitParticipantStatuses' | 'onEvent'
+    >,
+    private readonly sessions: Pick<SessionStore, 'append' | 'createSession' | 'getSession' | 'read'>,
     options: TaskRunnerOptions = {},
     private readonly threads?: Pick<ThreadService, 'appendMessage'>,
   ) {
@@ -58,10 +64,10 @@ export class TaskRunner {
     this.started = true
     this.disposers.push(
       this.tasks.onEvent((event) => {
+        if (event.type !== 'task.updated') return
         const task = event.task
         if (task.status === 'queued') {
-          const active = this.active.get(task.id)
-          if (active !== undefined && task.sessionId !== active.sessionId) {
+          if (this.active.has(task.id)) {
             void this.rerouteActive(task.id)
           } else {
             this.schedule()
@@ -195,45 +201,34 @@ export class TaskRunner {
       this.schedule()
       return
     }
-    const session = task.sessionId === undefined
+    const workerSession = task.sessionId === undefined
       ? this.sessions.createSession(task.title)
       : this.sessions.getSession(task.sessionId)
-    const active: ActiveTask = { taskId: task.id, sessionId: session.id, cancelRequested: false }
+    const continued = task.detail === 'New instructions added; task requeued.'
+      || this.sessions.read(workerSession.id).some(isTaskUserMessage)
+    const routerSessionId = continued ? this.ensureRouterSession(task, workerSession.id) : undefined
+    const active: ActiveTask = {
+      taskId: task.id,
+      workerSessionId: workerSession.id,
+      ...(routerSessionId === undefined ? {} : { routerSessionId }),
+      pending: new Set(continued ? ['router', 'worker'] : ['worker']),
+      cancelRequested: false,
+    }
     this.active.set(task.id, active)
-    this.activeSessions.set(session.id, task.id)
+    this.activeSessions.set(workerSession.id, task.id)
+    if (routerSessionId !== undefined) this.activeSessions.set(routerSessionId, task.id)
     try {
-      this.tasks.assignSession(task.id, session.id)
       this.tasks.updateStatus(task.id, { status: 'running', detail: 'Task execution started.' })
-      await this.agent.prompt(
-        session.id,
-        task.prompt!,
-        task.attachments ?? [],
-        task.workingDirectory,
-        task.visiblePrompt,
-        {
-          projectUserMessage: false,
-          projectAssistantMessage: false,
-          visibleActivity: false,
-          visibleMetadata: { taskId: task.id },
-          clientMessageIdPrefix: `task-assistant:${task.id}`,
-        },
-      )
+      this.tasks.assignSession(task.id, workerSession.id)
+      this.tasks.emitParticipantStatuses(task.id, continued
+        ? { router: 'running', worker: 'running' }
+        : { worker: 'running' })
+      await Promise.all([
+        ...(routerSessionId === undefined ? [] : [this.promptRouter(task, routerSessionId)]),
+        this.promptWorker(task, workerSession.id, continued),
+      ])
     } catch (error) {
-      const wasActive = this.active.get(task.id)?.sessionId === session.id
-      this.removeActive(task.id)
-      const current = this.tasks.list().find((candidate) => candidate.id === task.id)
-      if (
-        wasActive
-        && current?.sessionId === session.id
-        && current.status !== 'completed'
-        && current.status !== 'cancelled'
-      ) {
-        this.tasks.updateStatus(task.id, {
-          status: 'failed',
-          detail: errorMessage(error),
-        })
-      }
-      this.schedule()
+      this.failActive(task.id, errorMessage(error))
     }
   }
 
@@ -241,9 +236,9 @@ export class TaskRunner {
     if (event.type === 'session.updated' && event.session.status === 'failed') {
       const taskId = this.activeSessions.get(event.session.id)
       if (taskId === undefined) return
-      this.removeActive(taskId)
-      this.updateIfActive(taskId, { status: 'failed', detail: 'The Agent Worker stopped unexpectedly.' })
-      this.schedule()
+      const role = this.participantRole(taskId, event.session.id)
+      if (role !== undefined) this.tasks.emitParticipantStatuses(taskId, { [role]: 'failed' })
+      this.failActive(taskId, 'The Agent Worker stopped unexpectedly.')
       return
     }
     if (event.type !== 'run.status') return
@@ -251,25 +246,138 @@ export class TaskRunner {
     if (taskId === undefined) return
     const active = this.active.get(taskId)
     if (active === undefined) return
-
+    const role = this.participantRole(taskId, event.sessionId)
+    if (role === undefined || !active.pending.has(role)) return
     if (event.status === 'running') return
-    this.removeActive(taskId)
+
     if (event.status === 'failed') {
-      this.updateIfActive(taskId, {
-        status: 'failed',
-        detail: event.error ?? 'Task execution failed.',
-      })
-      void this.projectTaskResult(taskId, event.sessionId, event.error)
-    } else if (event.status === 'cancelled' || active.cancelRequested) {
-      this.updateIfActive(taskId, {
-        status: 'cancelled',
-        detail: event.error ?? 'Task cancelled.',
-      })
-    } else {
-      this.updateIfActive(taskId, { status: 'completed', detail: '' })
-      void this.projectTaskResult(taskId, event.sessionId)
+      this.tasks.emitParticipantStatuses(taskId, { [role]: 'failed' })
+      this.failActive(taskId, event.error ?? 'Task execution failed.', active)
+      return
     }
+    if (event.status === 'cancelled' || active.cancelRequested) {
+      this.tasks.emitParticipantStatuses(taskId, { [role]: 'failed' })
+      this.failActive(taskId, event.error ?? 'Task cancelled.', active, 'cancelled')
+      return
+    }
+
+    if (role === 'router') this.copyRouterReplyToTask(active)
+    active.pending.delete(role)
+    this.tasks.emitParticipantStatuses(taskId, { [role]: 'completed' })
+    if (active.pending.size > 0) return
+
+    this.removeActive(taskId)
+    this.updateIfActive(taskId, { status: 'completed', detail: '' })
+    void this.projectTaskResult(taskId, active.workerSessionId)
     this.schedule()
+  }
+
+  private ensureRouterSession(task: Task, workerSessionId: string): string {
+    if (task.routerSessionId !== undefined) {
+      try {
+        return this.sessions.getSession(task.routerSessionId).id
+      } catch {
+        // A deleted child Session is recreated without losing the Task transcript.
+      }
+    }
+    const routerSession = this.sessions.createSession(
+      `${task.title} · Router`,
+      randomUUID(),
+      task.workingDirectory,
+      workerSessionId,
+    )
+    this.tasks.assignRouterSession(task.id, routerSession.id)
+    return routerSession.id
+  }
+
+  private participantRole(taskId: string, sessionId: string): TaskParticipantRole | undefined {
+    const active = this.active.get(taskId)
+    if (active === undefined) return undefined
+    if (active.routerSessionId === sessionId) return 'router'
+    if (active.workerSessionId === sessionId) return 'worker'
+    return undefined
+  }
+
+  private copyRouterReplyToTask(active: ActiveTask): void {
+    if (active.routerSessionId === undefined) return
+    const result = finalAssistantMessage(this.sessions.read(active.routerSessionId), 'router')
+    if (result === undefined) return
+    const alreadyCopied = this.sessions.read(active.workerSessionId).some((event) => (
+      isRecord(event.data) && event.data.sourceSessionEventId === result.eventId
+    ))
+    if (alreadyCopied) return
+    this.sessions.append(active.workerSessionId, [{
+      type: 'agent.message',
+      data: {
+        message: {
+          role: 'assistant',
+          content: [{ type: 'text', text: result.text }],
+          timestamp: Date.now(),
+        },
+        actorRole: 'router',
+        taskId: active.taskId,
+        sourceSessionEventId: result.eventId,
+      },
+      actor: { kind: 'agent', id: 'router' },
+    }])
+  }
+
+  private failActive(
+    taskId: string,
+    detail: string,
+    active = this.active.get(taskId),
+    status: 'failed' | 'cancelled' = 'failed',
+  ): void {
+    if (active === undefined) return
+    const failedParticipants = Object.fromEntries(
+      [...active.pending].map((role) => [role, 'failed' as const]),
+    )
+    this.tasks.emitParticipantStatuses(taskId, failedParticipants)
+    this.removeActive(taskId)
+    const sessions = [active.workerSessionId, active.routerSessionId].filter((id): id is string => id !== undefined)
+    for (const sessionId of sessions) void this.agent.cancel(sessionId).catch(() => {})
+    this.updateIfActive(taskId, { status, detail })
+    if (status === 'failed') void this.projectTaskResult(taskId, active.workerSessionId, detail)
+    this.schedule()
+  }
+
+  private async promptRouter(task: Task, sessionId: string): Promise<void> {
+    await this.agent.prompt(
+      sessionId,
+      task.visiblePrompt ?? task.prompt!,
+      [],
+      task.workingDirectory,
+      undefined,
+      {
+        recordUserMessage: true,
+        projectUserMessage: false,
+        projectAssistantMessage: false,
+        assistantActorRole: 'router',
+        visibleActivity: false,
+        visibleMetadata: { taskId: task.id },
+        clientMessageIdPrefix: `task-router:${task.id}`,
+      },
+    )
+  }
+
+  private async promptWorker(task: Task, sessionId: string, continued: boolean): Promise<void> {
+    await this.agent.prompt(
+      sessionId,
+      continued ? task.visiblePrompt ?? task.prompt! : task.prompt!,
+      task.attachments ?? [],
+      task.workingDirectory,
+      task.visiblePrompt,
+      {
+        recordUserMessage: !continued,
+        projectUserMessage: false,
+        projectAssistantMessage: false,
+        ...(continued ? {} : { userActorRole: 'router' as const }),
+        assistantActorRole: 'worker',
+        visibleActivity: false,
+        visibleMetadata: { taskId: task.id },
+        clientMessageIdPrefix: `task-assistant:${task.id}`,
+      },
+    )
   }
 
   private async projectTaskResult(taskId: string, sessionId: string, error?: string): Promise<void> {
@@ -303,10 +411,11 @@ export class TaskRunner {
     if (active === undefined) return
     active.cancelRequested = true
     this.removeActive(taskId)
+    const sessions = [active.workerSessionId, active.routerSessionId].filter((id): id is string => id !== undefined)
     try {
-      await this.agent.cancel(active.sessionId)
+      await Promise.all(sessions.map((sessionId) => this.agent.cancel(sessionId)))
     } catch {
-      // The Task is already requeued; an already stopped Worker needs no further action.
+      // The Task is already requeued; an already stopped participant needs no further action.
     } finally {
       this.schedule()
     }
@@ -316,8 +425,9 @@ export class TaskRunner {
     const active = this.active.get(taskId)
     if (active === undefined) return
     active.cancelRequested = true
+    const sessions = [active.workerSessionId, active.routerSessionId].filter((id): id is string => id !== undefined)
     try {
-      await this.agent.cancel(active.sessionId)
+      await Promise.all(sessions.map((sessionId) => this.agent.cancel(sessionId)))
     } catch {
       this.removeActive(taskId)
       this.schedule()
@@ -334,15 +444,31 @@ export class TaskRunner {
     const active = this.active.get(taskId)
     if (active === undefined) return
     this.active.delete(taskId)
-    if (this.activeSessions.get(active.sessionId) === taskId) this.activeSessions.delete(active.sessionId)
+    for (const sessionId of [active.workerSessionId, active.routerSessionId]) {
+      if (sessionId !== undefined && this.activeSessions.get(sessionId) === taskId) {
+        this.activeSessions.delete(sessionId)
+      }
+    }
   }
 }
 
-function finalAssistantMessage(events: ReturnType<SessionStore['read']>): { eventId: string; text: string } | undefined {
+function isTaskUserMessage(event: ReturnType<SessionStore['read']>[number]): boolean {
+  return event.type === 'agent.message'
+    && isRecord(event.data)
+    && isRecord(event.data.message)
+    && event.data.message.role === 'user'
+    && event.data.actorRole !== 'router'
+}
+
+function finalAssistantMessage(
+  events: ReturnType<SessionStore['read']>,
+  role: TaskParticipantRole = 'worker',
+): { eventId: string; text: string } | undefined {
   for (let index = events.length - 1; index >= 0; index--) {
     const event = events[index]
     if (event?.type !== 'agent.message' || !isRecord(event.data) || !isRecord(event.data.message)) continue
     if (event.data.message.role !== 'assistant') continue
+    if (event.data.actorRole !== role) continue
     const text = agentMessageText(event.data.message.content).trim()
     if (text.length > 0) return { eventId: event.eventId, text }
   }

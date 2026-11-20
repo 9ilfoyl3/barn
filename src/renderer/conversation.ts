@@ -25,6 +25,7 @@ export type ConversationPart =
 export interface ChatMessage {
   key: string
   role: 'user' | 'assistant'
+  actorRole?: 'router' | 'worker'
   parts: ConversationPart[]
   attachments: AttachmentDescriptor[]
   isError: boolean
@@ -35,6 +36,7 @@ export interface ChatMessage {
   routineTitle?: string
   routinePrompt?: string
   routineRecurrence?: RoutineRecurrence
+  taskResult?: boolean
   createdAt?: string
 }
 
@@ -93,6 +95,31 @@ function sourceUserFor(assistant: ChatMessage, users: ChatMessage[]): ChatMessag
     if (requestUser !== undefined) return requestUser
   }
   return users.at(-1)
+}
+
+export type ConversationRenderEntry =
+  | { kind: 'group'; group: ConversationMessageGroup }
+  | { kind: 'task-result'; message: ChatMessage }
+
+/** Keep Task results on their real timeline position while grouping normal replies. */
+export function conversationRenderEntries(messages: ChatMessage[]): ConversationRenderEntry[] {
+  const entries: ConversationRenderEntry[] = []
+  let run: ChatMessage[] = []
+  const flushRun = (): void => {
+    if (run.length === 0) return
+    for (const group of groupConversationMessages(run)) entries.push({ kind: 'group', group })
+    run = []
+  }
+  for (const message of messages) {
+    if (message.taskResult === true) {
+      flushRun()
+      entries.push({ kind: 'task-result', message })
+      continue
+    }
+    run.push(message)
+  }
+  flushRun()
+  return entries
 }
 
 export type ConversationDisplayPart =
@@ -170,13 +197,17 @@ export function messagesFromEvents(events: SessionTimelineEvent[]): ChatMessage[
   for (const event of events) {
     if (event.type !== 'agent.message' || !isRecord(event.data) || !isRecord(event.data.message)) continue
     const message = event.data.message
+    const actorRole = visibleActorRole(event.data.actorRole)
     if (message.role === 'user') {
-      const rawText = contentText(message.content)
+      const rawText = typeof event.data.visibleText === 'string' && event.data.visibleText.trim().length > 0
+        ? event.data.visibleText
+        : contentText(message.content)
       const legacy = splitLegacyAttachments(rawText)
       const explicitAttachments = attachmentList(event.data.attachments)
       messages.push({
         key: event.eventId,
-        role: 'user',
+        role: actorRole === 'router' ? 'assistant' : 'user',
+        ...(actorRole === undefined ? {} : { actorRole }),
         parts: legacy.text.length === 0 ? [] : [{ type: 'text', text: legacy.text }],
         attachments: explicitAttachments.length > 0 ? explicitAttachments : legacy.attachments,
         isError: false,
@@ -198,10 +229,11 @@ export function messagesFromEvents(events: SessionTimelineEvent[]): ChatMessage[
     if (isCancelledAssistantMessage(message)) continue
 
     let target = messages.at(-1)
-    if (target?.role !== 'assistant') {
+    if (target?.role !== 'assistant' || target.actorRole !== actorRole) {
       target = {
         key: event.eventId,
         role: 'assistant',
+        ...(actorRole === undefined ? {} : { actorRole }),
         parts: [],
         attachments: [],
         isError: false,
@@ -338,6 +370,10 @@ function splitLegacyAttachments(value: string): {
   return attachments.length === 0 ? { text: value, attachments: [] } : { text, attachments }
 }
 
+function visibleActorRole(value: unknown): ChatMessage['actorRole'] {
+  return value === 'router' || value === 'worker' ? value : undefined
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
@@ -352,6 +388,8 @@ export function chatMessagesFromThread(messages: VisibleMessage[]): ChatMessage[
       ? message.metadata.routerRequestId
       : undefined
     const taskId = typeof message.metadata.taskId === 'string' ? message.metadata.taskId : undefined
+    const actorRole = visibleActorRole(message.metadata.actorRole)
+    const taskResult = message.metadata.taskResult === true
     const routineDelivery = message.metadata.routineDelivery === true
     const routineTitle = typeof message.metadata.routineTitle === 'string' ? message.metadata.routineTitle : undefined
     const routinePrompt = typeof message.metadata.routinePrompt === 'string' ? message.metadata.routinePrompt : undefined
@@ -361,12 +399,14 @@ export function chatMessagesFromThread(messages: VisibleMessage[]): ChatMessage[
     return [{
       key: `thread:${message.id}`,
       role: message.role,
+      ...(actorRole === undefined ? {} : { actorRole }),
       parts: [{ type: 'text', text }],
       attachments: attachmentNames(message.metadata).map((name) => ({ name, path: name, size: 0 })),
       isError: false,
       ...(resultCard === undefined ? {} : { resultCard }),
       ...(routerRequestId === undefined ? {} : { routerRequestId }),
       ...(taskId === undefined ? {} : { taskId }),
+      ...(taskResult ? { taskResult: true } : {}),
       ...(routineDelivery ? { routineDelivery: true } : {}),
       ...(routineTitle === undefined ? {} : { routineTitle }),
       ...(routinePrompt === undefined ? {} : { routinePrompt }),
@@ -409,8 +449,10 @@ export function mergeThreadAndSessionMessages(
           ...match,
           key: threadMessage.key,
           ...(threadMessage.resultCard === undefined ? {} : { resultCard: threadMessage.resultCard }),
+          ...(threadMessage.actorRole === undefined ? {} : { actorRole: threadMessage.actorRole }),
           ...(threadMessage.routerRequestId === undefined ? {} : { routerRequestId: threadMessage.routerRequestId }),
           ...(threadMessage.taskId === undefined ? {} : { taskId: threadMessage.taskId }),
+          ...(threadMessage.taskResult === true ? { taskResult: true } : {}),
           ...(threadMessage.routineDelivery === true ? { routineDelivery: true } : {}),
           ...(threadMessage.routineTitle === undefined ? {} : { routineTitle: threadMessage.routineTitle }),
           ...(threadMessage.routinePrompt === undefined ? {} : { routinePrompt: threadMessage.routinePrompt }),

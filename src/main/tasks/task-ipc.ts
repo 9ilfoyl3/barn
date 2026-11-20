@@ -1,5 +1,6 @@
 import { BrowserWindow, ipcMain, type IpcMainInvokeEvent } from 'electron'
 import { z } from 'zod'
+import type { TaskConversationService } from './task-conversation-service'
 import type { TaskService } from './task-service'
 
 const taskIdSchema = z.string().uuid()
@@ -38,9 +39,20 @@ const assignSessionSchema = z.object({
   taskId: taskIdSchema,
   sessionId: z.string().uuid().nullable(),
 }).strict()
+const continueTaskSchema = z.object({
+  taskId: taskIdSchema,
+  text: z.string().trim().min(1).max(2_000_000),
+  attachments: z.array(z.object({
+    name: z.string().trim().min(1).max(500),
+    path: z.string().trim().min(1).max(4_000),
+    size: z.number().int().nonnegative(),
+    kind: z.enum(['file', 'directory']).optional(),
+  })).max(50).optional(),
+}).strict()
 
 export function registerTaskIpc(
   tasks: TaskService,
+  conversations: TaskConversationService,
   isTrustedSender: (event: IpcMainInvokeEvent) => boolean,
 ): void {
   ipcMain.handle('tasks:list', (event) => {
@@ -92,6 +104,12 @@ export function registerTaskIpc(
     requireTrusted(event, isTrustedSender)
     const parsed = assignSessionSchema.parse(input)
     return tasks.assignSession(parsed.taskId, parsed.sessionId)
+  })
+
+  ipcMain.handle('tasks:continue', (event, input: unknown) => {
+    requireTrusted(event, isTrustedSender)
+    const parsed = continueTaskSchema.parse(input)
+    return conversations.continueTask(parsed.taskId, parsed.text, parsed.attachments ?? [])
   })
 
   tasks.onEvent((liveEvent) => {

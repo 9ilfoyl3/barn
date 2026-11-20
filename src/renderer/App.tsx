@@ -31,6 +31,7 @@ import type {
   SessionSummary,
   Task,
   TaskLiveEvent,
+  TaskParticipantStatuses,
   VisibleMessage,
 } from '../shared/models'
 import { attachmentDisplayName } from '../shared/attachments'
@@ -51,6 +52,7 @@ import { TaskCenter } from './TaskCenter'
 import { TodayPanel } from './TodayPanel'
 import { TaskRail } from './TaskRail'
 import { TaskDetailPage } from './TaskDetailPage'
+import { ReplyGuideGroup } from './ReplyGuideGroup'
 import { CommandPalette } from './CommandPalette'
 import { isExecutingTask, resolveMessageActivity } from './message-activity'
 import './secretary.css'
@@ -63,10 +65,10 @@ import { MessageBubble, MessageBubbleGroup } from '@/components/beui/components/
 import { PromptInput } from '@/components/beui/components/agents/prompt-input'
 import {
   applyLiveEvent,
-  groupConversationMessages,
+  conversationRenderEntries,
   mergeThreadAndSessionMessages,
-  messagesFromEvents,
   type ChatMessage,
+  messagesFromEvents,
   type ConversationPart,
 } from './conversation'
 
@@ -124,6 +126,7 @@ export function App() {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [threadMessages, setThreadMessages] = useState<VisibleMessage[]>([])
   const [routerRequests, setRouterRequests] = useState<RouterRequest[]>([])
+  const [taskParticipantStatuses, setTaskParticipantStatuses] = useState<Record<string, TaskParticipantStatuses>>({})
   const [input, setInput] = useState('')
   const [attachments, setAttachments] = useState<AttachmentDescriptor[]>([])
   const [workingDirectory, setWorkingDirectory] = useState<string>()
@@ -453,7 +456,17 @@ export function App() {
   }
 
   function handleTaskEvent(event: TaskLiveEvent): void {
-    setTasks((current) => upsertTask(current, event.task))
+    if (event.type === 'task.updated') {
+      setTasks((current) => upsertTask(current, event.task))
+      return
+    }
+    setTaskParticipantStatuses((current) => ({
+      ...current,
+      [event.taskId]: {
+        ...current[event.taskId],
+        ...event.participants,
+      },
+    }))
   }
 
   function handleLiveEvent(event: SessionLiveEvent): void {
@@ -815,7 +828,7 @@ export function App() {
     const task = tasks.find((candidate) => candidate.id === message.taskId)
     return task === undefined || !isExecutingTask(task)
   })
-  const messageGroups = groupConversationMessages(completedDisplayMessages)
+  const renderEntries = conversationRenderEntries(completedDisplayMessages)
   const activityState = messageActivity?.kind === 'task' ? 'working' : 'composing'
   const activityLabel = messageActivity?.kind === 'task'
     ? messageActivity.task.status === 'queued'
@@ -1029,9 +1042,9 @@ export function App() {
             {needsYouCount > 0 && <span className="app-rail-count task-nav-count">{needsYouCount}</span>}
           </button>
           <button
-            className={railButtonClassName(view === 'tasks')}
+            className={railButtonClassName(view === 'tasks' || view === 'task-detail')}
             type="button"
-            aria-current={view === 'tasks' ? 'page' : undefined}
+            aria-current={view === 'tasks' || view === 'task-detail' ? 'page' : undefined}
             onClick={() => setView('tasks')}
           >
             <ListTodo size={19} aria-hidden="true" />
@@ -1138,7 +1151,11 @@ export function App() {
                   </button>
                 </div>
               ) : (
-                <TaskDetailPage task={selectedTask} onBack={() => setView('tasks')} />
+                <TaskDetailPage
+                  participantStatuses={taskParticipantStatuses[selectedTask.id]}
+                  task={selectedTask}
+                  onBack={() => setView('tasks')}
+                />
               )
             })()
           ) : (
@@ -1170,7 +1187,30 @@ export function App() {
                   </div>
                 ) : (
                   <MessageBubbleGroup className="message-list" spacing="default">
-                    {messageGroups.map((group) => {
+                    {renderEntries.map((entry) => {
+                      if (entry.kind === 'task-result') {
+                        const message = entry.message
+                        const task = message.taskId === undefined
+                          ? undefined
+                          : tasks.find((candidate) => candidate.id === message.taskId)
+                        return (
+                          <article className="task-result-notice" data-message-key={message.key} key={message.key}>
+                            <span className="task-result-label">
+                              {t('tasks.taskResultFor', { title: task?.title ?? t('tasks.title') })}
+                            </span>
+                            <MessageBubble
+                              aria-label={t('conversation.barnMessage')}
+                              align="start"
+                              className="chat-message assistant task-result-message"
+                              role="article"
+                              variant="ghost"
+                            >
+                              <ConversationParts parts={message.parts} role="assistant" keyPrefix={message.key} />
+                            </MessageBubble>
+                          </article>
+                        )
+                      }
+                      const group = entry.group
                       if (group.kind === 'user') return renderUserMessage(group.message)
                       if (group.kind === 'proactive') {
                         return (
@@ -1180,9 +1220,10 @@ export function App() {
                         )
                       }
                       return (
-                        <div
-                          className="assistant-reply-run"
+                        <ReplyGuideGroup
+                          className="assistant-reply-group"
                           data-source-message-key={group.replies[0]?.sourceUser?.key}
+                          guide="anchored"
                           key={group.key}
                         >
                           {group.replies.map((reply) => (
@@ -1199,7 +1240,7 @@ export function App() {
                               {renderAssistantMessage(reply.message)}
                             </div>
                           ))}
-                        </div>
+                        </ReplyGuideGroup>
                       )
                     })}
                     {(showMessageActivity || displayLiveParts.length > 0) && (
@@ -1218,24 +1259,26 @@ export function App() {
                           </div>
                         )}
                         {displayLiveParts.length > 0 && (
-                          <MessageBubble
-                            aria-label={t('conversation.barnMessage')}
-                            className="chat-message assistant streaming live-turn"
-                            role="article"
-                            variant="ghost"
-                          >
-                            <ConversationParts
-                              parts={displayLiveParts}
-                              role="assistant"
-                              keyPrefix="live"
-                            />
-                          </MessageBubble>
+                          <ReplyGuideGroup guide="anchored">
+                            <MessageBubble
+                              aria-label={t('conversation.barnMessage')}
+                              className="chat-message assistant streaming live-turn"
+                              role="article"
+                              variant="ghost"
+                            >
+                              <ConversationParts
+                                parts={displayLiveParts}
+                                role="assistant"
+                                keyPrefix="live"
+                              />
+                            </MessageBubble>
+                          </ReplyGuideGroup>
                         )}
                       </div>
                     )}
+
                   </MessageBubbleGroup>
                 )}
-
                 {error !== undefined && (
                   <div className="error-banner" role="alert">
                     {error}

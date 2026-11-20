@@ -25,6 +25,8 @@ export class AgentService {
   private readonly liveListeners = new Set<(event: SessionLiveEvent) => void>()
   private readonly promptProjections = new Map<string, {
     projectUserMessage: boolean
+    userActorRole?: 'router' | 'worker'
+    assistantActorRole?: 'router' | 'worker'
     includeMemory: boolean
     visibleMetadata: Record<string, unknown>
     clientMessageIdPrefix: string
@@ -63,6 +65,8 @@ export class AgentService {
     this.startingRuns.set(sessionId, startingRun)
     this.promptProjections.set(sessionId, {
       projectUserMessage: options.projectUserMessage !== false,
+      ...(options.userActorRole === undefined ? {} : { userActorRole: options.userActorRole }),
+      ...(options.assistantActorRole === undefined ? {} : { assistantActorRole: options.assistantActorRole }),
       includeMemory: options.includeMemory !== false,
       visibleMetadata: options.visibleMetadata ?? {},
       clientMessageIdPrefix: options.clientMessageIdPrefix ?? `session-assistant:${sessionId}`,
@@ -96,18 +100,24 @@ export class AgentService {
         this.openSessions.set(sessionId, modelKey)
       }
 
-      const [userEvent] = this.sessions.append(sessionId, [{
-        type: 'agent.message',
-        data: {
-          message: {
-            role: 'user',
-            content: trimmed,
-            timestamp: Date.now(),
-          },
-          attachments,
-        },
-        actor: { kind: 'user', id: 'desktop-user' },
-      }])
+      const [userEvent] = options.recordUserMessage === false
+        ? []
+        : this.sessions.append(sessionId, [{
+            type: 'agent.message',
+            data: {
+              message: {
+                role: 'user',
+                content: trimmed,
+                timestamp: Date.now(),
+              },
+              attachments,
+              ...(visibleText === undefined ? {} : { visibleText: visibleText.trim() }),
+              ...(options.userActorRole === undefined ? {} : { actorRole: options.userActorRole }),
+            },
+            actor: options.userActorRole === 'router'
+              ? { kind: 'agent', id: 'router' }
+              : { kind: 'user', id: 'desktop-user' },
+          }])
       if (userEvent !== undefined && options.projectUserMessage !== false) {
         this.threads?.appendMessage({
           clientMessageId: `session-user:${userEvent.eventId}`,
@@ -214,9 +224,15 @@ export class AgentService {
     switch (message.type) {
       case 'session.append': {
         try {
+          const projection = this.promptProjections.get(message.sessionId)
           const sessionEvent = this.sessions.append(message.sessionId, [{
             type: 'agent.message',
-            data: { message: message.message },
+            data: {
+              message: message.message,
+              ...(projection?.assistantActorRole === undefined
+                ? {}
+                : { actorRole: projection.assistantActorRole }),
+            },
             actor: actorForMessage(message.message),
           }])[0]
           if (sessionEvent === undefined) throw new Error('Session event was not persisted')
@@ -234,15 +250,19 @@ export class AgentService {
         }
         return
       }
-      case 'session.event':
+      case 'session.event': {
+        const actorRole = this.promptProjections.get(message.sessionId)?.assistantActorRole
         this.emit({
           ...message.event,
           sessionId: message.sessionId,
           runId: message.runId,
+          ...(actorRole === undefined ? {} : { actorRole }),
         })
         return
+      }
       case 'run.status': {
         const status = message.status === 'cancelled' ? 'idle' : message.status
+        const actorRole = this.promptProjections.get(message.sessionId)?.assistantActorRole
         this.sessions.updateStatus(message.sessionId, status)
         if (message.status === 'idle' || message.status === 'failed') {
           this.sessions.markResultUnread(message.sessionId)
@@ -254,6 +274,7 @@ export class AgentService {
           runId: message.runId,
           status: message.status,
           ...(message.error === undefined ? {} : { error: message.error }),
+          ...(actorRole === undefined ? {} : { actorRole }),
         })
         // Prompt start already published the running summary. Only publish
         // another summary when the run reaches a terminal state.

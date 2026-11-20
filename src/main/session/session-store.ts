@@ -491,6 +491,11 @@ export class SessionStore {
     this.database.prepare(`
       DELETE FROM sessions
       WHERE last_seq = 0
+        AND id NOT IN (
+          SELECT session_id FROM tasks WHERE session_id IS NOT NULL
+          UNION
+          SELECT router_session_id FROM tasks WHERE router_session_id IS NOT NULL
+        )
         AND id <> (
           SELECT id
           FROM sessions

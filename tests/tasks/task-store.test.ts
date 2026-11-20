@@ -19,6 +19,7 @@ describe('TaskStore', () => {
     const key = randomBytes(32)
     const store = await openStore(directory, key)
     const session = store.createSession('Quarterly report')
+    const routerSession = store.createSession('Quarterly report Router', undefined, undefined, session.id)
     const task = store.tasks.create({
       title: 'Prepare the quarterly report',
       origin: 'user',
@@ -26,6 +27,7 @@ describe('TaskStore', () => {
       prompt: 'Summarize the attached figures and prepare the report.',
       visiblePrompt: 'Summarize the figures.',
     }, '11111111-1111-4111-8111-111111111111')
+    store.tasks.assignRouterSession(task.id, routerSession.id)
     store.close()
 
     const reopened = await openStore(directory, key)
@@ -35,6 +37,7 @@ describe('TaskStore', () => {
       status: 'queued',
       origin: 'user',
       sessionId: session.id,
+      routerSessionId: routerSession.id,
       prompt: 'Summarize the attached figures and prepare the report.',
       visiblePrompt: 'Summarize the figures.',
     }))

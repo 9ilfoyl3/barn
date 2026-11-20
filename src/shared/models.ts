@@ -264,6 +264,12 @@ export interface RouterBridge {
 /** Host-only projection controls for a model execution. */
 export interface AgentPromptOptions {
   projectUserMessage?: boolean
+  /** Send the prompt to the model without appending a second user event to the Session. */
+  recordUserMessage?: boolean
+  /** Source identity recorded on the user-side Session event. Task launches record Router as the source. */
+  userActorRole?: 'router' | 'worker'
+  /** Source identity recorded on assistant Session events for this prompt. */
+  assistantActorRole?: 'router' | 'worker'
   includeMemory?: boolean
   visibleMetadata?: Record<string, unknown>
   clientMessageIdPrefix?: string
@@ -322,6 +328,7 @@ export interface Task {
   status: TaskStatus
   origin: TaskOrigin
   sessionId?: string
+  routerSessionId?: string
   approvalId?: string
   prompt?: string
   visiblePrompt?: string
@@ -368,10 +375,20 @@ export interface UpdateRoutineInput {
   timezone: string
 }
 
-export type TaskLiveEvent = {
-  type: 'task.updated'
-  task: Task
-}
+export type TaskParticipantRole = 'router' | 'worker'
+export type TaskParticipantState = 'running' | 'completed' | 'failed'
+export type TaskParticipantStatuses = Partial<Record<TaskParticipantRole, TaskParticipantState>>
+
+export type TaskLiveEvent =
+  | {
+      type: 'task.updated'
+      task: Task
+    }
+  | {
+      type: 'task.participants'
+      taskId: string
+      participants: TaskParticipantStatuses
+    }
 
 export interface TaskBridge {
   list(): Promise<Task[]>
@@ -380,6 +397,7 @@ export interface TaskBridge {
   updateStatus(taskId: string, update: TaskStatusUpdate): Promise<Task>
   updatePrompt(taskId: string, prompt: string): Promise<Task>
   assignSession(taskId: string, sessionId: string | null): Promise<Task>
+  continueTask(taskId: string, text: string, attachments?: AttachmentDescriptor[]): Promise<Task>
   onEvent(listener: (event: TaskLiveEvent) => void): () => void
 }
 
@@ -674,12 +692,14 @@ export type SessionLiveEvent =
       sessionId: string
       runId: string
       delta: string
+      actorRole?: 'router' | 'worker'
     }
   | {
       type: 'assistant.thinking'
       sessionId: string
       runId: string
       delta: string
+      actorRole?: 'router' | 'worker'
     }
   | {
       type: 'tool.started'
@@ -688,6 +708,7 @@ export type SessionLiveEvent =
       toolCallId: string
       toolName: string
       arguments: string
+      actorRole?: 'router' | 'worker'
     }
   | {
       type: 'tool.finished'
@@ -696,6 +717,7 @@ export type SessionLiveEvent =
       toolCallId: string
       toolName: string
       isError: boolean
+      actorRole?: 'router' | 'worker'
     }
   | {
       type: 'run.status'
@@ -703,6 +725,7 @@ export type SessionLiveEvent =
       runId: string
       status: 'running' | 'idle' | 'failed' | 'cancelled'
       error?: string
+      actorRole?: 'router' | 'worker'
     }
   | {
       type: 'context.updated'

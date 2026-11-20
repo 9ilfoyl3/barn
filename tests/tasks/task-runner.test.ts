@@ -73,6 +73,8 @@ describe('TaskRunner', () => {
       undefined,
       expect.objectContaining({
         projectUserMessage: false,
+        userActorRole: 'router',
+        assistantActorRole: 'worker',
         visibleMetadata: { taskId: task.id },
       }),
     )
@@ -117,8 +119,20 @@ describe('TaskRunner', () => {
           content: 'The notes cover three decisions and two follow-ups.',
           timestamp: Date.now(),
         },
+        actorRole: 'worker',
       },
       actor: { kind: 'agent', id: 'barn' },
+    }, {
+      type: 'agent.message',
+      data: {
+        message: {
+          role: 'assistant',
+          content: 'Router coordination reply.',
+          timestamp: Date.now(),
+        },
+        actorRole: 'router',
+      },
+      actor: { kind: 'agent', id: 'router' },
     }])
     h.agent.emit({
       type: 'run.status',
@@ -298,7 +312,7 @@ describe('TaskRunner', () => {
     h.sessions.close()
   })
 
-  it('cancels the old run and requeues a task when Router reroutes it', async () => {
+  it('cancels the old run and starts Router and Worker in parallel when rerouted', async () => {
     const h = await harness()
     h.runner.start()
     const task = h.tasks.create({
@@ -310,21 +324,45 @@ describe('TaskRunner', () => {
 
     h.tasks.reroute(task.id, 'Use Baidu instead of Xinhua.')
     await vi.waitFor(() => expect(h.agent.cancel).toHaveBeenCalledWith(firstRun.sessionId))
-    const reroutedRun = await vi.waitFor(async () => {
+    const reroutedRun = await vi.waitFor(() => {
       const current = h.tasks.get(task.id)
       expect(current.status).toBe('running')
-      expect(current.sessionId).not.toBe(firstRun.sessionId)
+      expect(h.agent.prompt).toHaveBeenCalledTimes(3)
+      expect(current.sessionId).toBe(firstRun.sessionId)
+      expect(current.routerSessionId).toBeDefined()
       return current
     })
     expect(reroutedRun.prompt).toContain('Use Baidu instead of Xinhua.')
-    expect(h.agent.prompt).toHaveBeenLastCalledWith(
-      reroutedRun.sessionId,
-      expect.stringContaining('Use Baidu instead of Xinhua.'),
+    expect(h.agent.prompt).toHaveBeenCalledWith(
+      reroutedRun.routerSessionId,
+      'Use Baidu instead of Xinhua.',
       [],
       undefined,
-      expect.anything(),
-      expect.objectContaining({ projectAssistantMessage: false }),
+      undefined,
+      expect.objectContaining({
+        assistantActorRole: 'router',
+        recordUserMessage: true,
+        projectAssistantMessage: false,
+      }),
     )
+    expect(h.agent.prompt).toHaveBeenCalledWith(
+      reroutedRun.sessionId,
+      'Use Baidu instead of Xinhua.',
+      [],
+      undefined,
+      'Use Baidu instead of Xinhua.',
+      expect.objectContaining({
+        assistantActorRole: 'worker',
+        recordUserMessage: false,
+        projectAssistantMessage: false,
+      }),
+    )
+    h.agent.emit({
+      type: 'run.status',
+      sessionId: reroutedRun.routerSessionId!,
+      runId: 'run-router',
+      status: 'idle',
+    })
     h.agent.emit({
       type: 'run.status',
       sessionId: reroutedRun.sessionId!,
@@ -349,11 +387,21 @@ describe('TaskRunner', () => {
     h.tasks.reroute(task.id, 'Use Baidu instead.')
     await vi.waitFor(() => expect(h.agent.cancel).toHaveBeenCalledWith(firstRun.sessionId))
     rejectFirstPrompt?.(new Error('Worker cancelled'))
-    const reroutedRun = await waitForTask(h.tasks, task.id, (current) => (
-      current.status === 'running' && current.sessionId !== firstRun.sessionId
-    ))
-    expect(reroutedRun.status).toBe('running')
+    const reroutedRun = await vi.waitFor(() => {
+      const current = h.tasks.get(task.id)
+      expect(h.agent.prompt).toHaveBeenCalledTimes(3)
+      expect(current.status).toBe('running')
+      expect(current.routerSessionId).toBeDefined()
+      return current
+    })
+    expect(reroutedRun.sessionId).toBe(firstRun.sessionId)
 
+    h.agent.emit({
+      type: 'run.status',
+      sessionId: reroutedRun.routerSessionId!,
+      runId: 'run-router-after-cancel',
+      status: 'idle',
+    })
     h.agent.emit({
       type: 'run.status',
       sessionId: reroutedRun.sessionId!,

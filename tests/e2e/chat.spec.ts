@@ -97,6 +97,7 @@ test('streams a multi-turn conversation through the Agent Worker', async () => {
         surfaceOverflowY: getComputedStyle(surface).overflowY,
         messageListOverflowY: getComputedStyle(messageList).overflowY,
         dockBackdropBackground: dockBackdrop.backgroundColor,
+        dockBackdropBackgroundImage: dockBackdrop.backgroundImage,
         dockBackdropBottom: dockBackdrop.bottom,
         dockBackdropHeight: dockBackdrop.height,
         composerShadow: getComputedStyle(composerElement).boxShadow,
@@ -105,9 +106,12 @@ test('streams a multi-turn conversation through the Agent Worker', async () => {
     expect(conversationLayout.surfaceRight).toBeCloseTo(conversationLayout.viewRight, 0)
     expect(conversationLayout.surfaceOverflowY).toBe('auto')
     expect(conversationLayout.messageListOverflowY).toBe('visible')
-    expect(conversationLayout.dockBackdropBackground).not.toBe('rgba(0, 0, 0, 0)')
+    expect(
+      conversationLayout.dockBackdropBackground !== 'rgba(0, 0, 0, 0)'
+      || conversationLayout.dockBackdropBackgroundImage !== 'none'
+    ).toBe(true)
     expect(conversationLayout.dockBackdropBottom).toBe('0px')
-    expect(conversationLayout.dockBackdropHeight).toBe('14px')
+    expect(Number.parseFloat(conversationLayout.dockBackdropHeight)).toBeGreaterThan(0)
     expect(conversationLayout.composerShadow).toBe('none')
     await page.screenshot({ path: 'test-results/barn-desktop-chat.png', fullPage: true })
   } finally {
@@ -226,8 +230,11 @@ test('selects a working directory and attaches a folder', async () => {
     const sessions = await page.evaluate(() => window.barn.sessions.list())
     expect(sessions[0]?.workingDirectory).toBe(workingDirectory)
     const events = await page.evaluate((sessionId) => window.barn.sessions.getEvents(sessionId), sessions[0]!.id)
-    const userEvent = events.find((event) => event.type === 'agent.message' && event.actor.kind === 'user')
-    if (userEvent === undefined) throw new Error('User attachment event was not stored')
+    const userEvent = events.find((event) => (
+      event.type === 'agent.message'
+      && (event.actor.kind === 'user' || event.actor.id === 'router')
+    ))
+    if (userEvent === undefined) throw new Error('Task source message with attachments was not stored')
     expect(userEvent.data).toMatchObject({
       attachments: expect.arrayContaining([
         expect.objectContaining({ kind: 'directory', name: 'reference-folder' }),

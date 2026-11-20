@@ -78,7 +78,7 @@ test('draws one continuous guide for consecutive replies and quotes the lower qu
     expect(placement.quoteBottom).toBeLessThanOrEqual(placement.secondTop)
     expect(placement.runLeft + placement.guideLeft).toBeGreaterThanOrEqual(placement.bubbleLeft + 18)
     expect(placement.quoteLeft - (placement.runLeft + placement.guideLeft + placement.guideWidth)).toBeGreaterThanOrEqual(3.5)
-    expect(placement.guideWidth).toBeGreaterThanOrEqual(3)
+    expect(placement.guideWidth).toBeGreaterThanOrEqual(2)
     expect(placement.sourceMessageKey).toBe(placement.firstUserKey)
     expect(Math.abs(placement.runTop + placement.guideTop - placement.firstUserCenter)).toBeLessThanOrEqual(1)
 

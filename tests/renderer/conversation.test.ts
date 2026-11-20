@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { SessionLiveEvent, SessionTimelineEvent } from '../../src/shared/models'
-import { applyLiveEvent, chatMessagesFromThread, groupConversationParts, messagesFromEvents, parseVisibleResultCard } from '../../src/renderer/conversation'
+import { applyLiveEvent, chatMessagesFromThread, conversationRenderEntries, groupConversationParts, messagesFromEvents, parseVisibleResultCard } from '../../src/renderer/conversation'
 
 describe('conversation timeline', () => {
   it('rebuilds thinking, tool and content in persisted event order', () => {
@@ -54,6 +54,94 @@ describe('conversation timeline', () => {
         output: 'file.txt',
       },
     })
+  })
+
+  it('keeps Task results at their original timeline position', () => {
+    const entries = conversationRenderEntries([
+      {
+        key: 'result-1',
+        role: 'assistant',
+        taskResult: true,
+        parts: [{ type: 'text', text: 'First result' }],
+        attachments: [],
+        isError: false,
+      },
+      {
+        key: 'user-1',
+        role: 'user',
+        parts: [{ type: 'text', text: 'Next request' }],
+        attachments: [],
+        isError: false,
+      },
+      {
+        key: 'reply-1',
+        role: 'assistant',
+        parts: [{ type: 'text', text: 'Answer' }],
+        attachments: [],
+        isError: false,
+      },
+      {
+        key: 'result-2',
+        role: 'assistant',
+        taskResult: true,
+        parts: [{ type: 'text', text: 'Second result' }],
+        attachments: [],
+        isError: false,
+      },
+    ])
+
+    expect(entries.map((entry) => entry.kind === 'task-result' ? entry.message.key : entry.group.key)).toEqual([
+      'result-1',
+      'user:user-1',
+      'assistant:reply-1',
+      'result-2',
+    ])
+  })
+
+  it('marks a Task result from the Principal Thread so it stays outside reply guides', () => {
+    const messages = chatMessagesFromThread([{
+      id: 'task-result',
+      threadId: 'thread',
+      seq: 1,
+      role: 'assistant',
+      content: 'The task finished.',
+      metadata: { taskId: 'task-1', taskResult: true },
+      sourceRefs: ['task:task-1'],
+      createdAt: '2026-11-20T00:00:00.000Z',
+    }])
+
+    expect(messages[0]).toMatchObject({
+      role: 'assistant',
+      taskId: 'task-1',
+      taskResult: true,
+    })
+  })
+
+  it('keeps Router and Worker turns distinct in a task session', () => {
+    const events: SessionTimelineEvent[] = [
+      timelineEvent('event-router', 1, {
+        actorRole: 'router',
+        message: { role: 'user', content: 'Summarize the project notes.' },
+      }),
+      timelineEvent('event-worker', 2, {
+        actorRole: 'worker',
+        message: { role: 'assistant', content: 'I will read the notes.' },
+      }),
+      timelineEvent('event-user', 3, {
+        message: { role: 'user', content: 'Include the latest decisions.' },
+      }),
+      timelineEvent('event-worker-final', 4, {
+        actorRole: 'worker',
+        message: { role: 'assistant', content: 'The summary is ready.' },
+      }),
+    ]
+
+    expect(messagesFromEvents(events)).toMatchObject([
+      { role: 'assistant', actorRole: 'router', parts: [{ type: 'text', text: 'Summarize the project notes.' }] },
+      { role: 'assistant', actorRole: 'worker', parts: [{ type: 'text', text: 'I will read the notes.' }] },
+      { role: 'user', parts: [{ type: 'text', text: 'Include the latest decisions.' }] },
+      { role: 'assistant', actorRole: 'worker', parts: [{ type: 'text', text: 'The summary is ready.' }] },
+    ])
   })
 
   it('appends live events without moving existing segments', () => {

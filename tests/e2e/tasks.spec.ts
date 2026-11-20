@@ -1,4 +1,4 @@
-import { createServer, type Server } from 'node:http'
+import { createServer, type Server, type ServerResponse } from 'node:http'
 import { mkdtemp } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -188,6 +188,204 @@ test('shows needs-you, in-progress, and recent tasks with usable actions', async
 })
 
 
+test('opens a task agent conversation with properties and accepts a follow-up message', async () => {
+  const server = await startMockModelServer('Task detail agent reply.', 2_000)
+  const address = server.address()
+  if (address === null || typeof address === 'string') throw new Error('Mock server did not bind')
+  const baseUrl = `http://127.0.0.1:${address.port}/v1`
+  const userData = await mkdtemp(join(tmpdir(), 'barn-desktop-task-detail-e2e-'))
+  const inheritedEnv = Object.fromEntries(
+    Object.entries(process.env).filter((entry): entry is [string, string] => entry[1] !== undefined),
+  )
+  const app = await electron.launch({
+    args: ['.'],
+    env: {
+      ...inheritedEnv,
+      ELECTRON_DISABLE_SECURITY_WARNINGS: 'true',
+      BARN_USER_DATA_DIR: userData,
+      BARN_UI_LANGUAGE: 'en',
+    },
+  })
+
+  try {
+    const page = await app.firstWindow()
+    await page.waitForLoadState('domcontentloaded')
+    await app.evaluate(({ nativeTheme }) => { nativeTheme.themeSource = 'light' })
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.evaluate(async (url) => {
+      await window.barn.models.saveCustomProvider({
+        id: 'task-detail-provider',
+        name: 'Task Detail Provider',
+        baseUrl: url,
+        api: 'openai-completions',
+        models: [{
+          id: 'task-detail-model',
+          name: 'Task Detail Model',
+          contextWindow: 128_000,
+          maxTokens: 8_000,
+          reasoning: false,
+          reasoningEfforts: [],
+          input: ['text'],
+        }],
+      })
+      await window.barn.models.saveCredential({ providerId: 'task-detail-provider', apiKey: 'test-key' })
+      await window.barn.models.setDefault({ providerId: 'task-detail-provider', modelId: 'task-detail-model' })
+    }, baseUrl)
+
+    const task = await page.evaluate(() => window.barn.tasks.create({
+      title: 'Summarize the project notes',
+      origin: 'user',
+      prompt: 'Summarize the latest project notes in one paragraph.',
+    }))
+    await expect(page.locator('.assistant-live-activity')).toContainText('Working on task')
+    await expect(page.locator('.assistant-live-activity')).toContainText('Summarize the project notes')
+    await page.waitForTimeout(300)
+    await page.screenshot({ path: 'test-results/barn-task-progress-orbs.png', fullPage: true })
+    await expect.poll(async () => page.evaluate(
+      (taskId) => window.barn.tasks.get(taskId).then((current) => current.status),
+      task.id,
+    ), { timeout: 15_000 }).toBe('completed')
+    const completed = await page.evaluate((taskId) => window.barn.tasks.get(taskId), task.id)
+    expect(completed.sessionId).toBeDefined()
+
+    await page.locator('.task-nav-button').click()
+    await page.locator('.task-row', { hasText: 'Summarize the project notes' })
+      .getByRole('button', { name: 'View details', exact: true })
+      .click()
+
+    const detail = page.locator('.task-detail-page')
+    await expect(detail.getByRole('heading', { name: 'Summarize the project notes' })).toBeVisible()
+    await expect(detail).toContainText('Summarize the latest project notes in one paragraph.')
+    await expect(detail).toContainText('Task detail agent reply.')
+    await expect(detail.locator('[data-actor-role="router"]')).toContainText('Router')
+    await expect(detail.locator('[data-actor-role="router"]')).toContainText('Summarize the latest project notes in one paragraph.')
+    await expect(detail.locator('[data-actor-role="worker"]')).toContainText('Worker')
+    await expect(detail.locator('.assistant-reply-run[data-guide="straight"]')).toHaveCount(1)
+    await expect(detail.getByRole('complementary', { name: 'Properties' })).toContainText('Completed')
+    await expect(detail.getByRole('complementary', { name: 'Properties' })).toContainText('Created from')
+    await expect(detail.getByRole('button', { name: 'Add tag' })).toBeVisible()
+    await page.screenshot({ path: 'test-results/barn-task-detail-agent-chat.png', fullPage: true })
+
+    const composer = detail.getByRole('textbox', { name: 'Message task agent' })
+    await composer.fill('Please continue with a short follow-up.')
+    await page.evaluate((taskId) => {
+      const state = window as unknown as {
+        barnTaskProgress?: string[]
+        barnTaskParticipants?: Array<Record<string, string>>
+      }
+      state.barnTaskProgress = []
+      state.barnTaskParticipants = []
+      window.barn.tasks.onEvent((event) => {
+        if (event.type === 'task.updated' && event.task.id === taskId) {
+          state.barnTaskProgress?.push(event.task.status)
+        }
+        if (event.type === 'task.participants' && event.taskId === taskId) {
+          state.barnTaskParticipants?.push(event.participants as Record<string, string>)
+        }
+      })
+    }, task.id)
+    await composer.press('Enter')
+    const userMessage = detail.locator('.task-detail-message-list .chat-message.user[data-align="end"]')
+    await expect(userMessage).toContainText('Please continue with a short follow-up.', { timeout: 500 })
+    await page.waitForTimeout(300)
+    await expect(detail.locator('[data-testid="task-participant-orbs"]')).toContainText('Router and Worker are thinking')
+    await page.screenshot({ path: 'test-results/barn-task-detail-user-message.png', fullPage: true })
+    const geometry = await detail.evaluate((root) => {
+      const rect = (selector: string) => {
+        const element = root.querySelector<HTMLElement>(selector)
+        const box = element?.getBoundingClientRect()
+        const style = element === undefined || element === null ? undefined : getComputedStyle(element)
+        return box === undefined ? undefined : {
+          left: box.left,
+          right: box.right,
+          width: box.width,
+          paddingLeft: style?.paddingLeft,
+          paddingRight: style?.paddingRight,
+          marginLeft: style?.marginLeft,
+          marginRight: style?.marginRight,
+        }
+      }
+      return {
+        thread: rect('.task-detail-thread'),
+        list: rect('.task-detail-message-list'),
+        assistant: rect('[data-actor-role="router"]'),
+        composerDock: rect('.task-detail-composer-dock'),
+        composer: rect('.task-detail-prompt-input'),
+        user: rect('.chat-message.user'),
+      }
+    })
+    expect(geometry.assistant).toBeDefined()
+    expect(geometry.composer).toBeDefined()
+    expect(geometry.user).toBeDefined()
+    expect(Math.abs(geometry.assistant!.left - geometry.composer!.left)).toBeLessThanOrEqual(1)
+    expect(Math.abs(geometry.composer!.right - geometry.user!.right)).toBeLessThanOrEqual(1)
+    await expect(detail.locator('.assistant-reply-run[data-guide="anchored"]')).toHaveCount(1)
+    await expect.poll(async () => page.evaluate(() => {
+      const state = window as unknown as { barnTaskProgress?: string[] }
+      return state.barnTaskProgress?.some((status) => status === 'queued' || status === 'running') ?? false
+    }), { timeout: 5_000 }).toBe(true)
+    await page.locator('.task-nav-button').click()
+    await page.locator('.task-row', { hasText: 'Summarize the project notes' })
+      .getByRole('button', { name: 'View details', exact: true })
+      .click()
+    await expect.poll(async () => page.evaluate(
+      (sessionId) => window.barn.sessions.getEvents(sessionId).then((events) => (
+        JSON.stringify(events).includes('Please continue with a short follow-up.')
+      )),
+      completed.sessionId!,
+    ), { timeout: 15_000 }).toBe(true)
+    await expect.poll(async () => page.evaluate(
+      (sessionId) => window.barn.sessions.getEvents(sessionId).then((events) => (
+        JSON.stringify(events).match(/Task detail agent reply\./g)?.length ?? 0
+      )),
+      completed.sessionId!,
+    ), { timeout: 15_000 }).toBeGreaterThanOrEqual(2)
+    await expect.poll(async () => page.evaluate(
+      (taskId) => window.barn.tasks.get(taskId).then((current) => current.status),
+      task.id,
+    ), { timeout: 15_000 }).toBe('completed')
+
+    const taskThread = await page.evaluate(() => window.barn.threads.getSnapshot())
+    const continuedTask = await page.evaluate((taskId) => window.barn.tasks.get(taskId), task.id)
+    expect(continuedTask.sessionId).toBe(completed.sessionId)
+    expect(taskThread.messages.some((message) => (
+      message.role === 'user' && JSON.stringify(message.content).includes('Please continue with a short follow-up.')
+    ))).toBe(false)
+    expect(taskThread.messages).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        role: 'assistant',
+        metadata: expect.objectContaining({ taskId: task.id, taskResult: true }),
+      }),
+    ]))
+    await page.screenshot({ path: 'test-results/barn-task-detail-continued.png', fullPage: true })
+
+    const participantSequence = await page.evaluate(() => {
+      const state = window as unknown as { barnTaskParticipants?: Array<Record<string, string>> }
+      const merged: Record<string, string> = {}
+      let sawOneFinished = false
+      for (const update of state.barnTaskParticipants ?? []) {
+        Object.assign(merged, update)
+        const running = Object.values(merged).filter((status) => status === 'running').length
+        const finished = Object.values(merged).filter((status) => status === 'completed').length
+        if (running === 1 && finished === 1) sawOneFinished = true
+      }
+      return { sawOneFinished, events: state.barnTaskParticipants ?? [] }
+    })
+    expect(participantSequence.events.length).toBeGreaterThanOrEqual(3)
+    expect(participantSequence.sawOneFinished).toBe(true)
+
+    await page.locator('.app-rail-button', { hasText: 'Home' }).click()
+    await expect(page.locator('.task-result-notice').last()).toContainText('Task detail agent reply.')
+    await expect(page.locator('.task-result-notice')).toHaveCount(2)
+    await expect(page.locator('.assistant-reply-run .task-result-message')).toHaveCount(0)
+    await expect(page.locator('.chat-message.user', { hasText: 'Please continue with a short follow-up.' })).toHaveCount(0)
+    await page.screenshot({ path: 'test-results/barn-task-result-notice.png', fullPage: true })
+  } finally {
+    await app.close()
+    await new Promise<void>((resolve, reject) => server.close((error) => error === undefined ? resolve() : reject(error)))
+  }
+})
+
 test('requires durable approval before a task can resume', async () => {
   const server = await startMockModelServer('Approved task completed.')
   const address = server.address()
@@ -267,7 +465,7 @@ test('requires durable approval before a task can resume', async () => {
   }
 })
 
-async function startMockModelServer(text: string): Promise<Server> {
+async function startMockModelServer(text: string, delayMs = 0): Promise<Server> {
   const server = createServer((request, response) => {
     if (request.method !== 'POST' || request.url !== '/v1/chat/completions') {
       response.writeHead(404).end()
@@ -275,29 +473,34 @@ async function startMockModelServer(text: string): Promise<Server> {
     }
     request.resume()
     request.on('end', () => {
-      response.writeHead(200, {
-        'content-type': 'text/event-stream',
-        'cache-control': 'no-cache',
-        connection: 'keep-alive',
-      })
-      const base = {
-        id: 'chatcmpl-task',
-        object: 'chat.completion.chunk',
-        created: Math.floor(Date.now() / 1000),
-        model: 'task-model',
-      }
-      response.write(`data: ${JSON.stringify({
-        ...base,
-        choices: [{ index: 0, delta: { role: 'assistant', content: text }, finish_reason: null }],
-      })}\n\n`)
-      response.write(`data: ${JSON.stringify({
-        ...base,
-        choices: [{ index: 0, delta: {}, finish_reason: 'stop' }],
-        usage: { prompt_tokens: 5, completion_tokens: 4, total_tokens: 9 },
-      })}\n\n`)
-      response.end('data: [DONE]\n\n')
+      if (delayMs > 0) setTimeout(() => writeTaskModelResponse(response, text), delayMs)
+      else writeTaskModelResponse(response, text)
     })
   })
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
   return server
+}
+
+function writeTaskModelResponse(response: ServerResponse, text: string): void {
+  response.writeHead(200, {
+    'content-type': 'text/event-stream',
+    'cache-control': 'no-cache',
+    connection: 'keep-alive',
+  })
+  const base = {
+    id: 'chatcmpl-task',
+    object: 'chat.completion.chunk',
+    created: Math.floor(Date.now() / 1000),
+    model: 'task-model',
+  }
+  response.write(`data: ${JSON.stringify({
+    ...base,
+    choices: [{ index: 0, delta: { role: 'assistant', content: text }, finish_reason: null }],
+  })}\n\n`)
+  response.write(`data: ${JSON.stringify({
+    ...base,
+    choices: [{ index: 0, delta: {}, finish_reason: 'stop' }],
+    usage: { prompt_tokens: 5, completion_tokens: 4, total_tokens: 9 },
+  })}\n\n`)
+  response.end('data: [DONE]\n\n')
 }

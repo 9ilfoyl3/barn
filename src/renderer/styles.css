@@ -14,6 +14,8 @@ html:root {
   --panel: light-dark(#ffffff, #212120);
   --panel-raised: light-dark(#f2f2ef, #292928);
   --panel-strong: light-dark(#e8e8e4, #30302e);
+  --assistant-bubble-bg: color-mix(in srgb, var(--panel-raised) 72%, var(--panel));
+  --assistant-bubble-radius: 20px;
   --sidebar-bg: light-dark(#f3f3f0, rgba(28, 28, 27, 0.94));
   --sidebar-edge: light-dark(rgba(20, 20, 18, 0.1), rgba(255, 255, 255, 0.075));
   --line: light-dark(rgba(20, 20, 18, 0.1), rgba(255, 255, 255, 0.085));
