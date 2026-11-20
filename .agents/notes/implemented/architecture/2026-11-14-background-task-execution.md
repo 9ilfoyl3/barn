@@ -12,6 +12,10 @@ A durable Task without an execution owner remains only a record. The Desktop nee
 
 The runner subscribes to Session live events. A completed Agent turn marks the Task `completed`; a failed or cancelled run marks it `failed` or `cancelled`; a Worker crash marks the active Task failed instead of leaving it running forever. Task changes are serialized through the same Task service used by IPC. Cancelling a Task asks AgentService to cancel its Session.
 
+A message sent inside a Task belongs to the Task conversation, not the Principal Thread. `TaskConversationService` appends it once to the Task Session and requeues the Task. The TaskRunner gives both participants the same user turn in order: an Agent-backed Router turn writes its reply with `actorRole: router`, followed by the Worker run whose final assistant message uses `actorRole: worker`. Both turns share the Task Session, so Router and Worker replies remain in one continuous Task transcript. Requiring an active run first cancels that run.
+
+The Principal Thread never receives Task-internal user messages or their raw Router/Worker replies. It receives Task progress through Thinking Orbs and Task rail state and the final Worker result as `taskResult` metadata. The main conversation renders that result as a standalone Task notice outside reply guides.
+
 Task instructions are encrypted with the Desktop session cipher before storage. Databases created by the task-domain foundation are migrated in place with prompt ciphertext columns. Restart recovery returns interrupted running Tasks to `queued` and detaches their prior Session so the next launch does not append the same instruction to a partially executed transcript. Later action-outbox work remains responsible for preventing duplicate external side effects across restarts.
 
 ## Alternatives considered
@@ -24,12 +28,15 @@ Task instructions are encrypted with the Desktop session cipher before storage. 
 
 **Store prompts as plain Task metadata.** Rejected because task instructions can contain sensitive office data. Prompt text uses the same authenticated encryption boundary as Session events.
 
+**Copy Task-internal messages into the Principal Thread.** Rejected because that creates a second user conversation and reply guide outside the Task. The Principal Thread is for Router-facing Home context and Task notices, not the Task's own transcript.
+
 ## Consequences
 
 - Queued Tasks automatically run after creation or restart when instructions are available.
 - Task state follows Agent run outcome without renderer involvement.
-- Task follow-up messages are visible to both the Router-side Principal Thread and the Worker Session, and keep one continuous Task transcript.
-- A completed Task can be reopened by a follow-up message; cancelling and queued/running transitions still terminate at the same Task and Router result projections.
+- Task follow-up messages are stored once in the Task Session and processed by both Router and Worker participants.
+- A completed Task can be reopened by a follow-up message; Router and Worker turns alternate in the same Task transcript before completion.
+- The Principal Thread receives only Task progress and a standalone result notice, never Task-internal user bubbles or reply guides.
 - Worker crashes and model-start failures become visible Task failures.
 - Restart recovery avoids duplicate prompts inside one Session, but external side-effect idempotency is deferred to the action outbox module.
 - Task titles, lifecycle details, and failure messages remain SQLite metadata; task instructions are encrypted.

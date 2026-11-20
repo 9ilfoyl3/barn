@@ -36,6 +36,7 @@ export interface ChatMessage {
   routineTitle?: string
   routinePrompt?: string
   routineRecurrence?: RoutineRecurrence
+  taskResult?: boolean
   createdAt?: string
 }
 
@@ -363,6 +364,7 @@ export function chatMessagesFromThread(messages: VisibleMessage[]): ChatMessage[
       : undefined
     const taskId = typeof message.metadata.taskId === 'string' ? message.metadata.taskId : undefined
     const actorRole = visibleActorRole(message.metadata.actorRole)
+    const taskResult = message.metadata.taskResult === true
     const routineDelivery = message.metadata.routineDelivery === true
     const routineTitle = typeof message.metadata.routineTitle === 'string' ? message.metadata.routineTitle : undefined
     const routinePrompt = typeof message.metadata.routinePrompt === 'string' ? message.metadata.routinePrompt : undefined
@@ -379,6 +381,7 @@ export function chatMessagesFromThread(messages: VisibleMessage[]): ChatMessage[
       ...(resultCard === undefined ? {} : { resultCard }),
       ...(routerRequestId === undefined ? {} : { routerRequestId }),
       ...(taskId === undefined ? {} : { taskId }),
+      ...(taskResult ? { taskResult: true } : {}),
       ...(routineDelivery ? { routineDelivery: true } : {}),
       ...(routineTitle === undefined ? {} : { routineTitle }),
       ...(routinePrompt === undefined ? {} : { routinePrompt }),
@@ -424,6 +427,7 @@ export function mergeThreadAndSessionMessages(
           ...(threadMessage.actorRole === undefined ? {} : { actorRole: threadMessage.actorRole }),
           ...(threadMessage.routerRequestId === undefined ? {} : { routerRequestId: threadMessage.routerRequestId }),
           ...(threadMessage.taskId === undefined ? {} : { taskId: threadMessage.taskId }),
+          ...(threadMessage.taskResult === true ? { taskResult: true } : {}),
           ...(threadMessage.routineDelivery === true ? { routineDelivery: true } : {}),
           ...(threadMessage.routineTitle === undefined ? {} : { routineTitle: threadMessage.routineTitle }),
           ...(threadMessage.routinePrompt === undefined ? {} : { routinePrompt: threadMessage.routinePrompt }),

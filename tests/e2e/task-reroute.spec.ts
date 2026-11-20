@@ -77,7 +77,7 @@ test('reroutes an active Task in place and keeps Worker progress in the Task det
       const current = await window.barn.tasks.get(taskId)
       return current.status
     }, task.id), { timeout: 15_000 }).toBe('completed')
-    await expect.poll(() => model.workerStarted(), { timeout: 15_000 }).toBe(2)
+    await expect.poll(() => model.workerStarted(), { timeout: 15_000 }).toBe(3)
 
     const result = await page.evaluate(async (taskId) => {
       const current = await window.barn.tasks.get(taskId)

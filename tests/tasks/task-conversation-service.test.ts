@@ -7,16 +7,14 @@ import { AesGcmEventCipher } from '../../src/main/session/event-cipher'
 import { SessionStore } from '../../src/main/session/session-store'
 import { TaskConversationService } from '../../src/main/tasks/task-conversation-service'
 import { TaskService } from '../../src/main/tasks/task-service'
-import { ThreadService } from '../../src/main/threads/thread-service'
 
 describe('TaskConversationService', () => {
-  it('delivers a continued Task message to both the Router thread and Worker Session', async () => {
+  it('stores a Task message once in the Task conversation and keeps it out of the Principal Thread', async () => {
     const directory = await mkdtemp(join(tmpdir(), 'barn-task-conversation-'))
     const store = new SessionStore(join(directory, 'sessions.db'), new AesGcmEventCipher(randomBytes(32)))
     await store.initialize()
     const tasks = new TaskService(store.tasks)
-    const threads = new ThreadService(store.threads)
-    const conversations = new TaskConversationService(tasks, store, threads)
+    const conversations = new TaskConversationService(tasks, store)
     const session = store.createSession('Weather follow-up')
     const task = tasks.create({
       title: 'Check Nanjing weather',
@@ -41,18 +39,15 @@ describe('TaskConversationService', () => {
     })
     expect(continued.prompt).toContain('后天什么温度呢')
     expect(continued.visiblePrompt).toBe('后天什么温度呢')
-    expect(store.read(session.id).some((event) => (
+    const taskEvents = store.read(session.id)
+    expect(taskEvents.filter((event) => (
       JSON.stringify(event.data).includes('后天什么温度呢')
-    ))).toBe(true)
-    expect(threads.getSnapshot().messages.at(-1)).toMatchObject({
-      role: 'user',
-      content: '后天什么温度呢',
-      metadata: expect.objectContaining({
-        taskId: task.id,
-        sessionId: session.id,
-        taskMessage: true,
-      }),
+    ))).toHaveLength(1)
+    expect(taskEvents.at(-1)?.data).toMatchObject({
+      taskCommand: true,
+      taskMessageId: expect.any(String),
     })
+    expect(store.threads.listPrimaryMessages()).toHaveLength(0)
     store.close()
   })
 })

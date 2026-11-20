@@ -804,7 +804,13 @@ export function App() {
     && displayLiveParts.length === 0
     && !running
     && messageActivity === undefined
-  const completedDisplayMessages = displayMessages.filter((message) => {
+  const taskResultMessages = displayMessages.filter((message, index) => (
+    message.role === 'assistant'
+    && message.taskResult === true
+    && displayMessages.findLastIndex((candidate) => candidate.taskId === message.taskId && candidate.taskResult === true) === index
+  ))
+  const conversationDisplayMessages = displayMessages.filter((message) => message.taskResult !== true)
+  const completedDisplayMessages = conversationDisplayMessages.filter((message) => {
     if (
       message.role === 'assistant'
       && message.resultCard?.kind === 'task'
@@ -1239,9 +1245,30 @@ export function App() {
                         )}
                       </ReplyGuideGroup>
                     )}
+                {taskResultMessages.map((message) => {
+                  const task = message.taskId === undefined
+                    ? undefined
+                    : tasks.find((candidate) => candidate.id === message.taskId)
+                  return (
+                    <article className="task-result-notice" data-message-key={message.key} key={message.key}>
+                      <span className="task-result-label">
+                        {t('tasks.taskResultFor', { title: task?.title ?? t('tasks.title') })}
+                      </span>
+                      <MessageBubble
+                        aria-label={t('conversation.barnMessage')}
+                        align="start"
+                        className="chat-message assistant task-result-message"
+                        role="article"
+                        variant="ghost"
+                      >
+                        <ConversationParts parts={message.parts} role="assistant" keyPrefix={message.key} />
+                      </MessageBubble>
+                    </article>
+                  )
+                })}
+
                   </MessageBubbleGroup>
                 )}
-
                 {error !== undefined && (
                   <div className="error-banner" role="alert">
                     {error}

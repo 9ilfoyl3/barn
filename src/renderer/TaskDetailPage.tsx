@@ -47,6 +47,7 @@ export function TaskDetailPage({ task, onBack }: { task: Task; onBack: () => voi
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [optimisticMessages, setOptimisticMessages] = useState<ChatMessage[]>([])
   const [liveParts, setLiveParts] = useState<ConversationPart[]>([])
+  const [liveActorRole, setLiveActorRole] = useState<'router' | 'worker'>('worker')
   const [input, setInput] = useState('')
   const [attachments, setAttachments] = useState<AttachmentDescriptor[]>([])
   const [pending, setPending] = useState(false)
@@ -70,6 +71,7 @@ export function TaskDetailPage({ task, onBack }: { task: Task; onBack: () => voi
     setMessages([])
     setOptimisticMessages([])
     setLiveParts([])
+    setLiveActorRole('worker')
     setInput('')
     setAttachments([])
     setPending(false)
@@ -140,10 +142,12 @@ export function TaskDetailPage({ task, onBack }: { task: Task; onBack: () => voi
       }
       if (event.sessionId !== sessionId) return
       if (event.type === 'assistant.delta' || event.type === 'assistant.thinking' || event.type === 'tool.started' || event.type === 'tool.finished') {
+        setLiveActorRole(event.actorRole ?? 'worker')
         setLiveParts((current) => applyLiveEvent(current, event))
         return
       }
       if (event.type === 'run.status') {
+        if (event.actorRole !== undefined) setLiveActorRole(event.actorRole)
         setPending(event.status === 'running')
         if (event.status !== 'running') {
           setStopping(false)
@@ -229,6 +233,7 @@ export function TaskDetailPage({ task, onBack }: { task: Task; onBack: () => voi
     setAttachments([])
     setOptimisticMessages((current) => [...current, optimistic])
     setPending(true)
+    setLiveActorRole('router')
     setError(undefined)
     try {
       await window.barn.tasks.continueTask(task.id, text, filesToSend)
@@ -349,15 +354,18 @@ export function TaskDetailPage({ task, onBack }: { task: Task; onBack: () => voi
   function renderLiveAssistant() {
     return (
       <div
-        className="assistant-reply-segment task-detail-actor-turn task-detail-actor-worker"
+        className={`assistant-reply-segment task-detail-actor-turn task-detail-actor-${liveActorRole}`}
+        data-actor-role={liveActorRole}
         data-testid="task-live-assistant"
         key="task-live"
       >
         <span className="task-detail-actor-avatar" aria-hidden="true">
-          <Bot size={12} />
+          {liveActorRole === 'router' ? <Route size={12} /> : <Bot size={12} />}
         </span>
         <div className="task-detail-actor-copy">
-          <span className="task-detail-actor-name">{t('tasks.workerAgent')}</span>
+          <span className="task-detail-actor-name">
+            {liveActorRole === 'router' ? t('tasks.routerAgent') : t('tasks.workerAgent')}
+          </span>
           {liveParts.length === 0 ? (
             <PendingThinking label={t('conversation.thinkingNow')} />
           ) : (

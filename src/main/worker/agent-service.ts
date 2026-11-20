@@ -100,22 +100,24 @@ export class AgentService {
         this.openSessions.set(sessionId, modelKey)
       }
 
-      const [userEvent] = this.sessions.append(sessionId, [{
-        type: 'agent.message',
-        data: {
-          message: {
-            role: 'user',
-            content: trimmed,
-            timestamp: Date.now(),
-          },
-          attachments,
-          ...(visibleText === undefined ? {} : { visibleText: visibleText.trim() }),
-          ...(options.userActorRole === undefined ? {} : { actorRole: options.userActorRole }),
-        },
-        actor: options.userActorRole === 'router'
-          ? { kind: 'agent', id: 'router' }
-          : { kind: 'user', id: 'desktop-user' },
-      }])
+      const [userEvent] = options.recordUserMessage === false
+        ? []
+        : this.sessions.append(sessionId, [{
+            type: 'agent.message',
+            data: {
+              message: {
+                role: 'user',
+                content: trimmed,
+                timestamp: Date.now(),
+              },
+              attachments,
+              ...(visibleText === undefined ? {} : { visibleText: visibleText.trim() }),
+              ...(options.userActorRole === undefined ? {} : { actorRole: options.userActorRole }),
+            },
+            actor: options.userActorRole === 'router'
+              ? { kind: 'agent', id: 'router' }
+              : { kind: 'user', id: 'desktop-user' },
+          }])
       if (userEvent !== undefined && options.projectUserMessage !== false) {
         this.threads?.appendMessage({
           clientMessageId: `session-user:${userEvent.eventId}`,
@@ -248,15 +250,19 @@ export class AgentService {
         }
         return
       }
-      case 'session.event':
+      case 'session.event': {
+        const actorRole = this.promptProjections.get(message.sessionId)?.assistantActorRole
         this.emit({
           ...message.event,
           sessionId: message.sessionId,
           runId: message.runId,
+          ...(actorRole === undefined ? {} : { actorRole }),
         })
         return
+      }
       case 'run.status': {
         const status = message.status === 'cancelled' ? 'idle' : message.status
+        const actorRole = this.promptProjections.get(message.sessionId)?.assistantActorRole
         this.sessions.updateStatus(message.sessionId, status)
         if (message.status === 'idle' || message.status === 'failed') {
           this.sessions.markResultUnread(message.sessionId)
@@ -268,6 +274,7 @@ export class AgentService {
           runId: message.runId,
           status: message.status,
           ...(message.error === undefined ? {} : { error: message.error }),
+          ...(actorRole === undefined ? {} : { actorRole }),
         })
         // Prompt start already published the running summary. Only publish
         // another summary when the run reaches a terminal state.

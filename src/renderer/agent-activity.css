@@ -74,3 +74,30 @@
     animation: none;
   }
 }
+
+/* Task results reach the Principal Thread as notices, never as replies that
+   inherit a user-anchored guide line. */
+.task-result-notice {
+  display: flex;
+  width: fit-content;
+  max-width: min(84%, 700px);
+  align-self: flex-start;
+  flex-direction: column;
+  gap: 5px;
+  margin-top: 4px;
+}
+
+.task-result-label {
+  padding-left: 2px;
+  color: var(--text-faint);
+  font-size: 10px;
+  line-height: 16px;
+}
+
+.task-result-message {
+  width: fit-content;
+  max-width: 100%;
+  border-radius: var(--assistant-bubble-radius);
+  background: var(--assistant-bubble-bg);
+  padding: 10px 13px;
+}

@@ -119,8 +119,20 @@ describe('TaskRunner', () => {
           content: 'The notes cover three decisions and two follow-ups.',
           timestamp: Date.now(),
         },
+        actorRole: 'worker',
       },
       actor: { kind: 'agent', id: 'barn' },
+    }, {
+      type: 'agent.message',
+      data: {
+        message: {
+          role: 'assistant',
+          content: 'Router coordination reply.',
+          timestamp: Date.now(),
+        },
+        actorRole: 'router',
+      },
+      actor: { kind: 'agent', id: 'router' },
     }])
     h.agent.emit({
       type: 'run.status',
@@ -322,11 +334,34 @@ describe('TaskRunner', () => {
     expect(reroutedRun.prompt).toContain('Use Baidu instead of Xinhua.')
     expect(h.agent.prompt).toHaveBeenLastCalledWith(
       reroutedRun.sessionId,
-      expect.stringContaining('Use Baidu instead of Xinhua.'),
+      'Use Baidu instead of Xinhua.',
       [],
       undefined,
-      expect.anything(),
-      expect.objectContaining({ projectAssistantMessage: false }),
+      undefined,
+      expect.objectContaining({
+        assistantActorRole: 'router',
+        recordUserMessage: false,
+        projectAssistantMessage: false,
+      }),
+    )
+    h.agent.emit({
+      type: 'run.status',
+      sessionId: reroutedRun.sessionId!,
+      runId: 'run-router',
+      status: 'idle',
+    })
+    await vi.waitFor(() => expect(h.agent.prompt).toHaveBeenCalledTimes(3))
+    expect(h.agent.prompt).toHaveBeenLastCalledWith(
+      reroutedRun.sessionId,
+      'Use Baidu instead of Xinhua.',
+      [],
+      undefined,
+      'Use Baidu instead of Xinhua.',
+      expect.objectContaining({
+        assistantActorRole: 'worker',
+        recordUserMessage: false,
+        projectAssistantMessage: false,
+      }),
     )
     h.agent.emit({
       type: 'run.status',
@@ -359,6 +394,13 @@ describe('TaskRunner', () => {
     const reroutedRun = h.tasks.get(task.id)
     expect(reroutedRun.sessionId).toBe(firstRun.sessionId)
 
+    h.agent.emit({
+      type: 'run.status',
+      sessionId: reroutedRun.sessionId!,
+      runId: 'run-router-after-cancel',
+      status: 'idle',
+    })
+    await vi.waitFor(() => expect(h.agent.prompt).toHaveBeenCalledTimes(3))
     h.agent.emit({
       type: 'run.status',
       sessionId: reroutedRun.sessionId!,

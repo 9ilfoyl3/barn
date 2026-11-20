@@ -264,6 +264,8 @@ export interface RouterBridge {
 /** Host-only projection controls for a model execution. */
 export interface AgentPromptOptions {
   projectUserMessage?: boolean
+  /** Send the prompt to the model without appending a second user event to the Session. */
+  recordUserMessage?: boolean
   /** Source identity recorded on the user-side Session event. Task launches record Router as the source. */
   userActorRole?: 'router' | 'worker'
   /** Source identity recorded on assistant Session events for this prompt. */
@@ -679,12 +681,14 @@ export type SessionLiveEvent =
       sessionId: string
       runId: string
       delta: string
+      actorRole?: 'router' | 'worker'
     }
   | {
       type: 'assistant.thinking'
       sessionId: string
       runId: string
       delta: string
+      actorRole?: 'router' | 'worker'
     }
   | {
       type: 'tool.started'
@@ -693,6 +697,7 @@ export type SessionLiveEvent =
       toolCallId: string
       toolName: string
       arguments: string
+      actorRole?: 'router' | 'worker'
     }
   | {
       type: 'tool.finished'
@@ -701,6 +706,7 @@ export type SessionLiveEvent =
       toolCallId: string
       toolName: string
       isError: boolean
+      actorRole?: 'router' | 'worker'
     }
   | {
       type: 'run.status'
@@ -708,6 +714,7 @@ export type SessionLiveEvent =
       runId: string
       status: 'running' | 'idle' | 'failed' | 'cancelled'
       error?: string
+      actorRole?: 'router' | 'worker'
     }
   | {
       type: 'context.updated'

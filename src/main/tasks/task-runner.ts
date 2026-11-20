@@ -26,6 +26,7 @@ interface ActiveTask {
   taskId: string
   sessionId: string
   cancelRequested: boolean
+  phase: 'router' | 'worker'
 }
 
 /** Runs queued Tasks through AgentService and projects run outcomes back into durable Task state. */
@@ -197,28 +198,24 @@ export class TaskRunner {
     const session = task.sessionId === undefined
       ? this.sessions.createSession(task.title)
       : this.sessions.getSession(task.sessionId)
-    const active: ActiveTask = { taskId: task.id, sessionId: session.id, cancelRequested: false }
+    const continued = task.detail === 'New instructions added; task requeued.'
+      || this.sessions.read(session.id).some(isTaskUserMessage)
+    const active: ActiveTask = {
+      taskId: task.id,
+      sessionId: session.id,
+      cancelRequested: false,
+      phase: continued ? 'router' : 'worker',
+    }
     this.active.set(task.id, active)
     this.activeSessions.set(session.id, task.id)
     try {
       this.tasks.updateStatus(task.id, { status: 'running', detail: 'Task execution started.' })
       this.tasks.assignSession(task.id, session.id)
-      await this.agent.prompt(
-        session.id,
-        task.prompt!,
-        task.attachments ?? [],
-        task.workingDirectory,
-        task.visiblePrompt,
-        {
-          projectUserMessage: false,
-          projectAssistantMessage: false,
-          userActorRole: 'router',
-          assistantActorRole: 'worker',
-          visibleActivity: false,
-          visibleMetadata: { taskId: task.id },
-          clientMessageIdPrefix: `task-assistant:${task.id}`,
-        },
-      )
+      if (continued) {
+        await this.promptRouter(task, session.id)
+      } else {
+        await this.promptWorker(task, session.id, false)
+      }
     } catch (error) {
       const wasActive = this.active.get(task.id)?.sessionId === session.id
       this.removeActive(task.id)
@@ -254,6 +251,30 @@ export class TaskRunner {
     if (active === undefined) return
 
     if (event.status === 'running') return
+    if (active.phase === 'router') {
+      if (event.status === 'failed' || active.cancelRequested) {
+        this.removeActive(taskId)
+        this.updateIfActive(taskId, event.status === 'failed'
+          ? { status: 'failed', detail: event.error ?? 'Router task turn failed.' }
+          : { status: 'cancelled', detail: 'Task cancelled.' })
+        this.schedule()
+        return
+      }
+      const task = this.tasks.list().find((candidate) => candidate.id === taskId)
+      if (task === undefined) {
+        this.removeActive(taskId)
+        this.schedule()
+        return
+      }
+      active.phase = 'worker'
+      void this.promptWorker(task, event.sessionId, true).catch((error: unknown) => {
+        if (this.active.get(taskId) !== active) return
+        this.removeActive(taskId)
+        this.updateIfActive(taskId, { status: 'failed', detail: errorMessage(error) })
+        this.schedule()
+      })
+      return
+    }
     this.removeActive(taskId)
     if (event.status === 'failed') {
       this.updateIfActive(taskId, {
@@ -271,6 +292,45 @@ export class TaskRunner {
       void this.projectTaskResult(taskId, event.sessionId)
     }
     this.schedule()
+  }
+
+  private async promptRouter(task: Task, sessionId: string): Promise<void> {
+    await this.agent.prompt(
+      sessionId,
+      task.visiblePrompt ?? task.prompt!,
+      [],
+      task.workingDirectory,
+      undefined,
+      {
+        recordUserMessage: false,
+        projectUserMessage: false,
+        projectAssistantMessage: false,
+        assistantActorRole: 'router',
+        visibleActivity: false,
+        visibleMetadata: { taskId: task.id },
+        clientMessageIdPrefix: `task-router:${task.id}`,
+      },
+    )
+  }
+
+  private async promptWorker(task: Task, sessionId: string, continued: boolean): Promise<void> {
+    await this.agent.prompt(
+      sessionId,
+      continued ? task.visiblePrompt ?? task.prompt! : task.prompt!,
+      task.attachments ?? [],
+      task.workingDirectory,
+      task.visiblePrompt,
+      {
+        recordUserMessage: !continued,
+        projectUserMessage: false,
+        projectAssistantMessage: false,
+        ...(continued ? {} : { userActorRole: 'router' as const }),
+        assistantActorRole: 'worker',
+        visibleActivity: false,
+        visibleMetadata: { taskId: task.id },
+        clientMessageIdPrefix: `task-assistant:${task.id}`,
+      },
+    )
   }
 
   private async projectTaskResult(taskId: string, sessionId: string, error?: string): Promise<void> {
@@ -339,11 +399,20 @@ export class TaskRunner {
   }
 }
 
+function isTaskUserMessage(event: ReturnType<SessionStore['read']>[number]): boolean {
+  return event.type === 'agent.message'
+    && isRecord(event.data)
+    && isRecord(event.data.message)
+    && event.data.message.role === 'user'
+    && event.data.actorRole !== 'router'
+}
+
 function finalAssistantMessage(events: ReturnType<SessionStore['read']>): { eventId: string; text: string } | undefined {
   for (let index = events.length - 1; index >= 0; index--) {
     const event = events[index]
     if (event?.type !== 'agent.message' || !isRecord(event.data) || !isRecord(event.data.message)) continue
     if (event.data.message.role !== 'assistant') continue
+    if (event.data.actorRole === 'router') continue
     const text = agentMessageText(event.data.message.content).trim()
     if (text.length > 0) return { eventId: event.eventId, text }
   }

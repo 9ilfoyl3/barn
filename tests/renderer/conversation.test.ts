@@ -56,6 +56,25 @@ describe('conversation timeline', () => {
     })
   })
 
+  it('marks a Task result from the Principal Thread so it stays outside reply guides', () => {
+    const messages = chatMessagesFromThread([{
+      id: 'task-result',
+      threadId: 'thread',
+      seq: 1,
+      role: 'assistant',
+      content: 'The task finished.',
+      metadata: { taskId: 'task-1', taskResult: true },
+      sourceRefs: ['task:task-1'],
+      createdAt: '2026-11-20T00:00:00.000Z',
+    }])
+
+    expect(messages[0]).toMatchObject({
+      role: 'assistant',
+      taskId: 'task-1',
+      taskResult: true,
+    })
+  })
+
   it('keeps Router and Worker turns distinct in a task session', () => {
     const events: SessionTimelineEvent[] = [
       timelineEvent('event-router', 1, {

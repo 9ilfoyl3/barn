@@ -233,7 +233,7 @@ void app.whenReady().then(async () => {
   agentService = new AgentService(supervisor, modelService, sessionStore, tools, memoryService, threadService)
   await agentService.start()
   taskService = new TaskService(sessionStore.tasks)
-  taskConversationService = new TaskConversationService(taskService, sessionStore, threadService)
+  taskConversationService = new TaskConversationService(taskService, sessionStore)
   routerService = new RouterService(
     sessionStore.router,
     threadService,

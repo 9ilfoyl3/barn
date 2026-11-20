@@ -337,18 +337,23 @@ test('opens a task agent conversation with properties and accepts a follow-up me
     const taskThread = await page.evaluate(() => window.barn.threads.getSnapshot())
     const continuedTask = await page.evaluate((taskId) => window.barn.tasks.get(taskId), task.id)
     expect(continuedTask.sessionId).toBe(completed.sessionId)
+    expect(taskThread.messages.some((message) => (
+      message.role === 'user' && JSON.stringify(message.content).includes('Please continue with a short follow-up.')
+    ))).toBe(false)
     expect(taskThread.messages).toEqual(expect.arrayContaining([
-      expect.objectContaining({
-        role: 'user',
-        content: 'Please continue with a short follow-up.',
-        metadata: expect.objectContaining({ taskId: task.id }),
-      }),
       expect.objectContaining({
         role: 'assistant',
         metadata: expect.objectContaining({ taskId: task.id, taskResult: true }),
       }),
     ]))
     await page.screenshot({ path: 'test-results/barn-task-detail-continued.png', fullPage: true })
+
+    await page.locator('.app-rail-button', { hasText: 'Home' }).click()
+    await expect(page.locator('.task-result-notice')).toContainText('Task detail agent reply.')
+    await expect(page.locator('.task-result-notice')).not.toHaveCount(0)
+    await expect(page.locator('.assistant-reply-run .task-result-message')).toHaveCount(0)
+    await expect(page.locator('.chat-message.user', { hasText: 'Please continue with a short follow-up.' })).toHaveCount(0)
+    await page.screenshot({ path: 'test-results/barn-task-result-notice.png', fullPage: true })
   } finally {
     await app.close()
     await new Promise<void>((resolve, reject) => server.close((error) => error === undefined ? resolve() : reject(error)))
