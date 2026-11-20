@@ -133,6 +133,103 @@ export interface ModelBridge {
   testModel(input: ModelTestInput): Promise<ModelTestResult>
 }
 
+export type ConnectorFieldType = 'text' | 'password' | 'url' | 'number' | 'boolean'
+
+export interface ConnectorSetupField {
+  key: string
+  label: string
+  type: ConnectorFieldType
+  required: boolean
+  placeholder?: string
+  defaultValue?: string | number | boolean
+}
+
+export interface ConnectorCapabilityDefinition {
+  id: string
+  name: string
+  description: string
+  risk: 'read' | 'external-write'
+}
+
+export interface ConnectorDefinition {
+  kind: string
+  name: string
+  description: string
+  icon: 'mail' | 'message-circle'
+  configFields: ConnectorSetupField[]
+  credentialFields: ConnectorSetupField[]
+  capabilities: ConnectorCapabilityDefinition[]
+}
+
+export type ConnectorConfigValue = string | number | boolean
+export type ConnectorConfig = Record<string, ConnectorConfigValue>
+
+export type ConnectorStatus = 'ready' | 'needs_setup' | 'disabled' | 'error'
+
+export interface ConnectorInstance {
+  id: string
+  kind: string
+  name: string
+  enabled: boolean
+  configured: boolean
+  status: ConnectorStatus
+  config: ConnectorConfig
+  capabilities: ConnectorCapabilityDefinition[]
+  lastError?: string
+  createdAt: string
+  updatedAt: string
+}
+
+export interface CreateConnectorInput {
+  kind: string
+  name: string
+  config: ConnectorConfig
+}
+
+export interface UpdateConnectorInput {
+  name?: string
+  config?: ConnectorConfig
+  enabled?: boolean
+}
+
+export interface SaveConnectorCredentialsInput {
+  connectorId: string
+  values: Record<string, string>
+  replace?: boolean
+}
+
+export interface ConnectorTestResult {
+  ok: boolean
+  message: string
+  latencyMs?: number
+}
+
+export interface ConnectorCallInput {
+  connectorId: string
+  capability: string
+  arguments: Record<string, unknown>
+}
+
+export type ConnectorCallResult =
+  | { kind: 'result'; value: unknown }
+  | {
+      kind: 'action'
+      actionId: string
+      status: 'pending_approval' | 'queued' | 'running' | 'succeeded' | 'failed' | 'cancelled'
+      message: string
+    }
+
+export interface ConnectorBridge {
+  listDefinitions(): Promise<ConnectorDefinition[]>
+  list(): Promise<ConnectorInstance[]>
+  create(input: CreateConnectorInput): Promise<ConnectorInstance>
+  update(connectorId: string, input: UpdateConnectorInput): Promise<ConnectorInstance>
+  remove(connectorId: string): Promise<void>
+  saveCredentials(input: SaveConnectorCredentialsInput): Promise<ConnectorInstance>
+  test(connectorId: string): Promise<ConnectorTestResult>
+  call(input: ConnectorCallInput): Promise<ConnectorCallResult>
+}
+
 export type VisibleMessageRole = 'user' | 'assistant' | 'system'
 
 /** The single user-visible Assistant history. Session IDs never define this identity. */
@@ -587,6 +684,7 @@ export interface DiagnosticsSnapshot {
     approvalsPending: number
     actionsActive: number
     localSources: number
+    connectors: number
     memoryEntries: number
   }
   automationMode: 'observe' | 'active'
@@ -611,13 +709,14 @@ export interface DiagnosticsBridge {
   runMaintenance(): Promise<{ cutoff: string; actionEvents: number; sourceEvents: number; approvals: number }>
 }
 
-export type PermissionKind = 'local-read' | 'workspace-write' | 'external-write' | 'destructive'
+export type PermissionKind = 'local-read' | 'workspace-write' | 'external-read' | 'external-write' | 'destructive'
 export type PermissionMode = 'allow' | 'ask' | 'deny'
 export type ApprovalStatus = 'pending' | 'approved' | 'denied'
 
 export interface PermissionPolicy {
   localRead: PermissionMode
   workspaceWrite: PermissionMode
+  externalRead: PermissionMode
   externalWrite: PermissionMode
   destructive: PermissionMode
 }
@@ -902,4 +1001,5 @@ export interface BarnBridge {
   lifecycle: LifecycleBridge
   diagnostics: DiagnosticsBridge
   memory: MemoryBridge
+  connectors: ConnectorBridge
 }

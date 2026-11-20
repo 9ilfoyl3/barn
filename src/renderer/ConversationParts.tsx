@@ -104,6 +104,8 @@ function toolActionLabel(name: string, t: ReturnType<typeof useTranslation>['t']
     case 'memory_search': return t('tools.memorySearch')
     case 'memory_save': return t('tools.memorySave')
     case 'memory_forget': return t('tools.memoryForget')
+    case 'connector_list': return t('tools.connectorList')
+    case 'connector_call': return t('tools.connectorCall')
     case 'browser_open': return t('tools.browserOpen')
     case 'browser_observe': return t('tools.browserObserve')
     case 'browser_act': return t('tools.browserAct')

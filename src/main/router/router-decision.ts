@@ -154,6 +154,7 @@ export interface RouterDecisionInput {
   attachments: Array<{ name: string; kind?: 'file' | 'directory' }>
   recentMessages: VisibleMessage[]
   activeTasks: Task[]
+  connectors: Array<{ id: string; kind: string; name: string; status: string; capabilities: string[] }>
   workingDirectory?: string
   now: Date
   timezone: string
@@ -199,6 +200,7 @@ export class ModelRouterDecisionEngine implements RouterDecisionEngine {
             workingDirectory: input.workingDirectory ?? null,
             userMessage: input.text,
             attachments: input.attachments,
+            connectors: input.connectors,
             activeTasks: input.activeTasks.map((task) => ({
               id: task.id,
               title: task.title,
@@ -245,7 +247,7 @@ Use when a required target, time, attachment, scope, permission, or decision is 
 
 3. task.create
 {"tool":"task.create","arguments":{"title":"...","objective":"...","deliverable":"...","constraints":["..."],"acceptanceCriteria":["..."],"forbiddenActions":["..."],"risk":"none|local_write|external_write|destructive","expectedArtifacts":["..."]},"confidence":0..1,"rationaleCodes":["..."]}
-Use for durable work that needs tools, files, browser, connectors, shell, research, multiple steps, external effects, deliverables, monitoring, or work that must continue after this reply. Make the objective self-contained. Include explicit acceptance criteria.
+Use for durable work that needs tools, files, browser, connectors, shell, research, multiple steps, external effects, deliverables, monitoring, or work that must continue after this reply. Configured connectors and their capability ids appear in connectors. Make the objective self-contained. Include explicit acceptance criteria.
 
 4. schedule.create
 {"tool":"schedule.create","arguments":{"title":"...","text":"...","scheduledFor":"ISO-8601 with offset","timezone":"IANA timezone","recurrence":"none|daily|weekdays|weekly"},"confidence":0..1,"rationaleCodes":["..."]}

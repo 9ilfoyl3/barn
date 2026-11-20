@@ -39,6 +39,7 @@ import { ModelSettings } from './ModelSettings'
 import { ModelPicker } from './ModelPicker'
 import { LanguagePicker } from './LanguagePicker'
 import { SourceSettings } from './SourceSettings'
+import { ConnectorSettings } from './ConnectorSettings'
 import { DiagnosticsSettings } from './DiagnosticsSettings'
 import { SettingsPage } from './SettingsPage'
 import { AttachmentStrip } from './AttachmentStrip'
@@ -119,6 +120,7 @@ export function App() {
   const [snapshot, setSnapshot] = useState<ModelConfigSnapshot>()
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [sourceSettingsOpen, setSourceSettingsOpen] = useState(false)
+  const [connectorSettingsOpen, setConnectorSettingsOpen] = useState(false)
   const [diagnosticsOpen, setDiagnosticsOpen] = useState(false)
   const [modelSelectionBusy, setModelSelectionBusy] = useState(false)
   const [sessions, setSessions] = useState<SessionSummary[]>([])
@@ -1070,7 +1072,7 @@ export function App() {
           <button
             className={railButtonClassName(false)}
             type="button"
-            onClick={() => setSourceSettingsOpen(true)}
+            onClick={() => setConnectorSettingsOpen(true)}
           >
             <Plug size={19} aria-hidden="true" />
             <span>{t('navigation.plugins')}</span>
@@ -1106,6 +1108,9 @@ export function App() {
             <button className="account-menu-item" type="button" role="menuitem" onClick={() => { setAccountOpen(false); setView('settings') }}>
               <Settings2 size={14} /><span>{t('sidebar.settings')}</span><ChevronRight className="account-menu-chevron" size={13} />
             </button>
+            <button className="account-menu-item" type="button" role="menuitem" onClick={() => { setAccountOpen(false); setConnectorSettingsOpen(true) }}>
+              <Plug size={14} /><span>{t('navigation.plugins')}</span><ChevronRight className="account-menu-chevron" size={13} />
+            </button>
             <button className="account-menu-item" type="button" role="menuitem" onClick={() => { setAccountOpen(false); setSourceSettingsOpen(true) }}>
               <FolderSearch size={14} /><span>{t('sidebar.localSources')}</span><ChevronRight className="account-menu-chevron" size={13} />
             </button>
@@ -1126,6 +1131,7 @@ export function App() {
           {view === 'settings' ? (
             <SettingsPage
               onOpenModels={() => setSettingsOpen(true)}
+              onOpenConnectors={() => setConnectorSettingsOpen(true)}
               onOpenSources={() => setSourceSettingsOpen(true)}
               onOpenDiagnostics={() => setDiagnosticsOpen(true)}
             />
@@ -1165,7 +1171,7 @@ export function App() {
                   <TodayPanel
                     routines={routines}
                     onAcknowledgeRoutine={acknowledgeRoutine}
-                    onConnectSources={() => setSourceSettingsOpen(true)}
+                    onConnectSources={() => setConnectorSettingsOpen(true)}
                     onOpenRoutine={openRoutine}
                     onRefresh={() => void refreshTasks()}
                   />
@@ -1496,6 +1502,7 @@ export function App() {
           onClose={() => setSettingsOpen(false)}
         />
       )}
+      {connectorSettingsOpen && <ConnectorSettings onClose={() => setConnectorSettingsOpen(false)} />}
       {sourceSettingsOpen && <SourceSettings onClose={() => setSourceSettingsOpen(false)} />}
       {diagnosticsOpen && <DiagnosticsSettings onClose={() => setDiagnosticsOpen(false)} />}
     </div>

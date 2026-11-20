@@ -6,11 +6,12 @@ const modeSchema = z.enum(['allow', 'ask', 'deny'])
 const policySchema = z.object({
   localRead: modeSchema,
   workspaceWrite: modeSchema,
+  externalRead: modeSchema,
   externalWrite: modeSchema,
   destructive: modeSchema,
 }).strict()
 const requestSchema = z.object({
-  kind: z.enum(['local-read', 'workspace-write', 'external-write', 'destructive']),
+  kind: z.enum(['local-read', 'workspace-write', 'external-read', 'external-write', 'destructive']),
   title: z.string().trim().min(1).max(200),
   summary: z.string().trim().min(1).max(2_000),
   details: z.string().trim().min(1).max(20_000).optional(),

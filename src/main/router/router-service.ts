@@ -28,6 +28,7 @@ export interface RouterServiceOptions {
   now?: () => Date
   timezone?: string
   createRequestId?: () => string
+  getConnectorContext?: () => Promise<Array<{ id: string; kind: string; name: string; status: string; capabilities: string[] }>>
 }
 
 /** Serial Router lane: admitted requests are routed through validated model tool decisions. */
@@ -39,6 +40,7 @@ export class RouterService {
   private readonly now: () => Date
   private readonly timezone: string
   private readonly createRequestId: () => string
+  private readonly getConnectorContext: () => Promise<Array<{ id: string; kind: string; name: string; status: string; capabilities: string[] }>>
   private started = false
   private draining = false
   private scheduled: NodeJS.Immediate | undefined
@@ -56,6 +58,7 @@ export class RouterService {
     this.now = options.now ?? (() => new Date())
     this.timezone = options.timezone ?? Intl.DateTimeFormat().resolvedOptions().timeZone
     this.createRequestId = options.createRequestId ?? randomUUID
+    this.getConnectorContext = options.getConnectorContext ?? (async () => [])
   }
 
   start(): void {
@@ -163,6 +166,7 @@ export class RouterService {
       const attachments = attachmentList(userMessage.metadata.attachments)
       const workingDirectory = stringMetadata(userMessage.metadata.workingDirectory)
       const locale = userMessage.metadata.locale === 'zh-CN' ? 'zh-CN' : 'en'
+      const connectors = await this.getConnectorContext().catch(() => [])
       const decision = await this.decisions.decide({
         text,
         attachments: attachments.map((attachment) => ({
@@ -171,6 +175,7 @@ export class RouterService {
         })),
         recentMessages: this.recentMessages(userMessage),
         activeTasks: this.tasks.list().filter((task) => task.status !== 'completed' && task.status !== 'cancelled'),
+        connectors,
         ...(workingDirectory === undefined ? {} : { workingDirectory }),
         now: this.now(),
         timezone: this.timezone,

@@ -102,6 +102,7 @@ export function DiagnosticsSettings({ onClose }: { onClose(): void }) {
                 <div><dt>{t('diagnostics.approvals')}</dt><dd>{snapshot.counts.approvalsPending}</dd></div>
                 <div><dt>{t('diagnostics.actions')}</dt><dd>{snapshot.counts.actionsActive}</dd></div>
                 <div><dt>{t('diagnostics.sources')}</dt><dd>{snapshot.counts.localSources}</dd></div>
+                <div><dt>{t('diagnostics.connectors')}</dt><dd>{snapshot.counts.connectors}</dd></div>
                 <div><dt>{t('diagnostics.memory')}</dt><dd>{snapshot.counts.memoryEntries}</dd></div>
                 <div><dt>{t('diagnostics.automation')}</dt><dd>{t(`sourceSettings.${snapshot.automationMode}`)}</dd></div>
                 <div><dt>{t('diagnostics.shell')}</dt><dd>{snapshot.shell.available ? snapshot.shell.backend : t('footer.shellUnavailable')}</dd></div>

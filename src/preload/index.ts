@@ -45,6 +45,11 @@ import type {
   TerminalCreateInput,
   TerminalDataEvent,
   TerminalExitEvent,
+  ConnectorBridge,
+  CreateConnectorInput,
+  UpdateConnectorInput,
+  SaveConnectorCredentialsInput,
+  ConnectorCallInput,
 } from '../shared/models'
 
 const models: ModelBridge = {
@@ -159,6 +164,18 @@ const tasks: TaskBridge = {
   },
 }
 
+
+const connectors: ConnectorBridge = {
+  listDefinitions: () => ipcRenderer.invoke('connectors:list-definitions'),
+  list: () => ipcRenderer.invoke('connectors:list'),
+  create: (input: CreateConnectorInput) => ipcRenderer.invoke('connectors:create', input),
+  update: (connectorId: string, input: UpdateConnectorInput) => ipcRenderer.invoke('connectors:update', connectorId, input),
+  remove: (connectorId: string) => ipcRenderer.invoke('connectors:remove', connectorId),
+  saveCredentials: (input: SaveConnectorCredentialsInput) => ipcRenderer.invoke('connectors:save-credentials', input),
+  test: (connectorId: string) => ipcRenderer.invoke('connectors:test', connectorId),
+  call: (input: ConnectorCallInput) => ipcRenderer.invoke('connectors:call', input),
+}
+
 const permissions: PermissionBridge = {
   getPolicy: () => ipcRenderer.invoke('permissions:get-policy'),
   setPolicy: (policy: PermissionPolicy) => ipcRenderer.invoke('permissions:set-policy', policy),
@@ -246,5 +263,6 @@ const api: BarnBridge = {
   lifecycle,
   diagnostics,
   memory,
+  connectors,
 }
 contextBridge.exposeInMainWorld('barn', api)

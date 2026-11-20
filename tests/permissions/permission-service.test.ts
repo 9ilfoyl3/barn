@@ -39,6 +39,7 @@ describe('PermissionService', () => {
     h.permissions.setPolicy({
       localRead: 'allow',
       workspaceWrite: 'allow',
+      externalRead: 'allow',
       externalWrite: 'allow',
       destructive: 'deny',
     })

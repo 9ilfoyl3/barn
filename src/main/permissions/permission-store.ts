@@ -11,7 +11,7 @@ import type {
 } from '../../shared/models'
 
 const MODES: readonly PermissionMode[] = ['allow', 'ask', 'deny']
-const KINDS: readonly PermissionKind[] = ['local-read', 'workspace-write', 'external-write', 'destructive']
+const KINDS: readonly PermissionKind[] = ['local-read', 'workspace-write', 'external-read', 'external-write', 'destructive']
 const STATUSES: readonly ApprovalStatus[] = ['pending', 'approved', 'denied']
 
 interface ApprovalRow {
@@ -33,6 +33,7 @@ interface ApprovalRow {
 export const DEFAULT_PERMISSION_POLICY: PermissionPolicy = {
   localRead: 'allow',
   workspaceWrite: 'allow',
+  externalRead: 'allow',
   externalWrite: 'ask',
   destructive: 'ask',
 }
@@ -50,6 +51,7 @@ export class PermissionStore {
         id INTEGER PRIMARY KEY CHECK (id = 1),
         local_read TEXT NOT NULL,
         workspace_write TEXT NOT NULL,
+        external_read TEXT NOT NULL DEFAULT 'allow',
         external_write TEXT NOT NULL,
         destructive TEXT NOT NULL
       );
@@ -76,13 +78,15 @@ export class PermissionStore {
         ON approvals(task_id);
     `)
     this.ensureApprovalCipherColumns()
+    this.ensurePolicyColumns()
     this.database.prepare(`
       INSERT OR IGNORE INTO permission_policy (
-        id, local_read, workspace_write, external_write, destructive
-      ) VALUES (1, ?, ?, ?, ?)
+        id, local_read, workspace_write, external_read, external_write, destructive
+      ) VALUES (1, ?, ?, ?, ?, ?)
     `).run(
       DEFAULT_PERMISSION_POLICY.localRead,
       DEFAULT_PERMISSION_POLICY.workspaceWrite,
+      DEFAULT_PERMISSION_POLICY.externalRead,
       DEFAULT_PERMISSION_POLICY.externalWrite,
       DEFAULT_PERMISSION_POLICY.destructive,
     )
@@ -90,11 +94,12 @@ export class PermissionStore {
 
   getPolicy(): PermissionPolicy {
     const row = this.database.prepare(`
-      SELECT local_read, workspace_write, external_write, destructive
+      SELECT local_read, workspace_write, external_read, external_write, destructive
       FROM permission_policy WHERE id = 1
     `).get() as {
       local_read: string
       workspace_write: string
+      external_read: string
       external_write: string
       destructive: string
     } | undefined
@@ -102,6 +107,7 @@ export class PermissionStore {
     return {
       localRead: requireMode(row.local_read),
       workspaceWrite: requireMode(row.workspace_write),
+      externalRead: requireMode(row.external_read),
       externalWrite: requireMode(row.external_write),
       destructive: requireMode(row.destructive),
     }
@@ -111,6 +117,7 @@ export class PermissionStore {
     const validated = {
       localRead: requireMode(policy.localRead),
       workspaceWrite: requireMode(policy.workspaceWrite),
+      externalRead: requireMode(policy.externalRead),
       externalWrite: requireMode(policy.externalWrite),
       destructive: requireMode(policy.destructive),
     }
@@ -207,6 +214,16 @@ export class PermissionStore {
       throw new Error(`Incomplete encrypted ${field} for approval: ${approvalId}`)
     }
     return this.cipher.decrypt({ ciphertext, nonce, tag }, approvalAssociatedData(approvalId, field)) as string
+  }
+
+  private ensurePolicyColumns(): void {
+    const columns = new Set(
+      (this.database.prepare('PRAGMA table_info(permission_policy)').all() as Array<{ name: string }>)
+        .map((column) => column.name),
+    )
+    if (!columns.has('external_read')) {
+      this.database.exec("ALTER TABLE permission_policy ADD COLUMN external_read TEXT NOT NULL DEFAULT 'allow'")
+    }
   }
 
   private ensureApprovalCipherColumns(): void {

@@ -41,6 +41,7 @@ describe('ActionService', () => {
     h.permissions.setPolicy({
       localRead: 'allow',
       workspaceWrite: 'allow',
+      externalRead: 'allow',
       externalWrite: 'allow',
       destructive: 'ask',
     })
@@ -112,6 +113,7 @@ describe('ActionService', () => {
     h.permissions.setPolicy({
       localRead: 'allow',
       workspaceWrite: 'allow',
+      externalRead: 'allow',
       externalWrite: 'allow',
       destructive: 'ask',
     })
