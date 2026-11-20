@@ -4,6 +4,9 @@ import { dirname, join } from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
 import { ToolService } from '../../src/main/tools/tool-service'
 import type { ShellService } from '../../src/main/sandbox/shell-service'
+import { AesGcmEventCipher } from '../../src/main/session/event-cipher'
+import { SessionStore } from '../../src/main/session/session-store'
+import { randomBytes } from 'node:crypto'
 
 async function createService(): Promise<{
   service: ToolService
@@ -30,6 +33,47 @@ async function createService(): Promise<{
 }
 
 describe('ToolService', () => {
+  it('retrieves bounded Session history by sequence, role, and query', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'barn-tools-history-'))
+    const sessions = new SessionStore(join(root, 'sessions.db'), new AesGcmEventCipher(randomBytes(32)))
+    await sessions.initialize()
+    const session = sessions.createSession('History')
+    sessions.append(session.id, [
+      { type: 'agent.message', data: { message: { role: 'user', content: 'Remember the blue launch date', timestamp: Date.now() } } },
+      { type: 'agent.message', data: { message: { role: 'assistant', content: 'The launch is Tuesday.', timestamp: Date.now() } } },
+      { type: 'agent.message', data: { message: { role: 'user', content: 'Use the green alternative', timestamp: Date.now() } } },
+    ])
+    await Promise.all([
+      mkdir(join(root, 'workspace')),
+      mkdir(join(root, 'output')),
+      mkdir(join(root, 'temp')),
+    ])
+    const service = new ToolService({
+      workspaceRoot: join(root, 'workspace'),
+      outputRoot: join(root, 'output'),
+      privateTempRoot: join(root, 'temp'),
+      shell: { run: vi.fn() } as unknown as ShellService,
+      sessions,
+    })
+
+    const ranged = await service.execute('session_history', { startSeq: 1, endSeq: 2 }, { sessionId: session.id })
+    expect(ranged.details).toMatchObject({ matched: 2, returned: 2 })
+    expect(JSON.parse(ranged.content[0]?.type === 'text' ? ranged.content[0].text : '{}')).toMatchObject({
+      messages: [
+        { seq: 1, role: 'user', text: 'Remember the blue launch date' },
+        { seq: 2, role: 'assistant', text: 'The launch is Tuesday.' },
+      ],
+    })
+
+    const filtered = await service.execute('session_history', {
+      query: 'green',
+      role: 'user',
+    }, { sessionId: session.id })
+    expect(filtered.details).toMatchObject({ matched: 1, returned: 1 })
+    expect(filtered.content[0]?.type === 'text' ? filtered.content[0].text : '').toContain('green alternative')
+    sessions.close()
+  })
+
   it('reads text with line ranges and metadata', async () => {
     const { service, workspace } = await createService()
     await writeFile(join(workspace, 'notes.txt'), 'one\ntwo\nthree\nfour')
