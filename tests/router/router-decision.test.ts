@@ -1,4 +1,4 @@
-import { createAssistantMessageEventStream, type AssistantMessage, type Context, type SimpleStreamOptions } from '@earendil-works/pi-ai'
+import { createAssistantMessageEventStream, type AssistantMessage, type Context, type SimpleStreamOptions, type ToolCall } from '@earendil-works/pi-ai'
 import { describe, expect, it, vi } from 'vitest'
 import type { ModelSelection, VisibleMessage } from '../../src/shared/models'
 import type { ModelService } from '../../src/main/models/model-service'
@@ -37,6 +37,87 @@ function fakeModel(response: string): ModelService {
   } as unknown as ModelService
 }
 
+function fakeSequencedModel(responses: string[]): ModelService {
+  const selection: ModelSelection = { providerId: 'openai', modelId: 'router-model' }
+  let index = 0
+  return {
+    getSnapshot: async () => ({
+      providers: [],
+      defaultModel: selection,
+      defaultReasoningEffort: 'max',
+      modelSettingsVersion: 1,
+    }),
+    getModelDescriptor: () => ({
+      id: 'router-model',
+      name: 'Router Model',
+      providerId: 'openai',
+      api: 'openai-responses',
+      reasoning: true,
+      reasoningEfforts: ['high', 'max'],
+      contextWindow: 128_000,
+      maxTokens: 8_000,
+      input: ['text'],
+    }),
+    streamSimple: () => {
+      const response = responses[index++] ?? responses.at(-1) ?? ''
+      const stream = createAssistantMessageEventStream()
+      stream.push({ type: 'start', partial: assistant('') })
+      stream.push({ type: 'text_start', contentIndex: 0, partial: assistant('') })
+      stream.push({ type: 'text_delta', contentIndex: 0, delta: response, partial: assistant(response) })
+      stream.push({ type: 'text_end', contentIndex: 0, content: response, partial: assistant(response) })
+      stream.push({ type: 'done', reason: 'stop', message: assistant(response) })
+      return stream
+    },
+  } as unknown as ModelService
+}
+
+function fakeModelWithToolCall(args: ToolCall['arguments']): ModelService {
+  const selection: ModelSelection = { providerId: 'openai', modelId: 'router-model' }
+  return {
+    getSnapshot: async () => ({
+      providers: [],
+      defaultModel: selection,
+      defaultReasoningEffort: 'max',
+      modelSettingsVersion: 1,
+    }),
+    getModelDescriptor: () => ({
+      id: 'router-model',
+      name: 'Router Model',
+      providerId: 'openai',
+      api: 'openai-responses',
+      reasoning: true,
+      reasoningEfforts: ['high', 'max'],
+      contextWindow: 128_000,
+      maxTokens: 8_000,
+      input: ['text'],
+    }),
+    streamSimple: () => {
+      const stream = createAssistantMessageEventStream()
+      const toolCall: ToolCall = {
+        type: 'toolCall',
+        id: 'route-call-1',
+        name: 'route_decision',
+        arguments: args,
+      }
+      const partial = assistantWithContent([toolCall], 'toolUse')
+      stream.push({ type: 'start', partial })
+      stream.push({ type: 'toolcall_start', contentIndex: 0, partial })
+      stream.push({ type: 'toolcall_delta', contentIndex: 0, delta: JSON.stringify(args), partial })
+      stream.push({ type: 'toolcall_end', contentIndex: 0, toolCall, partial })
+      stream.push({ type: 'done', reason: 'toolUse', message: partial })
+      return stream
+    },
+  } as unknown as ModelService
+}
+
+function assistantWithContent(content: AssistantMessage['content'], stopReason: AssistantMessage['stopReason'] = 'stop'): AssistantMessage {
+  return {
+    ...assistant(''),
+    content,
+    stopReason,
+  }
+}
+
 function assistant(text: string): AssistantMessage {
   return {
     role: 'assistant',
@@ -69,6 +150,30 @@ const recentMessages: VisibleMessage[] = [{
 }]
 
 describe('ModelRouterDecisionEngine', () => {
+  it('prefers a native route_decision tool call over text JSON', async () => {
+    const args = {
+      tool: 'reply',
+      arguments: { text: 'Wear a coat.' },
+      confidence: 0.98,
+      rationaleCodes: ['direct_reply'],
+    } satisfies ToolCall['arguments']
+    const model = fakeModelWithToolCall(args)
+    const stream = vi.spyOn(model, 'streamSimple')
+    const engine = new ModelRouterDecisionEngine(model)
+
+    await expect(engine.decide(input())).resolves.toMatchObject({
+      action: 'reply',
+      text: 'Wear a coat.',
+    })
+    expect(stream).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        tools: [expect.objectContaining({ name: 'route_decision' })],
+      }),
+      expect.objectContaining({ toolChoice: 'auto' }),
+    )
+  })
+
   it('parses a validated task.create tool decision and preserves reasoning effort', async () => {
     const response = JSON.stringify({
       tool: 'task.create',
@@ -111,6 +216,25 @@ describe('ModelRouterDecisionEngine', () => {
       expect.anything(),
       expect.objectContaining({ reasoning: 'max' }),
     )
+  })
+
+  it('retries once after an invalid model response', async () => {
+    const valid = JSON.stringify({
+      tool: 'reply',
+      arguments: { text: 'Wear a coat.' },
+      confidence: 0.97,
+      rationaleCodes: ['direct_reply'],
+    })
+    const model = fakeSequencedModel(['I think you should wear a coat.', valid])
+    const stream = vi.spyOn(model, 'streamSimple')
+    const engine = new ModelRouterDecisionEngine(model)
+
+    await expect(engine.decide(input())).resolves.toMatchObject({
+      action: 'reply',
+      text: 'Wear a coat.',
+    })
+    expect(stream).toHaveBeenCalledTimes(2)
+    expect(stream.mock.calls[1]?.[1].messages.at(-1)?.content).toContain('did not match the route_decision schema')
   })
 
   it('fails closed when the Router returns unstructured text', async () => {
