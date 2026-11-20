@@ -3,7 +3,7 @@ import type { DatabaseSync } from 'node:sqlite'
 import type { AesGcmEventCipher } from '../session/event-cipher'
 import type { ActionEvent, ActionRecord, ActionRequestInput, ActionStatus } from './types'
 
-const STATUSES: readonly ActionStatus[] = ['pending_approval', 'queued', 'running', 'succeeded', 'failed', 'cancelled']
+const STATUSES: readonly ActionStatus[] = ['pending_approval', 'queued', 'running', 'succeeded', 'failed', 'cancelled', 'unknown_effect']
 
 interface ActionRow {
   id: string
@@ -275,7 +275,9 @@ export class ActionStore {
 
   retry(actionId: string, now = new Date().toISOString()): ActionRecord {
     const action = this.get(actionId)
-    if (action.status !== 'failed') throw new Error(`Only a failed action can retry, not ${action.status}`)
+    if (action.status !== 'failed' && action.status !== 'unknown_effect') {
+      throw new Error(`Only a failed or unknown-effect action can retry, not ${action.status}`)
+    }
     this.database.prepare(`
       UPDATE actions
       SET status = 'queued', attempts = 0, next_attempt_at = ?, updated_at = ?, completed_at = NULL
@@ -289,9 +291,11 @@ export class ActionStore {
     const rows = this.database.prepare(`SELECT id FROM actions WHERE status = 'running'`).all() as Array<{ id: string }>
     for (const row of rows) {
       this.database.prepare(`
-        UPDATE actions SET status = 'queued', next_attempt_at = ?, updated_at = ? WHERE id = ?
-      `).run(now, now, row.id)
-      this.appendEvent(row.id, 'recovered', {})
+        UPDATE actions SET status = 'unknown_effect', next_attempt_at = NULL, updated_at = ? WHERE id = ?
+      `).run(now, row.id)
+      this.appendEvent(row.id, 'unknown_effect', {
+        reason: 'Process restarted while the external effect was in progress. Inspect the provider before retrying.',
+      })
     }
     return rows.length
   }

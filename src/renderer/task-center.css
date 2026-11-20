@@ -365,3 +365,8 @@
   background: var(--panel-raised);
   color: var(--text-faint);
 }
+
+.connector-action-status-unknown_effect {
+  background: color-mix(in srgb, var(--warning) 12%, transparent);
+  color: var(--warning);
+}

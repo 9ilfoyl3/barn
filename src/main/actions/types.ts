@@ -1,4 +1,4 @@
-export type ActionStatus = 'pending_approval' | 'queued' | 'running' | 'succeeded' | 'failed' | 'cancelled'
+export type ActionStatus = 'pending_approval' | 'queued' | 'running' | 'succeeded' | 'failed' | 'cancelled' | 'unknown_effect'
 
 export interface ActionRecord {
   id: string

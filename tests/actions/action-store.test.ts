@@ -82,18 +82,19 @@ describe('ActionStore', () => {
     ])
   })
 
-  it('recoveres running actions and preserves retry audit', async () => {
+  it('marks interrupted running actions as unknown instead of replaying them', async () => {
     const directory = await mkdtemp(join(tmpdir(), 'barn-action-store-'))
     const store = await openStore(directory)
     const action = store.actions.create(input, 'queued')
     store.actions.claim(action.id)
     expect(store.actions.recoverRunning()).toBe(1)
-    expect(store.actions.get(action.id).status).toBe('queued')
-    expect(store.actions.events(action.id).map((event) => event.type)).toEqual(['created', 'started', 'recovered'])
+    expect(store.actions.get(action.id).status).toBe('unknown_effect')
+    expect(store.actions.events(action.id).map((event) => event.type)).toEqual(['created', 'started', 'unknown_effect'])
+    expect(store.actions.retry(action.id).status).toBe('queued')
     store.close()
   })
 
-  it('retries only failed actions and stops after max attempts', async () => {
+  it('retries failed actions and stops after max attempts', async () => {
     const directory = await mkdtemp(join(tmpdir(), 'barn-action-store-'))
     const store = await openStore(directory)
     const action = store.actions.create({ ...input, maxAttempts: 1 }, 'queued')

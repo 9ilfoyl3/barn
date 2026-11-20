@@ -68,6 +68,22 @@ async function harness() {
     registerHandler(handler: { kind: string; execute: (action: ActionRecord, context: { actionId: string; idempotencyKey: string; signal: AbortSignal }) => Promise<unknown> }) {
       handlers.set(handler.kind, handler.execute)
     },
+    retry(actionId: string): ActionRecord {
+      const action = listedActions.find((entry) => entry.id === actionId)
+      if (action === undefined) throw new Error('missing action')
+      const next = { ...action, status: 'queued' as const, updatedAt: new Date().toISOString() }
+      const index = listedActions.findIndex((entry) => entry.id === actionId)
+      listedActions[index] = next
+      return next
+    },
+    cancel(actionId: string): ActionRecord {
+      const action = listedActions.find((entry) => entry.id === actionId)
+      if (action === undefined) throw new Error('missing action')
+      const next = { ...action, status: 'cancelled' as const, updatedAt: new Date().toISOString() }
+      const index = listedActions.findIndex((entry) => entry.id === actionId)
+      listedActions[index] = next
+      return next
+    },
   }
   const service = new ConnectorService(
     sessions.connectors,
@@ -81,7 +97,7 @@ async function harness() {
     connectorId: connector.id,
     values: { username: 'person@example.com', password: 'app-password' },
   })
-  return { directory, sessions, credentials, adapter, service, actions, handlers, enqueued, connector }
+  return { directory, sessions, credentials, adapter, service, actions, handlers, enqueued, listedActions, connector }
 }
 
 describe('ConnectorService', () => {
@@ -131,6 +147,27 @@ describe('ConnectorService', () => {
     expect(h.service.listActions()).toEqual([
       expect.objectContaining({ title: 'Send mail', status: 'pending_approval', attempts: 0 }),
     ])
+    h.sessions.close()
+  })
+
+  it('retries or cancels an unknown-effect connector action explicitly', async () => {
+    const h = await harness()
+    h.listedActions.unshift({
+      id: 'unknown-action',
+      kind: 'connector.effect',
+      idempotencyKey: 'unknown-key',
+      title: 'Send mail',
+      summary: 'Send the report.',
+      status: 'unknown_effect',
+      payload: {},
+      attempts: 1,
+      maxAttempts: 5,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    })
+    await expect(h.service.retryAction('unknown-action')).resolves.toMatchObject({ status: 'queued' })
+    h.listedActions[0] = { ...h.listedActions[0]!, status: 'unknown_effect' }
+    await expect(h.service.cancelAction('unknown-action')).resolves.toMatchObject({ status: 'cancelled' })
     h.sessions.close()
   })
 

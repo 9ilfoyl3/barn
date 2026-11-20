@@ -81,6 +81,16 @@ export function registerConnectorIpc(
     return connectors.listActions()
   })
 
+  ipcMain.handle('connectors:retry-action', (event, actionId: unknown) => {
+    requireTrusted(event, isTrustedSender)
+    return connectors.retryAction(idSchema.parse(actionId))
+  })
+
+  ipcMain.handle('connectors:cancel-action', (event, actionId: unknown) => {
+    requireTrusted(event, isTrustedSender)
+    return connectors.cancelAction(idSchema.parse(actionId))
+  })
+
   ipcMain.handle('connectors:call', (event, input: unknown) => {
     requireTrusted(event, isTrustedSender)
     return connectors.call(callSchema.parse(input))
