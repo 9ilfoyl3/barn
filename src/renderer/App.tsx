@@ -1139,17 +1139,15 @@ export function App() {
               onOpenDiagnostics={() => setDiagnosticsOpen(true)}
             />
           ) : view === 'tasks' ? (
-            <>
-              <h1 className="visually-hidden">{t('tasks.title')}</h1>
-              <TaskCenter
-                tasks={workTasks}
-                approvals={pendingApprovals.filter((approval) => approval.title !== 'Approve browser action')}
-                loading={tasksLoading}
-                error={taskError}
-                onOpenTask={openTask}
-                onError={setTaskError}
-              />
-            </>
+            <TaskCenter
+              tasks={workTasks}
+              approvals={pendingApprovals.filter((approval) => approval.title !== 'Approve browser action')}
+              loading={tasksLoading}
+              error={taskError}
+              onOpenTask={openTask}
+              onRefresh={() => void refreshTasks()}
+              onError={setTaskError}
+            />
           ) : view === 'task-detail' ? (
             (() => {
               const selectedTask = tasks.find((task) => task.id === selectedTaskId)

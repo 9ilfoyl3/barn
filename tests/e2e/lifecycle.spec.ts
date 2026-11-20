@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { _electron as electron, expect, test } from '@playwright/test'
 
-test('stays resident when the window closes and reopens in Needs you', async () => {
+test('stays resident when the window closes and reopens on the task board', async () => {
   const userData = await mkdtemp(join(tmpdir(), 'barn-desktop-lifecycle-e2e-'))
   const inheritedEnv = Object.fromEntries(
     Object.entries(process.env).filter((entry): entry is [string, string] => entry[1] !== undefined),
@@ -37,7 +37,7 @@ test('stays resident when the window closes and reopens in Needs you', async () 
     await app.evaluate(({ BrowserWindow }) => {
       BrowserWindow.getAllWindows()[0]?.webContents.send('runtime:show-tasks')
     })
-    await expect(page.getByRole('heading', { name: 'Needs you', level: 1 })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'All tasks', level: 1 })).toBeVisible()
     await page.screenshot({ path: 'test-results/barn-lifecycle.png', fullPage: true })
   } finally {
     await app.close()
