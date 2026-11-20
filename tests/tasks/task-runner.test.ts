@@ -111,6 +111,13 @@ describe('TaskRunner', () => {
       summary: 'The project notes were summarized.',
       evidenceRefs: [expect.stringContaining('session:')],
     })
+    expect(h.sessions.read(running.sessionId!).some((event) => (
+      event.type === 'task.result'
+      && event.actor.id === 'router'
+      && isRecord(event.data)
+      && isRecord(event.data.result)
+      && event.data.result.outcome === 'completed'
+    ))).toBe(true)
     h.runner.stop()
     h.sessions.close()
   })
@@ -449,3 +456,7 @@ describe('TaskRunner', () => {
     h.sessions.close()
   })
 })
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}

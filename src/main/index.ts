@@ -22,6 +22,7 @@ import { registerLocalSourceIpc } from './sources/local-source-ipc'
 import { LocalSourceService } from './sources/local-source-service'
 import { PermissionService } from './permissions/permission-service'
 import { TaskConversationService } from './tasks/task-conversation-service'
+import { ModelTaskRouterDecisionEngine } from './tasks/task-router-coordinator'
 import { registerTaskIpc } from './tasks/task-ipc'
 import { registerRouterIpc } from './router/router-ipc'
 import { RouterService } from './router/router-service'
@@ -250,7 +251,11 @@ void app.whenReady().then(async () => {
   agentService = new AgentService(supervisor, modelService, sessionStore, tools, memoryService, threadService)
   await agentService.start()
   taskService = new TaskService(sessionStore.tasks)
-  taskConversationService = new TaskConversationService(taskService, sessionStore)
+  taskConversationService = new TaskConversationService(
+    taskService,
+    sessionStore,
+    new ModelTaskRouterDecisionEngine(modelService, memoryService),
+  )
   routerService = new RouterService(
     sessionStore.router,
     threadService,

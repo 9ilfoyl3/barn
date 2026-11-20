@@ -53,6 +53,8 @@ export function TaskDetailPage({
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [optimisticMessages, setOptimisticMessages] = useState<ChatMessage[]>([])
   const [liveParts, setLiveParts] = useState<ConversationPart[]>([])
+  const [liveActorRole, setLiveActorRole] = useState<'router' | 'worker'>('worker')
+  const [refreshKey, setRefreshKey] = useState(0)
   const [input, setInput] = useState('')
   const [attachments, setAttachments] = useState<AttachmentDescriptor[]>([])
   const [pending, setPending] = useState(false)
@@ -76,6 +78,8 @@ export function TaskDetailPage({
     setMessages([])
     setOptimisticMessages([])
     setLiveParts([])
+    setLiveActorRole('worker')
+    setRefreshKey(0)
     setInput('')
     setAttachments([])
     setPending(false)
@@ -146,10 +150,12 @@ export function TaskDetailPage({
       }
       if (event.sessionId !== sessionId) return
       if (event.type === 'assistant.delta' || event.type === 'assistant.thinking' || event.type === 'tool.started' || event.type === 'tool.finished') {
+        if (event.actorRole !== undefined) setLiveActorRole(event.actorRole)
         setLiveParts((current) => applyLiveEvent(current, event))
         return
       }
       if (event.type === 'run.status') {
+        if (event.actorRole !== undefined) setLiveActorRole(event.actorRole)
         setPending(event.status === 'running')
         if (event.status !== 'running') {
           setStopping(false)
@@ -159,7 +165,7 @@ export function TaskDetailPage({
         }
       }
     }
-  }, [activeSessionId, task.id, task.visiblePrompt, t])
+  }, [activeSessionId, task.id, task.visiblePrompt, t, refreshKey])
 
   useLayoutEffect(() => {
     const thread = threadRef.current
@@ -234,13 +240,24 @@ export function TaskDetailPage({
     setInput('')
     setAttachments([])
     setOptimisticMessages((current) => [...current, optimistic])
+    setLiveActorRole('router')
     setPending(true)
     setError(undefined)
     try {
-      await window.barn.tasks.continueTask(task.id, text, filesToSend)
+      const result = await window.barn.tasks.continueTask(task.id, text, filesToSend)
+      if (result.task.sessionId !== undefined) setActiveSessionId(result.task.sessionId)
+      if (result.delivery === 'router') {
+        setPending(result.task.status === 'running' || result.task.status === 'queued')
+        setLiveParts([])
+        setLiveActorRole('worker')
+        setRefreshKey((current) => current + 1)
+      } else {
+        setLiveActorRole('worker')
+      }
     } catch (reason) {
       setOptimisticMessages((current) => current.filter((message) => message.key !== optimisticKey))
       setPending(false)
+      setLiveActorRole('worker')
       setInput(text)
       setAttachments(filesToSend)
       setError(errorMessage(reason))
@@ -355,17 +372,17 @@ export function TaskDetailPage({
   function renderLiveAssistant() {
     return (
       <div
-        className="assistant-reply-segment task-detail-actor-turn task-detail-actor-worker"
-        data-actor-role="worker"
+        className={`assistant-reply-segment task-detail-actor-turn task-detail-actor-${liveActorRole}`}
+        data-actor-role={liveActorRole}
         data-testid="task-live-assistant"
         key="task-live"
       >
         <span className="task-detail-actor-avatar" aria-hidden="true">
-          <Bot size={12} />
+          {liveActorRole === 'router' ? <Route size={12} /> : <Bot size={12} />}
         </span>
         <div className="task-detail-actor-copy">
           <span className="task-detail-actor-name">
-            {t('tasks.workerAgent')}
+            {liveActorRole === 'router' ? t('tasks.routerAgent') : t('tasks.workerAgent')}
           </span>
           {liveParts.length === 0 ? (
             <PendingThinking label={t('conversation.thinkingNow')} />
