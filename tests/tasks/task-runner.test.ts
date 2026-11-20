@@ -53,6 +53,31 @@ async function waitForTask(tasks: TaskService, taskId: string, predicate: (task:
   return latest!
 }
 
+function finishWorker(
+  h: Awaited<ReturnType<typeof harness>>,
+  sessionId: string,
+  text = 'Task completed with a verified result.',
+): void {
+  h.sessions.append(sessionId, [{
+    type: 'agent.message',
+    data: {
+      message: {
+        role: 'assistant',
+        content: text,
+        timestamp: Date.now(),
+      },
+      actorRole: 'worker',
+    },
+    actor: { kind: 'agent', id: 'worker' },
+  }])
+  h.agent.emit({
+    type: 'run.status',
+    sessionId,
+    runId: `run-${Date.now()}`,
+    status: 'idle',
+  })
+}
+
 describe('TaskRunner', () => {
   it('creates a Session, runs a queued task, and completes it', async () => {
     const h = await harness()
@@ -79,13 +104,13 @@ describe('TaskRunner', () => {
       }),
     )
 
-    h.agent.emit({
-      type: 'run.status',
-      sessionId: running.sessionId!,
-      runId: 'run-1',
-      status: 'idle',
-    })
+    finishWorker(h, running.sessionId!, 'The project notes were summarized.')
     await waitForTask(h.tasks, task.id, (current) => current.status === 'completed')
+    expect(h.tasks.get(task.id).result).toMatchObject({
+      outcome: 'completed',
+      summary: 'The project notes were summarized.',
+      evidenceRefs: [expect.stringContaining('session:')],
+    })
     h.runner.stop()
     h.sessions.close()
   })
@@ -312,7 +337,7 @@ describe('TaskRunner', () => {
     h.sessions.close()
   })
 
-  it('cancels the old run and starts Router and Worker in parallel when rerouted', async () => {
+  it('cancels the old run and restarts only the Worker when rerouted', async () => {
     const h = await harness()
     h.runner.start()
     const task = h.tasks.create({
@@ -327,25 +352,12 @@ describe('TaskRunner', () => {
     const reroutedRun = await vi.waitFor(() => {
       const current = h.tasks.get(task.id)
       expect(current.status).toBe('running')
-      expect(h.agent.prompt).toHaveBeenCalledTimes(3)
+      expect(h.agent.prompt).toHaveBeenCalledTimes(2)
       expect(current.sessionId).toBe(firstRun.sessionId)
-      expect(current.routerSessionId).toBeDefined()
       return current
     })
     expect(reroutedRun.prompt).toContain('Use Baidu instead of Xinhua.')
-    expect(h.agent.prompt).toHaveBeenCalledWith(
-      reroutedRun.routerSessionId,
-      'Use Baidu instead of Xinhua.',
-      [],
-      undefined,
-      undefined,
-      expect.objectContaining({
-        assistantActorRole: 'router',
-        recordUserMessage: true,
-        projectAssistantMessage: false,
-      }),
-    )
-    expect(h.agent.prompt).toHaveBeenCalledWith(
+    expect(h.agent.prompt).toHaveBeenLastCalledWith(
       reroutedRun.sessionId,
       'Use Baidu instead of Xinhua.',
       [],
@@ -357,18 +369,7 @@ describe('TaskRunner', () => {
         projectAssistantMessage: false,
       }),
     )
-    h.agent.emit({
-      type: 'run.status',
-      sessionId: reroutedRun.routerSessionId!,
-      runId: 'run-router',
-      status: 'idle',
-    })
-    h.agent.emit({
-      type: 'run.status',
-      sessionId: reroutedRun.sessionId!,
-      runId: 'run-rerouted',
-      status: 'idle',
-    })
+    finishWorker(h, reroutedRun.sessionId!)
     await waitForTask(h.tasks, task.id, (current) => current.status === 'completed')
     h.runner.stop()
     h.sessions.close()
@@ -389,25 +390,13 @@ describe('TaskRunner', () => {
     rejectFirstPrompt?.(new Error('Worker cancelled'))
     const reroutedRun = await vi.waitFor(() => {
       const current = h.tasks.get(task.id)
-      expect(h.agent.prompt).toHaveBeenCalledTimes(3)
+      expect(h.agent.prompt).toHaveBeenCalledTimes(2)
       expect(current.status).toBe('running')
-      expect(current.routerSessionId).toBeDefined()
       return current
     })
     expect(reroutedRun.sessionId).toBe(firstRun.sessionId)
 
-    h.agent.emit({
-      type: 'run.status',
-      sessionId: reroutedRun.routerSessionId!,
-      runId: 'run-router-after-cancel',
-      status: 'idle',
-    })
-    h.agent.emit({
-      type: 'run.status',
-      sessionId: reroutedRun.sessionId!,
-      runId: 'run-after-cancel-race',
-      status: 'idle',
-    })
+    finishWorker(h, reroutedRun.sessionId!)
     await waitForTask(h.tasks, task.id, (current) => current.status === 'completed')
     h.runner.stop()
     h.sessions.close()
@@ -454,12 +443,7 @@ describe('TaskRunner', () => {
     })
     const runningTask = h.tasks.get(first.id).status === 'running' ? h.tasks.get(first.id) : h.tasks.get(second.id)
     const queuedTask = runningTask.id === first.id ? second : first
-    h.agent.emit({
-      type: 'run.status',
-      sessionId: runningTask.sessionId!,
-      runId: 'run-first',
-      status: 'idle',
-    })
+    finishWorker(h, runningTask.sessionId!)
     await waitForTask(h.tasks, queuedTask.id, (current) => current.status === 'running')
     h.runner.stop()
     h.sessions.close()

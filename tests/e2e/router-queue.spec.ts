@@ -105,7 +105,12 @@ async function startDelayedModelServer(): Promise<{
         notifyFirst?.()
         await firstGate
       }
-      const text = index === 1 ? 'First response' : 'Second response'
+      const text = JSON.stringify({
+        tool: 'reply',
+        arguments: { text: index === 1 ? 'First response' : 'Second response' },
+        confidence: 0.98,
+        rationaleCodes: ['e2e_direct_reply'],
+      })
       response.writeHead(200, {
         'content-type': 'text/event-stream',
         'cache-control': 'no-cache',

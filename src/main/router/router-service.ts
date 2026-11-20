@@ -228,6 +228,7 @@ export class RouterService {
         origin: 'user',
         status: 'queued',
         kind: 'work',
+        contract: decision.taskContract,
         prompt: taskPrompt(decision.taskContract.objective, decision.taskContract),
         visiblePrompt: text,
         ...(workingDirectory === undefined ? {} : { workingDirectory }),

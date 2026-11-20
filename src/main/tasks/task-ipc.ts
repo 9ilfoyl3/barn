@@ -27,7 +27,7 @@ const updateTaskSchema = z.object({
   taskId: taskIdSchema,
   update: z.object({
     status: z.enum(['proposed', 'queued', 'running', 'waiting', 'completed', 'failed', 'cancelled']),
-    waitingReason: z.enum(['input', 'approval']).optional(),
+    waitingReason: z.enum(['input', 'approval', 'review']).optional(),
     detail: z.string().max(2_000).optional(),
   }).strict(),
 }).strict()

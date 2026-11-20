@@ -19,15 +19,25 @@ describe('TaskStore', () => {
     const key = randomBytes(32)
     const store = await openStore(directory, key)
     const session = store.createSession('Quarterly report')
-    const routerSession = store.createSession('Quarterly report Router', undefined, undefined, session.id)
     const task = store.tasks.create({
       title: 'Prepare the quarterly report',
       origin: 'user',
       sessionId: session.id,
       prompt: 'Summarize the attached figures and prepare the report.',
       visiblePrompt: 'Summarize the figures.',
+      contract: {
+        objective: 'Prepare the quarterly report.',
+        deliverable: 'A concise report.',
+        constraints: ['Use the attached figures.'],
+        inputRefs: ['attachment:figures'],
+        sourceRefs: [],
+        acceptanceCriteria: ['Report is prepared.'],
+        forbiddenActions: [],
+        risk: 'none',
+        executionLane: 'background',
+        expectedArtifacts: ['report.md'],
+      },
     }, '11111111-1111-4111-8111-111111111111')
-    store.tasks.assignRouterSession(task.id, routerSession.id)
     store.close()
 
     const reopened = await openStore(directory, key)
@@ -37,7 +47,7 @@ describe('TaskStore', () => {
       status: 'queued',
       origin: 'user',
       sessionId: session.id,
-      routerSessionId: routerSession.id,
+      contract: expect.objectContaining({ objective: 'Prepare the quarterly report.' }),
       prompt: 'Summarize the attached figures and prepare the report.',
       visiblePrompt: 'Summarize the figures.',
     }))
@@ -94,6 +104,74 @@ describe('TaskStore', () => {
     const wrongKey = await openStore(directory, randomBytes(32))
     expect(() => wrongKey.tasks.get(task.id)).toThrow()
     wrongKey.close()
+  })
+
+  it('encrypts a typed Task Contract and Result Envelope at rest', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'barn-task-store-'))
+    const path = join(directory, 'sessions.db')
+    const store = await openStore(directory)
+    const task = store.tasks.create({
+      title: 'Prepare a private report',
+      origin: 'user',
+      prompt: 'Prepare the report.',
+      contract: {
+        objective: 'Prepare the confidential report.',
+        deliverable: 'A private report.',
+        constraints: ['Do not email it yet.'],
+        inputRefs: [],
+        sourceRefs: [],
+        acceptanceCriteria: ['The report is reviewed.'],
+        forbiddenActions: ['Do not send email.'],
+        risk: 'none',
+        executionLane: 'background',
+        expectedArtifacts: ['report.md'],
+      },
+    })
+    store.tasks.updateStatus(task.id, { status: 'running' })
+    store.tasks.recordResult(task.id, {
+      outcome: 'needs_review',
+      summary: 'The confidential report is ready for review.',
+      artifacts: ['output/report.md'],
+      evidenceRefs: ['session:test:event:1'],
+      limitations: [],
+      externalEffectReceipts: [],
+    })
+    store.close()
+
+    const raw = new DatabaseSync(path)
+    const row = raw.prepare(`
+      SELECT contract_ciphertext, result_ciphertext FROM tasks WHERE id = ?
+    `).get(task.id) as { contract_ciphertext: Uint8Array; result_ciphertext: Uint8Array }
+    expect(Buffer.from(row.contract_ciphertext).toString('utf8')).not.toContain('confidential')
+    expect(Buffer.from(row.result_ciphertext).toString('utf8')).not.toContain('confidential')
+    raw.close()
+  })
+
+  it('persists a structured result and marks the task completed', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'barn-task-store-'))
+    const store = await openStore(directory)
+    const task = store.tasks.create({
+      title: 'Summarize a report',
+      origin: 'user',
+      prompt: 'Summarize the report.',
+    })
+    store.tasks.updateStatus(task.id, { status: 'running' })
+    const completed = store.tasks.recordResult(task.id, {
+      outcome: 'completed',
+      summary: 'The report has three key findings.',
+      artifacts: ['output/report.md'],
+      evidenceRefs: ['session:abc:event:4'],
+      limitations: [],
+      externalEffectReceipts: [],
+    })
+    expect(completed).toMatchObject({
+      status: 'completed',
+      result: {
+        outcome: 'completed',
+        summary: 'The report has three key findings.',
+      },
+    })
+    store.close()
   })
 
   it('migrates task tables created before prompt encryption existed', async () => {
