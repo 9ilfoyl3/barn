@@ -42,6 +42,12 @@ import { registerBrowserIpc } from './browser/browser-ipc'
 import { BrowserToolService, type BrowserToolContext } from './browser/browser-tools'
 import { BrowserSessionStore } from './browser/browser-session-store'
 import { TerminalService } from './terminal/terminal-service'
+import { ConnectorService } from './connectors/connector-service'
+import { ConnectorCredentialStore } from './connectors/connector-credentials'
+import { builtinConnectorDefinitions } from './connectors/catalog'
+import { EmailConnectorAdapter } from './connectors/email-adapter'
+import { registerConnectorIpc } from './connectors/connector-ipc'
+import { ElectronSecretCodec } from './models/electron-secret-codec'
 import { registerTerminalIpc } from './terminal/terminal-ipc'
 
 if (process.env.BARN_USER_DATA_DIR !== undefined) {
@@ -68,6 +74,7 @@ let memoryExtractionService: MemoryExtractionService | undefined
 let browserService: BrowserService | undefined
 const taskBrowserServices = new Map<string, BrowserService>()
 let terminalService: TerminalService | undefined
+let connectorService: ConnectorService | undefined
 let maintenanceTimer: NodeJS.Timeout | undefined
 let isQuitting = false
 const shellService = new ShellService()
@@ -207,6 +214,13 @@ void app.whenReady().then(async () => {
     mkdir(privateTempRoot, { recursive: true, mode: 0o700 }),
   ])
   const memoryService = new MemoryService(sessionStore.memories)
+  connectorService = new ConnectorService(
+    sessionStore.connectors,
+    new ConnectorCredentialStore(join(userData, 'connectors', 'credentials.enc'), new ElectronSecretCodec()),
+    () => actionService,
+    () => permissionService,
+    { definitions: builtinConnectorDefinitions(), adapters: [new EmailConnectorAdapter()] },
+  )
   const threadService = new ThreadService(sessionStore.threads)
   terminalService = new TerminalService(outputRoot, privateTempRoot)
   const browserTools = new BrowserToolService({
@@ -223,6 +237,7 @@ void app.whenReady().then(async () => {
     shell: shellService,
     memory: memoryService,
     browser: browserTools,
+    connectors: connectorService,
   })
   const supervisor = new WorkerSupervisor({
     createTransport: () => createElectronWorkerTransport(
@@ -240,6 +255,15 @@ void app.whenReady().then(async () => {
     sessionStore,
     taskService,
     new ModelRouterDecisionEngine(modelService, memoryService),
+    {
+      getConnectorContext: async () => (await connectorService!.list()).map((connector) => ({
+        id: connector.id,
+        kind: connector.kind,
+        name: connector.name,
+        status: connector.status,
+        capabilities: connector.capabilities.map((capability) => capability.id),
+      })),
+    },
   )
   taskRunner = new TaskRunner(agentService, taskService, sessionStore, {
     routerRequestIdForTask: (taskId) => routerService?.getSnapshot().requests.findLast((request) => request.taskId === taskId)?.id,
@@ -249,10 +273,12 @@ void app.whenReady().then(async () => {
   permissionService = new PermissionService(sessionStore.permissions, taskService)
   actionService = new ActionService(sessionStore.actions, permissionService)
   actionService.start()
+  connectorService.registerActionHandler(actionService)
   localSourceService = new LocalSourceService(sessionStore.localSources, taskService)
   localSourceService.start()
   registerModelIpc(modelService, trustedSender)
   registerMemoryIpc(memoryService, trustedSender)
+  registerConnectorIpc(connectorService, trustedSender)
   registerSessionIpc(sessionStore, agentService, join(workspaceRoot, 'attachments'), trustedSender, () => nativeLocale())
   registerThreadIpc(threadService, trustedSender)
   registerDelegationIpc(trustedSender)
@@ -322,6 +348,7 @@ app.on('before-quit', () => {
   localSourceService?.stop()
   localSourceService = undefined
   diagnosticsService = undefined
+  connectorService = undefined
   memoryExtractionService?.stop()
   memoryExtractionService = undefined
   browserService?.dispose()

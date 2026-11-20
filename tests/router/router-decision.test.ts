@@ -134,6 +134,7 @@ function input() {
     attachments: [],
     recentMessages,
     activeTasks: [],
+    connectors: [],
     workingDirectory: '/tmp/project',
     now: new Date('2026-11-18T00:00:00.000Z'),
     timezone: 'Asia/Shanghai',

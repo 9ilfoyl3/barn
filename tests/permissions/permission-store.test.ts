@@ -23,6 +23,7 @@ describe('PermissionStore', () => {
     store.permissions.setPolicy({
       localRead: 'allow',
       workspaceWrite: 'ask',
+      externalRead: 'allow',
       externalWrite: 'deny',
       destructive: 'ask',
     })
@@ -32,10 +33,36 @@ describe('PermissionStore', () => {
     expect(reopened.permissions.getPolicy()).toEqual({
       localRead: 'allow',
       workspaceWrite: 'ask',
+      externalRead: 'allow',
       externalWrite: 'deny',
       destructive: 'ask',
     })
     reopened.close()
+  })
+
+  it('migrates the legacy policy table with external-read enabled', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'barn-permission-store-'))
+    const path = join(directory, 'sessions.db')
+    const raw = new DatabaseSync(path)
+    raw.exec(`
+      CREATE TABLE schema_meta (id INTEGER PRIMARY KEY CHECK (id = 1), version INTEGER NOT NULL, updated_at TEXT NOT NULL);
+      INSERT INTO schema_meta (id, version, updated_at) VALUES (1, 8, '2026-11-20T00:00:00.000Z');
+      CREATE TABLE permission_policy (
+        id INTEGER PRIMARY KEY CHECK (id = 1),
+        local_read TEXT NOT NULL,
+        workspace_write TEXT NOT NULL,
+        external_write TEXT NOT NULL,
+        destructive TEXT NOT NULL
+      );
+      INSERT INTO permission_policy (id, local_read, workspace_write, external_write, destructive)
+        VALUES (1, 'allow', 'allow', 'ask', 'ask');
+    `)
+    raw.close()
+
+    const store = new SessionStore(path, new AesGcmEventCipher(randomBytes(32)))
+    await store.initialize()
+    expect(store.permissions.getPolicy().externalRead).toBe('allow')
+    store.close()
   })
 
   it('encrypts approval summaries and details at rest', async () => {

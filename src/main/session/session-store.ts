@@ -11,12 +11,13 @@ import { LocalSourceStore } from '../sources/local-source-store'
 import { MemoryStore } from '../memory/memory-store'
 import { ThreadStore } from '../threads/thread-store'
 import { RouterStore } from '../router/router-store'
+import { ConnectorStore } from '../connectors/connector-store'
 
 export type SessionStatus = SessionSummary['status']
 
-// Schema 8 adds the durable Router inbox and decision log. Older schema
-// versions are upgraded in place by idempotent store initialization.
-export const CURRENT_SCHEMA_VERSION = 8
+// Schema 9 adds connector instances. Older schema versions are upgraded in
+// place by idempotent store initialization.
+export const CURRENT_SCHEMA_VERSION = 9
 
 export interface NewSessionEvent {
   type: string
@@ -41,6 +42,7 @@ export class SessionStore {
   readonly memories: MemoryStore
   readonly threads: ThreadStore
   readonly router: RouterStore
+  readonly connectors: ConnectorStore
 
   constructor(
     path: string,
@@ -55,6 +57,7 @@ export class SessionStore {
     this.memories = new MemoryStore(this.database, cipher)
     this.threads = new ThreadStore(this.database, cipher)
     this.router = new RouterStore(this.database)
+    this.connectors = new ConnectorStore(this.database, cipher)
   }
 
   async initialize(): Promise<void> {
@@ -114,6 +117,7 @@ export class SessionStore {
     this.memories.initialize()
     this.threads.initialize()
     this.router.initialize()
+    this.connectors.initialize()
     this.database.prepare(`
       INSERT INTO schema_meta (id, version, updated_at) VALUES (1, ?, ?)
       ON CONFLICT(id) DO UPDATE SET version = excluded.version, updated_at = excluded.updated_at
@@ -200,6 +204,7 @@ export class SessionStore {
     approvalsPending: number
     actionsActive: number
     localSources: number
+    connectors: number
   } {
     const count = (sql: string): number => Number((this.database.prepare(sql).get() as { count: number }).count)
     return {
@@ -208,6 +213,7 @@ export class SessionStore {
       approvalsPending: count(`SELECT COUNT(*) AS count FROM approvals WHERE status = 'pending'`),
       actionsActive: count(`SELECT COUNT(*) AS count FROM actions WHERE status IN ('pending_approval', 'queued', 'running')`),
       localSources: count('SELECT COUNT(*) AS count FROM local_sources'),
+      connectors: count('SELECT COUNT(*) AS count FROM connectors'),
     }
   }
 

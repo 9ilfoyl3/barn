@@ -124,6 +124,7 @@ function modeFor(policy: PermissionPolicy, kind: PermissionRequestInput['kind'])
   switch (kind) {
     case 'local-read': return policy.localRead
     case 'workspace-write': return policy.workspaceWrite
+    case 'external-read': return policy.externalRead
     case 'external-write': return policy.externalWrite
     case 'destructive': return policy.destructive
   }

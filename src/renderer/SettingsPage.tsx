@@ -1,14 +1,15 @@
-import { Brain, FolderSearch, Settings2, Stethoscope, Wrench } from 'lucide-react'
+import { Brain, FolderSearch, Plug, Settings2, Stethoscope, Wrench } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import './settings-page.css'
 
 export interface SettingsPageProps {
   onOpenModels: () => void
+  onOpenConnectors: () => void
   onOpenSources: () => void
   onOpenDiagnostics: () => void
 }
 
-export function SettingsPage({ onOpenModels, onOpenSources, onOpenDiagnostics }: SettingsPageProps) {
+export function SettingsPage({ onOpenModels, onOpenConnectors, onOpenSources, onOpenDiagnostics }: SettingsPageProps) {
   const { t } = useTranslation()
   const sections = [
     {
@@ -17,6 +18,13 @@ export function SettingsPage({ onOpenModels, onOpenSources, onOpenDiagnostics }:
       title: t('appSettings.modelsTitle'),
       description: t('appSettings.modelsDescription'),
       action: onOpenModels,
+    },
+    {
+      key: 'connectors',
+      icon: <Plug size={16} aria-hidden="true" />,
+      title: t('appSettings.connectorsTitle'),
+      description: t('appSettings.connectorsDescription'),
+      action: onOpenConnectors,
     },
     {
       key: 'sources',

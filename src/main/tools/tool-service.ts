@@ -17,6 +17,7 @@ import {
 } from './workspace-search'
 import { isDeniedPath } from './workspace-path-policy'
 import type { MemoryService } from '../memory/memory-service'
+import type { ConnectorService } from '../connectors/connector-service'
 import {
   memoryForgetInput,
   memorySaveInput,
@@ -39,6 +40,14 @@ const viewImageInput = z.object({
   path: z.string().min(1),
 })
 
+const connectorListInput = z.object({}).strict()
+
+const connectorCallInput = z.object({
+  connectorId: z.string().uuid(),
+  capability: z.string().trim().min(1).max(160),
+  arguments: z.record(z.string(), z.unknown()).default({}),
+}).strict()
+
 const shellInput = z.object({
   command: z.string().min(1).max(20_000),
   cwd: z.string().default('.'),
@@ -57,6 +66,8 @@ const TOOL_INPUTS = {
   memory_search: memorySearchInput,
   memory_save: memorySaveInput,
   memory_forget: memoryForgetInput,
+  connector_list: connectorListInput,
+  connector_call: connectorCallInput,
 } as const
 
 export interface ToolServiceOptions {
@@ -66,6 +77,7 @@ export interface ToolServiceOptions {
   shell: ShellService
   memory?: MemoryService
   browser?: BrowserToolService
+  connectors?: ConnectorService
 }
 
 export interface ToolExecutionContext {
@@ -94,6 +106,32 @@ export class ToolService {
         workingDirectory: context.workingDirectory,
         sessionId: context.sessionId,
       }, context.signal)
+    }
+
+    if (toolName === 'connector_list') {
+      const connectors = this.options.connectors
+      if (connectors === undefined) return errorResult('Connector tools are unavailable')
+      try {
+        const [definitions, instances] = await Promise.all([
+          Promise.resolve(connectors.listDefinitions()),
+          connectors.list(),
+        ])
+        return { content: [{ type: 'text', text: JSON.stringify({ definitions, instances }) }], details: { connectors: instances.length } }
+      } catch (error) {
+        return errorResult(error instanceof Error ? error.message : String(error))
+      }
+    }
+
+    if (toolName === 'connector_call') {
+      const connectors = this.options.connectors
+      if (connectors === undefined) return errorResult('Connector tools are unavailable')
+      try {
+        const args = connectorCallInput.parse(rawArgs)
+        const result = await connectors.call(args, context.sessionId)
+        return { content: [{ type: 'text', text: JSON.stringify(result) }], details: { kind: result.kind } }
+      } catch (error) {
+        return errorResult(error instanceof Error ? error.message : String(error))
+      }
     }
 
     const input = TOOL_INPUTS[toolName as keyof typeof TOOL_INPUTS]

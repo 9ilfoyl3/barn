@@ -24,7 +24,7 @@ export interface ActionRecord {
 export interface ActionRequestInput {
   kind: string
   idempotencyKey: string
-  permissionKind: 'local-read' | 'workspace-write' | 'external-write' | 'destructive'
+  permissionKind: 'local-read' | 'workspace-write' | 'external-read' | 'external-write' | 'destructive'
   title: string
   summary: string
   details?: string

@@ -1,0 +1,355 @@
+/* Hallmark · page: Barn connector settings · genre: modern-minimal · theme: barn-native · scope: component · built: the project */
+/* Hallmark · pre-emit critique: P4 H5 E5 S5 R4 V4 · weakest: V, preserve the quiet settings shell */
+
+.connector-settings-panel {
+  width: min(880px, calc(100% - 20px));
+}
+
+.connector-settings-kicker {
+  color: var(--text-faint);
+  font-size: 10px;
+}
+
+.connector-settings-body {
+  min-height: 0;
+  overflow-y: auto;
+  padding: 22px 28px 32px;
+}
+
+.connector-settings-intro-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  margin-bottom: 20px;
+}
+
+.connector-settings-intro-row p {
+  max-width: 620px;
+  margin: 0;
+  color: var(--text-dim);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.connector-settings-loading,
+.connector-settings-empty {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border-top: 1px solid var(--line);
+  padding: 22px 0;
+  color: var(--text-dim);
+  font-size: 12px;
+}
+
+.connector-settings-empty-icon {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  flex: none;
+  place-items: center;
+  border-radius: 9px;
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.connector-settings-empty h3,
+.connector-settings-available h3,
+.connector-editor h3,
+.connector-editor h4 {
+  margin: 0;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.connector-settings-empty p,
+.connector-settings-available p,
+.connector-editor-section p {
+  margin: 5px 0 0;
+  color: var(--text-dim);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.connector-settings-list {
+  display: grid;
+  border-top: 1px solid var(--line);
+}
+
+.connector-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+  border-bottom: 1px solid var(--line);
+  padding: 14px 0;
+}
+
+.connector-row-main {
+  min-width: 0;
+}
+
+.connector-row-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.connector-row-title strong {
+  overflow: hidden;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.connector-row-main p {
+  overflow: hidden;
+  margin: 4px 0 0;
+  color: var(--text-faint);
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.connector-row-error,
+.connector-row-success {
+  display: block;
+  margin-top: 4px;
+  font-size: 10px;
+  line-height: 1.4;
+}
+
+.connector-row-error { color: var(--danger); }
+.connector-row-success { color: var(--accent); }
+
+.connector-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border-radius: 999px;
+  padding: 2px 7px;
+  font-size: 9px;
+  font-weight: 600;
+}
+
+.connector-status-ready {
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  color: var(--accent);
+}
+
+.connector-status-needs_setup,
+.connector-status-disabled {
+  background: var(--panel-raised);
+  color: var(--text-faint);
+}
+
+.connector-status-error {
+  background: color-mix(in srgb, var(--danger) 10%, transparent);
+  color: var(--danger);
+}
+
+.connector-row-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.connector-icon {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--panel-raised);
+  color: var(--accent);
+}
+
+.connector-icon-button {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text-faint);
+  cursor: pointer;
+}
+
+.connector-icon-button:hover {
+  border-color: var(--line);
+  background: var(--panel-raised);
+  color: var(--text);
+}
+
+.connector-icon-button.danger:hover { color: var(--danger); }
+
+.connector-switch {
+  position: relative;
+  display: inline-flex;
+  width: 30px;
+  height: 18px;
+}
+
+.connector-switch input {
+  position: absolute;
+  opacity: 0;
+}
+
+.connector-switch span {
+  width: 30px;
+  height: 18px;
+  border-radius: 999px;
+  background: var(--line-strong);
+  transition: background 140ms ease;
+}
+
+.connector-switch span::after {
+  display: block;
+  width: 14px;
+  height: 14px;
+  margin: 2px;
+  border-radius: 999px;
+  background: var(--panel);
+  box-shadow: 0 1px 2px color-mix(in srgb, var(--text) 18%, transparent);
+  content: '';
+  transition: transform 140ms ease;
+}
+
+.connector-switch input:checked + span { background: var(--accent); }
+.connector-switch input:checked + span::after { transform: translateX(12px); }
+.connector-switch input:focus-visible + span { outline: 2px solid color-mix(in srgb, var(--accent) 55%, transparent); outline-offset: 2px; }
+
+.connector-settings-available {
+  display: grid;
+  gap: 14px;
+  border-top: 1px solid var(--line);
+  margin-top: 24px;
+  padding-top: 22px;
+}
+
+.connector-definition-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 10px;
+}
+
+.connector-definition-card {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  background: var(--panel);
+  padding: 13px;
+  color: var(--text);
+  cursor: pointer;
+  text-align: left;
+}
+
+.connector-definition-card:hover {
+  border-color: color-mix(in srgb, var(--accent) 28%, var(--line));
+  background: var(--panel-raised);
+}
+
+.connector-definition-card span {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.connector-definition-card strong { font-size: 12px; font-weight: 600; }
+.connector-definition-card small { color: var(--text-faint); font-size: 10px; line-height: 1.4; }
+
+.connector-editor {
+  display: grid;
+  gap: 16px;
+  border: 1px solid var(--line-strong);
+  border-radius: 12px;
+  margin-top: 24px;
+  background: var(--panel);
+  padding: 18px;
+  box-shadow: var(--card-shadow);
+}
+
+.connector-editor-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.connector-editor-header > div > span {
+  color: var(--text-faint);
+  font-size: 10px;
+}
+
+.connector-editor-header h3 { margin-top: 3px; }
+
+.connector-editor > label,
+.connector-editor-grid label {
+  display: grid;
+  gap: 6px;
+  color: var(--text-dim);
+  font-size: 10px;
+}
+
+.connector-editor input {
+  min-height: 34px;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  background: var(--panel-raised);
+  padding: 0 10px;
+  color: var(--text);
+  font: inherit;
+  font-size: 11px;
+}
+
+.connector-editor input:focus-visible {
+  border-color: color-mix(in srgb, var(--accent) 52%, var(--line-strong));
+  outline: 2px solid color-mix(in srgb, var(--accent) 20%, transparent);
+}
+
+.connector-editor-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.connector-check-row {
+  display: flex !important;
+  align-items: center;
+  align-self: end;
+  grid-template-columns: auto minmax(0, 1fr);
+  min-height: 34px;
+}
+
+.connector-check-row input { min-height: auto; }
+
+.connector-editor-section {
+  display: grid;
+  gap: 12px;
+  border-top: 1px solid var(--line);
+  padding-top: 16px;
+}
+
+.connector-editor-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  border-top: 1px solid var(--line);
+  padding-top: 16px;
+}
+
+@media (max-width: 680px) {
+  .connector-row { grid-template-columns: auto minmax(0, 1fr); }
+  .connector-row-actions { grid-column: 1 / -1; justify-content: flex-end; }
+  .connector-editor-grid { grid-template-columns: 1fr; }
+  .connector-settings-intro-row { flex-direction: column; }
+}
