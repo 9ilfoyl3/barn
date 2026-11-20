@@ -228,6 +228,46 @@ describe('RouterService', () => {
     h.sessions.close()
   })
 
+  it('backfills a visible error for a historical failed request on startup', async () => {
+    const h = await harness()
+    const submitted = await h.router.submit({ text: '历史失败请求', locale: 'zh-CN' })
+    h.sessions.router.fail(submitted.request.id, 'Router returned an invalid tool decision', new Date('2026-11-18T00:00:00.000Z'))
+    h.router.start()
+    await vi.waitFor(() => expect(h.router.getSnapshot().requests[0]?.replyMessageId).toBeDefined())
+    expect(h.threads.listMessages().at(-1)).toMatchObject({
+      role: 'assistant',
+      content: expect.stringContaining('Router 返回了无法识别的结果'),
+      metadata: expect.objectContaining({ routerError: true }),
+    })
+    h.router.stop()
+    h.sessions.close()
+  })
+
+  it('projects a Router failure as a visible error message', async () => {
+    const h = await harness({
+      decide: async () => {
+        throw new Error('Router returned an invalid tool decision')
+      },
+    })
+    h.router.start()
+    const submitted = await h.router.submit({ text: '明天穿什么？', locale: 'zh-CN' })
+    await vi.waitFor(() => expect(h.router.getSnapshot().requests[0]?.status).toBe('failed'))
+    const failed = h.router.getSnapshot().requests[0]!
+    const errorMessage = h.threads.listMessages().at(-1)
+    expect(errorMessage).toMatchObject({
+      role: 'assistant',
+      metadata: expect.objectContaining({
+        routerRequestId: submitted.request.id,
+        routerError: true,
+        routerErrorDetail: 'Router returned an invalid tool decision',
+      }),
+    })
+    expect(errorMessage?.content).toContain('Router 返回了无法识别的结果')
+    expect(failed.replyMessageId).toBe(errorMessage?.id)
+    h.router.stop()
+    h.sessions.close()
+  })
+
   it('cancels a queued request before the serial lane reaches it', async () => {
     let releaseFirst: (() => void) | undefined
     const firstBlocked = new Promise<void>((resolve) => { releaseFirst = resolve })

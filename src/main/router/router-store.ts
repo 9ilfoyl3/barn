@@ -279,15 +279,15 @@ export class RouterStore {
     }
   }
 
-  fail(requestId: string, error: string, now = new Date()): RouterRequest {
+  fail(requestId: string, error: string, now = new Date(), replyMessageId?: string): RouterRequest {
     this.get(requestId)
     const timestamp = now.toISOString()
     this.database.prepare(`
       UPDATE router_requests
       SET status = 'failed', lease_owner = NULL, lease_expires_at = NULL,
-          error = ?, updated_at = ?, finished_at = ?
+          error = ?, reply_message_id = ?, updated_at = ?, finished_at = ?
       WHERE id = ?
-    `).run(error.slice(0, 2_000), timestamp, timestamp, requestId)
+    `).run(error.slice(0, 2_000), replyMessageId ?? null, timestamp, timestamp, requestId)
     return this.get(requestId)
   }
 

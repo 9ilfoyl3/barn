@@ -209,6 +209,9 @@ export function App() {
     const unsubscribeRouter = window.barn.router.onEvent((event) => {
       if (event.type === 'router.request-updated') {
         setRouterRequests((current) => upsertRouterRequest(current, event.request))
+        if (event.request.status === 'completed' || event.request.status === 'failed') {
+          void refreshThreadSnapshot()
+        }
         return
       }
       if (event.type === 'router.execution-started') {
@@ -445,6 +448,16 @@ export function App() {
       window.removeEventListener('resize', schedule)
     }
   }, [browserOpen, liveParts, messages, threadMessages, utilityOpen, view])
+
+  async function refreshThreadSnapshot(): Promise<void> {
+    try {
+      const threadSnapshot = await window.barn.threads.getSnapshot()
+      setThreadMessages((current) => mergeVisibleMessageSnapshots(current, threadSnapshot.messages))
+    } catch {
+      // Router terminal events already have a durable message; a transient refresh
+      // failure must not erase the current visible conversation.
+    }
+  }
 
   async function loadSession(sessionId: string): Promise<void> {
     try {
@@ -1530,6 +1543,12 @@ function formatFileSize(bytes: number): string {
   if (bytes < 1_024) return `${bytes} B`
   if (bytes < 1_024 * 1_024) return `${Math.round(bytes / 1_024)} KB`
   return `${Math.round(bytes / (1_024 * 1_024) * 10) / 10} MB`
+}
+
+function mergeVisibleMessageSnapshots(current: VisibleMessage[], incoming: VisibleMessage[]): VisibleMessage[] {
+  const merged = new Map(current.map((message) => [message.id, message]))
+  for (const message of incoming) merged.set(message.id, message)
+  return [...merged.values()].toSorted((left, right) => left.seq - right.seq)
 }
 
 function upsertVisibleMessage(current: VisibleMessage[], message: VisibleMessage): VisibleMessage[] {

@@ -67,6 +67,7 @@ export class RouterService {
     for (const request of this.store.recoverExpired(this.now())) {
       this.emit({ type: 'router.request-updated', request })
     }
+    this.backfillFailedRequestMessages()
     this.schedule()
   }
 
@@ -131,6 +132,38 @@ export class RouterService {
     return () => this.listeners.delete(listener)
   }
 
+  private backfillFailedRequestMessages(): void {
+    for (const request of this.store.list().filter((entry) => entry.status === 'failed' && entry.replyMessageId === undefined)) {
+      try {
+        const userMessage = this.threads.listMessages({ limit: 1_000 })
+          .find((message) => message.id === request.userMessageId)
+        if (userMessage === undefined) continue
+        const locale = userMessage.metadata.locale === 'zh-CN' ? 'zh-CN' : 'en'
+        const detail = request.error ?? 'Router request failed'
+        const reply = this.threads.appendMessage({
+          clientMessageId: `router-error:${request.id}`,
+          role: 'assistant',
+          content: routerFailureText(detail, locale),
+          metadata: {
+            routerRequestId: request.id,
+            routerError: true,
+            routerErrorDetail: detail.slice(0, 500),
+          },
+          sourceRefs: [`router:${request.id}`],
+        })
+        const repaired = this.store.fail(
+          request.id,
+          detail,
+          new Date(request.finishedAt ?? request.updatedAt),
+          reply.id,
+        )
+        this.emit({ type: 'router.request-updated', request: repaired })
+      } catch {
+        // A malformed historical request must not stop Router startup.
+      }
+    }
+  }
+
   private schedule(): void {
     if (!this.started || this.scheduled !== undefined) return
     this.scheduled = setImmediate(() => {
@@ -185,7 +218,28 @@ export class RouterService {
     } catch (error) {
       const current = this.store.get(request.id)
       if (current.status === 'cancelled' || controller.signal.aborted) return
-      const failed = this.store.fail(request.id, errorMessage(error), this.now())
+      const detail = errorMessage(error)
+      let replyMessageId: string | undefined
+      try {
+        const userMessage = this.threads.listMessages({ limit: 1_000 })
+          .find((message) => message.id === request.userMessageId)
+        const locale = userMessage?.metadata.locale === 'zh-CN' ? 'zh-CN' : 'en'
+        const reply = this.threads.appendMessage({
+          clientMessageId: `router-error:${request.id}`,
+          role: 'assistant',
+          content: routerFailureText(detail, locale),
+          metadata: {
+            routerRequestId: request.id,
+            routerError: true,
+            routerErrorDetail: detail.slice(0, 500),
+          },
+          sourceRefs: [`router:${request.id}`],
+        })
+        replyMessageId = reply.id
+      } catch {
+        // The failed request remains durable even if projecting the error message fails.
+      }
+      const failed = this.store.fail(request.id, detail, this.now(), replyMessageId)
       this.emit({ type: 'router.request-updated', request: failed })
     } finally {
       this.activeDecisions.delete(request.id)
@@ -362,6 +416,17 @@ export class RouterService {
   private emit(event: RouterLiveEvent): void {
     for (const listener of this.listeners) listener(event)
   }
+}
+
+function routerFailureText(detail: string, locale: 'en' | 'zh-CN'): string {
+  if (/invalid tool decision|invalid json|structured/i.test(detail)) {
+    return locale === 'zh-CN'
+      ? '这次请求没有完成：Router 返回了无法识别的结果。请再发一次，或把要求写得更具体一些。'
+      : 'This request did not complete because the Router returned an invalid decision. Please try again or make the request more specific.'
+  }
+  return locale === 'zh-CN'
+    ? '这次请求没有完成：Barn 暂时无法处理当前消息。请检查模型连接后重试。'
+    : 'This request did not complete because Barn could not process the message. Check the model connection and try again.'
 }
 
 function taskPrompt(objective: string, contract: NonNullable<Extract<RouterDecision, { action: 'create_task' }>['taskContract']>): string {
