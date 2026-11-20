@@ -375,8 +375,8 @@ test('opens a task agent conversation with properties and accepts a follow-up me
     expect(participantSequence.sawOneFinished).toBe(true)
 
     await page.locator('.app-rail-button', { hasText: 'Home' }).click()
-    await expect(page.locator('.task-result-notice')).toContainText('Task detail agent reply.')
-    await expect(page.locator('.task-result-notice')).not.toHaveCount(0)
+    await expect(page.locator('.task-result-notice').last()).toContainText('Task detail agent reply.')
+    await expect(page.locator('.task-result-notice')).toHaveCount(2)
     await expect(page.locator('.assistant-reply-run .task-result-message')).toHaveCount(0)
     await expect(page.locator('.chat-message.user', { hasText: 'Please continue with a short follow-up.' })).toHaveCount(0)
     await page.screenshot({ path: 'test-results/barn-task-result-notice.png', fullPage: true })

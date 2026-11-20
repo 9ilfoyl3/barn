@@ -65,10 +65,10 @@ import { MessageBubble, MessageBubbleGroup } from '@/components/beui/components/
 import { PromptInput } from '@/components/beui/components/agents/prompt-input'
 import {
   applyLiveEvent,
-  groupConversationMessages,
+  conversationRenderEntries,
   mergeThreadAndSessionMessages,
-  messagesFromEvents,
   type ChatMessage,
+  messagesFromEvents,
   type ConversationPart,
 } from './conversation'
 
@@ -816,13 +816,7 @@ export function App() {
     && displayLiveParts.length === 0
     && !running
     && messageActivity === undefined
-  const taskResultMessages = displayMessages.filter((message, index) => (
-    message.role === 'assistant'
-    && message.taskResult === true
-    && displayMessages.findLastIndex((candidate) => candidate.taskId === message.taskId && candidate.taskResult === true) === index
-  ))
-  const conversationDisplayMessages = displayMessages.filter((message) => message.taskResult !== true)
-  const completedDisplayMessages = conversationDisplayMessages.filter((message) => {
+  const completedDisplayMessages = displayMessages.filter((message) => {
     if (
       message.role === 'assistant'
       && message.resultCard?.kind === 'task'
@@ -834,7 +828,7 @@ export function App() {
     const task = tasks.find((candidate) => candidate.id === message.taskId)
     return task === undefined || !isExecutingTask(task)
   })
-  const messageGroups = groupConversationMessages(completedDisplayMessages)
+  const renderEntries = conversationRenderEntries(completedDisplayMessages)
   const activityState = messageActivity?.kind === 'task' ? 'working' : 'composing'
   const activityLabel = messageActivity?.kind === 'task'
     ? messageActivity.task.status === 'queued'
@@ -1193,7 +1187,30 @@ export function App() {
                   </div>
                 ) : (
                   <MessageBubbleGroup className="message-list" spacing="default">
-                    {messageGroups.map((group) => {
+                    {renderEntries.map((entry) => {
+                      if (entry.kind === 'task-result') {
+                        const message = entry.message
+                        const task = message.taskId === undefined
+                          ? undefined
+                          : tasks.find((candidate) => candidate.id === message.taskId)
+                        return (
+                          <article className="task-result-notice" data-message-key={message.key} key={message.key}>
+                            <span className="task-result-label">
+                              {t('tasks.taskResultFor', { title: task?.title ?? t('tasks.title') })}
+                            </span>
+                            <MessageBubble
+                              aria-label={t('conversation.barnMessage')}
+                              align="start"
+                              className="chat-message assistant task-result-message"
+                              role="article"
+                              variant="ghost"
+                            >
+                              <ConversationParts parts={message.parts} role="assistant" keyPrefix={message.key} />
+                            </MessageBubble>
+                          </article>
+                        )
+                      }
+                      const group = entry.group
                       if (group.kind === 'user') return renderUserMessage(group.message)
                       if (group.kind === 'proactive') {
                         return (
@@ -1259,27 +1276,6 @@ export function App() {
                         )}
                       </div>
                     )}
-                {taskResultMessages.map((message) => {
-                  const task = message.taskId === undefined
-                    ? undefined
-                    : tasks.find((candidate) => candidate.id === message.taskId)
-                  return (
-                    <article className="task-result-notice" data-message-key={message.key} key={message.key}>
-                      <span className="task-result-label">
-                        {t('tasks.taskResultFor', { title: task?.title ?? t('tasks.title') })}
-                      </span>
-                      <MessageBubble
-                        aria-label={t('conversation.barnMessage')}
-                        align="start"
-                        className="chat-message assistant task-result-message"
-                        role="article"
-                        variant="ghost"
-                      >
-                        <ConversationParts parts={message.parts} role="assistant" keyPrefix={message.key} />
-                      </MessageBubble>
-                    </article>
-                  )
-                })}
 
                   </MessageBubbleGroup>
                 )}

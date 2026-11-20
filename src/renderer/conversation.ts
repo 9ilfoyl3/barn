@@ -97,6 +97,31 @@ function sourceUserFor(assistant: ChatMessage, users: ChatMessage[]): ChatMessag
   return users.at(-1)
 }
 
+export type ConversationRenderEntry =
+  | { kind: 'group'; group: ConversationMessageGroup }
+  | { kind: 'task-result'; message: ChatMessage }
+
+/** Keep Task results on their real timeline position while grouping normal replies. */
+export function conversationRenderEntries(messages: ChatMessage[]): ConversationRenderEntry[] {
+  const entries: ConversationRenderEntry[] = []
+  let run: ChatMessage[] = []
+  const flushRun = (): void => {
+    if (run.length === 0) return
+    for (const group of groupConversationMessages(run)) entries.push({ kind: 'group', group })
+    run = []
+  }
+  for (const message of messages) {
+    if (message.taskResult === true) {
+      flushRun()
+      entries.push({ kind: 'task-result', message })
+      continue
+    }
+    run.push(message)
+  }
+  flushRun()
+  return entries
+}
+
 export type ConversationDisplayPart =
   | Exclude<ConversationPart, { type: 'tool' }>
   | { type: 'tool-group'; key: string; tools: ToolCallView[] }

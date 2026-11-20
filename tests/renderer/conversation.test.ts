@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { SessionLiveEvent, SessionTimelineEvent } from '../../src/shared/models'
-import { applyLiveEvent, chatMessagesFromThread, groupConversationParts, messagesFromEvents, parseVisibleResultCard } from '../../src/renderer/conversation'
+import { applyLiveEvent, chatMessagesFromThread, conversationRenderEntries, groupConversationParts, messagesFromEvents, parseVisibleResultCard } from '../../src/renderer/conversation'
 
 describe('conversation timeline', () => {
   it('rebuilds thinking, tool and content in persisted event order', () => {
@@ -54,6 +54,48 @@ describe('conversation timeline', () => {
         output: 'file.txt',
       },
     })
+  })
+
+  it('keeps Task results at their original timeline position', () => {
+    const entries = conversationRenderEntries([
+      {
+        key: 'result-1',
+        role: 'assistant',
+        taskResult: true,
+        parts: [{ type: 'text', text: 'First result' }],
+        attachments: [],
+        isError: false,
+      },
+      {
+        key: 'user-1',
+        role: 'user',
+        parts: [{ type: 'text', text: 'Next request' }],
+        attachments: [],
+        isError: false,
+      },
+      {
+        key: 'reply-1',
+        role: 'assistant',
+        parts: [{ type: 'text', text: 'Answer' }],
+        attachments: [],
+        isError: false,
+      },
+      {
+        key: 'result-2',
+        role: 'assistant',
+        taskResult: true,
+        parts: [{ type: 'text', text: 'Second result' }],
+        attachments: [],
+        isError: false,
+      },
+    ])
+
+    expect(entries.map((entry) => entry.kind === 'task-result' ? entry.message.key : entry.group.key)).toEqual([
+      'result-1',
+      'user:user-1',
+      'assistant:reply-1',
+      'result-2',
+    ])
   })
 
   it('marks a Task result from the Principal Thread so it stays outside reply guides', () => {
