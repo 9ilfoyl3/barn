@@ -423,14 +423,21 @@ export class AgentService {
       if (event.type !== 'agent.message') return []
       if (!isRecord(event.data) || !('message' in event.data)) return []
       if (!isRecord(event.data.message)) return []
-      const message = event.data.message as AgentMessage
+      const source = event.data.message as AgentMessage
       const attachments = attachmentDescriptors(event.data.attachments)
-      if (message.role !== 'user' || attachments.length === 0) return [message]
-      const context = `\n\nAttached files:\n${attachments.map((file) => `- ${file.path}`).join('\n')}`
+      const message = source.role === 'user' && attachments.length > 0
+        ? {
+            ...source,
+            content: typeof source.content === 'string'
+              ? `${source.content}\n\nAttached files:\n${attachments.map((file) => `- ${file.path}`).join('\n')}`
+              : source.content,
+          } as AgentMessage
+        : source
       return [{
         ...message,
-        content: typeof message.content === 'string' ? `${message.content}${context}` : message.content,
-      } as AgentMessage]
+        barnSeq: event.seq,
+        barnEventId: event.eventId,
+      } as unknown as AgentMessage]
     })
   }
 

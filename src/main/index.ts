@@ -239,6 +239,7 @@ void app.whenReady().then(async () => {
     memory: memoryService,
     browser: browserTools,
     connectors: connectorService,
+    sessions: sessionStore,
   })
   const supervisor = new WorkerSupervisor({
     createTransport: () => createElectronWorkerTransport(

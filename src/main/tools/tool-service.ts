@@ -18,6 +18,7 @@ import {
 import { isDeniedPath } from './workspace-path-policy'
 import type { MemoryService } from '../memory/memory-service'
 import type { ConnectorService } from '../connectors/connector-service'
+import type { SessionStore } from '../session/session-store'
 import {
   memoryForgetInput,
   memorySaveInput,
@@ -39,6 +40,14 @@ const readFileInput = z.object({
 const viewImageInput = z.object({
   path: z.string().min(1),
 })
+
+const sessionHistoryInput = z.object({
+  startSeq: z.number().int().positive().optional(),
+  endSeq: z.number().int().positive().optional(),
+  query: z.string().trim().min(1).max(500).optional(),
+  role: z.enum(['user', 'assistant', 'toolResult', 'system']).optional(),
+  limit: z.number().int().min(1).max(50).default(20),
+}).strict()
 
 const connectorListInput = z.object({}).strict()
 
@@ -68,6 +77,7 @@ const TOOL_INPUTS = {
   memory_forget: memoryForgetInput,
   connector_list: connectorListInput,
   connector_call: connectorCallInput,
+  session_history: sessionHistoryInput,
 } as const
 
 export interface ToolServiceOptions {
@@ -78,6 +88,7 @@ export interface ToolServiceOptions {
   memory?: MemoryService
   browser?: BrowserToolService
   connectors?: ConnectorService
+  sessions?: Pick<SessionStore, 'read'>
 }
 
 export interface ToolExecutionContext {
@@ -106,6 +117,55 @@ export class ToolService {
         workingDirectory: context.workingDirectory,
         sessionId: context.sessionId,
       }, context.signal)
+    }
+
+    if (toolName === 'session_history') {
+      const sessions = this.options.sessions
+      if (sessions === undefined || context.sessionId === undefined) {
+        return errorResult('Session history is unavailable for this run')
+      }
+      try {
+        const args = sessionHistoryInput.parse(rawArgs)
+        if (args.startSeq !== undefined && args.endSeq !== undefined && args.startSeq > args.endSeq) {
+          return errorResult('startSeq must be less than or equal to endSeq')
+        }
+        const query = args.query?.toLocaleLowerCase()
+        const messages = sessions.read(context.sessionId)
+          .filter((event) => event.type === 'agent.message')
+          .flatMap((event) => {
+            const message = sessionEventMessage(event.data)
+            if (message === undefined) return []
+            if (args.role !== undefined && message.role !== args.role) return []
+            if (args.startSeq !== undefined && event.seq < args.startSeq) return []
+            if (args.endSeq !== undefined && event.seq > args.endSeq) return []
+            if (query !== undefined && !message.text.toLocaleLowerCase().includes(query)) return []
+            return [{ seq: event.seq, eventId: event.eventId, role: message.role, text: message.text }]
+          })
+        const selected: typeof messages = []
+        let chars = 0
+        for (const message of messages) {
+          if (selected.length >= args.limit) break
+          const text = truncateHistoryText(message.text, 6_000)
+          if (chars + text.length > 40_000 && selected.length > 0) break
+          selected.push({ ...message, text })
+          chars += text.length
+        }
+        const lastSeq = selected.at(-1)?.seq
+        const hasMore = lastSeq !== undefined && messages.some((message) => message.seq > lastSeq)
+        const payload = {
+          sessionId: context.sessionId,
+          messages: selected,
+          matched: messages.length,
+          returned: selected.length,
+          ...(hasMore && lastSeq !== undefined ? { nextStartSeq: lastSeq + 1 } : {}),
+        }
+        return {
+          content: [{ type: 'text', text: JSON.stringify(payload) }],
+          details: { matched: messages.length, returned: selected.length, truncated: hasMore || selected.some((message) => message.text.length >= 6_000) },
+        }
+      } catch (error) {
+        return errorResult(error instanceof Error ? error.message : String(error))
+      }
     }
 
     if (toolName === 'connector_list') {
@@ -440,6 +500,35 @@ function isMissingPath(error: unknown): boolean {
     && error !== null
     && 'code' in error
     && error.code === 'ENOENT'
+}
+
+function sessionEventMessage(data: unknown): { role: 'user' | 'assistant' | 'toolResult' | 'system'; text: string } | undefined {
+  if (!isRecord(data) || !isRecord(data.message)) return undefined
+  const role = data.message.role
+  if (role !== 'user' && role !== 'assistant' && role !== 'toolResult' && role !== 'system') return undefined
+  const content = data.message.content
+  const text = typeof content === 'string'
+    ? content
+    : Array.isArray(content)
+      ? content.flatMap((block): string[] => (
+          isRecord(block) && block.type === 'text' && typeof block.text === 'string' ? [block.text] : []
+        )).join('\n')
+      : ''
+  if (text.trim().length === 0) return undefined
+  return { role, text }
+}
+
+function truncateHistoryText(value: string, maxChars: number): string {
+  if (value.length <= maxChars) return value
+  const marker = `\n\n[message truncated; request a narrower session_history range for the rest]\n\n`
+  const available = Math.max(0, maxChars - marker.length)
+  const head = Math.ceil(available * 0.65)
+  const tail = Math.max(0, available - head)
+  return `${value.slice(0, head)}${marker}${tail === 0 ? '' : value.slice(-tail)}`
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
 function errorResult(message: string): ToolExecutionResult {

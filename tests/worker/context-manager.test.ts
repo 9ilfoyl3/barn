@@ -18,6 +18,36 @@ describe('ContextManager', () => {
     expect(result.tokens).toBeLessThan(result.budget)
   })
 
+  it('keeps key excerpts and exact sequence refs in the checkpoint', () => {
+    const manager = new ContextManager({ contextWindow: 3_000, maxOutputTokens: 500 })
+    const messages: AgentMessage[] = [system('system prompt')]
+    let seq = 1
+    for (let index = 0; index < 10; index++) {
+      messages.push(sequenced(user(`request ${index}: preserve this requirement`), seq++))
+      messages.push(sequenced(assistant([{ type: 'text', text: `answer ${index}: decision ${index}` }]), seq++))
+      messages.push(sequenced({
+        role: 'toolResult',
+        toolCallId: `call-${index}`,
+        toolName: 'read_file',
+        content: [{ type: 'text', text: index === 1 ? 'ERROR: permission denied for the source file' : `result ${index}` }],
+        isError: index === 1,
+        timestamp: Date.now(),
+      }, seq++))
+    }
+    messages.push(sequenced(user('latest request'), seq))
+
+    const result = manager.transform(messages)
+    const checkpoint = result.messages.find((message) => (
+      message.role === 'system' && String(message.content).includes('[Barn context checkpoint]')
+    ))
+    expect(checkpoint).toBeDefined()
+    expect(String(checkpoint?.content)).toContain('Exact transcript range: seq 1-')
+    expect(String(checkpoint?.content)).toContain('session_history')
+    expect(String(checkpoint?.content)).toContain('Earlier user requests')
+    expect(String(checkpoint?.content)).toContain('Earlier tool issues')
+    expect(String(checkpoint?.content)).toContain('permission denied')
+  })
+
   it('compacts older turns while preserving the latest request and tool result', () => {
     const manager = new ContextManager({ contextWindow: 3_000, maxOutputTokens: 500 })
     const messages: AgentMessage[] = [system('system prompt')]
@@ -56,6 +86,10 @@ describe('ContextManager', () => {
     expect(toolResults).toEqual(toolCalls)
   })
 })
+
+function sequenced(message: AgentMessage, seq: number): AgentMessage {
+  return { ...message, barnSeq: seq } as unknown as AgentMessage
+}
 
 function system(content: string): AgentMessage {
   return { role: 'system', content, timestamp: Date.now() }
