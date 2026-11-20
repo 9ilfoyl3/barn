@@ -43,11 +43,13 @@ async function harness() {
     call: vi.fn(async (_context, capability) => ({ capability: capability.id })),
   }
   const enqueued: ActionRequestInput[] = []
+  const listedActions: ActionRecord[] = []
   const handlers = new Map<string, (action: ActionRecord, context: { actionId: string; idempotencyKey: string; signal: AbortSignal }) => Promise<unknown>>()
   const actions = {
+    list: () => listedActions,
     enqueue(input: ActionRequestInput): ActionRecord {
       enqueued.push(input)
-      return {
+      const action: ActionRecord = {
         id: randomUUID(),
         kind: input.kind,
         idempotencyKey: input.idempotencyKey,
@@ -60,6 +62,8 @@ async function harness() {
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       }
+      listedActions.unshift(action)
+      return action
     },
     registerHandler(handler: { kind: string; execute: (action: ActionRecord, context: { actionId: string; idempotencyKey: string; signal: AbortSignal }) => Promise<unknown> }) {
       handlers.set(handler.kind, handler.execute)
@@ -124,6 +128,9 @@ describe('ConnectorService', () => {
       payload: expect.objectContaining({ connectorId: h.connector.id, capability: 'email.send' }),
     })
     expect(h.adapter.call).not.toHaveBeenCalled()
+    expect(h.service.listActions()).toEqual([
+      expect.objectContaining({ title: 'Send mail', status: 'pending_approval', attempts: 0 }),
+    ])
     h.sessions.close()
   })
 

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type RefObject } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Inbox } from 'lucide-react'
 import './task-center.css'
-import type { Task, TaskStatus } from '../shared/models'
+import type { ApprovalRequest, ConnectorActionSummary, Task, TaskStatus } from '../shared/models'
 
 export type TaskGroupKey = 'needsYou' | 'inProgress' | 'recent'
 
@@ -28,6 +28,7 @@ export function groupTasks(tasks: Task[]): TaskGroups {
 
 export interface TaskCenterProps {
   tasks: Task[]
+  approvals: ApprovalRequest[]
   loading: boolean
   error?: string | undefined
   onOpenTask(task: Task): void
@@ -35,19 +36,40 @@ export interface TaskCenterProps {
 }
 
 /** The personal Agent's attention inbox: work that needs a person, work in progress, and recent outcomes. */
-export function TaskCenter({ tasks, loading, error, onOpenTask, onError }: TaskCenterProps) {
+export function TaskCenter({ tasks, approvals, loading, error, onOpenTask, onError }: TaskCenterProps) {
   const { t, i18n } = useTranslation()
   const dateLocale = i18n.language === 'zh-CN' ? 'zh-CN' : 'en-US'
   const [busyTaskId, setBusyTaskId] = useState<string>()
   const [editingTaskId, setEditingTaskId] = useState<string>()
   const [draftPrompt, setDraftPrompt] = useState('')
+  const [connectorActions, setConnectorActions] = useState<ConnectorActionSummary[]>([])
+  const [busyApprovalId, setBusyApprovalId] = useState<string>()
   const editorRef = useRef<HTMLTextAreaElement>(null)
   const groups = groupTasks(tasks)
   const total = tasks.length
+  const needsYouCount = groups.needsYou.length + approvals.length
 
   useEffect(() => {
     if (editingTaskId !== undefined) editorRef.current?.focus()
   }, [editingTaskId])
+
+  useEffect(() => {
+    let active = true
+    const load = async (): Promise<void> => {
+      try {
+        const actions = await window.barn.connectors.listActions()
+        if (active) setConnectorActions(actions)
+      } catch {
+        // Connector actions are auxiliary; task attention must remain usable if their status cannot load.
+      }
+    }
+    void load()
+    const timer = setInterval(() => void load(), 3_000)
+    return () => {
+      active = false
+      clearInterval(timer)
+    }
+  }, [])
 
   async function updateStatus(task: Task, status: TaskStatus): Promise<void> {
     setBusyTaskId(task.id)
@@ -76,6 +98,21 @@ export function TaskCenter({ tasks, loading, error, onOpenTask, onError }: TaskC
       onError(errorMessage(reason))
     } finally {
       setBusyTaskId(undefined)
+    }
+  }
+
+  async function resolveConnectorApproval(approval: ApprovalRequest, decision: 'approved' | 'denied'): Promise<void> {
+    setBusyApprovalId(approval.id)
+    onError(undefined)
+    try {
+      await window.barn.approvals.resolve(approval.id, decision)
+      setTimeout(() => {
+        void window.barn.connectors.listActions().then(setConnectorActions).catch(() => undefined)
+      }, 500)
+    } catch (reason) {
+      onError(errorMessage(reason))
+    } finally {
+      setBusyApprovalId(undefined)
     }
   }
 
@@ -113,7 +150,7 @@ export function TaskCenter({ tasks, loading, error, onOpenTask, onError }: TaskC
     )
   }
 
-  if (total === 0) {
+  if (total === 0 && approvals.length === 0 && connectorActions.length === 0) {
     return (
       <section className="task-center task-center-empty" aria-label={t('tasks.title')}>
         <div className="task-empty-mark" aria-hidden="true"><Inbox size={21} /></div>
@@ -127,11 +164,20 @@ export function TaskCenter({ tasks, loading, error, onOpenTask, onError }: TaskC
   return (
     <section className="task-center" aria-label={t('tasks.title')}>
       <p className="task-center-summary">
-        {groups.needsYou.length === 0
+        {needsYouCount === 0
           ? t('tasks.summaryClear')
-          : t('tasks.summaryNeedsYou', { count: groups.needsYou.length })}
+          : approvals.length > 0
+            ? t('tasks.summaryNeedsAttention', { count: needsYouCount })
+            : t('tasks.summaryNeedsYou', { count: needsYouCount })}
       </p>
       {error !== undefined && <div className="error-banner task-error" role="alert">{error}</div>}
+      <ConnectorActionSection
+        actions={connectorActions}
+        approvals={approvals}
+        busyApprovalId={busyApprovalId}
+        dateLocale={dateLocale}
+        onResolve={resolveConnectorApproval}
+      />
       <TaskGroup
         groupKey="needs-you"
         title={t('tasks.needsYou')}
@@ -186,6 +232,73 @@ export function TaskCenter({ tasks, loading, error, onOpenTask, onError }: TaskC
         onResolveApproval={resolveApproval}
         onOpenTask={onOpenTask}
       />
+    </section>
+  )
+}
+
+function ConnectorActionSection({
+  actions,
+  approvals,
+  busyApprovalId,
+  dateLocale,
+  onResolve,
+}: {
+  actions: ConnectorActionSummary[]
+  approvals: ApprovalRequest[]
+  busyApprovalId?: string | undefined
+  dateLocale: string
+  onResolve(approval: ApprovalRequest, decision: 'approved' | 'denied'): Promise<void>
+}) {
+  const { t } = useTranslation()
+  const recentActions = actions.filter((action) => action.status !== 'pending_approval')
+  if (approvals.length === 0 && recentActions.length === 0) return null
+  return (
+    <section className="task-group connector-action-group" aria-labelledby="task-group-connector-actions">
+      <div className="task-group-heading">
+        <h2 id="task-group-connector-actions">{t('tasks.connectorActions')}</h2>
+        <span>{approvals.length + recentActions.length}</span>
+      </div>
+      <div className="task-list">
+        {approvals.map((approval) => {
+          const busy = busyApprovalId === approval.id
+          return (
+            <article className="task-row connector-action-row" key={approval.id}>
+              <div className="task-row-copy">
+                <div className="task-row-title">
+                  <h3>{approval.title}</h3>
+                  <span className="task-status task-status-waiting">{t('tasks.connectorActionStatus.pending_approval')}</span>
+                </div>
+                <p>{approval.summary}</p>
+                {approval.details !== undefined && <small className="connector-action-details">{approval.details}</small>}
+                <time dateTime={approval.createdAt}>{formatTaskTime(approval.createdAt, dateLocale)}</time>
+              </div>
+              <div className="task-row-actions">
+                <button className="task-action quiet" type="button" disabled={busy} onClick={() => void onResolve(approval, 'denied')}>
+                  {t('tasks.dismiss')}
+                </button>
+                <button className="task-action primary" type="button" disabled={busy} onClick={() => void onResolve(approval, 'approved')}>
+                  {t('tasks.approve')}
+                </button>
+              </div>
+            </article>
+          )
+        })}
+        {recentActions.map((action) => (
+          <article className="task-row connector-action-row" key={action.id}>
+            <div className="task-row-copy">
+              <div className="task-row-title">
+                <h3>{action.title}</h3>
+                <span className={`task-status connector-action-status-${action.status}`}>
+                  {t(`tasks.connectorActionStatus.${action.status}`)}
+                </span>
+              </div>
+              <p>{action.summary}</p>
+              {action.lastError !== undefined && <small className="connector-action-error">{action.lastError}</small>}
+              <time dateTime={action.updatedAt}>{formatTaskTime(action.updatedAt, dateLocale)}</time>
+            </div>
+          </article>
+        ))}
+      </div>
     </section>
   )
 }

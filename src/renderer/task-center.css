@@ -328,3 +328,40 @@
   text-decoration: underline;
   text-underline-offset: 3px;
 }
+
+.connector-action-details,
+.connector-action-error {
+  display: block;
+  margin-top: 7px;
+  color: var(--text-faint);
+  font-family: var(--font-mono, monospace);
+  font-size: 10px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.connector-action-error {
+  color: var(--danger);
+  font-family: inherit;
+}
+
+.connector-action-status-queued,
+.connector-action-status-running {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.connector-action-status-succeeded {
+  background: color-mix(in srgb, var(--green) 11%, transparent);
+  color: var(--green);
+}
+
+.connector-action-status-failed {
+  background: color-mix(in srgb, var(--danger) 11%, transparent);
+  color: var(--danger);
+}
+
+.connector-action-status-cancelled {
+  background: var(--panel-raised);
+  color: var(--text-faint);
+}

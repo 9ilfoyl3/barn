@@ -111,3 +111,60 @@ test('configures and removes a signed DingTalk robot', async () => {
     await app.close()
   }
 })
+
+test('shows and resolves a connector approval in the task center', async () => {
+  const userData = await mkdtemp(join(tmpdir(), 'barn-desktop-connector-approval-e2e-'))
+  const inheritedEnv = Object.fromEntries(
+    Object.entries(process.env).filter((entry): entry is [string, string] => entry[1] !== undefined),
+  )
+  const app = await electron.launch({
+    args: ['.'],
+    env: {
+      ...inheritedEnv,
+      ELECTRON_DISABLE_SECURITY_WARNINGS: 'true',
+      BARN_USER_DATA_DIR: userData,
+      BARN_UI_LANGUAGE: 'en',
+    },
+  })
+
+  try {
+    const page = await app.firstWindow()
+    await page.waitForLoadState('domcontentloaded')
+    await page.evaluate(async () => {
+      const connector = await window.barn.connectors.create({
+        kind: 'dingtalk',
+        name: 'Approval robot',
+        config: { keyword: 'Barn' },
+      })
+      await window.barn.connectors.saveCredentials({
+        connectorId: connector.id,
+        values: {
+          webhookUrl: 'https://oapi.dingtalk.com/robot/send?access_token=test-token',
+          secret: 'test-secret',
+        },
+      })
+      const result = await window.barn.connectors.call({
+        connectorId: connector.id,
+        capability: 'dingtalk.send',
+        arguments: { text: 'Release is ready' },
+      })
+      if (result.kind !== 'action' || result.status !== 'pending_approval') {
+        throw new Error(`Expected a pending connector action, received ${JSON.stringify(result)}`)
+      }
+    })
+
+    await page.getByRole('button', { name: 'Tasks', exact: true }).click()
+    await expect(page.getByRole('heading', { name: 'Connector actions' })).toBeVisible()
+    const connectorGroup = page.locator('.connector-action-group')
+    await expect(connectorGroup).toContainText('Send DingTalk message')
+    await expect(connectorGroup).toContainText('Approval robot')
+    await expect(connectorGroup).toContainText('Needs approval')
+    await page.screenshot({ path: 'test-results/barn-connector-approval.png', fullPage: true })
+
+    await connectorGroup.getByRole('button', { name: 'Dismiss' }).click()
+    await expect(page.getByRole('heading', { name: 'Connector actions' })).toBeVisible()
+    await expect(connectorGroup).toContainText('Dismissed', { timeout: 6_000 })
+  } finally {
+    await app.close()
+  }
+})
