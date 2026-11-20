@@ -215,7 +215,7 @@ export type ConnectorCallResult =
   | {
       kind: 'action'
       actionId: string
-      status: 'pending_approval' | 'queued' | 'running' | 'succeeded' | 'failed' | 'cancelled'
+      status: 'pending_approval' | 'queued' | 'running' | 'succeeded' | 'failed' | 'cancelled' | 'unknown_effect'
       message: string
     }
 
@@ -224,7 +224,7 @@ export interface ConnectorActionSummary {
   title: string
   summary: string
   details?: string
-  status: 'pending_approval' | 'queued' | 'running' | 'succeeded' | 'failed' | 'cancelled'
+  status: 'pending_approval' | 'queued' | 'running' | 'succeeded' | 'failed' | 'cancelled' | 'unknown_effect'
   attempts: number
   lastError?: string
   createdAt: string
@@ -242,6 +242,8 @@ export interface ConnectorBridge {
   test(connectorId: string): Promise<ConnectorTestResult>
   call(input: ConnectorCallInput): Promise<ConnectorCallResult>
   listActions(): Promise<ConnectorActionSummary[]>
+  retryAction(actionId: string): Promise<ConnectorActionSummary>
+  cancelAction(actionId: string): Promise<ConnectorActionSummary>
 }
 
 export type VisibleMessageRole = 'user' | 'assistant' | 'system'

@@ -21,6 +21,8 @@ import type { ConnectorAdapter, ConnectorDefinitionMap, ConnectorRecord } from '
 export interface ConnectorActionService {
   list(): ActionRecord[]
   enqueue(input: ActionRequestInput): ActionRecord
+  retry(actionId: string): ActionRecord
+  cancel(actionId: string, reason?: string): ActionRecord
   registerHandler(handler: {
     kind: string
     execute(action: ActionRecord, context: { actionId: string; idempotencyKey: string; signal: AbortSignal }): Promise<unknown>
@@ -134,18 +136,43 @@ export class ConnectorService {
     return actions.list()
       .filter((action) => action.kind === 'connector.effect')
       .slice(0, 20)
-      .map((action) => ({
-        id: action.id,
-        title: action.title,
-        summary: action.summary,
-        ...(action.details === undefined ? {} : { details: action.details }),
-        status: action.status,
-        attempts: action.attempts,
-        ...(action.lastError === undefined ? {} : { lastError: action.lastError }),
-        createdAt: action.createdAt,
-        updatedAt: action.updatedAt,
-        ...(action.completedAt === undefined ? {} : { completedAt: action.completedAt }),
-      }))
+      .map((action) => this.toActionSummary(action))
+  }
+
+  private toActionSummary(action: ActionRecord): import('../../shared/models').ConnectorActionSummary {
+    return {
+      id: action.id,
+      title: action.title,
+      summary: action.summary,
+      ...(action.details === undefined ? {} : { details: action.details }),
+      status: action.status,
+      attempts: action.attempts,
+      ...(action.lastError === undefined ? {} : { lastError: action.lastError }),
+      createdAt: action.createdAt,
+      updatedAt: action.updatedAt,
+      ...(action.completedAt === undefined ? {} : { completedAt: action.completedAt }),
+    }
+  }
+
+  retryAction(actionId: string): Promise<import('../../shared/models').ConnectorActionSummary> {
+    return this.mutateAction(actionId, (actions) => actions.retry(actionId))
+  }
+
+  cancelAction(actionId: string): Promise<import('../../shared/models').ConnectorActionSummary> {
+    return this.mutateAction(actionId, (actions) => actions.cancel(actionId, 'Cancelled from the connector inbox.'))
+  }
+
+  private async mutateAction(
+    actionId: string,
+    mutate: (actions: ConnectorActionService) => ActionRecord,
+  ): Promise<import('../../shared/models').ConnectorActionSummary> {
+    const actions = this.requireActions()
+    const current = actions.list().find((action) => action.id === actionId)
+    if (current === undefined || current.kind !== 'connector.effect') {
+      throw new Error(`Unknown connector action: ${actionId}`)
+    }
+    const action = mutate(actions)
+    return this.toActionSummary(action)
   }
 
   async call(input: ConnectorCallInput, sessionId?: string): Promise<ConnectorCallResult> {

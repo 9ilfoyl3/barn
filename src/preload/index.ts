@@ -175,6 +175,8 @@ const connectors: ConnectorBridge = {
   test: (connectorId: string) => ipcRenderer.invoke('connectors:test', connectorId),
   call: (input: ConnectorCallInput) => ipcRenderer.invoke('connectors:call', input),
   listActions: () => ipcRenderer.invoke('connectors:list-actions'),
+  retryAction: (actionId: string) => ipcRenderer.invoke('connectors:retry-action', actionId),
+  cancelAction: (actionId: string) => ipcRenderer.invoke('connectors:cancel-action', actionId),
 }
 
 const permissions: PermissionBridge = {

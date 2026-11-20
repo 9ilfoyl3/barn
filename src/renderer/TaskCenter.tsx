@@ -44,6 +44,7 @@ export function TaskCenter({ tasks, approvals, loading, error, onOpenTask, onErr
   const [draftPrompt, setDraftPrompt] = useState('')
   const [connectorActions, setConnectorActions] = useState<ConnectorActionSummary[]>([])
   const [busyApprovalId, setBusyApprovalId] = useState<string>()
+  const [busyConnectorActionId, setBusyConnectorActionId] = useState<string>()
   const editorRef = useRef<HTMLTextAreaElement>(null)
   const groups = groupTasks(tasks)
   const total = tasks.length
@@ -98,6 +99,32 @@ export function TaskCenter({ tasks, approvals, loading, error, onOpenTask, onErr
       onError(errorMessage(reason))
     } finally {
       setBusyTaskId(undefined)
+    }
+  }
+
+  async function retryConnectorAction(action: ConnectorActionSummary): Promise<void> {
+    setBusyConnectorActionId(action.id)
+    onError(undefined)
+    try {
+      await window.barn.connectors.retryAction(action.id)
+      setConnectorActions(await window.barn.connectors.listActions())
+    } catch (reason) {
+      onError(errorMessage(reason))
+    } finally {
+      setBusyConnectorActionId(undefined)
+    }
+  }
+
+  async function cancelConnectorAction(action: ConnectorActionSummary): Promise<void> {
+    setBusyConnectorActionId(action.id)
+    onError(undefined)
+    try {
+      await window.barn.connectors.cancelAction(action.id)
+      setConnectorActions(await window.barn.connectors.listActions())
+    } catch (reason) {
+      onError(errorMessage(reason))
+    } finally {
+      setBusyConnectorActionId(undefined)
     }
   }
 
@@ -175,8 +202,11 @@ export function TaskCenter({ tasks, approvals, loading, error, onOpenTask, onErr
         actions={connectorActions}
         approvals={approvals}
         busyApprovalId={busyApprovalId}
+        busyActionId={busyConnectorActionId}
         dateLocale={dateLocale}
         onResolve={resolveConnectorApproval}
+        onRetryAction={retryConnectorAction}
+        onCancelAction={cancelConnectorAction}
       />
       <TaskGroup
         groupKey="needs-you"
@@ -240,14 +270,20 @@ function ConnectorActionSection({
   actions,
   approvals,
   busyApprovalId,
+  busyActionId,
   dateLocale,
   onResolve,
+  onRetryAction,
+  onCancelAction,
 }: {
   actions: ConnectorActionSummary[]
   approvals: ApprovalRequest[]
   busyApprovalId?: string | undefined
+  busyActionId?: string | undefined
   dateLocale: string
   onResolve(approval: ApprovalRequest, decision: 'approved' | 'denied'): Promise<void>
+  onRetryAction(action: ConnectorActionSummary): Promise<void>
+  onCancelAction(action: ConnectorActionSummary): Promise<void>
 }) {
   const { t } = useTranslation()
   const recentActions = actions.filter((action) => action.status !== 'pending_approval')
@@ -296,6 +332,16 @@ function ConnectorActionSection({
               {action.lastError !== undefined && <small className="connector-action-error">{action.lastError}</small>}
               <time dateTime={action.updatedAt}>{formatTaskTime(action.updatedAt, dateLocale)}</time>
             </div>
+            {action.status === 'unknown_effect' && (
+              <div className="task-row-actions">
+                <button className="task-action quiet" type="button" disabled={busyActionId === action.id} onClick={() => void onCancelAction(action)}>
+                  {t('tasks.dismiss')}
+                </button>
+                <button className="task-action primary" type="button" disabled={busyActionId === action.id} onClick={() => void onRetryAction(action)}>
+                  {t('tasks.retry')}
+                </button>
+              </div>
+            )}
           </article>
         ))}
       </div>
