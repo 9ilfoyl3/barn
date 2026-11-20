@@ -20,7 +20,7 @@ import {
   Sparkles,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import type { AttachmentDescriptor, SessionLiveEvent, Task, TaskParticipantStatuses } from '../shared/models'
+import type { AttachmentDescriptor, SessionLiveEvent, Task } from '../shared/models'
 import { attachmentDisplayName } from '../shared/attachments'
 import { AttachmentStrip } from './AttachmentStrip'
 import { ConversationParts, PendingThinking } from './ConversationParts'
@@ -41,11 +41,9 @@ type TaskTagValue = typeof TASK_TAG_VALUES[number]
 const TASK_TAG_STORAGE_PREFIX = 'barn.task-detail.tags.'
 
 export function TaskDetailPage({
-  participantStatuses,
   task,
   onBack,
 }: {
-  participantStatuses?: TaskParticipantStatuses | undefined
   task: Task
   onBack: () => void
 }) {
@@ -55,7 +53,6 @@ export function TaskDetailPage({
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [optimisticMessages, setOptimisticMessages] = useState<ChatMessage[]>([])
   const [liveParts, setLiveParts] = useState<ConversationPart[]>([])
-  const [liveActorRole, setLiveActorRole] = useState<'router' | 'worker'>('worker')
   const [input, setInput] = useState('')
   const [attachments, setAttachments] = useState<AttachmentDescriptor[]>([])
   const [pending, setPending] = useState(false)
@@ -73,18 +70,12 @@ export function TaskDetailPage({
   const tagMenuRef = useRef<HTMLDivElement>(null)
 
   sessionTaskRef.current = task.id
-  const participantStateKey = JSON.stringify(participantStatuses ?? {})
-  const activeParticipants = (['router', 'worker'] as const).filter((role) => (
-    participantStatuses?.[role] === 'running'
-  ))
-  const hasParallelActivity = activeParticipants.length > 0
 
   useEffect(() => {
     setActiveSessionId(task.sessionId)
     setMessages([])
     setOptimisticMessages([])
     setLiveParts([])
-    setLiveActorRole('worker')
     setInput('')
     setAttachments([])
     setPending(false)
@@ -155,12 +146,10 @@ export function TaskDetailPage({
       }
       if (event.sessionId !== sessionId) return
       if (event.type === 'assistant.delta' || event.type === 'assistant.thinking' || event.type === 'tool.started' || event.type === 'tool.finished') {
-        setLiveActorRole(event.actorRole ?? 'worker')
         setLiveParts((current) => applyLiveEvent(current, event))
         return
       }
       if (event.type === 'run.status') {
-        if (event.actorRole !== undefined) setLiveActorRole(event.actorRole)
         setPending(event.status === 'running')
         if (event.status !== 'running') {
           setStopping(false)
@@ -170,7 +159,7 @@ export function TaskDetailPage({
         }
       }
     }
-  }, [activeSessionId, task.id, task.visiblePrompt, participantStateKey, t])
+  }, [activeSessionId, task.id, task.visiblePrompt, t])
 
   useLayoutEffect(() => {
     const thread = threadRef.current
@@ -246,7 +235,6 @@ export function TaskDetailPage({
     setAttachments([])
     setOptimisticMessages((current) => [...current, optimistic])
     setPending(true)
-    setLiveActorRole('router')
     setError(undefined)
     try {
       await window.barn.tasks.continueTask(task.id, text, filesToSend)
@@ -365,40 +353,19 @@ export function TaskDetailPage({
   }
 
   function renderLiveAssistant() {
-    if (hasParallelActivity) {
-      const label = activeParticipants.length > 1
-        ? t('tasks.routerAndWorkerThinking')
-        : activeParticipants[0] === 'router'
-          ? t('tasks.routerThinking')
-          : t('tasks.workerThinking')
-      return (
-        <div
-          className="assistant-reply-segment task-detail-actor-turn task-detail-actor-worker task-detail-participant-orbs"
-          data-testid="task-participant-orbs"
-          key="task-participant-orbs"
-        >
-          <span className="task-detail-actor-avatar" aria-hidden="true">
-            <Bot size={12} />
-          </span>
-          <div className="task-detail-actor-copy">
-            <PendingThinking label={label} />
-          </div>
-        </div>
-      )
-    }
     return (
       <div
-        className={`assistant-reply-segment task-detail-actor-turn task-detail-actor-${liveActorRole}`}
-        data-actor-role={liveActorRole}
+        className="assistant-reply-segment task-detail-actor-turn task-detail-actor-worker"
+        data-actor-role="worker"
         data-testid="task-live-assistant"
         key="task-live"
       >
         <span className="task-detail-actor-avatar" aria-hidden="true">
-          {liveActorRole === 'router' ? <Route size={12} /> : <Bot size={12} />}
+          <Bot size={12} />
         </span>
         <div className="task-detail-actor-copy">
           <span className="task-detail-actor-name">
-            {liveActorRole === 'router' ? t('tasks.routerAgent') : t('tasks.workerAgent')}
+            {t('tasks.workerAgent')}
           </span>
           {liveParts.length === 0 ? (
             <PendingThinking label={t('conversation.thinkingNow')} />
@@ -460,7 +427,7 @@ export function TaskDetailPage({
                     </div>
                   )
                 }
-                const includeLive = (pending || liveParts.length > 0 || hasParallelActivity)
+                const includeLive = (pending || liveParts.length > 0)
                   && groupIndex === messageGroups.length - 1
                 const anchored = messageGroups[groupIndex - 1]?.kind === 'user'
                 const assistantCount = group.replies.length + (includeLive ? 1 : 0)
@@ -474,13 +441,13 @@ export function TaskDetailPage({
                   </ReplyGuideGroup>
                 )
               })}
-              {(pending || liveParts.length > 0 || hasParallelActivity) && messageGroups.at(-1)?.kind !== 'assistant' && (
+              {(pending || liveParts.length > 0) && messageGroups.at(-1)?.kind !== 'assistant' && (
                 <ReplyGuideGroup className="task-detail-live-run" guide="anchored">
                   {renderLiveAssistant()}
                 </ReplyGuideGroup>
               )}
             </MessageBubbleGroup>
-            {!loading && displayMessages.length === 0 && liveParts.length === 0 && !pending && !hasParallelActivity && (
+            {!loading && displayMessages.length === 0 && liveParts.length === 0 && !pending && (
               <div className="task-detail-thread-empty">
                 <Sparkles size={18} aria-hidden="true" />
                 <p>{t('tasks.chatEmpty')}</p>

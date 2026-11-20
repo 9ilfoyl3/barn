@@ -2,7 +2,7 @@ import type {
   CreateTaskInput,
   Task,
   TaskLiveEvent,
-  TaskParticipantStatuses,
+  TaskResultEnvelope,
   TaskStatusUpdate,
   UpdateRoutineInput,
 } from '../../shared/models'
@@ -52,6 +52,12 @@ export class TaskService {
     return task
   }
 
+  recordResult(taskId: string, result: TaskResultEnvelope): Task {
+    const task = this.store.recordResult(taskId, result)
+    this.emit(task)
+    return task
+  }
+
   rescheduleReminder(taskId: string, scheduledFor: string): Task {
     const task = this.store.rescheduleReminder(taskId, scheduledFor)
     this.emit(task)
@@ -68,17 +74,6 @@ export class TaskService {
     const task = this.store.assignSession(taskId, sessionId)
     this.emit(task)
     return task
-  }
-
-  assignRouterSession(taskId: string, sessionId: string | null): Task {
-    const task = this.store.assignRouterSession(taskId, sessionId)
-    this.emit(task)
-    return task
-  }
-
-  emitParticipantStatuses(taskId: string, participants: TaskParticipantStatuses): void {
-    const event: TaskLiveEvent = { type: 'task.participants', taskId, participants }
-    for (const listener of this.listeners) listener(event)
   }
 
   onEvent(listener: (event: TaskLiveEvent) => void): () => void {

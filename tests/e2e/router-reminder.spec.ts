@@ -62,7 +62,7 @@ test('turns a reminder into a scheduled task without entering a tool Session', a
     expect(tasks).toHaveLength(1)
     expect(tasks[0]).toMatchObject({
       kind: 'reminder',
-      scheduledFor: '2026-11-20T01:00:00.000Z',
+      scheduledFor: '2026-11-21T01:00:00.000Z',
       recurrence: 'daily',
       timezone: 'Asia/Shanghai',
       visiblePrompt: '提醒我带退货的衣服。',
@@ -82,7 +82,7 @@ async function startReminderRouterServer(): Promise<Server> {
     arguments: {
       title: '带退货的衣服',
       text: '提醒我带退货的衣服。',
-      scheduledFor: '2026-11-20T01:00:00.000Z',
+      scheduledFor: '2026-11-21T01:00:00.000Z',
       timezone: 'Asia/Shanghai',
       recurrence: 'daily',
     },

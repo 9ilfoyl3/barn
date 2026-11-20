@@ -271,6 +271,11 @@ function TaskRow({
             {t('tasks.approve')}
           </button>
         )}
+        {task.status === 'waiting' && task.waitingReason === 'review' && (
+          <button type="button" className="task-action primary" disabled={busy} onClick={() => void onStatus(task, 'completed')}>
+            {t('tasks.markComplete')}
+          </button>
+        )}
         {task.status === 'failed' && task.prompt !== undefined && (
           <button type="button" className="task-action primary" disabled={busy} onClick={() => void onStatus(task, 'queued')}>
             {t('tasks.retry')}

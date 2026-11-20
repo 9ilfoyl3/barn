@@ -305,14 +305,6 @@ function parseDecisionResponse(response: string): z.infer<typeof decisionSchema>
         // Fall through to direct reply compatibility for simple model responses.
       }
     }
-    if (trimmed.length > 0 && !trimmed.startsWith('{')) {
-      return {
-        tool: 'reply',
-        arguments: { text: trimmed },
-        confidence: 0.7,
-        rationaleCodes: ['plain_text_reply'],
-      }
-    }
     throw new Error('Router returned an invalid tool decision', { cause: error })
   }
 }

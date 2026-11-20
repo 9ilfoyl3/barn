@@ -415,7 +415,17 @@ export interface DelegationBridge {
 
 export type TaskStatus = 'proposed' | 'queued' | 'running' | 'waiting' | 'completed' | 'failed' | 'cancelled'
 export type TaskOrigin = 'user' | 'automation'
-export type TaskWaitingReason = 'input' | 'approval'
+export type TaskWaitingReason = 'input' | 'approval' | 'review'
+export type TaskOutcome = 'completed' | 'needs_input' | 'needs_review' | 'failed' | 'cancelled'
+
+export interface TaskResultEnvelope {
+  outcome: TaskOutcome
+  summary: string
+  artifacts: string[]
+  evidenceRefs: string[]
+  limitations: string[]
+  externalEffectReceipts: string[]
+}
 export type RoutineRecurrence = 'none' | 'daily' | 'weekdays' | 'weekly'
 
 /** Durable user-facing work, independent of any one Session used to execute it. */
@@ -425,8 +435,9 @@ export interface Task {
   status: TaskStatus
   origin: TaskOrigin
   sessionId?: string
-  routerSessionId?: string
   approvalId?: string
+  contract?: TaskContract
+  result?: TaskResultEnvelope
   prompt?: string
   visiblePrompt?: string
   kind?: 'work' | 'reminder'
@@ -448,6 +459,7 @@ export interface CreateTaskInput {
   origin: TaskOrigin
   status?: 'proposed' | 'queued'
   sessionId?: string
+  contract?: TaskContract
   prompt?: string
   visiblePrompt?: string
   kind?: 'work' | 'reminder'
@@ -472,20 +484,10 @@ export interface UpdateRoutineInput {
   timezone: string
 }
 
-export type TaskParticipantRole = 'router' | 'worker'
-export type TaskParticipantState = 'running' | 'completed' | 'failed'
-export type TaskParticipantStatuses = Partial<Record<TaskParticipantRole, TaskParticipantState>>
-
-export type TaskLiveEvent =
-  | {
-      type: 'task.updated'
-      task: Task
-    }
-  | {
-      type: 'task.participants'
-      taskId: string
-      participants: TaskParticipantStatuses
-    }
+export type TaskLiveEvent = {
+  type: 'task.updated'
+  task: Task
+}
 
 export interface TaskBridge {
   list(): Promise<Task[]>

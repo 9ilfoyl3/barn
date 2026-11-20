@@ -15,9 +15,9 @@ import { ConnectorStore } from '../connectors/connector-store'
 
 export type SessionStatus = SessionSummary['status']
 
-// Schema 9 adds connector instances. Older schema versions are upgraded in
-// place by idempotent store initialization.
-export const CURRENT_SCHEMA_VERSION = 9
+// Schema 10 adds typed Task contracts and result envelopes. Older schema
+// versions are upgraded in place by idempotent store initialization.
+export const CURRENT_SCHEMA_VERSION = 10
 
 export interface NewSessionEvent {
   type: string

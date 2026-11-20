@@ -5,8 +5,10 @@ import type {
   AttachmentDescriptor,
   CreateTaskInput,
   Task,
+  TaskContract,
   TaskOrigin,
   TaskStatus,
+  TaskResultEnvelope,
   TaskStatusUpdate,
   TaskWaitingReason,
   RoutineRecurrence,
@@ -17,7 +19,7 @@ const ACTIVE_STATUSES: readonly TaskStatus[] = ['waiting', 'running', 'queued', 
 const TERMINAL_STATUSES: readonly TaskStatus[] = ['completed', 'failed', 'cancelled']
 const STATUSES: readonly TaskStatus[] = [...ACTIVE_STATUSES, ...TERMINAL_STATUSES]
 const ORIGINS: readonly TaskOrigin[] = ['user', 'automation']
-const WAITING_REASONS: readonly TaskWaitingReason[] = ['input', 'approval']
+const WAITING_REASONS: readonly TaskWaitingReason[] = ['input', 'approval', 'review']
 const TRANSITIONS: Readonly<Record<TaskStatus, readonly TaskStatus[]>> = {
   proposed: ['queued', 'cancelled'],
   queued: ['running', 'waiting', 'failed', 'cancelled'],
@@ -38,7 +40,6 @@ interface TaskRow {
   recurrence: string | null
   timezone: string | null
   session_id: string | null
-  router_session_id: string | null
   approval_id: string | null
   prompt_ciphertext: Uint8Array | null
   prompt_nonce: Uint8Array | null
@@ -50,6 +51,12 @@ interface TaskRow {
   attachments_ciphertext: Uint8Array | null
   attachments_nonce: Uint8Array | null
   attachments_tag: Uint8Array | null
+  contract_ciphertext: Uint8Array | null
+  contract_nonce: Uint8Array | null
+  contract_tag: Uint8Array | null
+  result_ciphertext: Uint8Array | null
+  result_nonce: Uint8Array | null
+  result_tag: Uint8Array | null
   waiting_reason: string | null
   detail: string | null
   created_at: string
@@ -89,6 +96,12 @@ export class TaskStore {
         attachments_ciphertext BLOB,
         attachments_nonce BLOB,
         attachments_tag BLOB,
+        contract_ciphertext BLOB,
+        contract_nonce BLOB,
+        contract_tag BLOB,
+        result_ciphertext BLOB,
+        result_nonce BLOB,
+        result_tag BLOB,
         waiting_reason TEXT,
         detail TEXT,
         created_at TEXT NOT NULL,
@@ -126,6 +139,7 @@ export class TaskStore {
       updatedAt: now,
     }
     if (input.sessionId !== undefined) task.sessionId = input.sessionId
+    if (input.contract !== undefined) task.contract = normalizeContract(input.contract)
     if (input.scheduledFor !== undefined) task.scheduledFor = normalizeScheduledFor(input.scheduledFor)
     if (input.recurrence !== undefined) task.recurrence = input.recurrence
     if (input.timezone !== undefined) task.timezone = normalizeTimezone(input.timezone)
@@ -142,14 +156,19 @@ export class TaskStore {
     const encryptedAttachments = task.attachments === undefined
       ? undefined
       : this.cipher.encrypt(JSON.stringify(task.attachments), attachmentsAssociatedData(task.id))
+    const encryptedContract = task.contract === undefined
+      ? undefined
+      : this.cipher.encrypt(task.contract, contractAssociatedData(task.id))
     this.database.prepare(`
       INSERT INTO tasks (
         id, title, status, origin, kind, scheduled_for, recurrence, timezone, session_id, approval_id,
         prompt_ciphertext, prompt_nonce, prompt_tag,
         visible_prompt_ciphertext, visible_prompt_nonce, visible_prompt_tag,
         working_directory, attachments_ciphertext, attachments_nonce, attachments_tag,
+        contract_ciphertext, contract_nonce, contract_tag,
+        result_ciphertext, result_nonce, result_tag,
         waiting_reason, detail, created_at, updated_at, started_at, finished_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, ?, ?, NULL, NULL)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, NULL, NULL, NULL, ?, ?, NULL, NULL)
     `).run(
       task.id,
       task.title,
@@ -170,6 +189,9 @@ export class TaskStore {
       encryptedAttachments?.ciphertext ?? null,
       encryptedAttachments?.nonce ?? null,
       encryptedAttachments?.tag ?? null,
+      encryptedContract?.ciphertext ?? null,
+      encryptedContract?.nonce ?? null,
+      encryptedContract?.tag ?? null,
       now,
       now,
     )
@@ -226,12 +248,16 @@ export class TaskStore {
     const finishedAt = TERMINAL_STATUSES.includes(update.status)
       ? current.finishedAt ?? now
       : null
+    const clearResult = update.status === 'queued' || update.status === 'running'
 
     this.database.prepare(`
       UPDATE tasks
-      SET status = ?, approval_id = ?, waiting_reason = ?, detail = ?, updated_at = ?, started_at = ?, finished_at = ?
+      SET status = ?, approval_id = ?, waiting_reason = ?, detail = ?, updated_at = ?, started_at = ?, finished_at = ?,
+          result_ciphertext = CASE WHEN ? THEN NULL ELSE result_ciphertext END,
+          result_nonce = CASE WHEN ? THEN NULL ELSE result_nonce END,
+          result_tag = CASE WHEN ? THEN NULL ELSE result_tag END
       WHERE id = ?
-    `).run(update.status, approvalId, waitingReason, detail, now, startedAt, finishedAt, taskId)
+    `).run(update.status, approvalId, waitingReason, detail, now, startedAt, finishedAt, clearResult ? 1 : 0, clearResult ? 1 : 0, clearResult ? 1 : 0, taskId)
     return this.get(taskId)
   }
 
@@ -258,13 +284,20 @@ export class TaskStore {
     const normalized = normalizePrompt(instruction)
     const prompt = task.prompt === undefined ? normalized : `${task.prompt}\n\nAdditional instruction:\n${normalized}`
     const visiblePrompt = normalized
+    const contract = task.contract === undefined ? undefined : normalizeContract({
+      ...task.contract,
+      constraints: [...task.contract.constraints, normalized],
+    })
     const encryptedPrompt = this.cipher.encrypt(prompt, promptAssociatedData(taskId))
     const encryptedVisible = this.cipher.encrypt(visiblePrompt, visiblePromptAssociatedData(taskId))
+    const encryptedContract = contract === undefined ? undefined : this.cipher.encrypt(contract, contractAssociatedData(taskId))
     const now = new Date().toISOString()
     this.database.prepare(`
       UPDATE tasks
       SET prompt_ciphertext = ?, prompt_nonce = ?, prompt_tag = ?,
           visible_prompt_ciphertext = ?, visible_prompt_nonce = ?, visible_prompt_tag = ?,
+          contract_ciphertext = COALESCE(?, contract_ciphertext), contract_nonce = COALESCE(?, contract_nonce), contract_tag = COALESCE(?, contract_tag),
+          result_ciphertext = NULL, result_nonce = NULL, result_tag = NULL,
           status = 'queued', waiting_reason = NULL, approval_id = NULL,
           detail = 'New instructions added; task requeued.', updated_at = ?, started_at = NULL, finished_at = NULL
       WHERE id = ?
@@ -275,6 +308,9 @@ export class TaskStore {
       encryptedVisible.ciphertext,
       encryptedVisible.nonce,
       encryptedVisible.tag,
+      encryptedContract?.ciphertext ?? null,
+      encryptedContract?.nonce ?? null,
+      encryptedContract?.tag ?? null,
       now,
       taskId,
     )
@@ -287,13 +323,20 @@ export class TaskStore {
       throw new Error(`Task instructions cannot change while the task is ${task.status}`)
     }
     const prompt = normalizePrompt(value)
+    const contract = task.contract === undefined ? undefined : normalizeContract({
+      ...task.contract,
+      constraints: [...task.contract.constraints, prompt],
+    })
     const encrypted = this.cipher.encrypt(prompt, promptAssociatedData(taskId))
     const visible = this.cipher.encrypt(prompt, visiblePromptAssociatedData(taskId))
+    const encryptedContract = contract === undefined ? undefined : this.cipher.encrypt(contract, contractAssociatedData(taskId))
     const now = new Date().toISOString()
     this.database.prepare(`
       UPDATE tasks
       SET prompt_ciphertext = ?, prompt_nonce = ?, prompt_tag = ?,
           visible_prompt_ciphertext = ?, visible_prompt_nonce = ?, visible_prompt_tag = ?,
+          contract_ciphertext = COALESCE(?, contract_ciphertext), contract_nonce = COALESCE(?, contract_nonce), contract_tag = COALESCE(?, contract_tag),
+          result_ciphertext = NULL, result_nonce = NULL, result_tag = NULL,
           updated_at = ?
       WHERE id = ?
     `).run(
@@ -303,6 +346,9 @@ export class TaskStore {
       visible.ciphertext,
       visible.nonce,
       visible.tag,
+      encryptedContract?.ciphertext ?? null,
+      encryptedContract?.nonce ?? null,
+      encryptedContract?.tag ?? null,
       now,
       taskId,
     )
@@ -367,13 +413,44 @@ export class TaskStore {
     return this.get(taskId)
   }
 
-  assignRouterSession(taskId: string, sessionId: string | null): Task {
-    this.get(taskId)
-    if (sessionId !== null) this.requireSession(sessionId)
+  recordResult(taskId: string, result: TaskResultEnvelope): Task {
+    const current = this.get(taskId)
+    if (current.status !== 'running' && current.status !== 'waiting') {
+      throw new Error(`Task result cannot be recorded while the task is ${current.status}`)
+    }
+    const normalized = normalizeResult(result)
     const now = new Date().toISOString()
+    const status = normalized.outcome === 'completed'
+      ? 'completed'
+      : normalized.outcome === 'failed'
+        ? 'failed'
+        : normalized.outcome === 'cancelled'
+          ? 'cancelled'
+          : normalized.outcome === 'needs_input'
+            ? 'waiting'
+            : 'waiting'
+    const waitingReason = status === 'waiting'
+      ? normalized.outcome === 'needs_input'
+        ? 'input'
+        : normalized.outcome === 'needs_review' ? 'review' : 'approval'
+      : null
+    const encrypted = this.cipher.encrypt(normalized, resultAssociatedData(taskId))
     this.database.prepare(`
-      UPDATE tasks SET router_session_id = ?, updated_at = ? WHERE id = ?
-    `).run(sessionId, now, taskId)
+      UPDATE tasks SET
+        status = ?, waiting_reason = ?, detail = ?, updated_at = ?, finished_at = ?,
+        result_ciphertext = ?, result_nonce = ?, result_tag = ?
+      WHERE id = ?
+    `).run(
+      status,
+      waitingReason,
+      normalized.summary,
+      now,
+      status === 'waiting' ? null : now,
+      encrypted.ciphertext,
+      encrypted.nonce,
+      encrypted.tag,
+      taskId,
+    )
     return this.get(taskId)
   }
 
@@ -382,7 +459,8 @@ export class TaskStore {
     const now = new Date().toISOString()
     const result = this.database.prepare(`
       UPDATE tasks
-      SET status = 'queued', session_id = NULL, waiting_reason = NULL, detail = 'Recovered after restart', updated_at = ?, finished_at = NULL
+      SET status = 'queued', session_id = NULL, waiting_reason = NULL, detail = 'Recovered after restart', updated_at = ?, finished_at = NULL,
+          result_ciphertext = NULL, result_nonce = NULL, result_tag = NULL
       WHERE status = 'running'
     `).run(now)
     return Number(result.changes)
@@ -402,7 +480,6 @@ export class TaskStore {
     if (row.recurrence !== null) task.recurrence = requireRecurrence(row.recurrence)
     if (row.timezone !== null) task.timezone = row.timezone
     if (row.session_id !== null) task.sessionId = row.session_id
-    if (row.router_session_id !== null) task.routerSessionId = row.router_session_id
     if (row.approval_id !== null) task.approvalId = row.approval_id
     if (row.working_directory !== null) task.workingDirectory = row.working_directory
     if (row.waiting_reason !== null) task.waitingReason = requireWaitingReason(row.waiting_reason)
@@ -426,6 +503,25 @@ export class TaskStore {
         nonce: row.visible_prompt_nonce!,
         tag: row.visible_prompt_tag!,
       }, visiblePromptAssociatedData(row.id)) as string
+    }
+    const contractFields = [row.contract_ciphertext, row.contract_nonce, row.contract_tag]
+    if (contractFields.some((field) => field !== null)) {
+      if (contractFields.some((field) => field === null)) throw new Error(`Incomplete encrypted contract for task: ${row.id}`)
+      const contract = this.cipher.decrypt({
+        ciphertext: row.contract_ciphertext!,
+        nonce: row.contract_nonce!,
+        tag: row.contract_tag!,
+      }, contractAssociatedData(row.id)) as TaskContract
+      task.contract = contract
+    }
+    const resultFields = [row.result_ciphertext, row.result_nonce, row.result_tag]
+    if (resultFields.some((field) => field !== null)) {
+      if (resultFields.some((field) => field === null)) throw new Error(`Incomplete encrypted result for task: ${row.id}`)
+      task.result = this.cipher.decrypt({
+        ciphertext: row.result_ciphertext!,
+        nonce: row.result_nonce!,
+        tag: row.result_tag!,
+      }, resultAssociatedData(row.id)) as TaskResultEnvelope
     }
     const attachmentFields = [row.attachments_ciphertext, row.attachments_nonce, row.attachments_tag]
     if (attachmentFields.some((field) => field !== null)) {
@@ -460,6 +556,12 @@ export class TaskStore {
       ['attachments_ciphertext', 'BLOB'],
       ['attachments_nonce', 'BLOB'],
       ['attachments_tag', 'BLOB'],
+      ['contract_ciphertext', 'BLOB'],
+      ['contract_nonce', 'BLOB'],
+      ['contract_tag', 'BLOB'],
+      ['result_ciphertext', 'BLOB'],
+      ['result_nonce', 'BLOB'],
+      ['result_tag', 'BLOB'],
       ['kind', "TEXT NOT NULL DEFAULT 'work'"],
       ['scheduled_for', 'TEXT'],
       ['recurrence', 'TEXT'],
@@ -528,6 +630,60 @@ function visiblePromptAssociatedData(taskId: string): string {
 
 function attachmentsAssociatedData(taskId: string): string {
   return `task:${taskId}:attachments`
+}
+
+function contractAssociatedData(taskId: string): string {
+  return `task:${taskId}:contract`
+}
+
+function resultAssociatedData(taskId: string): string {
+  return `task:${taskId}:result`
+}
+
+function normalizeContract(contract: TaskContract): TaskContract {
+  return {
+    objective: requirePromptText(contract.objective, 'Task objective'),
+    deliverable: requirePromptText(contract.deliverable, 'Task deliverable'),
+    constraints: contract.constraints.map((value) => requireListText(value, 'Task constraint')).slice(0, 50),
+    inputRefs: contract.inputRefs.map((value) => requireListText(value, 'Task input ref')).slice(0, 100),
+    sourceRefs: contract.sourceRefs.map((value) => requireListText(value, 'Task source ref')).slice(0, 100),
+    acceptanceCriteria: contract.acceptanceCriteria.map((value) => requireListText(value, 'Task acceptance criterion')).slice(0, 50),
+    forbiddenActions: contract.forbiddenActions.map((value) => requireListText(value, 'Task forbidden action')).slice(0, 50),
+    risk: requireEnum(contract.risk, ['none', 'local_write', 'external_write', 'destructive'] as const, 'Task risk'),
+    ...(contract.deadline === undefined ? {} : { deadline: contract.deadline }),
+    executionLane: requireEnum(contract.executionLane, ['interactive', 'background', 'scheduled'] as const, 'Task execution lane'),
+    expectedArtifacts: contract.expectedArtifacts.map((value) => requireListText(value, 'Task expected artifact')).slice(0, 50),
+  }
+}
+
+function normalizeResult(result: TaskResultEnvelope): TaskResultEnvelope {
+  return {
+    outcome: result.outcome,
+    summary: requirePromptText(result.summary, 'Task result summary'),
+    artifacts: result.artifacts.map((value) => requireListText(value, 'Task artifact')).slice(0, 100),
+    evidenceRefs: result.evidenceRefs.map((value) => requireListText(value, 'Task evidence ref')).slice(0, 100),
+    limitations: result.limitations.map((value) => requireListText(value, 'Task limitation')).slice(0, 50),
+    externalEffectReceipts: result.externalEffectReceipts.map((value) => requireListText(value, 'Task effect receipt')).slice(0, 100),
+  }
+}
+
+function requireEnum<T extends string>(value: string, allowed: readonly T[], label: string): T {
+  if (!allowed.includes(value as T)) throw new Error(`${label} is invalid`)
+  return value as T
+}
+
+function requirePromptText(value: string, label: string): string {
+  const normalized = value.trim()
+  if (normalized.length === 0) throw new Error(`${label} is required`)
+  if (normalized.length > 2_000_000) throw new Error(`${label} is too long`)
+  return normalized
+}
+
+function requireListText(value: string, label: string): string {
+  const normalized = value.trim()
+  if (normalized.length === 0) throw new Error(`${label} must not be empty`)
+  if (normalized.length > 4_000) throw new Error(`${label} is too long`)
+  return normalized
 }
 
 function normalizeScheduledFor(value: string): string {

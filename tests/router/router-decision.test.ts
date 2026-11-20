@@ -113,13 +113,9 @@ describe('ModelRouterDecisionEngine', () => {
     )
   })
 
-  it('turns a plain model response into a direct reply for compatibility', async () => {
+  it('fails closed when the Router returns unstructured text', async () => {
     const engine = new ModelRouterDecisionEngine(fakeModel('A quick direct answer.'))
-    await expect(engine.decide(input())).resolves.toMatchObject({
-      action: 'reply',
-      text: 'A quick direct answer.',
-      rationaleCodes: ['plain_text_reply'],
-    })
+    await expect(engine.decide(input())).rejects.toThrow('invalid tool decision')
   })
 
   it('rejects an invalid structured decision instead of guessing', async () => {
