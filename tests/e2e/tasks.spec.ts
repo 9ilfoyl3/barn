@@ -189,7 +189,7 @@ test('shows needs-you, in-progress, and recent tasks with usable actions', async
 
 
 test('opens a task agent conversation with properties and accepts a follow-up message', async () => {
-  const server = await startMockModelServer('Task detail agent reply.', 1_000)
+  const server = await startMockModelServer('Task detail agent reply.', 2_000)
   const address = server.address()
   if (address === null || typeof address === 'string') throw new Error('Mock server did not bind')
   const baseUrl = `http://127.0.0.1:${address.port}/v1`
@@ -237,6 +237,10 @@ test('opens a task agent conversation with properties and accepts a follow-up me
       origin: 'user',
       prompt: 'Summarize the latest project notes in one paragraph.',
     }))
+    await expect(page.locator('.assistant-live-activity')).toContainText('Working on task')
+    await expect(page.locator('.assistant-live-activity')).toContainText('Summarize the project notes')
+    await page.waitForTimeout(300)
+    await page.screenshot({ path: 'test-results/barn-task-progress-orbs.png', fullPage: true })
     await expect.poll(async () => page.evaluate(
       (taskId) => window.barn.tasks.get(taskId).then((current) => current.status),
       task.id,
@@ -256,6 +260,7 @@ test('opens a task agent conversation with properties and accepts a follow-up me
     await expect(detail.locator('[data-actor-role="router"]')).toContainText('Router')
     await expect(detail.locator('[data-actor-role="router"]')).toContainText('Summarize the latest project notes in one paragraph.')
     await expect(detail.locator('[data-actor-role="worker"]')).toContainText('Worker')
+    await expect(detail.locator('.assistant-reply-run[data-guide="none"]')).toHaveCount(1)
     await expect(detail.getByRole('complementary', { name: 'Properties' })).toContainText('Completed')
     await expect(detail.getByRole('complementary', { name: 'Properties' })).toContainText('Created from')
     await expect(detail.getByRole('button', { name: 'Add tag' })).toBeVisible()
@@ -263,6 +268,13 @@ test('opens a task agent conversation with properties and accepts a follow-up me
 
     const composer = detail.getByRole('textbox', { name: 'Message task agent' })
     await composer.fill('Please continue with a short follow-up.')
+    await page.evaluate((taskId) => {
+      const state = window as unknown as { __barnTaskProgress?: string[] }
+      state.__barnTaskProgress = []
+      window.barn.tasks.onEvent((event) => {
+        if (event.task.id === taskId) state.__barnTaskProgress?.push(event.task.status)
+      })
+    }, task.id)
     await composer.press('Enter')
     const userMessage = detail.locator('.task-detail-message-list .chat-message.user[data-align="end"]')
     await expect(userMessage).toContainText('Please continue with a short follow-up.', { timeout: 500 })
@@ -296,15 +308,11 @@ test('opens a task agent conversation with properties and accepts a follow-up me
     expect(geometry.user).toBeDefined()
     expect(Math.abs(geometry.assistant!.left - geometry.composer!.left)).toBeLessThanOrEqual(1)
     expect(Math.abs(geometry.composer!.right - geometry.user!.right)).toBeLessThanOrEqual(1)
-    await expect.poll(async () => page.evaluate(
-      (taskId) => window.barn.tasks.get(taskId).then((current) => current.status),
-      task.id,
-    ), { timeout: 5_000 }).toMatch(/queued|running/)
-    await page.locator('.app-rail-button', { hasText: 'Home' }).click()
-    await expect(page.locator('.assistant-live-activity')).toContainText('Working on task')
-    await expect(page.locator('.assistant-live-activity')).toContainText('Summarize the project notes')
-    await page.waitForTimeout(300)
-    await page.screenshot({ path: 'test-results/barn-task-progress-orbs.png', fullPage: true })
+    await expect(detail.locator('.assistant-reply-run[data-guide="attached"]')).toHaveCount(1)
+    await expect.poll(async () => page.evaluate(() => {
+      const state = window as unknown as { __barnTaskProgress?: string[] }
+      return state.__barnTaskProgress?.some((status) => status === 'queued' || status === 'running') ?? false
+    }), { timeout: 5_000 }).toBe(true)
     await page.locator('.task-nav-button').click()
     await page.locator('.task-row', { hasText: 'Summarize the project notes' })
       .getByRole('button', { name: 'View details', exact: true })

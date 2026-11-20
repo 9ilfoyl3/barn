@@ -155,6 +155,10 @@
   padding-left: 32px;
 }
 
+.task-detail-message-list .assistant-reply-run[data-guide="none"]::before {
+  display: none;
+}
+
 .task-detail-message-list .assistant-reply-run::before {
   z-index: 0;
   top: -20px;

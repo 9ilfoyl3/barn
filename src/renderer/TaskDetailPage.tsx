@@ -382,7 +382,7 @@ export function TaskDetailPage({ task, onBack }: { task: Task; onBack: () => voi
               </div>
             )}
             <MessageBubbleGroup className="message-list task-detail-message-list" spacing="default">
-              {messageGroups.map((group) => {
+              {messageGroups.map((group, groupIndex) => {
                 if (group.kind === 'user') return renderUserMessage(group.message)
                 if (group.kind === 'proactive') {
                   return (
@@ -394,13 +394,17 @@ export function TaskDetailPage({ task, onBack }: { task: Task; onBack: () => voi
                   )
                 }
                 return (
-                  <div className="assistant-reply-run" key={group.key}>
+                  <div
+                    className="assistant-reply-run"
+                    data-guide={messageGroups[groupIndex - 1]?.kind === 'user' ? 'attached' : 'none'}
+                    key={group.key}
+                  >
                     {group.replies.map((reply) => renderAssistantMessage(reply.message))}
                   </div>
                 )
               })}
               {(pending || liveParts.length > 0) && (
-                <div className="assistant-reply-run task-detail-live-run">
+                <div className="assistant-reply-run task-detail-live-run" data-guide="attached">
                   <div className="assistant-reply-segment task-detail-actor-turn task-detail-actor-worker">
                     <span className="task-detail-actor-avatar" aria-hidden="true">
                       <Bot size={12} />
