@@ -622,7 +622,7 @@ const en = {
     emptyTitle: 'No connectors yet',
     emptyDescription: 'Choose an app below. You can pause, test, or remove it at any time.',
     availableTitle: 'Available connectors',
-    availableDescription: 'Start with email. More office apps will appear here.',
+    availableDescription: 'Start with email and DingTalk. More office apps will appear here.',
     removeConfirm: 'Remove {{name}}? Its stored credentials will be deleted from this device.',
     unknownDefinition: 'No connector definition is available for {{kind}}.',
     saved: '{{name}} saved.',
@@ -648,11 +648,18 @@ const en = {
       fromName: 'Sender name',
       username: 'Username',
       password: 'Password or app password',
+      keyword: 'Security keyword',
+      webhookUrl: 'Robot webhook URL',
+      secret: 'Signing secret',
     },
     kinds: {
       email: {
         name: 'Email',
         description: 'Read recent mail, search the mailbox, open messages, and send mail through IMAP and SMTP.',
+      },
+      dingtalk: {
+        name: 'DingTalk',
+        description: 'Send text or Markdown messages to a DingTalk group robot with optional signing.',
       },
     },
     status: {
@@ -1284,7 +1291,7 @@ const zhCN: TranslationSchema = {
     emptyTitle: '还没有连接器',
     emptyDescription: '从下方选择一个应用。你可以随时暂停、测试或移除。',
     availableTitle: '可添加的连接器',
-    availableDescription: '先支持邮箱，后续会在这里加入更多办公应用。',
+    availableDescription: '先支持邮箱和钉钉，后续会在这里加入更多办公应用。',
     removeConfirm: '移除 {{name}}？本机保存的凭证也会一并删除。',
     unknownDefinition: '找不到 {{kind}} 的连接器定义。',
     saved: '{{name}} 已保存。',
@@ -1310,11 +1317,18 @@ const zhCN: TranslationSchema = {
       fromName: '发件人名称',
       username: '用户名',
       password: '密码或应用专用密码',
+      keyword: '安全关键词',
+      webhookUrl: '机器人 Webhook 地址',
+      secret: '加签密钥',
     },
     kinds: {
       email: {
         name: '邮箱',
         description: '通过 IMAP 和 SMTP 读取最近邮件、搜索邮箱、打开邮件并发送邮件。',
+      },
+      dingtalk: {
+        name: '钉钉',
+        description: '向钉钉群机器人发送文本或 Markdown 消息，支持加签。',
       },
     },
     status: {
