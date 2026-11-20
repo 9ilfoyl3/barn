@@ -59,7 +59,7 @@ test('lets exactly one Task authority answer a Task-detail message', async () =>
 
     await page.locator('.task-nav-button').click()
     await page.locator('.task-row', { hasText: 'Check the project status' })
-      .getByRole('button', { name: 'View details', exact: true })
+      .getByRole('button', { name: 'View details: Check the project status', exact: true })
       .click()
     const detail = page.locator('.task-detail-page')
     const composer = detail.getByRole('textbox', { name: 'Message task agent' })

@@ -92,7 +92,7 @@ test('runs queued tasks in the background and preserves their Session transcript
   }
 })
 
-test('shows needs-you, in-progress, and recent tasks with usable actions', async () => {
+test('shows needs-you, in-progress, and completed task columns with usable actions', async () => {
   const server = await startMockModelServer('Task finished from the inbox.')
   const address = server.address()
   if (address === null || typeof address === 'string') throw new Error('Mock server did not bind')
@@ -114,6 +114,7 @@ test('shows needs-you, in-progress, and recent tasks with usable actions', async
   try {
     const page = await app.firstWindow()
     await page.waitForLoadState('domcontentloaded')
+    await app.evaluate(({ nativeTheme }) => { nativeTheme.themeSource = 'light' })
     await page.evaluate(async (url) => {
       await window.barn.models.saveCustomProvider({
         id: 'task-center-provider',
@@ -162,12 +163,18 @@ test('shows needs-you, in-progress, and recent tasks with usable actions', async
     )).toBe('proposed')
 
     await page.locator('.task-nav-button').click()
-    await expect(page.getByRole('heading', { name: 'Needs you', level: 1 })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'All tasks', level: 1 })).toBeVisible()
     await expect(page.locator('.task-nav-count')).toHaveText('2')
     await expect(page.getByRole('heading', { name: 'Needs you', level: 2 })).toBeVisible()
-    await expect(page.getByRole('heading', { name: 'Recent', level: 2 })).toBeVisible()
-    await expect(page.getByText('2 tasks need you.')).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'In progress', level: 2 })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Completed', level: 2 })).toBeVisible()
     await page.screenshot({ path: 'test-results/barn-task-center.png', fullPage: true })
+
+    await page.getByRole('button', { name: 'Filter tasks' }).click()
+    await page.getByRole('menuitemradio', { name: /Completed/ }).click()
+    await expect(page.getByRole('heading', { name: 'Completed', level: 1 })).toBeVisible()
+    await page.getByRole('button', { name: 'Filter tasks' }).click()
+    await page.getByRole('menuitemradio', { name: /All tasks/ }).click()
 
     const proposedRow = page.locator('.task-row', { hasText: 'Review a suggested cleanup' })
     await proposedRow.getByRole('button', { name: 'Add instructions' }).click()
@@ -178,7 +185,7 @@ test('shows needs-you, in-progress, and recent tasks with usable actions', async
     await expect(proposedRow.locator('.task-status')).toHaveText('Completed', { timeout: 15_000 })
 
     const completedRow = page.locator('.task-row', { hasText: 'Finished background report' })
-    await completedRow.getByRole('button', { name: 'View details', exact: true }).click()
+    await completedRow.getByRole('button', { name: 'View details: Finished background report', exact: true }).click()
     await expect(page.locator('.task-detail-page')).toContainText('Task finished from the inbox.')
     await expect(page.getByRole('button', { name: /New session/i })).toHaveCount(0)
   } finally {
@@ -187,6 +194,66 @@ test('shows needs-you, in-progress, and recent tasks with usable actions', async
   }
 })
 
+
+test('creates a new task from the task board and opens its detail page', async () => {
+  const server = await startMockModelServer('New task completed.')
+  const address = server.address()
+  if (address === null || typeof address === 'string') throw new Error('Mock server did not bind')
+  const baseUrl = `http://127.0.0.1:${address.port}/v1`
+  const userData = await mkdtemp(join(tmpdir(), 'barn-desktop-new-task-e2e-'))
+  const inheritedEnv = Object.fromEntries(
+    Object.entries(process.env).filter((entry): entry is [string, string] => entry[1] !== undefined),
+  )
+  const app = await electron.launch({
+    args: ['.'],
+    env: {
+      ...inheritedEnv,
+      ELECTRON_DISABLE_SECURITY_WARNINGS: 'true',
+      BARN_USER_DATA_DIR: userData,
+      BARN_UI_LANGUAGE: 'en',
+    },
+  })
+
+  try {
+    const page = await app.firstWindow()
+    await page.waitForLoadState('domcontentloaded')
+    await page.evaluate(async (url) => {
+      await window.barn.models.saveCustomProvider({
+        id: 'new-task-provider',
+        name: 'New Task Provider',
+        baseUrl: url,
+        api: 'openai-completions',
+        models: [{
+          id: 'new-task-model',
+          name: 'New Task Model',
+          contextWindow: 128_000,
+          maxTokens: 8_000,
+          reasoning: false,
+          reasoningEfforts: [],
+          input: ['text'],
+        }],
+      })
+      await window.barn.models.saveCredential({ providerId: 'new-task-provider', apiKey: 'test-key' })
+      await window.barn.models.setDefault({ providerId: 'new-task-provider', modelId: 'new-task-model' })
+    }, baseUrl)
+
+    await page.locator('.task-nav-button').click()
+    await page.locator('.task-center-header').getByRole('button', { name: 'New task' }).click()
+    const dialog = page.getByRole('dialog', { name: 'New task' })
+    await dialog.getByRole('textbox', { name: 'Task name' }).fill('Draft launch note')
+    await dialog.getByRole('textbox', { name: 'What should Barn do?' }).fill('Draft a short launch note.')
+    await dialog.getByRole('button', { name: 'Create task' }).click()
+
+    await expect(page.locator('.task-detail-page').getByRole('heading', { name: 'Draft launch note' })).toBeVisible()
+    await expect.poll(async () => page.evaluate(async () => {
+      const tasks = await window.barn.tasks.list()
+      return tasks.find((task) => task.title === 'Draft launch note')?.status
+    }), { timeout: 15_000 }).toBe('completed')
+  } finally {
+    await app.close()
+    await new Promise<void>((resolve, reject) => server.close((error) => error === undefined ? resolve() : reject(error)))
+  }
+})
 
 test('opens a task agent conversation with properties and accepts a follow-up message', async () => {
   const server = await startMockModelServer('Task detail agent reply.', 2_000)
@@ -250,7 +317,7 @@ test('opens a task agent conversation with properties and accepts a follow-up me
 
     await page.locator('.task-nav-button').click()
     await page.locator('.task-row', { hasText: 'Summarize the project notes' })
-      .getByRole('button', { name: 'View details', exact: true })
+      .getByRole('button', { name: 'View details: Summarize the project notes', exact: true })
       .click()
 
     const detail = page.locator('.task-detail-page')
@@ -319,7 +386,7 @@ test('opens a task agent conversation with properties and accepts a follow-up me
     }), { timeout: 5_000 }).toBe(true)
     await page.locator('.task-nav-button').click()
     await page.locator('.task-row', { hasText: 'Summarize the project notes' })
-      .getByRole('button', { name: 'View details', exact: true })
+      .getByRole('button', { name: 'View details: Summarize the project notes', exact: true })
       .click()
     await expect.poll(async () => page.evaluate(
       (sessionId) => window.barn.sessions.getEvents(sessionId).then((events) => (
