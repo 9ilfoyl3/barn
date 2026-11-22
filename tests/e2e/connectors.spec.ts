@@ -21,10 +21,13 @@ test('configures and removes an email connector from the plugins page', async ()
   try {
     const page = await app.firstWindow()
     await page.waitForLoadState('domcontentloaded')
+    await app.evaluate(({ nativeTheme }) => { nativeTheme.themeSource = 'light' })
 
     await page.locator('.app-rail-button', { hasText: 'Plugins' }).click()
     const plugins = page.locator('.plugins-page')
     await expect(plugins).toBeVisible()
+    await expect.poll(() => plugins.evaluate((element) => getComputedStyle(element).backgroundColor))
+      .toBe('rgb(255, 255, 255)')
     await expect(plugins.getByRole('tab', { name: 'Plugins' })).toBeVisible()
     await expect(plugins.getByText('MCP servers')).toBeVisible()
     await expect(plugins.locator('[data-plugin-kind="email"]')).toContainText('Email')

@@ -12,7 +12,7 @@
   min-height: 0;
   height: 100%;
   overflow: hidden;
-  background: var(--canvas);
+  background: light-dark(var(--panel), var(--canvas));
   color: var(--text);
 }
 

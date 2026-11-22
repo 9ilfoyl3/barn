@@ -168,6 +168,9 @@ test('shows needs-you, in-progress, and completed task columns with usable actio
     await expect(page.getByRole('heading', { name: 'Needs you', level: 2 })).toBeVisible()
     await expect(page.getByRole('heading', { name: 'In progress', level: 2 })).toBeVisible()
     await expect(page.getByRole('heading', { name: 'Completed', level: 2 })).toBeVisible()
+    await expect.poll(() => page.locator('.task-center-board-shell').evaluate((element) => (
+      getComputedStyle(element).backgroundColor
+    ))).toBe('rgb(255, 255, 255)')
     await page.screenshot({ path: 'test-results/barn-task-center.png', fullPage: true })
 
     await page.getByRole('button', { name: 'Filter tasks' }).click()
