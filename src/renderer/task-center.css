@@ -194,7 +194,7 @@
   min-width: 0;
   min-height: 0;
   overflow: hidden;
-  background: var(--canvas);
+  background: light-dark(var(--panel), var(--canvas));
 }
 
 .task-board {
