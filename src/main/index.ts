@@ -48,6 +48,7 @@ import { ConnectorCredentialStore } from './connectors/connector-credentials'
 import { builtinConnectorDefinitions } from './connectors/catalog'
 import { EmailConnectorAdapter } from './connectors/email-adapter'
 import { DingTalkConnectorAdapter } from './connectors/dingtalk-adapter'
+import { WeComMailConnectorAdapter } from './connectors/wecom-mail-adapter'
 import { registerConnectorIpc } from './connectors/connector-ipc'
 import { ElectronSecretCodec } from './models/electron-secret-codec'
 import { registerTerminalIpc } from './terminal/terminal-ipc'
@@ -221,7 +222,7 @@ void app.whenReady().then(async () => {
     new ConnectorCredentialStore(join(userData, 'connectors', 'credentials.enc'), new ElectronSecretCodec()),
     () => actionService,
     () => permissionService,
-    { definitions: builtinConnectorDefinitions(), adapters: [new EmailConnectorAdapter(), new DingTalkConnectorAdapter()] },
+    { definitions: builtinConnectorDefinitions(), adapters: [new EmailConnectorAdapter(), new DingTalkConnectorAdapter(), new WeComMailConnectorAdapter()] },
   )
   const threadService = new ThreadService(sessionStore.threads)
   terminalService = new TerminalService(outputRoot, privateTempRoot)
