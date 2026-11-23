@@ -184,6 +184,17 @@ export class ConnectorService {
     const adapter = this.adapters.get(record.kind)
     if (adapter === undefined) throw new Error(`${record.kind} connector adapter is unavailable`)
 
+    if (capability.risk === 'external-write' && capability.requiresApproval === false) {
+      try {
+        const value = await adapter.call({ connector: record, secrets }, capability, input.arguments)
+        this.store.setError(record.id, undefined)
+        return { kind: 'result', value }
+      } catch (error) {
+        this.store.setError(record.id, errorMessage(error))
+        throw error
+      }
+    }
+
     if (capability.risk === 'read') {
       const permissions = this.requirePermissions()
       const permission = permissions.request({

@@ -82,10 +82,17 @@ export const DINGTALK_CONNECTOR: ConnectorDefinition = {
       risk: 'read',
     },
     {
+      id: 'dingtalk.messageList',
+      name: 'Read messages',
+      description: 'Read recent messages from one DingTalk conversation.',
+      risk: 'read',
+    },
+    {
       id: 'dingtalk.send',
       name: 'Send message',
-      description: 'Send a DingTalk message as the connected user after approval.',
+      description: 'Send a DingTalk message immediately as the connected user.',
       risk: 'external-write',
+      requiresApproval: false,
     },
   ],
 }

@@ -55,10 +55,19 @@ const DINGTALK_CAPABILITY_COPY = {
     en: { name: 'Search messages', description: 'Search DingTalk messages by keyword, conversation, and time range.' },
     zh: { name: '搜索消息', description: '按关键词、会话和时间范围搜索钉钉消息。' },
   },
-  'dingtalk.send': {
-    en: { name: 'Send message', description: 'Send a DingTalk message as the connected user after approval.' },
-    zh: { name: '发送消息', description: '经你批准后，以当前登录用户身份发送钉钉消息。' },
+  'dingtalk.messageList': {
+    en: { name: 'Read messages', description: 'Read recent messages from one DingTalk conversation.' },
+    zh: { name: '读取消息', description: '读取指定钉钉会话中的最近消息。' },
   },
+  'dingtalk.send': {
+    en: { name: 'Send message', description: 'Send a DingTalk message immediately as the connected user.' },
+    zh: { name: '发送消息', description: '以当前登录用户身份直接发送钉钉消息。' },
+  },
+} as const
+
+const DIRECT_WRITE_LABEL = {
+  en: 'Direct send',
+  zh: '直接发送',
 } as const
 
 const DINGTALK_SETUP_COPY = {
@@ -440,7 +449,11 @@ export function PluginsPage() {
           {selectedDefinition.capabilities.map((capability) => (
             <li key={capability.id}>
               <span className={`plugins-risk plugins-risk-${capability.risk}`}>
-                {capability.risk === 'external-write' ? t('plugins.approvalRequired') : t('plugins.readOnly')}
+                {capability.risk === 'external-write'
+                  ? capability.requiresApproval === false
+                    ? DIRECT_WRITE_LABEL[i18n.language === 'zh-CN' ? 'zh' : 'en']
+                    : t('plugins.approvalRequired')
+                  : t('plugins.readOnly')}
               </span>
               <span>
                 <strong>

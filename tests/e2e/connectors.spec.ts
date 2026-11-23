@@ -100,6 +100,7 @@ test('configures and removes a GitHub token connector', async () => {
   try {
     const page = await app.firstWindow()
     await page.waitForLoadState('domcontentloaded')
+    await app.evaluate(({ nativeTheme }) => { nativeTheme.themeSource = 'light' })
     await page.locator('.app-rail-button', { hasText: 'Plugins' }).click()
     const plugins = page.locator('.plugins-page')
     const github = plugins.locator('[data-plugin-kind="github"]')
@@ -149,6 +150,12 @@ test('configures and removes a GitHub token connector', async () => {
     await page.waitForTimeout(500)
     await page.screenshot({ path: 'test-results/barn-github.png', fullPage: true })
 
+    await plugins.getByRole('button', { name: 'Back to plugins' }).click()
+    const githubStatus = plugins.locator('[data-plugin-kind="github"] .connector-status-ready')
+    await expect(githubStatus).toContainText('Ready')
+    await page.screenshot({ path: 'test-results/barn-plugin-status.png', fullPage: true })
+    await plugins.locator('[data-plugin-kind="github"]').getByRole('button', { name: 'Manage GitHub' }).click()
+
     page.once('dialog', (confirmation) => void confirmation.accept())
     await plugins.getByRole('button', { name: 'Remove connector' }).click()
     await expect(plugins.getByText('No connections yet')).toBeVisible()
@@ -177,6 +184,7 @@ test('shows a simple DingTalk install and sign-in flow', async () => {
   try {
     const page = await app.firstWindow()
     await page.waitForLoadState('domcontentloaded')
+    await app.evaluate(({ nativeTheme }) => { nativeTheme.themeSource = 'light' })
 
     await page.locator('.app-rail-button', { hasText: 'Plugins' }).click()
     const plugins = page.locator('.plugins-page')
@@ -187,6 +195,7 @@ test('shows a simple DingTalk install and sign-in flow', async () => {
     await expect(setup).toContainText('small local connector')
     await expect(setup.getByRole('button', { name: 'Install', exact: true })).toBeVisible()
     await expect(setup.getByText(/\b(dws|cli)\b/iu)).toHaveCount(0)
+    await expect(plugins.getByText('Read messages', { exact: true })).toBeVisible()
     await page.screenshot({ path: 'test-results/barn-dingtalk.png', fullPage: true })
     await setup.getByRole('button', { name: 'Cancel', exact: true }).click()
     await expect(setup).toHaveCount(0)

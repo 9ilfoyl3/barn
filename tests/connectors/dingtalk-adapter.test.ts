@@ -128,6 +128,27 @@ describe('DingTalk connector', () => {
     ], undefined)
   })
 
+  it('reads recent messages from one conversation', async () => {
+    const { runtime, runJson } = fakeRuntime()
+    const adapter = new DingTalkConnectorAdapter(runtime)
+
+    await adapter.call({ connector, secrets: {} }, capability('dingtalk.messageList'), {
+      userId: 'user-1',
+      time: '2026-11-23 10:00:00',
+      direction: 'older',
+      limit: 30,
+    })
+
+    expect(runJson).toHaveBeenCalledWith([
+      'chat', 'message', 'list',
+      '--user', 'user-1',
+      '--time', '2026-11-23 10:00:00',
+      '--direction', 'older',
+      '--limit', '30',
+      '--format', 'json',
+    ], undefined)
+  })
+
   it('requires exactly one message target', async () => {
     const { runtime } = fakeRuntime()
     const adapter = new DingTalkConnectorAdapter(runtime)

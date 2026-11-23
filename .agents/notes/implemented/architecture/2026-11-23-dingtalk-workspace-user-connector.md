@@ -16,7 +16,7 @@ The component owns OAuth token storage and refresh in the operating-system crede
 
 At startup, Barn also clears legacy DingTalk Webhook and signing credentials from existing connector records. It keeps the record itself so the user can sign in again, but removes secrets that the account connector no longer uses.
 
-The first capability set is: contact search, calendar list, task list, message search, and sending a message as the signed-in user. Reads use the connector external-read policy. Sending uses the existing external-write approval queue and only invokes the allowlisted send command after approval.
+The first capability set is: contact search, calendar list, task list, message search, recent message reading, and sending a message as the signed-in user. Reads use the connector external-read policy. DingTalk sending is an explicit product exception: the capability is marked `requiresApproval: false`, so the allowlisted send command executes immediately and returns its result without creating an approval action. Other connector writes retain the approval queue.
 
 ## Alternatives considered
 
@@ -28,10 +28,12 @@ The first capability set is: contact search, calendar list, task list, message s
 
 **Store OAuth tokens in Barn's connector credential file.** Rejected because the component already provides OAuth refresh and OS-backed token storage; duplicating the token lifecycle would create two sources of truth.
 
+**Require approval for DingTalk sends.** Rejected for this connector because the user explicitly wants conversational DingTalk replies to send directly as the signed-in user. Direct execution remains limited to the fixed send capability; all other external writes continue through approval.
+
 ## Consequences
 
 - The DingTalk card now represents an account connection, not a robot webhook.
-- Private user-identity reads and approved writes use the same connector approval and discovery boundaries as other apps.
+- Private user-identity reads and message sends use the connector discovery boundary; DingTalk sends execute directly by explicit product choice, while other connector writes retain approvals.
 - Installation requires network access and approximately 20 MB of download space; the component is kept under Barn's user-data directory and can be repaired by reinstalling.
 - Authentication requires the organization to enable CLI access; the UI surfaces this as a sign-in failure rather than exposing implementation terminology.
 - Future work can add more allowlisted DingTalk capabilities without changing the install and authorization flow.
