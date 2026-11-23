@@ -2,6 +2,8 @@
 
 Status: implemented
 
+> Superseded by [DingTalk uses a user-authorized local connector](2026-11-23-dingtalk-workspace-user-connector.md).
+
 ## Problem
 
 DingTalk is a common office messaging surface, but a webhook URL contains an access token and a robot may require a signing secret or a security keyword. Treating those values as normal prompt configuration would expose credentials and let the model send messages without an approval boundary.

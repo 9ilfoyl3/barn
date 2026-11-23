@@ -51,20 +51,40 @@ export const EMAIL_CONNECTOR: ConnectorDefinition = {
 export const DINGTALK_CONNECTOR: ConnectorDefinition = {
   kind: 'dingtalk',
   name: 'DingTalk',
-  description: 'Send text or Markdown messages to a DingTalk group robot with optional signing.',
+  description: 'Connect your DingTalk account to search chats and contacts, read your calendar and tasks, and send messages with approval.',
   icon: 'message-circle',
-  configFields: [
-    { key: 'keyword', label: 'Security keyword', type: 'text', required: false, placeholder: 'Optional robot keyword' },
-  ],
-  credentialFields: [
-    { key: 'webhookUrl', label: 'Robot webhook URL', type: 'password', required: true, placeholder: 'https://oapi.dingtalk.com/robot/send?access_token=...' },
-    { key: 'secret', label: 'Signing secret', type: 'password', required: false },
-  ],
+  hideConnectionName: true,
+  configFields: [],
+  credentialFields: [],
   capabilities: [
     {
+      id: 'dingtalk.contactSearch',
+      name: 'Search contacts',
+      description: 'Search DingTalk colleagues and contacts by name or keyword.',
+      risk: 'read',
+    },
+    {
+      id: 'dingtalk.calendarList',
+      name: 'Read calendar',
+      description: 'List calendar events for a date range.',
+      risk: 'read',
+    },
+    {
+      id: 'dingtalk.todoList',
+      name: 'Read tasks',
+      description: 'List personal DingTalk tasks.',
+      risk: 'read',
+    },
+    {
+      id: 'dingtalk.chatSearch',
+      name: 'Search messages',
+      description: 'Search DingTalk messages by keyword, conversation, and time range.',
+      risk: 'read',
+    },
+    {
       id: 'dingtalk.send',
-      name: 'Send DingTalk message',
-      description: 'Send a text or Markdown message to the configured DingTalk group robot.',
+      name: 'Send message',
+      description: 'Send a DingTalk message as the connected user after approval.',
       risk: 'external-write',
     },
   ],

@@ -234,6 +234,22 @@ export interface ConnectorActionSummary {
   completedAt?: string
 }
 
+export interface DingTalkRuntimeStatus {
+  installed: boolean
+  authenticated: boolean
+  version?: string
+  organization?: string
+  userName?: string
+  message?: string
+}
+
+export interface DingTalkBridge {
+  status(): Promise<DingTalkRuntimeStatus>
+  install(): Promise<DingTalkRuntimeStatus>
+  login(): Promise<DingTalkRuntimeStatus>
+  logout(): Promise<void>
+}
+
 export interface ConnectorBridge {
   listDefinitions(): Promise<ConnectorDefinition[]>
   list(): Promise<ConnectorInstance[]>
@@ -1071,4 +1087,5 @@ export interface BarnBridge {
   diagnostics: DiagnosticsBridge
   memory: MemoryBridge
   connectors: ConnectorBridge
+  dingtalk: DingTalkBridge
 }
