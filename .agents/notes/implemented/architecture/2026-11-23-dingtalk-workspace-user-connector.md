@@ -14,6 +14,8 @@ Barn downloads a pinned official DingTalk component release for the current macO
 
 The component owns OAuth token storage and refresh in the operating-system credential store. Barn stores no DingTalk token in connector credentials. Connector readiness is created only after authorization succeeds. Removing the connector attempts a local DingTalk logout before reloading the connector list.
 
+At startup, Barn also clears legacy DingTalk Webhook and signing credentials from existing connector records. It keeps the record itself so the user can sign in again, but removes secrets that the account connector no longer uses.
+
 The first capability set is: contact search, calendar list, task list, message search, and sending a message as the signed-in user. Reads use the connector external-read policy. Sending uses the existing external-write approval queue and only invokes the allowlisted send command after approval.
 
 ## Alternatives considered

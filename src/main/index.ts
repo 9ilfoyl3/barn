@@ -242,6 +242,7 @@ void app.whenReady().then(async () => {
       ],
     },
   )
+  await clearDingTalkLegacyCredentials(connectorService)
   const threadService = new ThreadService(sessionStore.threads)
   terminalService = new TerminalService(outputRoot, privateTempRoot)
   const browserTools = new BrowserToolService({
@@ -358,6 +359,13 @@ void app.whenReady().then(async () => {
   dialog.showErrorBox('Barn could not start', message)
   app.quit()
 })
+
+async function clearDingTalkLegacyCredentials(connectors: ConnectorService): Promise<void> {
+  for (const connector of await connectors.list()) {
+    if (connector.kind !== 'dingtalk') continue
+    await connectors.saveCredentials({ connectorId: connector.id, values: {}, replace: true })
+  }
+}
 
 // Barn stays resident for background Tasks. Quit is explicit from the tray or app menu.
 app.on('window-all-closed', () => {})
