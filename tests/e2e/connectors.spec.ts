@@ -153,6 +153,7 @@ test('configures and removes a GitHub token connector', async () => {
     await plugins.getByRole('button', { name: 'Back to plugins' }).click()
     const githubStatus = plugins.locator('[data-plugin-kind="github"] .connector-status-ready')
     await expect(githubStatus).toContainText('Ready')
+    await expect(githubStatus.locator('[data-status-icon="ready"]')).toBeVisible()
     await page.screenshot({ path: 'test-results/barn-plugin-status.png', fullPage: true })
     await plugins.locator('[data-plugin-kind="github"]').getByRole('button', { name: 'Manage GitHub' }).click()
 
@@ -196,6 +197,7 @@ test('shows a simple DingTalk install and sign-in flow', async () => {
     await expect(setup.getByRole('button', { name: 'Install', exact: true })).toBeVisible()
     await expect(setup.getByText(/\b(dws|cli)\b/iu)).toHaveCount(0)
     await expect(plugins.getByText('Read messages', { exact: true })).toBeVisible()
+    await expect(plugins.getByText('Direct send', { exact: true })).toBeVisible()
     await page.screenshot({ path: 'test-results/barn-dingtalk.png', fullPage: true })
     await setup.getByRole('button', { name: 'Cancel', exact: true }).click()
     await expect(setup).toHaveCount(0)

@@ -261,38 +261,43 @@
 
 .connector-status {
   display: inline-flex;
-  min-height: 19px;
+  min-height: 20px;
   flex: 0 0 auto;
   align-items: center;
-  gap: 4px;
+  gap: 5px;
+  border: 1px solid var(--line);
   border-radius: 999px;
-  background: var(--panel-raised);
-  padding: 0 7px;
+  background: color-mix(in srgb, var(--panel-raised) 72%, transparent);
+  padding: 0 7px 0 6px;
   color: var(--text-faint);
-  font-size: 9px;
+  font-size: 9.5px;
   font-weight: 560;
   line-height: 1;
   white-space: nowrap;
 }
 
 .connector-status svg {
-  width: 11px;
-  height: 11px;
+  width: 12px;
+  height: 12px;
   flex: 0 0 auto;
+  stroke-width: 2.1;
 }
 
 .connector-status-ready {
-  background: color-mix(in srgb, var(--green) 10%, var(--panel));
+  border-color: color-mix(in srgb, var(--green) 20%, var(--line));
+  background: color-mix(in srgb, var(--green) 8%, var(--panel));
   color: var(--green);
 }
 
 .connector-status-error {
-  background: color-mix(in srgb, var(--danger) 10%, var(--panel));
+  border-color: color-mix(in srgb, var(--danger) 20%, var(--line));
+  background: color-mix(in srgb, var(--danger) 8%, var(--panel));
   color: var(--danger);
 }
 
 .connector-status-needs_setup {
-  background: color-mix(in srgb, var(--warning) 10%, var(--panel));
+  border-color: color-mix(in srgb, var(--warning) 24%, var(--line));
+  background: color-mix(in srgb, var(--warning) 8%, var(--panel));
   color: var(--warning);
 }
 

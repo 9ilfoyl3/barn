@@ -51,7 +51,7 @@ export const EMAIL_CONNECTOR: ConnectorDefinition = {
 export const DINGTALK_CONNECTOR: ConnectorDefinition = {
   kind: 'dingtalk',
   name: 'DingTalk',
-  description: 'Connect your DingTalk account to search chats and contacts, read your calendar and tasks, and send messages with approval.',
+  description: 'Connect your DingTalk account to search chats and contacts, read your calendar, tasks, and messages, and send messages directly.',
   icon: 'message-circle',
   hideConnectionName: true,
   configFields: [],

@@ -4,6 +4,8 @@ import {
   AlertCircle,
   ArrowLeft,
   CheckCircle2,
+  CircleDashed,
+  CirclePause,
   Info,
   LoaderCircle,
   Mail,
@@ -81,7 +83,7 @@ const DINGTALK_SETUP_COPY = {
     installed: 'Installation complete',
     installedDescription: 'Sign in with your browser to let Barn access DingTalk with your account permissions.',
     connected: 'DingTalk connected',
-    connectedDescription: 'Your DingTalk account is ready. Barn will ask before sending messages or making changes.',
+    connectedDescription: 'Your DingTalk account is ready. Messages send directly as the signed-in user.',
     connectedAs: 'Connected as',
     reconnect: 'Sign in again',
     done: 'Done',
@@ -97,7 +99,7 @@ const DINGTALK_SETUP_COPY = {
     installed: '安装完成',
     installedDescription: '请在浏览器中登录，并授权 Barn 使用你的钉钉账号。',
     connected: '钉钉已连接',
-    connectedDescription: '你的钉钉账号已就绪。Barn 在发送消息或执行修改前会先征求确认。',
+    connectedDescription: '你的钉钉账号已就绪。消息会直接以当前登录账号发送。',
     connectedAs: '当前账号',
     reconnect: '重新登录',
     done: '完成',
@@ -514,11 +516,7 @@ function PluginSection({
                   <span className="plugin-row-title">
                     <strong>{translatedDefinitionName(definition, t)}</strong>
                     {connectors.length > 0 && status !== undefined && (
-                      <span className={`connector-status connector-status-${status}`}>
-                        {status === 'ready' && <CheckCircle2 size={11} aria-hidden="true" />}
-                        {status === 'error' && <AlertCircle size={11} aria-hidden="true" />}
-                        {t(`connectorSettings.status.${status}`)}
-                      </span>
+                      <ConnectorStatusBadge label={t(`connectorSettings.status.${status}`)} status={status} />
                     )}
                   </span>
                   <small>
@@ -569,18 +567,12 @@ function ConnectorInstanceRow({
   return (
     <article className={`plugin-instance-row plugin-instance-row-${connector.status}`} data-connector-id={connector.id}>
       <span className="plugin-instance-mark" aria-hidden="true">
-        {connector.status === 'ready'
-          ? <CheckCircle2 size={15} />
-          : connector.status === 'error'
-            ? <AlertCircle size={15} />
-            : <Plug size={15} />}
+        <ConnectorStatusIcon size={15} status={connector.status} />
       </span>
       <div className="plugin-instance-copy">
         <div className="plugin-instance-title">
           <strong>{connector.name}</strong>
-          <span className={`connector-status connector-status-${connector.status}`}>
-            {t(`connectorSettings.status.${connector.status}`)}
-          </span>
+          <ConnectorStatusBadge label={t(`connectorSettings.status.${connector.status}`)} status={connector.status} />
         </div>
         <p>{connector.capabilities.map((capability) => capabilityName(capability, t, i18n.language)).join(' · ')}</p>
         {connector.lastError !== undefined && <small className="plugins-row-error">{connector.lastError}</small>}
@@ -613,6 +605,38 @@ function ConnectorInstanceRow({
         </button>
       </div>
     </article>
+  )
+}
+
+function ConnectorStatusIcon({
+  status,
+  size = 12,
+}: {
+  status: ConnectorInstance['status']
+  size?: number
+}) {
+  const Icon = status === 'ready'
+    ? CheckCircle2
+    : status === 'error'
+      ? AlertCircle
+      : status === 'needs_setup'
+        ? CircleDashed
+        : CirclePause
+  return <Icon aria-hidden="true" data-status-icon={status} size={size} />
+}
+
+function ConnectorStatusBadge({
+  status,
+  label,
+}: {
+  status: ConnectorInstance['status']
+  label: string
+}) {
+  return (
+    <span className={`connector-status connector-status-${status}`} data-connector-status={status}>
+      <ConnectorStatusIcon status={status} />
+      <span>{label}</span>
+    </span>
   )
 }
 
