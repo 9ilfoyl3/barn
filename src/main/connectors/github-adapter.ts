@@ -15,14 +15,30 @@ const repositoryArgsSchema = z.object({
   repo: z.string().trim().min(1).max(200),
 })
 
+const paginationFields = {
+  page: z.number().int().min(1).max(1_000).default(1),
+  perPage: z.number().int().min(1).max(50).optional(),
+  limit: z.number().int().min(1).max(50).optional(),
+}
+
 const searchRepositoriesArgsSchema = z.object({
   query: z.string().trim().min(1).max(500),
-  limit: z.number().int().min(1).max(50).default(20),
+  includeLanguages: z.boolean().default(false),
+  ...paginationFields,
+})
+
+const listRepositoriesArgsSchema = z.object({
+  includeLanguages: z.boolean().default(false),
+  ...paginationFields,
+})
+
+const getRepositoryArgsSchema = repositoryArgsSchema.extend({
+  includeLanguages: z.boolean().default(true),
 })
 
 const listIssuesArgsSchema = repositoryArgsSchema.extend({
   state: z.enum(['open', 'closed', 'all']).default('open'),
-  limit: z.number().int().min(1).max(50).default(20),
+  ...paginationFields,
 })
 
 const issueArgsSchema = repositoryArgsSchema.extend({
@@ -31,12 +47,12 @@ const issueArgsSchema = repositoryArgsSchema.extend({
 
 const listPullRequestsArgsSchema = repositoryArgsSchema.extend({
   state: z.enum(['open', 'closed', 'all']).default('open'),
-  limit: z.number().int().min(1).max(50).default(20),
+  ...paginationFields,
 })
 
 const searchIssuesArgsSchema = z.object({
   query: z.string().trim().min(1).max(500),
-  limit: z.number().int().min(1).max(50).default(20),
+  ...paginationFields,
 })
 
 const createIssueArgsSchema = repositoryArgsSchema.extend({
@@ -95,25 +111,86 @@ export class GithubConnectorAdapter implements ConnectorAdapter {
     switch (capability.id) {
       case 'github.searchRepositories': {
         const input = searchRepositoriesArgsSchema.parse(args)
-        const result = asRecord(await request('GET', `/search/repositories?q=${encodeURIComponent(input.query)}&per_page=${input.limit}`))
+        const perPage = pageSize(input)
+        const result = asRecord(await request(
+          'GET',
+          `/search/repositories?q=${encodeURIComponent(input.query)}&per_page=${perPage}&page=${input.page}`,
+        ))
+        const totalCount = numberValue(result.total_count, 'repository count')
+        const repositories = await enrichRepositories(
+          records(result.items).map(repositorySummary),
+          request,
+          input.includeLanguages,
+        )
         return {
-          totalCount: numberValue(result.total_count, 'repository count'),
-          repositories: records(result.items).map(repositorySummary),
+          totalCount,
+          page: input.page,
+          perPage,
+          hasNextPage: input.page * perPage < totalCount,
+          repositories,
+        }
+      }
+      case 'github.listRepositories': {
+        const input = listRepositoriesArgsSchema.parse(args)
+        const perPage = pageSize(input)
+        const result = await request(
+          'GET',
+          `/user/repos?affiliation=owner&per_page=${perPage}&page=${input.page}&sort=pushed&direction=desc&visibility=all`,
+        )
+        const repositories = await enrichRepositories(
+          records(result).map(repositorySummary),
+          request,
+          input.includeLanguages,
+        )
+        return {
+          page: input.page,
+          perPage,
+          hasNextPage: repositories.length === perPage,
+          repositories,
+        }
+      }
+      case 'github.getRepository': {
+        const input = getRepositoryArgsSchema.parse(args)
+        const repository = repositorySummary(asRecord(await request(
+          'GET',
+          `/repos/${repositoryPath(input)}`,
+        )))
+        if (!input.includeLanguages) return repository
+        const languages = await languagesForRepository(request, input.owner, input.repo)
+        return {
+          ...repository,
+          language: languages[0]?.name ?? repository.language,
+          languages,
         }
       }
       case 'github.searchIssues': {
         const input = searchIssuesArgsSchema.parse(args)
-        const result = asRecord(await request('GET', `/search/issues?q=${encodeURIComponent(input.query)}&per_page=${input.limit}`))
+        const perPage = pageSize(input)
+        const result = asRecord(await request(
+          'GET',
+          `/search/issues?q=${encodeURIComponent(input.query)}&per_page=${perPage}&page=${input.page}`,
+        ))
+        const totalCount = numberValue(result.total_count, 'issue count')
         return {
-          totalCount: numberValue(result.total_count, 'issue count'),
+          totalCount,
+          page: input.page,
+          perPage,
+          hasNextPage: input.page * perPage < totalCount,
           items: records(result.items).map(issueSummary),
         }
       }
       case 'github.listIssues': {
         const input = listIssuesArgsSchema.parse(args)
-        const result = await request('GET', `/repos/${repositoryPath(input)}/issues?state=${input.state}&per_page=${input.limit}`)
+        const perPage = pageSize(input)
+        const result = records(await request(
+          'GET',
+          `/repos/${repositoryPath(input)}/issues?state=${input.state}&per_page=${perPage}&page=${input.page}`,
+        ))
         return {
-          issues: records(result)
+          page: input.page,
+          perPage,
+          hasNextPage: result.length === perPage,
+          issues: result
             .filter((issue) => issue.pull_request === undefined)
             .map(issueSummary),
         }
@@ -125,8 +202,17 @@ export class GithubConnectorAdapter implements ConnectorAdapter {
       }
       case 'github.listPullRequests': {
         const input = listPullRequestsArgsSchema.parse(args)
-        const result = await request('GET', `/repos/${repositoryPath(input)}/pulls?state=${input.state}&per_page=${input.limit}`)
-        return { pullRequests: records(result).map(pullRequestSummary) }
+        const perPage = pageSize(input)
+        const result = records(await request(
+          'GET',
+          `/repos/${repositoryPath(input)}/pulls?state=${input.state}&per_page=${perPage}&page=${input.page}`,
+        ))
+        return {
+          page: input.page,
+          perPage,
+          hasNextPage: result.length === perPage,
+          pullRequests: result.map(pullRequestSummary),
+        }
       }
       case 'github.getPullRequest': {
         const input = issueArgsSchema.parse(args)
@@ -211,18 +297,89 @@ function repositoryPath(input: { owner: string; repo: string }): string {
   return `${encodeURIComponent(input.owner)}/${encodeURIComponent(input.repo)}`
 }
 
+type GithubRequestFn = (method: GithubRequest['method'], path: string, body?: unknown) => Promise<unknown>
+type RepositorySummary = ReturnType<typeof repositorySummary>
+
+interface RepositoryLanguage {
+  name: string
+  bytes: number
+  percent: number
+}
+
+function pageSize(input: { perPage?: number | undefined; limit?: number | undefined }): number {
+  return input.perPage ?? input.limit ?? 20
+}
+
+async function enrichRepositories(
+  repositories: RepositorySummary[],
+  request: GithubRequestFn,
+  includeLanguages: boolean,
+): Promise<Array<RepositorySummary & { languages?: RepositoryLanguage[] }>> {
+  if (!includeLanguages) return repositories
+  const enriched: Array<RepositorySummary & { languages?: RepositoryLanguage[] }> = [...repositories]
+  let next = 0
+  const workers = Array.from({ length: Math.min(4, repositories.length) }, async () => {
+    while (next < repositories.length) {
+      const index = next++
+      const repository = repositories[index]
+      if (repository === undefined) return
+      const languages = await languagesForRepository(request, repository.owner, repository.name)
+      enriched[index] = {
+        ...repository,
+        language: languages[0]?.name ?? repository.language,
+        languages,
+      }
+    }
+  })
+  await Promise.all(workers)
+  return enriched
+}
+
+async function languagesForRepository(
+  request: GithubRequestFn,
+  owner: string,
+  repo: string,
+): Promise<RepositoryLanguage[]> {
+  const payload = asRecord(await request('GET', `/repos/${repositoryPath({ owner, repo })}/languages`))
+  const entries = Object.entries(payload)
+    .filter((entry): entry is [string, number] => typeof entry[1] === 'number' && entry[1] > 0)
+  const total = entries.reduce((sum, [, bytes]) => sum + bytes, 0)
+  return entries
+    .map(([name, bytes]) => ({
+      name,
+      bytes,
+      percent: total === 0 ? 0 : Math.round(bytes / total * 1_000) / 10,
+    }))
+    .toSorted((left, right) => right.bytes - left.bytes)
+}
+
 function repositorySummary(value: Record<string, unknown>) {
   const owner = isRecord(value.owner) ? value.owner : {}
+  const license = isRecord(value.license) ? value.license : undefined
   return {
     id: numberValue(value.id, 'repository id'),
     fullName: stringValue(value.full_name, 'repository full name'),
     name: stringValue(value.name, 'repository name'),
     owner: stringValue(owner.login, 'repository owner'),
     private: value.private === true,
-    description: nullableString(value.description),
+    visibility: nullableString(value.visibility) ?? (value.private === true ? 'private' : 'public'),
+    fork: value.fork === true,
+    archived: value.archived === true,
+    description: nullableString(value.description) ?? null,
     defaultBranch: stringValue(value.default_branch, 'default branch'),
+    language: nullableString(value.language) ?? null,
+    stars: numberValue(value.stargazers_count, 'repository star count'),
+    watchers: numberValue(value.watchers_count, 'repository watcher count'),
+    forks: numberValue(value.forks_count, 'repository fork count'),
+    openIssues: numberValue(value.open_issues_count, 'repository open issue count'),
+    topics: stringArray(value.topics),
+    license: license === undefined
+      ? null
+      : nullableString(license.spdx_id) ?? nullableString(license.name) ?? null,
     htmlUrl: stringValue(value.html_url, 'repository URL'),
-    pushedAt: nullableString(value.pushed_at),
+    createdAt: nullableString(value.created_at) ?? null,
+    updatedAt: nullableString(value.updated_at) ?? null,
+    pushedAt: nullableString(value.pushed_at) ?? null,
   }
 }
 
@@ -292,6 +449,10 @@ function boundedText(value: unknown): string | undefined {
 
 function nullableString(value: unknown): string | undefined {
   return typeof value === 'string' && value.length > 0 ? value : undefined
+}
+
+function stringArray(value: unknown): string[] {
+  return Array.isArray(value) ? value.filter((entry): entry is string => typeof entry === 'string') : []
 }
 
 function stringValue(value: unknown, label: string): string {

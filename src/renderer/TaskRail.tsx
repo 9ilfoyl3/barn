@@ -181,9 +181,10 @@ function taskStatusLabel(
   task: Task,
   t: ReturnType<typeof useTranslation>['t'],
 ): string {
+  const translate = t as (key: string) => string
   return task.kind === 'reminder' && task.status === 'queued'
-    ? t('secretary.scheduled')
-    : t(`tasks.status.${task.status}`)
+    ? translate('secretary.scheduled')
+    : translate(`tasks.status.${task.status}`)
 }
 
 function TaskStatusIcon({ status }: { status: Task['status'] }) {

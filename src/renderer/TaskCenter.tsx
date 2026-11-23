@@ -722,10 +722,11 @@ function TaskStatusGlyph({ status }: { status: TaskStatus }) {
 }
 
 function updatedLabel(value: string, locale: string, t: ReturnType<typeof useTranslation>['t']): string {
+  const translate = t as (key: string, options?: Record<string, unknown>) => string
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return value
   const formatted = new Intl.DateTimeFormat(locale, { month: 'short', day: 'numeric' }).format(date)
-  return t('tasks.updatedOn', { date: formatted })
+  return translate('tasks.updatedOn', { date: formatted })
 }
 
 function taskTitleFromPrompt(prompt: string): string {

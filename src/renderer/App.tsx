@@ -1533,7 +1533,8 @@ function upsertTask(current: Task[], task: Task): Task[] {
 }
 
 function errorMessage(reason: unknown, t: ReturnType<typeof useTranslation>['t']): string {
-  return reason instanceof Error ? reason.message : t('conversation.somethingWentWrong')
+  const translate = t as (key: string) => string
+  return reason instanceof Error ? reason.message : translate('conversation.somethingWentWrong')
 }
 
 function formatFileSize(bytes: number): string {

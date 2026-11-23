@@ -149,8 +149,9 @@ function routineRecurrenceLabel(
   routine: RoutineFeedItem,
   t: ReturnType<typeof useTranslation>['t'],
 ): string {
-  if (routine.recurrence === 'daily') return t('secretary.recurrenceDaily')
-  if (routine.recurrence === 'weekdays') return t('secretary.recurrenceWeekdays')
-  if (routine.recurrence === 'weekly') return t('secretary.recurrenceWeekly')
-  return t('secretary.routineDelivered')
+  const translate = t as (key: string) => string
+  if (routine.recurrence === 'daily') return translate('secretary.recurrenceDaily')
+  if (routine.recurrence === 'weekdays') return translate('secretary.recurrenceWeekdays')
+  if (routine.recurrence === 'weekly') return translate('secretary.recurrenceWeekly')
+  return translate('secretary.routineDelivered')
 }

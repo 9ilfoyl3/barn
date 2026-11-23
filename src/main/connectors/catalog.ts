@@ -90,7 +90,19 @@ export const GITHUB_CONNECTOR: ConnectorDefinition = {
     {
       id: 'github.searchRepositories',
       name: 'Search repositories',
-      description: 'Search repositories visible to the connected GitHub account.',
+      description: 'Search repositories visible to the connected GitHub account with page/perPage pagination and optional language enrichment.',
+      risk: 'read',
+    },
+    {
+      id: 'github.listRepositories',
+      name: 'List my repositories',
+      description: 'List repositories owned by the connected account, including private and fork repositories, with page/perPage pagination and optional language enrichment.',
+      risk: 'read',
+    },
+    {
+      id: 'github.getRepository',
+      name: 'Read a repository',
+      description: 'Read one repository with its visibility, fork and archive state, stars, forks, topics, license, and language breakdown.',
       risk: 'read',
     },
     {
