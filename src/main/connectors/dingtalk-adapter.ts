@@ -26,6 +26,19 @@ const chatSearchArgsSchema = z.object({
   limit: z.number().int().min(1).max(100).default(20),
 }).strict()
 
+const messageListArgsSchema = z.object({
+  conversationId: z.string().trim().min(1).max(500).optional(),
+  userId: z.string().trim().min(1).max(200).optional(),
+  openDingTalkId: z.string().trim().min(1).max(500).optional(),
+  time: z.string().trim().min(1).max(80).optional(),
+  direction: z.enum(['newer', 'older']).default('older'),
+  limit: z.number().int().min(1).max(100).default(50),
+}).strict().refine((value) => (
+  [value.conversationId, value.userId, value.openDingTalkId].filter((target) => target !== undefined).length === 1
+), {
+  message: 'Provide exactly one DingTalk target: conversationId, userId, or openDingTalkId',
+})
+
 const sendMessageArgsSchema = z.object({
   conversationId: z.string().trim().min(1).max(500).optional(),
   userId: z.string().trim().min(1).max(200).optional(),
@@ -92,6 +105,19 @@ export class DingTalkConnectorAdapter implements ConnectorAdapter {
           ...(input.conversationId === undefined ? [] : ['--conversation-id', input.conversationId]),
           ...(input.start === undefined ? [] : ['--start', input.start]),
           ...(input.end === undefined ? [] : ['--end', input.end]),
+          '--limit', String(input.limit),
+          '--format', 'json',
+        ], context.signal)
+      }
+      case 'dingtalk.messageList': {
+        const input = messageListArgsSchema.parse(args)
+        return this.runtime.runJson([
+          'chat', 'message', 'list',
+          ...(input.conversationId === undefined ? [] : ['--group', input.conversationId]),
+          ...(input.userId === undefined ? [] : ['--user', input.userId]),
+          ...(input.openDingTalkId === undefined ? [] : ['--open-dingtalk-id', input.openDingTalkId]),
+          ...(input.time === undefined ? [] : ['--time', input.time]),
+          '--direction', input.direction,
           '--limit', String(input.limit),
           '--format', 'json',
         ], context.signal)

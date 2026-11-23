@@ -3,11 +3,12 @@ import { mkdtemp } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
-import { EMAIL_CONNECTOR } from '../../src/main/connectors/catalog'
+import { DINGTALK_CONNECTOR, EMAIL_CONNECTOR } from '../../src/main/connectors/catalog'
 import { ConnectorCredentialStore } from '../../src/main/connectors/connector-credentials'
 import { ConnectorService } from '../../src/main/connectors/connector-service'
 import type { ConnectorAdapter } from '../../src/main/connectors/types'
 import type { ActionRecord, ActionRequestInput } from '../../src/main/actions/types'
+import type { ConnectorConfig, ConnectorDefinition } from '../../src/shared/models'
 import { AesGcmEventCipher } from '../../src/main/session/event-cipher'
 import { SessionStore } from '../../src/main/session/session-store'
 import type { SecretCodec } from '../../src/main/models/credential-store'
@@ -32,13 +33,21 @@ const config = {
   smtpSecure: true,
 }
 
-async function harness() {
+async function harness(options: {
+  definition?: ConnectorDefinition
+  config?: ConnectorConfig
+  credentials?: Record<string, string>
+  name?: string
+} = {}) {
+  const definition = options.definition ?? EMAIL_CONNECTOR
+  const connectorConfig = options.config ?? config
+  const connectorCredentials = options.credentials ?? { username: 'person@example.com', password: 'app-password' }
   const directory = await mkdtemp(join(tmpdir(), 'barn-connector-service-'))
   const sessions = new SessionStore(join(directory, 'sessions.db'), new AesGcmEventCipher(randomBytes(32)))
   await sessions.initialize()
   const credentials = new ConnectorCredentialStore(join(directory, 'credentials.enc'), new TestCodec())
   const adapter: ConnectorAdapter = {
-    kind: 'email',
+    kind: definition.kind,
     test: vi.fn(async () => ({ message: 'connected' })),
     call: vi.fn(async (_context, capability) => ({ capability: capability.id })),
   }
@@ -90,13 +99,12 @@ async function harness() {
     credentials,
     () => actions,
     () => ({ request: () => ({ decision: 'allowed' as const }) }),
-    { definitions: new Map([[EMAIL_CONNECTOR.kind, EMAIL_CONNECTOR]]), adapters: [adapter] },
+    { definitions: new Map([[definition.kind, definition]]), adapters: [adapter] },
   )
-  const connector = await service.create({ kind: 'email', name: 'Work mail', config })
-  await service.saveCredentials({
-    connectorId: connector.id,
-    values: { username: 'person@example.com', password: 'app-password' },
-  })
+  const connector = await service.create({ kind: definition.kind, name: options.name ?? 'Work mail', config: connectorConfig })
+  if (Object.keys(connectorCredentials).length > 0) {
+    await service.saveCredentials({ connectorId: connector.id, values: connectorCredentials })
+  }
   return { directory, sessions, credentials, adapter, service, actions, handlers, enqueued, listedActions, connector }
 }
 
@@ -147,6 +155,29 @@ describe('ConnectorService', () => {
     expect(h.service.listActions()).toEqual([
       expect.objectContaining({ title: 'Send mail', status: 'pending_approval', attempts: 0 }),
     ])
+    h.sessions.close()
+  })
+
+  it('executes explicitly direct-write capabilities without an approval action', async () => {
+    const h = await harness({
+      definition: DINGTALK_CONNECTOR,
+      config: {},
+      credentials: {},
+      name: 'DingTalk',
+    })
+    const result = await h.service.call({
+      connectorId: h.connector.id,
+      capability: 'dingtalk.send',
+      arguments: { userId: 'user-1', content: 'Hello' },
+    })
+
+    expect(result).toEqual({ kind: 'result', value: { capability: 'dingtalk.send' } })
+    expect(h.enqueued).toHaveLength(0)
+    expect(h.adapter.call).toHaveBeenCalledWith(
+      expect.objectContaining({ connector: expect.objectContaining({ id: h.connector.id }) }),
+      expect.objectContaining({ id: 'dingtalk.send', requiresApproval: false }),
+      { userId: 'user-1', content: 'Hello' },
+    )
     h.sessions.close()
   })
 

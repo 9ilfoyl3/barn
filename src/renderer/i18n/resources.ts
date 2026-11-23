@@ -70,7 +70,7 @@ const en = {
     readOnly: 'Read only',
     approvalRequired: 'Approval required',
     noResults: 'No plugins found',
-    safetyNote: 'Credentials stay on this device. External sends wait for your approval.',
+    safetyNote: 'Credentials stay on this device. Actions that can change external data wait for your approval unless an app explicitly supports direct send.',
     skillUi: {
       all: 'All',
       system: 'System',
@@ -706,7 +706,7 @@ const en = {
     title: 'Connectors',
     kicker: 'Apps and accounts',
     close: 'Close connectors',
-    intro: 'Connect apps Barn can use on your behalf. Credentials stay on this device, reads are bounded, and external writes wait for your approval.',
+    intro: 'Connect apps Barn can use on your behalf. Credentials stay on this device, reads are bounded, and external writes follow the permission shown for each app.',
     refresh: 'Refresh',
     emptyTitle: 'No connectors yet',
     emptyDescription: 'Choose an app below. You can pause, test, or remove it at any time.',
@@ -753,7 +753,7 @@ const en = {
       },
       dingtalk: {
         name: 'DingTalk',
-        description: 'Connect your DingTalk account to search chats and contacts, read your calendar and tasks, and send messages with approval.',
+        description: 'Connect your DingTalk account to search chats and contacts, read your calendar, tasks, and messages, and send messages directly.',
       },
       github: {
         name: 'GitHub',
@@ -881,7 +881,7 @@ const zhCN: TranslationSchema = {
     readOnly: '只读',
     approvalRequired: '发送前审批',
     noResults: '未找到插件',
-    safetyNote: '凭证只保存在本机，外部发送会先等待你的确认。',
+    safetyNote: '凭证只保存在本机。除明确支持直接发送的应用外，修改外部数据的操作会先等待你的确认。',
     skillUi: {
       all: '全部',
       system: '系统',
@@ -1517,7 +1517,7 @@ const zhCN: TranslationSchema = {
     title: '连接器',
     kicker: '应用与账户',
     close: '关闭连接器',
-    intro: '连接 Barn 可以代为使用的应用。凭证只保存在本机，读取有边界，外部写入会先等待你的确认。',
+    intro: '连接 Barn 可以代为使用的应用。凭证只保存在本机，读取有边界，外部写入遵循各应用展示的权限说明。',
     refresh: '刷新',
     emptyTitle: '还没有连接器',
     emptyDescription: '从下方选择一个应用。你可以随时暂停、测试或移除。',
@@ -1564,7 +1564,7 @@ const zhCN: TranslationSchema = {
       },
       dingtalk: {
         name: '钉钉',
-        description: '连接钉钉账号，搜索聊天和联系人、读取日历与待办，并经确认后发送消息。',
+        description: '连接钉钉账号，搜索聊天和联系人、读取日历、待办与消息，并直接发送消息。',
       },
       github: {
         name: 'GitHub',

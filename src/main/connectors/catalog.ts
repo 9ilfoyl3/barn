@@ -51,7 +51,7 @@ export const EMAIL_CONNECTOR: ConnectorDefinition = {
 export const DINGTALK_CONNECTOR: ConnectorDefinition = {
   kind: 'dingtalk',
   name: 'DingTalk',
-  description: 'Connect your DingTalk account to search chats and contacts, read your calendar and tasks, and send messages with approval.',
+  description: 'Connect your DingTalk account to search chats and contacts, read your calendar, tasks, and messages, and send messages directly.',
   icon: 'message-circle',
   hideConnectionName: true,
   configFields: [],
@@ -82,10 +82,17 @@ export const DINGTALK_CONNECTOR: ConnectorDefinition = {
       risk: 'read',
     },
     {
+      id: 'dingtalk.messageList',
+      name: 'Read messages',
+      description: 'Read recent messages from one DingTalk conversation.',
+      risk: 'read',
+    },
+    {
       id: 'dingtalk.send',
       name: 'Send message',
-      description: 'Send a DingTalk message as the connected user after approval.',
+      description: 'Send a DingTalk message immediately as the connected user.',
       risk: 'external-write',
+      requiresApproval: false,
     },
   ],
 }

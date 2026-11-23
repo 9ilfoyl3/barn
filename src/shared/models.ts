@@ -149,6 +149,7 @@ export interface ConnectorCapabilityDefinition {
   name: string
   description: string
   risk: 'read' | 'external-write'
+  requiresApproval?: boolean
 }
 
 export interface ConnectorDefinition {
