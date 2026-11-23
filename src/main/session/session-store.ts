@@ -12,12 +12,13 @@ import { MemoryStore } from '../memory/memory-store'
 import { ThreadStore } from '../threads/thread-store'
 import { RouterStore } from '../router/router-store'
 import { ConnectorStore } from '../connectors/connector-store'
+import { SkillStore } from '../skills/skill-store'
 
 export type SessionStatus = SessionSummary['status']
 
-// Schema 10 adds typed Task contracts and result envelopes. Older schema
-// versions are upgraded in place by idempotent store initialization.
-export const CURRENT_SCHEMA_VERSION = 10
+// Schema 11 adds locally managed Agent skills. Older schema versions are
+// upgraded in place by idempotent store initialization.
+export const CURRENT_SCHEMA_VERSION = 11
 
 export interface NewSessionEvent {
   type: string
@@ -43,6 +44,7 @@ export class SessionStore {
   readonly threads: ThreadStore
   readonly router: RouterStore
   readonly connectors: ConnectorStore
+  readonly skills: SkillStore
 
   constructor(
     path: string,
@@ -58,6 +60,7 @@ export class SessionStore {
     this.threads = new ThreadStore(this.database, cipher)
     this.router = new RouterStore(this.database)
     this.connectors = new ConnectorStore(this.database, cipher)
+    this.skills = new SkillStore(this.database, cipher)
   }
 
   async initialize(): Promise<void> {
@@ -118,6 +121,7 @@ export class SessionStore {
     this.threads.initialize()
     this.router.initialize()
     this.connectors.initialize()
+    this.skills.initialize()
     this.database.prepare(`
       INSERT INTO schema_meta (id, version, updated_at) VALUES (1, ?, ?)
       ON CONFLICT(id) DO UPDATE SET version = excluded.version, updated_at = excluded.updated_at

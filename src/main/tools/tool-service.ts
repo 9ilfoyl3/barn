@@ -18,6 +18,7 @@ import {
 import { isDeniedPath } from './workspace-path-policy'
 import type { MemoryService } from '../memory/memory-service'
 import type { ConnectorService } from '../connectors/connector-service'
+import type { SkillService } from '../skills/skill-service'
 import type { SessionStore } from '../session/session-store'
 import {
   memoryForgetInput,
@@ -50,6 +51,8 @@ const sessionHistoryInput = z.object({
 }).strict()
 
 const connectorListInput = z.object({}).strict()
+const skillListInput = z.object({}).strict()
+const skillReadInput = z.object({ id: z.string().trim().min(1).max(160) }).strict()
 
 const connectorCallInput = z.object({
   connectorId: z.string().uuid(),
@@ -77,6 +80,8 @@ const TOOL_INPUTS = {
   memory_forget: memoryForgetInput,
   connector_list: connectorListInput,
   connector_call: connectorCallInput,
+  skill_list: skillListInput,
+  skill_read: skillReadInput,
   session_history: sessionHistoryInput,
 } as const
 
@@ -88,6 +93,7 @@ export interface ToolServiceOptions {
   memory?: MemoryService
   browser?: BrowserToolService
   connectors?: ConnectorService
+  skills?: SkillService
   sessions?: Pick<SessionStore, 'read'>
 }
 
@@ -189,6 +195,36 @@ export class ToolService {
         const args = connectorCallInput.parse(rawArgs)
         const result = await connectors.call(args, context.sessionId)
         return { content: [{ type: 'text', text: JSON.stringify(result) }], details: { kind: result.kind } }
+      } catch (error) {
+        return errorResult(error instanceof Error ? error.message : String(error))
+      }
+    }
+
+    if (toolName === 'skill_list') {
+      const skills = this.options.skills
+      if (skills === undefined) return errorResult('Skill tools are unavailable')
+      try {
+        const summaries = skills.list().filter((skill) => skill.enabled)
+        return {
+          content: [{ type: 'text', text: JSON.stringify({ skills: summaries }) }],
+          details: { skills: summaries.length },
+        }
+      } catch (error) {
+        return errorResult(error instanceof Error ? error.message : String(error))
+      }
+    }
+
+    if (toolName === 'skill_read') {
+      const skills = this.options.skills
+      if (skills === undefined) return errorResult('Skill tools are unavailable')
+      try {
+        const args = skillReadInput.parse(rawArgs)
+        const skill = skills.get(args.id)
+        if (!skill.enabled) return errorResult(`Skill is disabled: ${args.id}`)
+        return {
+          content: [{ type: 'text', text: JSON.stringify(skill) }],
+          details: { skillId: skill.id, source: skill.source },
+        }
       } catch (error) {
         return errorResult(error instanceof Error ? error.message : String(error))
       }

@@ -52,6 +52,8 @@ import { WeComMailConnectorAdapter } from './connectors/wecom-mail-adapter'
 import { registerConnectorIpc } from './connectors/connector-ipc'
 import { ElectronSecretCodec } from './models/electron-secret-codec'
 import { registerTerminalIpc } from './terminal/terminal-ipc'
+import { SkillService } from './skills/skill-service'
+import { registerSkillIpc } from './skills/skill-ipc'
 
 if (process.env.BARN_USER_DATA_DIR !== undefined) {
   app.setPath('userData', process.env.BARN_USER_DATA_DIR)
@@ -78,6 +80,7 @@ let browserService: BrowserService | undefined
 const taskBrowserServices = new Map<string, BrowserService>()
 let terminalService: TerminalService | undefined
 let connectorService: ConnectorService | undefined
+let skillService: SkillService | undefined
 let maintenanceTimer: NodeJS.Timeout | undefined
 let isQuitting = false
 const shellService = new ShellService()
@@ -217,6 +220,7 @@ void app.whenReady().then(async () => {
     mkdir(privateTempRoot, { recursive: true, mode: 0o700 }),
   ])
   const memoryService = new MemoryService(sessionStore.memories)
+  skillService = new SkillService(sessionStore.skills)
   connectorService = new ConnectorService(
     sessionStore.connectors,
     new ConnectorCredentialStore(join(userData, 'connectors', 'credentials.enc'), new ElectronSecretCodec()),
@@ -241,6 +245,7 @@ void app.whenReady().then(async () => {
     memory: memoryService,
     browser: browserTools,
     connectors: connectorService,
+    skills: skillService,
     sessions: sessionStore,
   })
   const supervisor = new WorkerSupervisor({
@@ -287,6 +292,7 @@ void app.whenReady().then(async () => {
   registerModelIpc(modelService, trustedSender)
   registerMemoryIpc(memoryService, trustedSender)
   registerConnectorIpc(connectorService, trustedSender)
+  registerSkillIpc(skillService, trustedSender)
   registerSessionIpc(sessionStore, agentService, join(workspaceRoot, 'attachments'), trustedSender, () => nativeLocale())
   registerThreadIpc(threadService, trustedSender)
   registerDelegationIpc(trustedSender)

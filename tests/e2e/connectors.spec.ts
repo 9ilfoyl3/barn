@@ -37,7 +37,7 @@ test('configures and removes an email connector from the plugins page', async ()
     await page.screenshot({ path: 'test-results/barn-plugins-catalog.png', fullPage: true })
 
     await plugins.getByRole('tab', { name: 'Skills' }).click()
-    await expect(plugins.getByText('Skills are coming soon')).toBeVisible()
+    await expect(plugins.getByText('Meeting notes to actions')).toBeVisible()
     await plugins.getByRole('tab', { name: 'Plugins' }).click()
     await plugins.getByRole('searchbox', { name: 'Search plugins' }).fill('DingTalk')
     await expect(plugins.locator('[data-plugin-kind="email"]')).toHaveCount(0)

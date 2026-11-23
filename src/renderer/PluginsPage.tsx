@@ -23,6 +23,7 @@ import type {
   ConnectorSetupField,
   ConnectorTestResult,
 } from '../shared/models'
+import { SkillsPanel } from './SkillsPanel'
 import './plugins-page.css'
 
 type PluginsTab = 'plugins' | 'skills'
@@ -233,10 +234,8 @@ export function PluginsPage() {
       {notice !== undefined && <div className="settings-notice success" role="status">{notice}</div>}
 
       {tab === 'skills' ? (
-        <section className="plugins-empty-state" role="tabpanel" aria-label={t('plugins.skills')}>
-          <span className="plugins-empty-icon"><Plug size={20} aria-hidden="true" /></span>
-          <h2>{t('plugins.skillsEmptyTitle')}</h2>
-          <p>{t('plugins.skillsEmptyDescription')}</p>
+        <section role="tabpanel" aria-label={t('plugins.skills')}>
+          <SkillsPanel query={query} />
         </section>
       ) : loading ? (
         <div className="plugins-loading" role="status">
