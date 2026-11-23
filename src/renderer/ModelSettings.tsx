@@ -787,7 +787,8 @@ function formatContext(tokens: number): string {
 }
 
 function errorMessage(reason: unknown, t: ReturnType<typeof useTranslation>['t']): string {
-  return reason instanceof Error ? reason.message : t('settings.modelOperationFailed')
+  const translate = t as (key: string) => string
+  return reason instanceof Error ? reason.message : translate('settings.modelOperationFailed')
 }
 
 function slugify(value: string): string {

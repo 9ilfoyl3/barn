@@ -567,5 +567,6 @@ function errorMessage(
   reason: unknown,
   t: ReturnType<typeof useTranslation>['t'],
 ): string {
-  return reason instanceof Error ? reason.message : t('modelPicker.loadFailed')
+  const translate = t as (key: string) => string
+  return reason instanceof Error ? reason.message : translate('modelPicker.loadFailed')
 }

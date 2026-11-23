@@ -20,6 +20,33 @@ const connector: ConnectorRecord = {
 
 const secrets = { token: 'github_pat_test' }
 
+function repositoryFixture(overrides: Record<string, unknown> = {}) {
+  return {
+    id: 42,
+    full_name: 'acme/widgets',
+    name: 'widgets',
+    owner: { login: 'acme' },
+    private: true,
+    visibility: 'private',
+    fork: false,
+    archived: false,
+    description: 'Internal widgets',
+    default_branch: 'main',
+    language: 'TypeScript',
+    stargazers_count: 12,
+    watchers_count: 12,
+    forks_count: 3,
+    open_issues_count: 4,
+    topics: ['internal', 'widgets'],
+    license: { spdx_id: 'MIT', name: 'MIT License' },
+    html_url: 'https://github.com/acme/widgets',
+    created_at: '2025-01-01T00:00:00Z',
+    updated_at: '2026-11-22T11:00:00Z',
+    pushed_at: '2026-11-22T10:00:00Z',
+    ...overrides,
+  }
+}
+
 function capability(id: string) {
   const match = GITHUB_CONNECTOR.capabilities.find((entry) => entry.id === id)
   if (match === undefined) throw new Error(`Missing GitHub capability: ${id}`)
@@ -59,40 +86,94 @@ describe('GitHub connector', () => {
 
   it('searches repositories and returns bounded summaries', async () => {
     const { requests, transport } = requestedTransport(() => ({
-      total_count: 1,
-      items: [{
-        id: 42,
-        full_name: 'acme/widgets',
-        name: 'widgets',
-        owner: { login: 'acme' },
-        private: true,
-        description: 'Internal widgets',
-        default_branch: 'main',
-        html_url: 'https://github.com/acme/widgets',
-        pushed_at: '2026-11-22T10:00:00Z',
-      }],
+      total_count: 11,
+      items: [repositoryFixture()],
     }))
     const adapter = new GithubConnectorAdapter(transport)
 
     await expect(adapter.call({ connector, secrets }, capability('github.searchRepositories'), {
       query: 'widgets org:acme',
-      limit: 10,
+      page: 2,
+      perPage: 10,
     })).resolves.toEqual({
-      totalCount: 1,
+      totalCount: 11,
+      page: 2,
+      perPage: 10,
+      hasNextPage: false,
       repositories: [{
         id: 42,
         fullName: 'acme/widgets',
         name: 'widgets',
         owner: 'acme',
         private: true,
+        visibility: 'private',
+        fork: false,
+        archived: false,
         description: 'Internal widgets',
         defaultBranch: 'main',
+        language: 'TypeScript',
+        stars: 12,
+        watchers: 12,
+        forks: 3,
+        openIssues: 4,
+        topics: ['internal', 'widgets'],
+        license: 'MIT',
         htmlUrl: 'https://github.com/acme/widgets',
+        createdAt: '2025-01-01T00:00:00Z',
+        updatedAt: '2026-11-22T11:00:00Z',
         pushedAt: '2026-11-22T10:00:00Z',
       }],
     })
     expect(requests).toContainEqual(expect.objectContaining({
-      path: '/search/repositories?q=widgets%20org%3Aacme&per_page=10',
+      path: '/search/repositories?q=widgets%20org%3Aacme&per_page=10&page=2',
+    }))
+  })
+
+  it('lists owned repositories with pagination and complete metadata', async () => {
+    const { requests, transport } = requestedTransport(() => [repositoryFixture()])
+    const adapter = new GithubConnectorAdapter(transport)
+
+    await expect(adapter.call({ connector, secrets }, capability('github.listRepositories'), {
+      page: 2,
+      perPage: 1,
+    })).resolves.toEqual(expect.objectContaining({
+      page: 2,
+      perPage: 1,
+      hasNextPage: true,
+      repositories: [expect.objectContaining({
+        fullName: 'acme/widgets',
+        private: true,
+        language: 'TypeScript',
+        stars: 12,
+        forks: 3,
+        archived: false,
+      })],
+    }))
+    expect(requests).toContainEqual(expect.objectContaining({
+      path: '/user/repos?affiliation=owner&per_page=1&page=2&sort=pushed&direction=desc&visibility=all',
+    }))
+  })
+
+  it('reads a repository with an exact language breakdown', async () => {
+    const { transport } = requestedTransport((request) => {
+      if (request.path.endsWith('/languages')) {
+        return { Vue: 70, TypeScript: 20, CSS: 10 }
+      }
+      return repositoryFixture({ full_name: 'acme/vue-widgets', name: 'vue-widgets', language: null })
+    })
+    const adapter = new GithubConnectorAdapter(transport)
+
+    await expect(adapter.call({ connector, secrets }, capability('github.getRepository'), {
+      owner: 'acme',
+      repo: 'vue-widgets',
+    })).resolves.toEqual(expect.objectContaining({
+      fullName: 'acme/vue-widgets',
+      language: 'Vue',
+      languages: [
+        { name: 'Vue', bytes: 70, percent: 70 },
+        { name: 'TypeScript', bytes: 20, percent: 20 },
+        { name: 'CSS', bytes: 10, percent: 10 },
+      ],
     }))
   })
 
@@ -129,6 +210,9 @@ describe('GitHub connector', () => {
     })
 
     expect(result).toEqual({
+      page: 1,
+      perPage: 20,
+      hasNextPage: false,
       issues: [expect.objectContaining({
         number: 7,
         title: 'Crash on export',

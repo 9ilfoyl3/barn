@@ -117,6 +117,8 @@ test('configures and removes a GitHub token connector', async () => {
     await expect(plugins.locator('.plugin-instance-row')).toContainText('GitHub work')
     await expect(plugins.locator('.plugin-instance-row')).toContainText('Ready')
     await expect(plugins.getByText('Search repositories', { exact: true })).toBeVisible()
+    await expect(plugins.getByText('List my repositories', { exact: true })).toBeVisible()
+    await expect(plugins.getByText('Read a repository', { exact: true })).toBeVisible()
     await expect.poll(async () => page.evaluate(async () => {
       const instances = await window.barn.connectors.list()
       return instances.map((instance) => ({
@@ -133,6 +135,8 @@ test('configures and removes a GitHub token connector', async () => {
       status: 'ready',
       capabilities: [
         'github.searchRepositories',
+        'github.listRepositories',
+        'github.getRepository',
         'github.searchIssues',
         'github.listIssues',
         'github.getIssue',

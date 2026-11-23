@@ -785,6 +785,8 @@ function capabilityTranslationKey(id: string): string {
   if (id === 'wecomMail.get') return 'wecomMailGet'
   if (id === 'wecomMail.send') return 'wecomMailSend'
   if (id === 'github.searchRepositories') return 'githubSearchRepositories'
+  if (id === 'github.listRepositories') return 'githubListRepositories'
+  if (id === 'github.getRepository') return 'githubGetRepository'
   if (id === 'github.searchIssues') return 'githubSearchIssues'
   if (id === 'github.listIssues') return 'githubListIssues'
   if (id === 'github.getIssue') return 'githubGetIssue'

@@ -44,16 +44,17 @@ function ToolGroup({ tools }: { tools: ToolCallView[] }) {
 }
 
 function toolGroupLabel(tools: ToolCallView[], t: ReturnType<typeof useTranslation>['t']): string {
+  const translate = t as (key: string, options?: Record<string, unknown>) => string
   const running = tools.find((tool) => tool.status === 'running')
   if (running !== undefined) {
     const command = toolCommand(running)
     return command === undefined
-      ? t('tools.running', { label: toolActionLabel(running.name, t) })
-      : t('tools.runningCommand', { command: truncate(command, 72) })
+      ? translate('tools.running', { label: toolActionLabel(running.name, t) })
+      : translate('tools.runningCommand', { command: truncate(command, 72) })
   }
   if (tools.length === 1) return toolActionLabel(tools[0]?.name ?? '', t)
-  if (tools.every((tool) => tool.name === 'shell')) return t('tools.ranCommands', { count: tools.length })
-  if (tools.every((tool) => tool.name === 'read_file')) return t('tools.readFiles', { count: tools.length })
+  if (tools.every((tool) => tool.name === 'shell')) return translate('tools.ranCommands', { count: tools.length })
+  if (tools.every((tool) => tool.name === 'read_file')) return translate('tools.readFiles', { count: tools.length })
   const labels = [...new Set(tools.map((tool) => toolActionLabel(tool.name, t)))]
   return labels.join(' · ')
 }
@@ -92,29 +93,30 @@ function toolThinkingTarget(tool: ToolCallView): string {
 }
 
 function toolActionLabel(name: string, t: ReturnType<typeof useTranslation>['t']): string {
+  const translate = t as (key: string) => string
   switch (name) {
-    case 'shell': return t('tools.shell')
-    case 'read_file': return t('tools.readFile')
-    case 'write_file': return t('tools.writeFile')
-    case 'edit_file': return t('tools.editFile')
-    case 'list_dir': return t('tools.listDir')
-    case 'search_files': return t('tools.searchFiles')
-    case 'find_files': return t('tools.findFiles')
-    case 'view_image': return t('tools.viewImage')
-    case 'memory_search': return t('tools.memorySearch')
-    case 'memory_save': return t('tools.memorySave')
-    case 'memory_forget': return t('tools.memoryForget')
-    case 'connector_list': return t('tools.connectorList')
-    case 'connector_call': return t('tools.connectorCall')
-    case 'session_history': return t('tools.sessionHistory')
-    case 'browser_open': return t('tools.browserOpen')
-    case 'browser_observe': return t('tools.browserObserve')
-    case 'browser_act': return t('tools.browserAct')
-    case 'browser_read': return t('tools.browserRead')
-    case 'browser_tab': return t('tools.browserTab')
-    case 'browser_upload': return t('tools.browserUpload')
-    case 'browser_screenshot': return t('tools.browserScreenshot')
-    default: return t('tools.ranTool', { name })
+    case 'shell': return translate('tools.shell')
+    case 'read_file': return translate('tools.readFile')
+    case 'write_file': return translate('tools.writeFile')
+    case 'edit_file': return translate('tools.editFile')
+    case 'list_dir': return translate('tools.listDir')
+    case 'search_files': return translate('tools.searchFiles')
+    case 'find_files': return translate('tools.findFiles')
+    case 'view_image': return translate('tools.viewImage')
+    case 'memory_search': return translate('tools.memorySearch')
+    case 'memory_save': return translate('tools.memorySave')
+    case 'memory_forget': return translate('tools.memoryForget')
+    case 'connector_list': return translate('tools.connectorList')
+    case 'connector_call': return translate('tools.connectorCall')
+    case 'session_history': return translate('tools.sessionHistory')
+    case 'browser_open': return translate('tools.browserOpen')
+    case 'browser_observe': return translate('tools.browserObserve')
+    case 'browser_act': return translate('tools.browserAct')
+    case 'browser_read': return translate('tools.browserRead')
+    case 'browser_tab': return translate('tools.browserTab')
+    case 'browser_upload': return translate('tools.browserUpload')
+    case 'browser_screenshot': return translate('tools.browserScreenshot')
+    default: return (t as (key: string, options?: Record<string, unknown>) => string)('tools.ranTool', { name })
   }
 }
 
