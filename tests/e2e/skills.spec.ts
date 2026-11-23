@@ -42,6 +42,7 @@ test('manages local skills from the Plugins page and exposes them to the Agent b
     await create.getByLabel('Description').fill('Turn a week of work into a concise status update.')
     await create.getByLabel('Instructions').fill('# Weekly status\n\n1. Summarize outcomes.\n2. List blockers.\n3. Name next steps.')
     await create.getByRole('button', { name: 'Save', exact: true }).click()
+    await expect(page.locator('[data-sonner-toast]').filter({ hasText: 'Skill created.' })).toBeVisible()
 
     const detail = page.getByRole('dialog', { name: 'Weekly status' })
     await expect(detail).toBeVisible()

@@ -27,6 +27,7 @@ import { ConversationParts, PendingThinking } from './ConversationParts'
 import { MessageBubble, MessageBubbleGroup } from '@/components/beui/components/agents/message-bubble'
 import { ReplyGuideGroup } from './ReplyGuideGroup'
 import { PromptInput } from '@/components/beui/components/agents/prompt-input'
+import { useErrorToast } from './notifications'
 import {
   applyLiveEvent,
   groupConversationMessages,
@@ -65,6 +66,7 @@ export function TaskDetailPage({
   const [copied, setCopied] = useState(false)
   const [tagMenuOpen, setTagMenuOpen] = useState(false)
   const [tags, setTags] = useState<TaskTagValue[]>(() => readTaskTags(task.id))
+  useErrorToast(error)
   const threadRef = useRef<HTMLDivElement>(null)
   const sessionTaskRef = useRef(task.id)
   const sessionPromiseRef = useRef<Promise<string> | null>(null)
@@ -470,7 +472,6 @@ export function TaskDetailPage({
                 <p>{t('tasks.chatEmpty')}</p>
               </div>
             )}
-            {error !== undefined && <div className="error-banner task-detail-error" role="alert">{error}</div>}
             <div className="task-detail-quick-actions" aria-label={t('tasks.taskActions')}>
               <button
                 className="task-detail-quick-action"

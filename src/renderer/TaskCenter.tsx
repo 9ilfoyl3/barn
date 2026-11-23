@@ -14,6 +14,7 @@ import {
 } from 'lucide-react'
 import './task-center.css'
 import type { ApprovalRequest, ConnectorActionSummary, Task, TaskStatus } from '../shared/models'
+import { useErrorToast } from './notifications'
 
 export type TaskGroupKey = 'needsYou' | 'inProgress' | 'recent'
 
@@ -65,6 +66,7 @@ export function TaskCenter({ tasks, approvals, loading, error, onOpenTask, onRef
   const [createTitle, setCreateTitle] = useState('')
   const [createPrompt, setCreatePrompt] = useState('')
   const [creating, setCreating] = useState(false)
+  useErrorToast(error)
   const editorRef = useRef<HTMLTextAreaElement>(null)
   const filterRef = useRef<HTMLDivElement>(null)
   const createPromptRef = useRef<HTMLTextAreaElement>(null)
@@ -346,8 +348,6 @@ export function TaskCenter({ tasks, approvals, loading, error, onOpenTask, onRef
           </button>
         </div>
       </header>
-
-      {error !== undefined && <div className="error-banner task-error" role="alert">{error}</div>}
 
       <div className="task-center-board-shell">
         {loading && !hasContent ? (

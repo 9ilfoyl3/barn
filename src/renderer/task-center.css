@@ -181,15 +181,6 @@
   background: color-mix(in srgb, var(--accent) 11%, var(--panel));
 }
 
-.task-error {
-  position: absolute;
-  z-index: 10;
-  top: 68px;
-  right: 18px;
-  left: 18px;
-  margin: 0;
-}
-
 .task-center-board-shell {
   min-width: 0;
   min-height: 0;

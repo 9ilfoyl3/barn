@@ -4,6 +4,7 @@ import { Activity, X } from 'lucide-react'
 import type { DiagnosticsSnapshot } from '../shared/models'
 import { TooltipButton } from './components/TooltipButton'
 import { MemorySettingsPanel } from './MemorySettingsPanel'
+import { notifySuccess, useErrorToast } from './notifications'
 import './diagnostics-settings.css'
 
 export function DiagnosticsSettings({ onClose }: { onClose(): void }) {
@@ -12,7 +13,8 @@ export function DiagnosticsSettings({ onClose }: { onClose(): void }) {
   const [retention, setRetention] = useState(365)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string>()
-  const [notice, setNotice] = useState<string>()
+
+  useErrorToast(error)
 
   useEffect(() => {
     void window.barn.diagnostics.get().then((value) => {
@@ -32,7 +34,7 @@ export function DiagnosticsSettings({ onClose }: { onClose(): void }) {
     try {
       await window.barn.diagnostics.setRetentionDays(retention)
       setSnapshot(await window.barn.diagnostics.get())
-      setNotice(t('diagnostics.retentionSaved'))
+      notifySuccess(t('diagnostics.retentionSaved'))
     } catch (reason) {
       setError(errorMessage(reason))
     } finally {
@@ -46,7 +48,7 @@ export function DiagnosticsSettings({ onClose }: { onClose(): void }) {
     try {
       const result = await window.barn.diagnostics.runMaintenance()
       setSnapshot(await window.barn.diagnostics.get())
-      setNotice(t('diagnostics.cleanupComplete', {
+      notifySuccess(t('diagnostics.cleanupComplete', {
         actionEvents: result.actionEvents,
         sourceEvents: result.sourceEvents,
         approvals: result.approvals,
@@ -77,10 +79,8 @@ export function DiagnosticsSettings({ onClose }: { onClose(): void }) {
           </TooltipButton>
         </header>
         <div className="diagnostics-body">
-          {error !== undefined && <div className="settings-error" role="alert">{error}</div>}
-          {notice !== undefined && <div className="settings-notice success" role="status">{notice}</div>}
           {snapshot === undefined ? (
-            <p className="diagnostics-muted">{t('common.loading')}</p>
+            <p className="diagnostics-muted">{error ?? t('common.loading')}</p>
           ) : (
             <>
               <div className="diagnostics-summary">
