@@ -303,7 +303,6 @@ export function PluginsPage() {
           type="button"
         >
           <ArrowLeft size={16} aria-hidden="true" />
-          <span>{t('plugins.back')}</span>
         </button>
         <div className="plugins-detail-title">
           <ConnectorIcon definition={selectedDefinition} size="large" />
