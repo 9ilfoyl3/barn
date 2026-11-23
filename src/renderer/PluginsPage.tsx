@@ -4,6 +4,7 @@ import {
   AlertCircle,
   ArrowLeft,
   CheckCircle2,
+  Info,
   LoaderCircle,
   Mail,
   Plug,
@@ -14,6 +15,7 @@ import {
   X,
 } from 'lucide-react'
 import type {
+  ConnectorCapabilityDefinition,
   ConnectorConfig,
   ConnectorConfigValue,
   ConnectorDefinition,
@@ -300,7 +302,7 @@ export function PluginsPage() {
           title={t('plugins.back')}
           type="button"
         >
-          <ArrowLeft size={17} aria-hidden="true" />
+          <ArrowLeft size={16} aria-hidden="true" />
         </button>
         <div className="plugins-detail-title">
           <ConnectorIcon definition={selectedDefinition} size="large" />
@@ -393,7 +395,7 @@ export function PluginsPage() {
                     defaultValue: capability.name,
                   })}
                 </strong>
-                <small>{capability.description}</small>
+                <small>{capabilityDescription(capability, t)}</small>
               </span>
             </li>
           ))}
@@ -589,12 +591,14 @@ function ConnectorEditor({
           <span>{instance === undefined ? t('connectorSettings.addTitle') : t('connectorSettings.editTitle')}</span>
           <h3>{translatedDefinitionName(definition, t)}</h3>
         </div>
-        <button className="plugin-icon-button" type="button" aria-label={t('common.cancel')} onClick={onCancel}>
-          <X size={15} aria-hidden="true" />
-        </button>
       </div>
 
-      {setupNote.length > 0 && <p className="plugin-editor-note">{setupNote}</p>}
+      {setupNote.length > 0 && (
+        <div className="plugin-editor-note">
+          <Info size={14} aria-hidden="true" />
+          <p>{setupNote}</p>
+        </div>
+      )}
 
       {!definition.hideConnectionName && (
         <label>
@@ -769,6 +773,16 @@ function capabilityTranslationKey(id: string): string {
   if (id === 'wecomMail.get') return 'wecomMailGet'
   if (id === 'wecomMail.send') return 'wecomMailSend'
   return id
+}
+
+function capabilityDescription(
+  capability: ConnectorCapabilityDefinition,
+  t: ReturnType<typeof useTranslation>['t'],
+): string {
+  const translate = t as (key: string, options?: { defaultValue?: string }) => string
+  return translate(`connectorSettings.capabilityDescriptions.${capabilityTranslationKey(capability.id)}`, {
+    defaultValue: capability.description,
+  })
 }
 
 function initialConfigFor(definition: ConnectorDefinition, instance?: ConnectorInstance): ConnectorConfig {

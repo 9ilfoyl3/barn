@@ -749,6 +749,16 @@ const en = {
       wecomMailGet: 'Read WeCom Mail',
       wecomMailSend: 'Send WeCom Mail',
     },
+    capabilityDescriptions: {
+      emailList: 'List recent inbox messages without opening their full content.',
+      emailSearch: 'Search messages by sender, recipient, subject, or text.',
+      emailRead: 'Read one message by UID, including bounded content and attachment metadata.',
+      emailSend: 'Send a plain-text or HTML email. Sending waits for approval first.',
+      dingtalkSend: 'Send a text or Markdown message to the configured DingTalk group robot.',
+      wecomMailSearch: 'Search the mailbox by sender, recipient, time, folder, or labels.',
+      wecomMailGet: 'Read one WeCom Mail message by its encoded mail id.',
+      wecomMailSend: 'Send, reply to, or forward WeCom Mail after approval.',
+    },
   },
 } as const
 
@@ -1498,6 +1508,16 @@ const zhCN: TranslationSchema = {
       wecomMailSearch: '搜索企业微信邮件',
       wecomMailGet: '读取企业微信邮件',
       wecomMailSend: '发送企业微信邮件',
+    },
+    capabilityDescriptions: {
+      emailList: '列出收件箱中的最近邮件，不打开完整正文。',
+      emailSearch: '按发件人、收件人、主题或正文搜索邮件。',
+      emailRead: '按 UID 读取单封邮件，并返回有边界的内容和附件信息。',
+      emailSend: '发送纯文本或 HTML 邮件，发送前需要你的批准。',
+      dingtalkSend: '向已配置的钉钉群机器人发送文本或 Markdown 消息。',
+      wecomMailSearch: '按发件人、收件人、时间、文件夹或标签搜索企业微信邮件。',
+      wecomMailGet: '通过加密邮件 ID 读取一封企业微信邮件。',
+      wecomMailSend: '经你批准后，发送、回复或转发企业微信邮件。',
     },
   },
 }
