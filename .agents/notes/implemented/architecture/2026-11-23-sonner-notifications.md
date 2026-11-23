@@ -8,7 +8,7 @@ Success and error feedback appeared as inline banners inside Plugins, Skills, Mo
 
 ## Decision
 
-The renderer mounts one Sonner `Toaster` at the app root. Toasts use the top-center position with a 64px offset below the window search bar, Barn semantic tokens, a close control, and reduced-motion handling.
+The renderer mounts one Sonner `Toaster` at the app root. Toasts use the top-center position with a 64px offset below the window search bar, Barn semantic tokens, automatic dismissal, and reduced-motion handling.
 
 Operation successes call `notifySuccess`. Operation failures either call `notifyError` directly or keep their existing error state and route it through `useErrorToast`, which emits one toast whenever the error changes. Contextual inline states remain inline when they describe a persistent object rather than an operation result, such as a source's `lastError`, a connector test result, or a form's current loading/empty state.
 

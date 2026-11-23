@@ -5,7 +5,6 @@ import './notifications.css'
 export function AppToaster() {
   return (
     <Toaster
-      closeButton
       gap={8}
       mobileOffset={16}
       offset={64}
@@ -17,7 +16,6 @@ export function AppToaster() {
           toast: 'barn-toast',
           title: 'barn-toast-title',
           description: 'barn-toast-description',
-          closeButton: 'barn-toast-close',
           actionButton: 'barn-toast-action',
           cancelButton: 'barn-toast-cancel',
         },

@@ -17,12 +17,10 @@
   backdrop-filter: blur(14px);
 }
 
-[data-sonner-toast].barn-toast[data-type="success"] {
-  border-color: color-mix(in srgb, var(--green) 34%, var(--line-strong));
-}
-
+/* Semantic state stays on the icon; every toast uses the same neutral frame. */
+[data-sonner-toast].barn-toast[data-type="success"],
 [data-sonner-toast].barn-toast[data-type="error"] {
-  border-color: color-mix(in srgb, var(--danger) 38%, var(--line-strong));
+  border-color: var(--line-strong);
 }
 
 [data-sonner-toast].barn-toast[data-type="success"] [data-icon] {
@@ -44,18 +42,6 @@
   color: var(--text-dim);
   font-size: 11px;
   line-height: 1.5;
-}
-
-.barn-toast-close {
-  border: 1px solid var(--line);
-  border-radius: 6px;
-  background: var(--panel-raised);
-  color: var(--text-faint);
-}
-
-.barn-toast-close:hover {
-  background: var(--panel-strong);
-  color: var(--text);
 }
 
 .barn-toast-action,
