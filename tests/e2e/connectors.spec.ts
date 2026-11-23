@@ -132,6 +132,62 @@ test('configures and removes a signed DingTalk robot from the plugins page', asy
   }
 })
 
+test('configures WeCom Mail with an apikey or full MCP endpoint', async () => {
+  const userData = await mkdtemp(join(tmpdir(), 'barn-desktop-wecom-mail-e2e-'))
+  const inheritedEnv = Object.fromEntries(
+    Object.entries(process.env).filter((entry): entry is [string, string] => entry[1] !== undefined),
+  )
+  const app = await electron.launch({
+    args: ['.'],
+    env: {
+      ...inheritedEnv,
+      ELECTRON_DISABLE_SECURITY_WARNINGS: 'true',
+      BARN_USER_DATA_DIR: userData,
+      BARN_UI_LANGUAGE: 'en',
+    },
+  })
+
+  try {
+    const page = await app.firstWindow()
+    await page.waitForLoadState('domcontentloaded')
+    await app.evaluate(({ nativeTheme }) => { nativeTheme.themeSource = 'light' })
+    await page.locator('.app-rail-button', { hasText: 'Plugins' }).click()
+    const plugins = page.locator('.plugins-page')
+    const wecom = plugins.locator('[data-plugin-kind="wecomMail"]')
+    await expect(wecom).toContainText('WeCom Mail')
+    await expect(wecom.locator('[data-brand-icon="wecomMail"] svg')).toHaveAttribute('viewBox', '0 0 24 24')
+    await wecom.getByRole('button', { name: 'Add WeCom Mail' }).click()
+
+    await expect(plugins.getByRole('textbox', { name: 'Connection name' })).toHaveCount(0)
+    await expect(plugins.getByLabel('API key (or full endpoint URL)')).toBeVisible()
+    await expect(plugins.getByText('No OAuth account or device is required, and the key is never sent to the model.')).toBeVisible()
+    const help = plugins.getByRole('link', { name: 'How to get the API key (or full endpoint URL)' })
+    await expect(help).toHaveAttribute('href', 'https://developer.work.weixin.qq.com/document/path/101805')
+    await plugins.getByLabel('API key (or full endpoint URL)').fill('test-wecom-mail-apikey')
+    await page.screenshot({ path: 'test-results/barn-wecom-mail-form.png', fullPage: true })
+    await plugins.getByRole('button', { name: 'Save', exact: true }).click()
+
+    await expect(plugins.locator('.plugin-instance-row')).toContainText('WeCom Mail')
+    await expect(plugins.locator('.plugin-instance-row')).toContainText('Ready')
+    await expect.poll(async () => page.evaluate(async () => {
+      const instances = await window.barn.connectors.list()
+      return instances.map((instance) => ({
+        kind: instance.kind,
+        name: instance.name,
+        configured: instance.configured,
+        status: instance.status,
+      }))
+    })).toEqual([{ kind: 'wecomMail', name: 'WeCom Mail', configured: true, status: 'ready' }])
+    await page.screenshot({ path: 'test-results/barn-wecom-mail.png', fullPage: true })
+
+    page.once('dialog', (confirmation) => void confirmation.accept())
+    await plugins.getByRole('button', { name: 'Remove connector' }).click()
+    await expect(plugins.getByText('No connections yet')).toBeVisible()
+  } finally {
+    await app.close()
+  }
+})
+
 test('shows and resolves a connector approval in the task center', async () => {
   const userData = await mkdtemp(join(tmpdir(), 'barn-desktop-connector-approval-e2e-'))
   const inheritedEnv = Object.fromEntries(

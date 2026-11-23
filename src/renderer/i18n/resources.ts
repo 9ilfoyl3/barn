@@ -712,7 +712,12 @@ const en = {
       keyword: 'Security keyword',
       webhookUrl: 'Robot webhook URL',
       secret: 'Signing secret',
+      apiKeyOrUrl: 'API key (or full endpoint URL)',
     },
+    fieldPlaceholders: {
+      apiKeyOrUrl: 'Paste an API key or https://qyapi.weixin.qq.com/mcp/robot-mail?apikey=...',
+    },
+    helpLink: 'How to get the API key (or full endpoint URL)',
     kinds: {
       email: {
         name: 'Email',
@@ -721,6 +726,11 @@ const en = {
       dingtalk: {
         name: 'DingTalk',
         description: 'Send text or Markdown messages to a DingTalk group robot with optional signing.',
+      },
+      wecomMail: {
+        name: 'WeCom Mail',
+        description: 'Search, read, and send WeCom Mail through the official WeCom MCP endpoint.',
+        note: 'Barn sends this API key or full endpoint URL only to WeCom Mail. No OAuth account or device is required, and the key is never sent to the model.',
       },
     },
     status: {
@@ -735,6 +745,9 @@ const en = {
       emailRead: 'Read mail',
       emailSend: 'Send mail',
       dingtalkSend: 'Send DingTalk message',
+      wecomMailSearch: 'Search WeCom Mail',
+      wecomMailGet: 'Read WeCom Mail',
+      wecomMailSend: 'Send WeCom Mail',
     },
   },
 } as const
@@ -1449,7 +1462,12 @@ const zhCN: TranslationSchema = {
       keyword: '安全关键词',
       webhookUrl: '机器人 Webhook 地址',
       secret: '加签密钥',
+      apiKeyOrUrl: 'apikey（或整段地址）',
     },
+    fieldPlaceholders: {
+      apiKeyOrUrl: '粘贴 apikey，或 https://qyapi.weixin.qq.com/mcp/robot-mail?apikey=…',
+    },
+    helpLink: '如何获取 apikey（或整段地址）',
     kinds: {
       email: {
         name: '邮箱',
@@ -1458,6 +1476,11 @@ const zhCN: TranslationSchema = {
       dingtalk: {
         name: '钉钉',
         description: '向钉钉群机器人发送文本或 Markdown 消息，支持加签。',
+      },
+      wecomMail: {
+        name: '企业微信邮件',
+        description: '通过企业微信官方 MCP 地址搜索、读取和发送企业微信邮件。',
+        note: 'Barn 只会把这个 apikey（或整段地址）发送给企业微信邮件。无需 OAuth 账号或设备，密钥不会发送给模型。',
       },
     },
     status: {
@@ -1472,6 +1495,9 @@ const zhCN: TranslationSchema = {
       emailRead: '读取单封邮件',
       emailSend: '发送邮件',
       dingtalkSend: '发送钉钉消息',
+      wecomMailSearch: '搜索企业微信邮件',
+      wecomMailGet: '读取企业微信邮件',
+      wecomMailSend: '发送企业微信邮件',
     },
   },
 }

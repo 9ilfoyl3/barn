@@ -70,7 +70,46 @@ export const DINGTALK_CONNECTOR: ConnectorDefinition = {
   ],
 }
 
-export const BUILT_IN_CONNECTORS: readonly ConnectorDefinition[] = [EMAIL_CONNECTOR, DINGTALK_CONNECTOR]
+export const WECOM_MAIL_CONNECTOR: ConnectorDefinition = {
+  kind: 'wecomMail',
+  name: 'WeCom Mail',
+  description: 'Search, read, and send WeCom Mail through the official WeCom MCP endpoint.',
+  icon: 'mail',
+  helpUrl: 'https://developer.work.weixin.qq.com/document/path/101805',
+  hideConnectionName: true,
+  configFields: [],
+  credentialFields: [
+    {
+      key: 'apiKeyOrUrl',
+      label: 'API key (or full endpoint URL)',
+      type: 'password',
+      required: true,
+      placeholder: 'Paste an API key or https://qyapi.weixin.qq.com/mcp/robot-mail?apikey=...',
+    },
+  ],
+  capabilities: [
+    {
+      id: 'wecomMail.search',
+      name: 'Search WeCom Mail',
+      description: 'Search the mailbox and list messages by sender, recipient, time, folder, or labels.',
+      risk: 'read',
+    },
+    {
+      id: 'wecomMail.get',
+      name: 'Read WeCom Mail',
+      description: 'Read one WeCom Mail message by its encoded mail id.',
+      risk: 'read',
+    },
+    {
+      id: 'wecomMail.send',
+      name: 'Send WeCom Mail',
+      description: 'Send, reply to, or forward WeCom Mail. Sending is queued for approval first.',
+      risk: 'external-write',
+    },
+  ],
+}
+
+export const BUILT_IN_CONNECTORS: readonly ConnectorDefinition[] = [EMAIL_CONNECTOR, DINGTALK_CONNECTOR, WECOM_MAIL_CONNECTOR]
 
 export function builtinConnectorDefinitions(): Map<string, ConnectorDefinition> {
   return new Map(BUILT_IN_CONNECTORS.map((definition) => [definition.kind, definition]))

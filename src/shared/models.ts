@@ -159,6 +159,8 @@ export interface ConnectorDefinition {
   configFields: ConnectorSetupField[]
   credentialFields: ConnectorSetupField[]
   capabilities: ConnectorCapabilityDefinition[]
+  helpUrl?: string
+  hideConnectionName?: boolean
 }
 
 export type ConnectorConfigValue = string | number | boolean
