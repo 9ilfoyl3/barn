@@ -281,6 +281,11 @@
   color: #1677ff;
 }
 
+.plugin-artwork-github {
+  background: light-dark(#ffffff, var(--panel-raised));
+  color: var(--text);
+}
+
 .plugin-artwork-wecomMail {
   background: light-dark(#ffffff, var(--panel-raised));
   color: #07c160;
@@ -593,7 +598,7 @@
   margin: 0;
   overflow: hidden;
   color: var(--text-faint);
-  font-size: 9px;
+  font-size: 10px;
   line-height: 1.45;
   text-overflow: ellipsis;
   white-space: nowrap;

@@ -70,6 +70,74 @@ export const DINGTALK_CONNECTOR: ConnectorDefinition = {
   ],
 }
 
+export const GITHUB_CONNECTOR: ConnectorDefinition = {
+  kind: 'github',
+  name: 'GitHub',
+  description: 'Search repositories, read issues and pull requests, and make approved updates through the GitHub REST API.',
+  icon: 'github',
+  helpUrl: 'https://github.com/settings/personal-access-tokens/new',
+  configFields: [],
+  credentialFields: [
+    {
+      key: 'token',
+      label: 'Personal access token',
+      type: 'password',
+      required: true,
+      placeholder: 'github_pat_…',
+    },
+  ],
+  capabilities: [
+    {
+      id: 'github.searchRepositories',
+      name: 'Search repositories',
+      description: 'Search repositories visible to the connected GitHub account.',
+      risk: 'read',
+    },
+    {
+      id: 'github.searchIssues',
+      name: 'Search issues and pull requests',
+      description: 'Search issues and pull requests with GitHub search syntax.',
+      risk: 'read',
+    },
+    {
+      id: 'github.listIssues',
+      name: 'List repository issues',
+      description: 'List open, closed, or all issues in one repository.',
+      risk: 'read',
+    },
+    {
+      id: 'github.getIssue',
+      name: 'Read an issue',
+      description: 'Read one issue with its bounded body text.',
+      risk: 'read',
+    },
+    {
+      id: 'github.listPullRequests',
+      name: 'List pull requests',
+      description: 'List open, closed, or all pull requests in one repository.',
+      risk: 'read',
+    },
+    {
+      id: 'github.getPullRequest',
+      name: 'Read a pull request',
+      description: 'Read one pull request with its branches, summary, and change counts.',
+      risk: 'read',
+    },
+    {
+      id: 'github.createIssue',
+      name: 'Create an issue',
+      description: 'Create a GitHub issue after approval.',
+      risk: 'external-write',
+    },
+    {
+      id: 'github.comment',
+      name: 'Comment on an issue or pull request',
+      description: 'Add a comment to an issue or pull request after approval.',
+      risk: 'external-write',
+    },
+  ],
+}
+
 export const WECOM_MAIL_CONNECTOR: ConnectorDefinition = {
   kind: 'wecomMail',
   name: 'WeCom Mail',
@@ -109,7 +177,12 @@ export const WECOM_MAIL_CONNECTOR: ConnectorDefinition = {
   ],
 }
 
-export const BUILT_IN_CONNECTORS: readonly ConnectorDefinition[] = [EMAIL_CONNECTOR, DINGTALK_CONNECTOR, WECOM_MAIL_CONNECTOR]
+export const BUILT_IN_CONNECTORS: readonly ConnectorDefinition[] = [
+  EMAIL_CONNECTOR,
+  GITHUB_CONNECTOR,
+  DINGTALK_CONNECTOR,
+  WECOM_MAIL_CONNECTOR,
+]
 
 export function builtinConnectorDefinitions(): Map<string, ConnectorDefinition> {
   return new Map(BUILT_IN_CONNECTORS.map((definition) => [definition.kind, definition]))
