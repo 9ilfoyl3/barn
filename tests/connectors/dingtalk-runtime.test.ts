@@ -52,7 +52,7 @@ describe('DingTalk runtime', () => {
       }
       return {}
     })
-    const runtime = new DingTalkRuntime(root, { processRunner: runner })
+    const runtime = new DingTalkRuntime(root, { platform: 'darwin', arch: 'arm64', processRunner: runner })
 
     await expect(runtime.status()).resolves.toEqual({
       installed: true,
@@ -73,7 +73,7 @@ describe('DingTalk runtime', () => {
       if (args[0] === 'profile') return { stdout: JSON.stringify({ profiles: [] }) }
       return {}
     })
-    const runtime = new DingTalkRuntime(root, { processRunner: runner })
+    const runtime = new DingTalkRuntime(root, { platform: 'darwin', arch: 'arm64', processRunner: runner })
 
     await expect(runtime.login()).resolves.toEqual(expect.objectContaining({ authenticated: true }))
     expect(calls.map((call) => call.args[1])).toContain('login')
@@ -86,7 +86,7 @@ describe('DingTalk runtime', () => {
       if (args[0] === 'profile') return { stdout: JSON.stringify({ profiles: [] }) }
       return { stdout: JSON.stringify({ ok: true }) }
     })
-    const runtime = new DingTalkRuntime(root, { processRunner: runner })
+    const runtime = new DingTalkRuntime(root, { platform: 'darwin', arch: 'arm64', processRunner: runner })
 
     await expect(runtime.runJson(['todo', 'task', 'list', '--format', 'json'])).resolves.toEqual({ ok: true })
     expect(calls.at(-1)?.args).toEqual(['todo', 'task', 'list', '--format', 'json'])
@@ -95,7 +95,7 @@ describe('DingTalk runtime', () => {
   it('logs out through the local runtime', async () => {
     const { root } = await runtimeWithBinary()
     const { calls, runner } = fakeRunner(() => ({ stdout: '{}' }))
-    const runtime = new DingTalkRuntime(root, { processRunner: runner })
+    const runtime = new DingTalkRuntime(root, { platform: 'darwin', arch: 'arm64', processRunner: runner })
 
     await runtime.logout()
     expect(calls.at(-1)?.args).toEqual(['auth', 'logout', '--yes', '--format', 'json'])
@@ -110,7 +110,7 @@ describe('DingTalk runtime', () => {
       if (args[0] === 'profile') return { stdout: JSON.stringify({ profiles: [] }) }
       return { code: 1, stderr: 'dws request failed' }
     })
-    const runtime = new DingTalkRuntime(root, { processRunner: runner })
+    const runtime = new DingTalkRuntime(root, { platform: 'darwin', arch: 'arm64', processRunner: runner })
 
     await expect(runtime.runJson(['todo', 'task', 'list'])).rejects.toThrow('DingTalk request failed')
   })
