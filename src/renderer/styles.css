@@ -1608,15 +1608,6 @@ select:focus-visible {
   font-size: 9px;
 }
 
-.model-picker-error {
-  margin: 7px 3px 0;
-  border-radius: 7px;
-  background: color-mix(in srgb, var(--danger) 9%, transparent);
-  padding: 7px 9px;
-  color: var(--danger);
-  font-size: 9px;
-}
-
 .effort-card {
   display: grid;
   gap: 8px;
@@ -1822,20 +1813,6 @@ select:focus-visible {
   transform: none;
 }
 
-.error-banner,
-.settings-error {
-  border: 1px solid color-mix(in srgb, var(--danger) 36%, transparent);
-  border-radius: 8px;
-  background: color-mix(in srgb, var(--danger) 8%, transparent);
-  padding: 9px 11px;
-  color: var(--danger);
-  font-size: 11px;
-}
-
-.error-banner {
-  margin-top: 10px;
-}
-
 .settings-backdrop {
   position: fixed;
   inset: 0;
@@ -1888,10 +1865,6 @@ select:focus-visible {
   font-size: 22px;
   font-weight: 580;
   letter-spacing: -0.025em;
-}
-
-.settings-error {
-  margin: 12px 18px 0;
 }
 
 .settings-grid {
@@ -2459,15 +2432,6 @@ select:focus-visible {
   scroll-padding-bottom: 160px;
 }
 
-.chat-surface > .error-banner {
-  position: absolute;
-  z-index: 6;
-  right: 0;
-  bottom: 190px;
-  left: 0;
-  margin: 0;
-}
-
 @keyframes content-enter {
   from {
     opacity: 0;
@@ -2566,22 +2530,6 @@ select:focus-visible {
   border-color: color-mix(in srgb, var(--danger) 37%, transparent);
   background: color-mix(in srgb, var(--danger) 17%, transparent);
   color: var(--danger);
-}
-
-.settings-notice {
-  margin: 12px 18px 0;
-  border: 1px solid color-mix(in srgb, var(--danger) 46%, transparent);
-  border-radius: 5px;
-  background: color-mix(in srgb, var(--danger) 14%, transparent);
-  padding: 10px 12px;
-  color: var(--danger);
-  font-size: 12px;
-}
-
-.settings-notice.success {
-  border-color: color-mix(in srgb, var(--green) 38%, transparent);
-  background: color-mix(in srgb, var(--green) 14%, transparent);
-  color: var(--green);
 }
 
 .secondary-button.compact {

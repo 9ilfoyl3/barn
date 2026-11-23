@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { CalendarClock, FolderSearch, Plus, Trash2, X } from 'lucide-react'
 import type { AutomationSettings, LocalSource } from '../shared/models'
 import { TooltipButton } from './components/TooltipButton'
+import { notifySuccess, useErrorToast } from './notifications'
 import './source-settings.css'
 
 type AddMode = 'file-watch' | 'schedule'
@@ -11,7 +12,6 @@ export function SourceSettings({ onClose }: { onClose(): void }) {
   const { t } = useTranslation()
   const [sources, setSources] = useState<LocalSource[]>([])
   const [automation, setAutomation] = useState<AutomationSettings>()
-  const [notice, setNotice] = useState<string>()
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string>()
@@ -23,6 +23,8 @@ export function SourceSettings({ onClose }: { onClose(): void }) {
   const [intervalMinutes, setIntervalMinutes] = useState(60)
   const [scheduleTitle, setScheduleTitle] = useState('')
   const [schedulePrompt, setSchedulePrompt] = useState('')
+
+  useErrorToast(error)
 
   useEffect(() => {
     void reload()
@@ -115,7 +117,7 @@ export function SourceSettings({ onClose }: { onClose(): void }) {
     setError(undefined)
     try {
       setAutomation(await window.barn.localSources.setAutomationSettings(automation))
-      setNotice(t('sourceSettings.saved'))
+      notifySuccess(t('sourceSettings.saved'))
     } catch (reason) {
       setError(errorMessage(reason))
     } finally {
@@ -167,8 +169,6 @@ export function SourceSettings({ onClose }: { onClose(): void }) {
 
         <div className="source-settings-body">
           <p className="source-settings-intro">{t('sourceSettings.intro')}</p>
-          {error !== undefined && <div className="settings-error" role="alert">{error}</div>}
-          {notice !== undefined && <div className="settings-notice success" role="status">{notice}</div>}
 
           {automation !== undefined && (
             <section className="automation-settings" aria-labelledby="automation-settings-title">
@@ -181,7 +181,6 @@ export function SourceSettings({ onClose }: { onClose(): void }) {
                   <span>{t('sourceSettings.mode')}</span>
                   <select value={automation.mode} onChange={(event) => {
                     setAutomation({ ...automation, mode: event.target.value as AutomationSettings['mode'] })
-                    setNotice(undefined)
                   }}>
                     <option value="observe">{t('sourceSettings.observe')}</option>
                     <option value="active">{t('sourceSettings.active')}</option>
@@ -191,14 +190,12 @@ export function SourceSettings({ onClose }: { onClose(): void }) {
                   <span>{t('sourceSettings.pendingLimit')}</span>
                   <input type="number" min={1} max={200} value={automation.maxPendingSuggestions} onChange={(event) => {
                     setAutomation({ ...automation, maxPendingSuggestions: Number(event.target.value) })
-                    setNotice(undefined)
                   }} />
                 </label>
                 <label>
                   <span>{t('sourceSettings.cooldown')}</span>
                   <input type="number" min={0} max={10080} value={automation.suggestionCooldownMinutes} onChange={(event) => {
                     setAutomation({ ...automation, suggestionCooldownMinutes: Number(event.target.value) })
-                    setNotice(undefined)
                   }} />
                 </label>
               </div>

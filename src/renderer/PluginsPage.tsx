@@ -24,6 +24,7 @@ import type {
   ConnectorTestResult,
 } from '../shared/models'
 import { SkillsPanel } from './SkillsPanel'
+import { notifySuccess, useErrorToast } from './notifications'
 import './plugins-page.css'
 
 type PluginsTab = 'plugins' | 'skills'
@@ -47,8 +48,9 @@ export function PluginsPage() {
   const [loading, setLoading] = useState(true)
   const [busyId, setBusyId] = useState<string>()
   const [error, setError] = useState<string>()
-  const [notice, setNotice] = useState<string>()
   const [testResults, setTestResults] = useState<Record<string, ConnectorTestResult>>({})
+
+  useErrorToast(error)
 
   useEffect(() => {
     void reload()
@@ -141,7 +143,6 @@ export function PluginsPage() {
     setSelectedKind(definition.kind)
     setEditor(startCreating ? { definition } : undefined)
     setError(undefined)
-    setNotice(undefined)
   }
 
   function openEdit(connector: ConnectorInstance): void {
@@ -162,7 +163,6 @@ export function PluginsPage() {
     if (editor === undefined) return
     setBusyId(editor.instance?.id ?? 'new')
     setError(undefined)
-    setNotice(undefined)
     try {
       const connector = editor.instance === undefined
         ? await window.barn.connectors.create({
@@ -182,7 +182,7 @@ export function PluginsPage() {
       }
       setSelectedKind(editor.definition.kind)
       setEditor(undefined)
-      setNotice(t('connectorSettings.saved', { name: connector.name }))
+      notifySuccess(t('connectorSettings.saved', { name: connector.name }))
       await reload()
     } catch (reason) {
       setError(errorMessage(reason))
@@ -229,9 +229,6 @@ export function PluginsPage() {
           </button>
         )}
       </label>
-
-      {error !== undefined && <div className="settings-error" role="alert">{error}</div>}
-      {notice !== undefined && <div className="settings-notice success" role="status">{notice}</div>}
 
       {tab === 'skills' ? (
         <section role="tabpanel" aria-label={t('plugins.skills')}>
@@ -317,9 +314,6 @@ export function PluginsPage() {
           defaultValue: selectedDefinition.description,
         })}
       </p>
-
-      {error !== undefined && <div className="settings-error" role="alert">{error}</div>}
-      {notice !== undefined && <div className="settings-notice success" role="status">{notice}</div>}
 
       <section className="plugins-detail-section" aria-labelledby="plugin-connections-title">
         <div className="plugins-detail-section-header">

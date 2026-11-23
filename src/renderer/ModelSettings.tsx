@@ -12,6 +12,7 @@ import {
   X,
 } from 'lucide-react'
 import { TooltipButton } from './components/TooltipButton'
+import { notifyError, notifySuccess, useErrorToast } from './notifications'
 import {
   REASONING_EFFORTS,
   resolveReasoningEffort,
@@ -39,10 +40,11 @@ export function ModelSettings({ snapshot, onSnapshot, onClose }: ModelSettingsPr
   const [apiKey, setApiKey] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string>()
-  const [notice, setNotice] = useState<{ kind: 'ok' | 'error'; message: string }>()
   const [creating, setCreating] = useState(false)
   const [editingProviderId, setEditingProviderId] = useState<string>()
   const [testing, setTesting] = useState(false)
+
+  useErrorToast(error)
 
   const providers = useMemo(() => {
     const normalized = query.trim().toLowerCase()
@@ -149,18 +151,19 @@ export function ModelSettings({ snapshot, onSnapshot, onClose }: ModelSettingsPr
         ? undefined
         : { providerId: selectedProvider.id, modelId: models[0].id }
     if (selection === undefined) {
-      setNotice({ kind: 'error', message: t('settings.selectModelFirst') })
+      notifyError(t('settings.selectModelFirst'))
       return
     }
     setTesting(true)
-    setNotice(undefined)
     try {
       const result = await window.barn.models.testModel(selection)
-      setNotice(result.ok
-        ? { kind: 'ok', message: t('settings.connectionSucceededMs', { latency: result.latencyMs, text: result.text ?? 'OK' }) }
-        : { kind: 'error', message: result.error ?? t('settings.connectionFailed') })
+      if (result.ok) {
+        notifySuccess(t('settings.connectionSucceededMs', { latency: result.latencyMs, text: result.text ?? 'OK' }))
+      } else {
+        notifyError(result.error ?? t('settings.connectionFailed'))
+      }
     } catch (reason) {
-      setNotice({ kind: 'error', message: errorMessage(reason, t) })
+      notifyError(errorMessage(reason, t))
     } finally {
       setTesting(false)
     }
@@ -201,13 +204,6 @@ export function ModelSettings({ snapshot, onSnapshot, onClose }: ModelSettingsPr
           </TooltipButton>
         </header>
 
-        {error !== undefined && <div className="settings-error" role="alert">{error}</div>}
-        {notice !== undefined && (
-          <div className={notice.kind === 'ok' ? 'settings-notice success' : 'settings-notice'} role="status">
-            {notice.message}
-          </div>
-        )}
-
         {creating || editingProviderId !== undefined ? (
           <CustomProviderForm
             key={editingProviderId ?? 'new-provider'}
@@ -230,9 +226,11 @@ export function ModelSettings({ snapshot, onSnapshot, onClose }: ModelSettingsPr
               setEditingProviderId(undefined)
               void window.barn.models.getModels(providerId).then(setModels).catch(() => undefined)
               if (testResult !== undefined) {
-                setNotice(testResult.ok
-                  ? { kind: 'ok', message: t('settings.connectionSucceeded', { latency: testResult.latencyMs }) }
-                  : { kind: 'error', message: testResult.error ?? t('settings.connectionTestFailed') })
+                if (testResult.ok) {
+                  notifySuccess(t('settings.connectionSucceeded', { latency: testResult.latencyMs }))
+                } else {
+                  notifyError(testResult.error ?? t('settings.connectionTestFailed'))
+                }
               }
             }}
           />
@@ -448,6 +446,8 @@ function CustomProviderForm({
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string>()
 
+  useErrorToast(error)
+
   const modelsValid = draftModels.length > 0 && draftModels.every((model) => {
     return model.id.trim().length > 0
       && model.name.trim().length > 0
@@ -594,7 +594,6 @@ function CustomProviderForm({
           <span>{mode === 'edit' ? t('settings.providerConfiguration') : t('settings.providerSetup')}</span>
           <h3>{mode === 'edit' ? t('settings.editProviderTitle', { name: initialProvider?.name ?? t('settings.customProvider') }) : t('settings.addProviderTitle')}</h3>
         </div>
-        {error !== undefined && <div className="settings-error">{error}</div>}
         {mode === 'create' && (
           <button className="preset-card ark" type="button" onClick={applyArkPreset}>
             <span>{t('settings.quickSetup')}</span>

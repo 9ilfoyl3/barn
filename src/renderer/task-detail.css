@@ -300,10 +300,6 @@
   line-height: 1.55;
 }
 
-.task-detail-error {
-  margin: 8px 0 14px;
-}
-
 .task-detail-quick-actions {
   display: flex;
   flex-wrap: wrap;

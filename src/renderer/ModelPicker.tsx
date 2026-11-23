@@ -25,6 +25,7 @@ import {
 } from '../shared/models'
 import { SecondaryMenu } from './components/SecondaryMenu'
 import type { FloatingMenuSide } from './floating-menu'
+import { useErrorToast } from './notifications'
 
 interface ModelPickerProps {
   snapshot: ModelConfigSnapshot | undefined
@@ -67,6 +68,8 @@ export function ModelPicker({
   const [busyKey, setBusyKey] = useState<string>()
   const [optimisticEffort, setOptimisticEffort] = useState<OptimisticEffort>()
   const [previewEffort, setPreviewEffort] = useState<ReasoningEffort>()
+
+  useErrorToast(error)
 
   const providerNames = useMemo(
     () => new Map((snapshot?.providers ?? []).map((provider) => [provider.id, provider.name])),
@@ -357,7 +360,6 @@ export function ModelPicker({
                 )}
               </div>
 
-              {error !== undefined && <div className="model-picker-error" role="alert">{error}</div>}
             </>
           ) : (
             <div className="effort-card">

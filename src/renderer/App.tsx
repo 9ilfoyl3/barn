@@ -41,6 +41,7 @@ import { SourceSettings } from './SourceSettings'
 import { PluginsPage } from './PluginsPage'
 import { DiagnosticsSettings } from './DiagnosticsSettings'
 import { SettingsPage } from './SettingsPage'
+import { AppToaster, useErrorToast } from './notifications'
 import { AttachmentStrip } from './AttachmentStrip'
 import { BrowserPanel, type BrowserQuickAction } from './BrowserPanel'
 import { UtilityPanel, type UtilityTab, type UtilityTabType } from './UtilityPanel'
@@ -147,6 +148,7 @@ export function App() {
   const [utilityOpen, setUtilityOpen] = useState(false)
   const [utilityTabs, setUtilityTabs] = useState<UtilityTab[]>([])
   const [activeUtilityTabId, setActiveUtilityTabId] = useState<string>()
+  useErrorToast(error)
   const [browserState, setBrowserState] = useState<BrowserState>({
     open: false,
     visible: false,
@@ -1286,11 +1288,6 @@ export function App() {
 
                   </MessageBubbleGroup>
                 )}
-                {error !== undefined && (
-                  <div className="error-banner" role="alert">
-                    {error}
-                  </div>
-                )}
               </section>
 
               <span
@@ -1505,6 +1502,7 @@ export function App() {
       )}
       {sourceSettingsOpen && <SourceSettings onClose={() => setSourceSettingsOpen(false)} />}
       {diagnosticsOpen && <DiagnosticsSettings onClose={() => setDiagnosticsOpen(false)} />}
+      <AppToaster />
     </div>
   )
 }

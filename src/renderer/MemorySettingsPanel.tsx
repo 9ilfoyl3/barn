@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { Brain, Pin, PinOff, Trash2 } from 'lucide-react'
 import type { MemoryEntry, MemorySettings } from '../shared/models'
 import { TooltipButton } from './components/TooltipButton'
+import { notifySuccess, useErrorToast } from './notifications'
 import './memory-settings.css'
 
 const DEFAULT_SETTINGS: MemorySettings = {
@@ -22,7 +23,8 @@ export function MemorySettingsPanel({ onChanged }: { onChanged?(): void }) {
   const [busy, setBusy] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string>()
-  const [notice, setNotice] = useState<string>()
+
+  useErrorToast(error)
 
   useEffect(() => {
     let active = true
@@ -51,11 +53,10 @@ export function MemorySettingsPanel({ onChanged }: { onChanged?(): void }) {
   async function saveSettings(): Promise<void> {
     setBusy(true)
     setError(undefined)
-    setNotice(undefined)
     try {
       const saved = await window.barn.memory.setSettings(settings)
       setSettings(saved)
-      setNotice(t('memorySettings.saved'))
+      notifySuccess(t('memorySettings.saved'))
       onChanged?.()
     } catch (reason) {
       setError(errorMessage(reason))
@@ -80,12 +81,11 @@ export function MemorySettingsPanel({ onChanged }: { onChanged?(): void }) {
   async function deleteMemory(id: string): Promise<void> {
     setBusy(true)
     setError(undefined)
-    setNotice(undefined)
     try {
       await window.barn.memory.delete(id)
       setEntries((current) => current.filter((entry) => entry.id !== id))
       setPendingDelete(undefined)
-      setNotice(t('memorySettings.deleted'))
+      notifySuccess(t('memorySettings.deleted'))
       onChanged?.()
     } catch (reason) {
       setError(errorMessage(reason))
@@ -103,9 +103,6 @@ export function MemorySettingsPanel({ onChanged }: { onChanged?(): void }) {
           <p>{t('memorySettings.description')}</p>
         </div>
       </div>
-
-      {error !== undefined && <div className="settings-error" role="alert">{error}</div>}
-      {notice !== undefined && <div className="settings-notice success" role="status">{notice}</div>}
 
       {loading ? <p className="diagnostics-muted">{t('common.loading')}</p> : (
         <>

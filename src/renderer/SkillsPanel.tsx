@@ -16,6 +16,7 @@ import {
 } from 'lucide-react'
 import { Streamdown } from 'streamdown'
 import type { SkillDetail, SkillSummary } from '../shared/models'
+import { notifySuccess, useErrorToast } from './notifications'
 import './skills-panel.css'
 
 type SkillCategory = 'all' | 'system' | 'custom'
@@ -34,9 +35,10 @@ export function SkillsPanel({ query }: { query: string }) {
   const [busyId, setBusyId] = useState<string>()
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string>()
-  const [notice, setNotice] = useState<string>()
   const [copied, setCopied] = useState(false)
   const importRef = useRef<HTMLInputElement>(null)
+
+  useErrorToast(error)
 
   useEffect(() => {
     void reload()
@@ -84,16 +86,15 @@ export function SkillsPanel({ query }: { query: string }) {
   async function saveSkill(input: { name: string; description: string; instructions: string }): Promise<void> {
     setSaving(true)
     setError(undefined)
-    setNotice(undefined)
     try {
       if (editor?.mode === 'edit') {
         const updated = await window.barn.skills.update(editor.skill.id, input)
         setSelected(updated)
-        setNotice(t('plugins.skillUi.updated'))
+        notifySuccess(t('plugins.skillUi.updated'))
       } else {
         const created = await window.barn.skills.create(input)
         setSelected(created)
-        setNotice(t('plugins.skillUi.created'))
+        notifySuccess(t('plugins.skillUi.created'))
       }
       setEditor(undefined)
       setCopied(false)
@@ -113,7 +114,7 @@ export function SkillsPanel({ query }: { query: string }) {
       await window.barn.skills.remove(skill.id)
       setSelected(undefined)
       setEditor(undefined)
-      setNotice(t('plugins.skillUi.deleted'))
+      notifySuccess(t('plugins.skillUi.deleted'))
       await reload()
     } catch (reason) {
       setError(errorMessage(reason))
@@ -135,12 +136,11 @@ export function SkillsPanel({ query }: { query: string }) {
   async function importSkill(file: File): Promise<void> {
     setSaving(true)
     setError(undefined)
-    setNotice(undefined)
     try {
       const parsed = parseSkillMarkdown(await file.text(), file.name)
       const created = await window.barn.skills.create(parsed)
       setSelected(created)
-      setNotice(t('plugins.skillUi.imported'))
+      notifySuccess(t('plugins.skillUi.imported'))
       await reload()
     } catch (reason) {
       setError(errorMessage(reason))
@@ -202,9 +202,6 @@ export function SkillsPanel({ query }: { query: string }) {
           </button>
         </div>
       </div>
-
-      {error !== undefined && <div className="settings-error" role="alert">{error}</div>}
-      {notice !== undefined && <div className="settings-notice success" role="status">{notice}</div>}
 
       {loading ? (
         <div className="skills-loading" role="status">

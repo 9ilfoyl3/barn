@@ -33,9 +33,18 @@ test('shows diagnostics and runs local maintenance', async () => {
     await expect(dialog).toContainText('1')
     await dialog.getByRole('spinbutton', { name: 'Retention days' }).fill('30')
     await dialog.getByRole('button', { name: 'Save', exact: true }).click()
-    await expect(dialog.getByText('Retention setting saved.')).toBeVisible()
+    const retentionToast = page.locator('[data-sonner-toast]').filter({ hasText: 'Retention setting saved.' })
+    await expect(retentionToast).toBeVisible()
+    await page.waitForTimeout(500)
+    const toastPosition = await retentionToast.evaluate((toast) => {
+      const rect = toast.getBoundingClientRect()
+      return { center: rect.left + rect.width / 2, top: rect.top, viewport: window.innerWidth }
+    })
+    expect(Math.abs(toastPosition.center - toastPosition.viewport / 2)).toBeLessThan(2)
+    expect(toastPosition.top).toBeGreaterThanOrEqual(60)
+    expect(toastPosition.top).toBeLessThan(100)
     await dialog.getByRole('button', { name: 'Run cleanup' }).click()
-    await expect(dialog.getByText(/Cleanup removed/)).toBeVisible()
+    await expect(page.locator('[data-sonner-toast]').filter({ hasText: /Cleanup removed/ })).toBeVisible()
 
     await expect(dialog.getByRole('heading', { name: 'Agent memory' })).toBeVisible()
     await expect(dialog.getByText('No memories yet.')).toBeVisible()
@@ -43,8 +52,9 @@ test('shows diagnostics and runs local maintenance', async () => {
     await expect(memorySwitch).not.toBeChecked()
     await memorySwitch.check()
     await dialog.getByRole('button', { name: 'Save memory settings' }).click()
-    await expect(dialog.getByText('Memory settings saved.')).toBeVisible()
+    await expect(page.locator('[data-sonner-toast]').filter({ hasText: 'Memory settings saved.' })).toBeVisible()
     await expect.poll(() => page.evaluate(async () => (await window.barn.memory.getSettings()).enabled)).toBe(true)
+    await page.waitForTimeout(600)
     await page.screenshot({ path: 'test-results/barn-diagnostics.png', fullPage: true })
   } finally {
     await app.close()
