@@ -29,6 +29,12 @@ test('manages local skills from the Plugins page and exposes them to the Agent b
     await expect(skills.getByText('Meeting notes to actions')).toBeVisible()
     await expect(skills.getByText('System', { exact: true }).first()).toBeVisible()
 
+    const search = page.getByRole('searchbox', { name: 'Search skills' })
+    await search.focus()
+    await expect.poll(() => search.evaluate((input) => getComputedStyle(input).outlineStyle)).toBe('none')
+    await expect.poll(() => search.evaluate((input) => getComputedStyle(input.parentElement!).boxShadow)).not.toBe('none')
+    await page.screenshot({ path: 'test-results/barn-skills-search-focus.png', fullPage: true })
+
     await skills.getByRole('button', { name: 'New skill' }).click()
     const create = page.getByRole('dialog', { name: 'Create skill' })
     await page.screenshot({ path: 'test-results/barn-skill-editor.png', fullPage: true })
@@ -53,12 +59,12 @@ test('manages local skills from the Plugins page and exposes them to the Agent b
     await page.getByRole('dialog', { name: 'Weekly status' }).getByRole('button', { name: 'Close' }).click()
 
     const row = skills.locator('.skill-row', { hasText: 'Weekly status' })
-    await row.locator('input[type="checkbox"]').click()
+    await row.locator('.skill-switch').click()
     await expect.poll(async () => page.evaluate(async () => {
       const skill = (await window.barn.skills.list()).find((entry) => entry.name === 'Weekly status')
       return skill?.enabled
     })).toBe(false)
-    await row.locator('input[type="checkbox"]').click()
+    await row.locator('.skill-switch').click()
 
     await skills.locator('input[type="file"]').setInputFiles({
       name: 'launch-brief.md',

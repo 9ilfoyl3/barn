@@ -1,6 +1,10 @@
+/* Hallmark · checked: 2026-11-23 · genre: modern-minimal (inferred) · component: skill catalog row list · scope: component
+ * states: rest, hover, focus-visible, active, disabled, loading, empty, error · built: the project · redesign: polish · v2.0.0 */
+
 .skills-panel {
   display: grid;
   gap: 16px;
+  padding-top: 20px;
 }
 
 .skills-toolbar {
@@ -16,7 +20,7 @@
   display: flex;
   min-width: 0;
   align-items: center;
-  gap: 3px;
+  gap: 4px;
   flex-wrap: wrap;
 }
 
@@ -24,11 +28,11 @@
   display: inline-flex;
   min-height: 28px;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
   border: 0;
   border-radius: 7px;
   background: transparent;
-  padding: 0 9px;
+  padding: 0 8px;
   color: var(--text-faint);
   cursor: pointer;
   font: inherit;
@@ -42,6 +46,10 @@
   color: var(--text);
 }
 
+.skill-category-pill:active {
+  background: var(--panel-strong);
+}
+
 .skill-category-pill small {
   color: var(--text-faint);
   font-size: 8px;
@@ -51,7 +59,7 @@
 .skills-toolbar-actions {
   display: flex;
   align-items: center;
-  gap: 7px;
+  gap: 8px;
 }
 
 .skills-file-input {
@@ -64,9 +72,9 @@
   min-height: 31px;
   align-items: center;
   justify-content: center;
-  gap: 6px;
+  gap: 8px;
   border-radius: 8px;
-  padding: 0 11px;
+  padding: 0 12px;
   cursor: pointer;
   font: inherit;
   font-size: 10px;
@@ -82,6 +90,11 @@
 .skills-outline-button:hover:not(:disabled) {
   background: var(--panel-raised);
   color: var(--text);
+}
+
+.skills-outline-button:active:not(:disabled),
+.skills-primary-button:active:not(:disabled) {
+  background: var(--panel-strong);
 }
 
 .skills-outline-button.danger {
@@ -100,8 +113,10 @@
 
 .skills-outline-button:disabled,
 .skills-primary-button:disabled {
-  cursor: default;
-  opacity: 0.5;
+  border-color: var(--line);
+  background: var(--disabled-surface);
+  color: var(--text-faint);
+  cursor: not-allowed;
 }
 
 .skills-outline-button:focus-visible,
@@ -125,30 +140,32 @@
 .skill-row {
   display: grid;
   min-width: 0;
-  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  grid-template-columns: minmax(0, 1fr) auto auto;
   align-items: center;
-  gap: 11px;
+  gap: 12px;
   border: 1px solid transparent;
-  border-radius: 11px;
-  padding: 8px 9px;
-  transition:
-    border-color 140ms ease,
-    background 140ms ease;
+  border-radius: 10px;
+  padding: 12px 8px;
+  transition: background 140ms ease;
 }
 
 .skill-row:hover {
-  border-color: color-mix(in srgb, var(--line) 72%, transparent);
   background: color-mix(in srgb, var(--panel-raised) 58%, transparent);
 }
 
 .skill-row.disabled {
-  opacity: 0.68;
+  background: transparent;
+}
+
+.skill-row.disabled .skill-row-main {
+  opacity: 0.58;
 }
 
 .skill-row-icon {
   display: grid;
-  width: 38px;
-  height: 38px;
+  width: 40px;
+  height: 40px;
+  flex: 0 0 auto;
   place-items: center;
   border: 1px solid var(--line);
   border-radius: 10px;
@@ -157,10 +174,12 @@
 }
 
 .skill-row-main {
-  display: grid;
+  display: flex;
   min-width: 0;
-  gap: 2px;
+  align-items: center;
+  gap: 12px;
   border: 0;
+  border-radius: 8px;
   background: transparent;
   padding: 0;
   color: inherit;
@@ -168,18 +187,27 @@
   text-align: left;
 }
 
+.skill-row-copy {
+  display: grid;
+  min-width: 0;
+  flex: 1;
+  gap: 2px;
+}
+
 .skill-row-title {
   display: flex;
   min-width: 0;
   align-items: center;
-  gap: 7px;
+  gap: 8px;
 }
 
 .skill-row-title strong {
   overflow: hidden;
   color: var(--text);
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 560;
+  letter-spacing: -0.008em;
+  line-height: 1.4;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -187,33 +215,16 @@
 .skill-row-main small {
   overflow: hidden;
   color: var(--text-faint);
-  font-size: 10px;
-  line-height: 1.45;
+  font-size: 11px;
+  line-height: 1.4;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.skill-source {
-  display: inline-flex;
-  flex: 0 0 auto;
-  align-items: center;
-  border-radius: 999px;
-  background: var(--panel-raised);
-  padding: 2px 6px;
-  color: var(--text-faint);
-  font-size: 8px;
-  font-weight: 560;
-}
-
-.skill-source-system {
-  background: color-mix(in srgb, var(--accent) 9%, var(--panel));
-  color: var(--accent);
-}
-
 .skill-row-open {
   display: grid;
-  width: 27px;
-  height: 27px;
+  width: 32px;
+  height: 32px;
   place-items: center;
   border: 0;
   border-radius: 7px;
@@ -227,12 +238,18 @@
   color: var(--text);
 }
 
+.skill-row-open:active {
+  background: var(--panel-strong);
+}
+
 .skill-switch {
   position: relative;
   display: inline-flex;
-  width: 30px;
-  height: 18px;
+  width: 32px;
+  height: 32px;
   flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
 }
 
 .skill-switch input {
@@ -241,7 +258,7 @@
 }
 
 .skill-switch > span {
-  width: 30px;
+  width: 32px;
   height: 18px;
   border-radius: 999px;
   background: var(--line-strong);
@@ -265,7 +282,7 @@
 }
 
 .skill-switch input:checked + span::after {
-  transform: translateX(12px);
+  transform: translateX(14px);
 }
 
 .skill-switch input:focus-visible + span {
@@ -275,8 +292,8 @@
 
 .skill-lock {
   display: grid;
-  width: 30px;
-  height: 30px;
+  width: 32px;
+  height: 32px;
   place-items: center;
   color: var(--text-faint);
 }
@@ -317,7 +334,7 @@
   inset: 0;
   display: grid;
   place-items: center;
-  background: color-mix(in srgb, #000 30%, transparent);
+  background: var(--overlay);
   padding: 24px;
 }
 
@@ -332,7 +349,7 @@
   border-radius: 15px;
   background: var(--panel);
   padding: 20px;
-  box-shadow: 0 24px 70px color-mix(in srgb, #000 34%, transparent);
+  box-shadow: var(--card-shadow);
 }
 
 .skill-editor-dialog {
@@ -373,11 +390,12 @@
   font-size: 17px;
   font-weight: 580;
   letter-spacing: -0.025em;
+  text-wrap: balance;
 }
 
 .skill-dialog-header p {
   max-width: 520px;
-  margin: 5px 0 0;
+  margin: 4px 0 0;
   color: var(--text-dim);
   font-size: 10px;
   line-height: 1.55;
@@ -405,17 +423,17 @@
   display: flex;
   min-width: 0;
   align-items: center;
-  gap: 7px;
+  gap: 8px;
   flex-wrap: wrap;
   border-top: 1px solid var(--line);
   border-bottom: 1px solid var(--line);
-  padding: 10px 0;
+  padding: 12px 0;
 }
 
 .skill-dialog-toggle {
   display: inline-flex;
   align-items: center;
-  gap: 7px;
+  gap: 8px;
   margin-right: auto;
   color: var(--text-dim);
   font-size: 10px;
@@ -446,14 +464,14 @@
 
 .skill-editor-fields {
   display: grid;
-  gap: 14px;
+  gap: 16px;
   overflow-y: auto;
   padding-right: 4px;
 }
 
 .skill-editor-fields label {
   display: grid;
-  gap: 6px;
+  gap: 8px;
   color: var(--text-dim);
   font-size: 10px;
 }
@@ -464,7 +482,7 @@
   border: 1px solid var(--line-strong);
   border-radius: 8px;
   background: var(--panel-raised);
-  padding: 9px 10px;
+  padding: 8px 12px;
   color: var(--text);
   font: inherit;
   font-size: 11px;
@@ -491,7 +509,7 @@
   justify-content: flex-end;
   gap: 8px;
   border-top: 1px solid var(--line);
-  padding-top: 15px;
+  padding-top: 16px;
 }
 
 @media (max-width: 640px) {
@@ -506,7 +524,7 @@
   }
 
   .skill-row {
-    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-columns: minmax(0, 1fr) auto;
   }
 
   .skill-row-open {
@@ -515,5 +533,16 @@
 
   .skill-dialog-backdrop {
     padding: 12px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skill-category-pill,
+  .skills-outline-button,
+  .skills-primary-button,
+  .skill-row,
+  .skill-switch > span,
+  .skill-switch > span::after {
+    transition: none;
   }
 }

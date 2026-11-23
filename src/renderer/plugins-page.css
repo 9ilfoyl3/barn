@@ -115,6 +115,12 @@
   font-size: 12px;
 }
 
+.plugins-page .plugins-search input:focus,
+.plugins-page .plugins-search input:focus-visible {
+  outline: none;
+  box-shadow: none;
+}
+
 .plugins-search input::placeholder {
   color: var(--text-faint);
 }

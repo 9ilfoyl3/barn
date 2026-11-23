@@ -221,17 +221,16 @@ export function SkillsPanel({ query }: { query: string }) {
         <ul className="skills-list">
           {visible.map((skill) => (
             <li className={skill.enabled ? 'skill-row' : 'skill-row disabled'} key={skill.id}>
-              <span className="skill-row-icon" aria-hidden="true">
-                {skill.source === 'system' ? <Sparkles size={17} /> : <BookOpen size={17} />}
-              </span>
               <button className="skill-row-main" type="button" onClick={() => void openSkill(skill)}>
-                <span className="skill-row-title">
-                  <strong>{skill.name}</strong>
-                  <span className={`skill-source skill-source-${skill.source}`}>
-                    {skill.source === 'system' ? t('plugins.skillUi.system') : t('plugins.skillUi.custom')}
-                  </span>
+                <span className="skill-row-icon" aria-hidden="true">
+                  {skill.source === 'system' ? <Sparkles size={18} /> : <BookOpen size={18} />}
                 </span>
-                <small>{skill.description}</small>
+                <span className="skill-row-copy">
+                  <span className="skill-row-title">
+                    <strong>{skill.name}</strong>
+                  </span>
+                  <small>{skill.description}</small>
+                </span>
               </button>
               {skill.source === 'custom' ? (
                 <label className="skill-switch" title={skill.enabled ? t('plugins.skillUi.enabled') : t('plugins.skillUi.disabled')}>
