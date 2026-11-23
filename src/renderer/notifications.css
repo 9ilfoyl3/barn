@@ -44,18 +44,6 @@
   line-height: 1.5;
 }
 
-.barn-toast-close {
-  border: 1px solid var(--line);
-  border-radius: 6px;
-  background: var(--panel-raised);
-  color: var(--text-faint);
-}
-
-.barn-toast-close:hover {
-  background: var(--panel-strong);
-  color: var(--text);
-}
-
 .barn-toast-action,
 .barn-toast-cancel {
   border-radius: 7px;

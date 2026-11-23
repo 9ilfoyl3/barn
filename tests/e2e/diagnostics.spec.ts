@@ -35,6 +35,7 @@ test('shows diagnostics and runs local maintenance', async () => {
     await dialog.getByRole('button', { name: 'Save', exact: true }).click()
     const retentionToast = page.locator('[data-sonner-toast]').filter({ hasText: 'Retention setting saved.' })
     await expect(retentionToast).toBeVisible()
+    await expect(retentionToast.locator('[data-close-button]')).toHaveCount(0)
     await page.waitForTimeout(500)
     const toastPosition = await retentionToast.evaluate((toast) => {
       const rect = toast.getBoundingClientRect()
