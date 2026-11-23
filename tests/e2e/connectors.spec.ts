@@ -159,7 +159,7 @@ test('configures and removes a GitHub token connector', async () => {
 })
 
 
-test('configures and removes a signed DingTalk robot from the plugins page', async () => {
+test('shows a simple DingTalk install and sign-in flow', async () => {
   const userData = await mkdtemp(join(tmpdir(), 'barn-desktop-dingtalk-e2e-'))
   const inheritedEnv = Object.fromEntries(
     Object.entries(process.env).filter((entry): entry is [string, string] => entry[1] !== undefined),
@@ -182,28 +182,14 @@ test('configures and removes a signed DingTalk robot from the plugins page', asy
     const plugins = page.locator('.plugins-page')
     await expect(plugins).toBeVisible()
     await plugins.locator('[data-plugin-kind="dingtalk"]').getByRole('button', { name: 'Add DingTalk' }).click()
-    await plugins.getByRole('textbox', { name: 'Connection name' }).fill('Team robot')
-    await plugins.getByRole('textbox', { name: 'Security keyword' }).fill('Barn')
-    await plugins.getByLabel('Robot webhook URL').fill('https://oapi.dingtalk.com/robot/send?access_token=test-token')
-    await plugins.getByLabel('Signing secret').fill('test-secret')
-    await plugins.getByRole('button', { name: 'Save', exact: true }).click()
-
-    await expect(plugins.locator('.plugin-instance-row')).toContainText('Team robot')
-    await expect(plugins.locator('.plugin-instance-row')).toContainText('Ready')
-    await expect.poll(async () => page.evaluate(async () => {
-      const instances = await window.barn.connectors.list()
-      return instances.map((instance) => ({
-        kind: instance.kind,
-        name: instance.name,
-        configured: instance.configured,
-        status: instance.status,
-      }))
-    })).toEqual([{ kind: 'dingtalk', name: 'Team robot', configured: true, status: 'ready' }])
-
+    const setup = plugins.locator('.dingtalk-setup')
+    await expect(setup).toContainText('Connect DingTalk')
+    await expect(setup).toContainText('small local connector')
+    await expect(setup.getByRole('button', { name: 'Install', exact: true })).toBeVisible()
+    await expect(setup.getByText(/\b(dws|cli)\b/iu)).toHaveCount(0)
     await page.screenshot({ path: 'test-results/barn-dingtalk.png', fullPage: true })
-    page.once('dialog', (confirmation) => void confirmation.accept())
-    await plugins.getByRole('button', { name: 'Remove connector' }).click()
-    await expect(plugins.getByText('No connections yet')).toBeVisible()
+    await setup.getByRole('button', { name: 'Cancel', exact: true }).click()
+    await expect(setup).toHaveCount(0)
   } finally {
     await app.close()
   }
@@ -285,21 +271,20 @@ test('shows and resolves a connector approval in the task center', async () => {
     await page.waitForLoadState('domcontentloaded')
     await page.evaluate(async () => {
       const connector = await window.barn.connectors.create({
-        kind: 'dingtalk',
-        name: 'Approval robot',
-        config: { keyword: 'Barn' },
+        kind: 'github',
+        name: 'Approval account',
+        config: {},
       })
       await window.barn.connectors.saveCredentials({
         connectorId: connector.id,
         values: {
-          webhookUrl: 'https://oapi.dingtalk.com/robot/send?access_token=test-token',
-          secret: 'test-secret',
+          token: 'github_pat_test-token',
         },
       })
       const result = await window.barn.connectors.call({
         connectorId: connector.id,
-        capability: 'dingtalk.send',
-        arguments: { text: 'Release is ready' },
+        capability: 'github.comment',
+        arguments: { owner: 'acme', repo: 'widgets', number: 7, body: 'Release is ready' },
       })
       if (result.kind !== 'action' || result.status !== 'pending_approval') {
         throw new Error(`Expected a pending connector action, received ${JSON.stringify(result)}`)
@@ -309,8 +294,8 @@ test('shows and resolves a connector approval in the task center', async () => {
     await page.getByRole('button', { name: 'Tasks', exact: true }).click()
     await expect(page.getByRole('heading', { name: 'Connector actions' })).toBeVisible()
     const connectorGroup = page.locator('.connector-action-group')
-    await expect(connectorGroup).toContainText('Send DingTalk message')
-    await expect(connectorGroup).toContainText('Approval robot')
+    await expect(connectorGroup).toContainText('Comment on an issue or pull request')
+    await expect(connectorGroup).toContainText('Approval account')
     await expect(connectorGroup).toContainText('Needs approval')
     await page.screenshot({ path: 'test-results/barn-connector-approval.png', fullPage: true })
 

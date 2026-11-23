@@ -1,6 +1,6 @@
 import { mkdir } from 'node:fs/promises'
 import { join } from 'node:path'
-import { app, BrowserWindow, dialog, nativeTheme, powerMonitor, shell, type IpcMainInvokeEvent } from 'electron'
+import { app, BrowserWindow, dialog, nativeTheme, net, powerMonitor, shell, type IpcMainInvokeEvent } from 'electron'
 import { registerModelIpc } from './ipc'
 import { ModelService } from './models/model-service'
 import { registerRuntimeIpc } from './platform/runtime-ipc'
@@ -48,9 +48,11 @@ import { ConnectorCredentialStore } from './connectors/connector-credentials'
 import { builtinConnectorDefinitions } from './connectors/catalog'
 import { EmailConnectorAdapter } from './connectors/email-adapter'
 import { DingTalkConnectorAdapter } from './connectors/dingtalk-adapter'
+import { DingTalkRuntime } from './connectors/dingtalk-runtime'
 import { GithubConnectorAdapter } from './connectors/github-adapter'
 import { WeComMailConnectorAdapter } from './connectors/wecom-mail-adapter'
 import { registerConnectorIpc } from './connectors/connector-ipc'
+import { registerDingTalkIpc } from './connectors/dingtalk-ipc'
 import { ElectronSecretCodec } from './models/electron-secret-codec'
 import { registerTerminalIpc } from './terminal/terminal-ipc'
 import { SkillService } from './skills/skill-service'
@@ -222,6 +224,9 @@ void app.whenReady().then(async () => {
   ])
   const memoryService = new MemoryService(sessionStore.memories)
   skillService = new SkillService(sessionStore.skills)
+  const dingTalkRuntime = new DingTalkRuntime(join(userData, 'connectors'), {
+    fetch: (input, init) => net.fetch(input instanceof URL ? input.toString() : input, init),
+  })
   connectorService = new ConnectorService(
     sessionStore.connectors,
     new ConnectorCredentialStore(join(userData, 'connectors', 'credentials.enc'), new ElectronSecretCodec()),
@@ -232,7 +237,7 @@ void app.whenReady().then(async () => {
       adapters: [
         new EmailConnectorAdapter(),
         new GithubConnectorAdapter(),
-        new DingTalkConnectorAdapter(),
+        new DingTalkConnectorAdapter(dingTalkRuntime),
         new WeComMailConnectorAdapter(),
       ],
     },
@@ -301,6 +306,7 @@ void app.whenReady().then(async () => {
   registerModelIpc(modelService, trustedSender)
   registerMemoryIpc(memoryService, trustedSender)
   registerConnectorIpc(connectorService, trustedSender)
+  registerDingTalkIpc(dingTalkRuntime, trustedSender)
   registerSkillIpc(skillService, trustedSender)
   registerSessionIpc(sessionStore, agentService, join(workspaceRoot, 'attachments'), trustedSender, () => nativeLocale())
   registerThreadIpc(threadService, trustedSender)

@@ -749,6 +749,50 @@
   line-height: 1.55;
 }
 
+.dingtalk-setup-status {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--panel-raised) 62%, transparent);
+  padding: 11px 12px;
+  color: var(--text-dim);
+}
+
+.dingtalk-setup-status.connected,
+.dingtalk-setup-status.ready {
+  border-color: color-mix(in srgb, var(--green) 24%, var(--line));
+}
+
+.dingtalk-setup-status.connected > svg,
+.dingtalk-setup-status.ready > svg {
+  color: var(--green);
+}
+
+.dingtalk-setup-status > div {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.dingtalk-setup-status strong {
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 570;
+}
+
+.dingtalk-setup-status p {
+  margin: 0;
+  font-size: 10px;
+  line-height: 1.55;
+}
+
+.dingtalk-setup-status small {
+  color: var(--text-faint);
+  font-size: 10px;
+}
+
 .plugin-editor > label,
 .plugin-editor-grid label {
   display: grid;

@@ -22,9 +22,10 @@ import type {
   ConnectorInstance,
   ConnectorSetupField,
   ConnectorTestResult,
+  DingTalkRuntimeStatus,
 } from '../shared/models'
 import { SkillsPanel } from './SkillsPanel'
-import { notifySuccess, useErrorToast } from './notifications'
+import { notifyError, notifySuccess, useErrorToast } from './notifications'
 import './plugins-page.css'
 
 type PluginsTab = 'plugins' | 'skills'
@@ -37,8 +38,66 @@ interface EditorState {
 
 const CATEGORY_ORDER: readonly ConnectorCategory[] = ['integrations', 'china']
 
+const DINGTALK_CAPABILITY_COPY = {
+  'dingtalk.contactSearch': {
+    en: { name: 'Search contacts', description: 'Search DingTalk colleagues and contacts by name or keyword.' },
+    zh: { name: '搜索联系人', description: '按姓名或关键词搜索钉钉同事和联系人。' },
+  },
+  'dingtalk.calendarList': {
+    en: { name: 'Read calendar', description: 'List calendar events for a date range.' },
+    zh: { name: '读取日历', description: '按时间范围列出钉钉日历日程。' },
+  },
+  'dingtalk.todoList': {
+    en: { name: 'Read tasks', description: 'List personal DingTalk tasks.' },
+    zh: { name: '读取待办', description: '列出当前账号的钉钉待办。' },
+  },
+  'dingtalk.chatSearch': {
+    en: { name: 'Search messages', description: 'Search DingTalk messages by keyword, conversation, and time range.' },
+    zh: { name: '搜索消息', description: '按关键词、会话和时间范围搜索钉钉消息。' },
+  },
+  'dingtalk.send': {
+    en: { name: 'Send message', description: 'Send a DingTalk message as the connected user after approval.' },
+    zh: { name: '发送消息', description: '经你批准后，以当前登录用户身份发送钉钉消息。' },
+  },
+} as const
+
+const DINGTALK_SETUP_COPY = {
+  en: {
+    title: 'Connect DingTalk',
+    intro: 'Barn installs a small local connector so the Agent can work with your DingTalk account. Installation is confirmed here and your sign-in happens in the browser.',
+    install: 'Install',
+    installing: 'Installing…',
+    signIn: 'Sign in to DingTalk',
+    signingIn: 'Waiting for sign-in…',
+    installed: 'Installation complete',
+    installedDescription: 'Sign in with your browser to let Barn access DingTalk with your account permissions.',
+    connected: 'DingTalk connected',
+    connectedDescription: 'Your DingTalk account is ready. Barn will ask before sending messages or making changes.',
+    connectedAs: 'Connected as',
+    reconnect: 'Sign in again',
+    done: 'Done',
+    checking: 'Checking DingTalk…',
+  },
+  zh: {
+    title: '连接钉钉',
+    intro: 'Barn 会在本机安装一个小型连接组件，让 Agent 可以使用你的钉钉账号。安装会在这里确认，登录将在浏览器中完成。',
+    install: '确认安装',
+    installing: '正在安装…',
+    signIn: '登录钉钉',
+    signingIn: '等待登录完成…',
+    installed: '安装完成',
+    installedDescription: '请在浏览器中登录，并授权 Barn 使用你的钉钉账号。',
+    connected: '钉钉已连接',
+    connectedDescription: '你的钉钉账号已就绪。Barn 在发送消息或执行修改前会先征求确认。',
+    connectedAs: '当前账号',
+    reconnect: '重新登录',
+    done: '完成',
+    checking: '正在检查钉钉连接…',
+  },
+} as const
+
 export function PluginsPage() {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const [tab, setTab] = useState<PluginsTab>('plugins')
   const [query, setQuery] = useState('')
   const [definitions, setDefinitions] = useState<ConnectorDefinition[]>([])
@@ -112,6 +171,7 @@ export function PluginsPage() {
     setError(undefined)
     try {
       await window.barn.connectors.remove(connector.id)
+      if (connector.kind === 'dingtalk') await window.barn.dingtalk.logout().catch(() => undefined)
       setTestResults((current) => {
         const next = { ...current }
         delete next[connector.id]
@@ -388,7 +448,7 @@ export function PluginsPage() {
                     defaultValue: capability.name,
                   })}
                 </strong>
-                <small>{capabilityDescription(capability, t)}</small>
+                <small>{capabilityDescription(capability, t, i18n.language)}</small>
               </span>
             </li>
           ))}
@@ -492,7 +552,7 @@ function ConnectorInstanceRow({
   onTest(): void
   onRemove(): void
 }) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   return (
     <article className={`plugin-instance-row plugin-instance-row-${connector.status}`} data-connector-id={connector.id}>
       <span className="plugin-instance-mark" aria-hidden="true">
@@ -509,7 +569,7 @@ function ConnectorInstanceRow({
             {t(`connectorSettings.status.${connector.status}`)}
           </span>
         </div>
-        <p>{connector.capabilities.map((capability) => capabilityName(capability, t)).join(' · ')}</p>
+        <p>{connector.capabilities.map((capability) => capabilityName(capability, t, i18n.language)).join(' · ')}</p>
         {connector.lastError !== undefined && <small className="plugins-row-error">{connector.lastError}</small>}
         {testResult !== undefined && (
           <small className={testResult.ok ? 'plugins-row-success' : 'plugins-row-error'}>
@@ -556,12 +616,27 @@ function ConnectorEditor({
   onCancel(): void
   onSave(input: { name: string; config: ConnectorConfig; credentials: Record<string, string> }): void
 }) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const [name, setName] = useState(instance?.name ?? translatedDefinitionName(definition, t))
   const [config, setConfig] = useState<ConnectorConfig>(() => initialConfigFor(definition, instance))
   const [credentials, setCredentials] = useState<Record<string, string>>({})
   const translated = t as (key: string, options?: { defaultValue?: string }) => string
   const setupNote = translated(`connectorSettings.kinds.${definition.kind}.note`, { defaultValue: '' })
+
+  if (definition.kind === 'dingtalk') {
+    return (
+      <DingTalkSetup
+        instance={instance}
+        language={i18n.language}
+        onCancel={onCancel}
+        onComplete={() => onSave({
+          name: translatedDefinitionName(definition, t),
+          config: {},
+          credentials: {},
+        })}
+      />
+    )
+  }
 
   function setConfigValue(field: ConnectorSetupField, value: ConnectorConfigValue): void {
     setConfig((current) => ({ ...current, [field.key]: value }))
@@ -669,6 +744,126 @@ function ConnectorEditor({
       </div>
     </form>
   )
+}
+
+function DingTalkSetup({
+  instance,
+  language,
+  onCancel,
+  onComplete,
+}: {
+  instance?: ConnectorInstance | undefined
+  language: string
+  onCancel(): void
+  onComplete(): void
+}) {
+  const copy = DINGTALK_SETUP_COPY[language === 'zh-CN' ? 'zh' : 'en']
+  const [status, setStatus] = useState<DingTalkRuntimeStatus>()
+  const [busy, setBusy] = useState<'install' | 'login'>()
+
+  useEffect(() => {
+    let active = true
+    void window.barn.dingtalk.status().then((next) => {
+      if (active) setStatus(next)
+    }).catch((reason: unknown) => {
+      if (active) notifyError(errorMessage(reason))
+    })
+    return () => { active = false }
+  }, [])
+
+  async function install(): Promise<void> {
+    setBusy('install')
+    try {
+      const next = await window.barn.dingtalk.install()
+      setStatus(next)
+      notifySuccess(copy.installed)
+    } catch (reason) {
+      notifyError(errorMessage(reason))
+    } finally {
+      setBusy(undefined)
+    }
+  }
+
+  async function login(): Promise<void> {
+    setBusy('login')
+    try {
+      const next = await window.barn.dingtalk.login()
+      setStatus(next)
+      onComplete()
+    } catch (reason) {
+      notifyError(errorMessage(reason))
+    } finally {
+      setBusy(undefined)
+    }
+  }
+
+  const identity = [status?.userName, status?.organization].filter((value) => value !== undefined).join(' · ')
+  return (
+    <section className="plugin-editor dingtalk-setup" aria-label={copy.title}>
+      <header className="plugin-editor-header">
+        <div>
+          <span>{instance === undefined ? copy.title : copy.connected}</span>
+          <h3>{copy.title}</h3>
+        </div>
+      </header>
+
+      {status === undefined ? (
+        <div className="dingtalk-setup-status" role="status">
+          <LoaderCircle className="spin" size={16} aria-hidden="true" />
+          <span>{copy.checking}</span>
+        </div>
+      ) : status.authenticated ? (
+        <div className="dingtalk-setup-status connected" role="status">
+          <CheckCircle2 size={18} aria-hidden="true" />
+          <div>
+            <strong>{copy.connected}</strong>
+            <p>{copy.connectedDescription}</p>
+            {identity.length > 0 && <small>{copy.connectedAs}: {identity}</small>}
+          </div>
+        </div>
+      ) : status.installed ? (
+        <div className="dingtalk-setup-status ready" role="status">
+          <CheckCircle2 size={18} aria-hidden="true" />
+          <div>
+            <strong>{copy.installed}</strong>
+            <p>{copy.installedDescription}</p>
+          </div>
+        </div>
+      ) : (
+        <div className="plugin-editor-note">
+          <Info size={14} aria-hidden="true" />
+          <p>{copy.intro}</p>
+        </div>
+      )}
+
+      <footer className="plugin-editor-actions">
+        <button className="secondary-button" type="button" onClick={onCancel}>{tCancel(language)}</button>
+        {status?.authenticated ? (
+          <>
+            <button className="secondary-button" type="button" disabled={busy !== undefined} onClick={() => void login()}>
+              {busy === 'login' && <LoaderCircle className="spin" size={14} aria-hidden="true" />}
+              {busy === 'login' ? copy.signingIn : copy.reconnect}
+            </button>
+            <button className="primary-button" type="button" onClick={onComplete}>{copy.done}</button>
+          </>
+        ) : status?.installed ? (
+          <button className="primary-button" type="button" disabled={busy !== undefined} onClick={() => void login()}>
+            {busy === 'login' && <LoaderCircle className="spin" size={14} aria-hidden="true" />}
+            {busy === 'login' ? copy.signingIn : copy.signIn}
+          </button>
+        ) : (
+          <button className="primary-button" type="button" disabled={busy !== undefined || status === undefined} onClick={() => void install()}>
+            {busy === 'install' && <LoaderCircle className="spin" size={14} aria-hidden="true" />}
+            {busy === 'install' ? copy.installing : copy.install}
+          </button>
+        )}
+      </footer>
+    </section>
+  )
+}
+
+function tCancel(language: string): string {
+  return language === 'zh-CN' ? '取消' : 'Cancel'
 }
 
 function ConnectorIcon({
@@ -780,7 +975,6 @@ function capabilityTranslationKey(id: string): string {
   if (id === 'email.search') return 'emailSearch'
   if (id === 'email.read') return 'emailRead'
   if (id === 'email.send') return 'emailSend'
-  if (id === 'dingtalk.send') return 'dingtalkSend'
   if (id === 'wecomMail.search') return 'wecomMailSearch'
   if (id === 'wecomMail.get') return 'wecomMailGet'
   if (id === 'wecomMail.send') return 'wecomMailSend'
@@ -800,7 +994,10 @@ function capabilityTranslationKey(id: string): string {
 function capabilityDescription(
   capability: ConnectorCapabilityDefinition,
   t: ReturnType<typeof useTranslation>['t'],
+  language: string,
 ): string {
+  const dingtalkCopy = DINGTALK_CAPABILITY_COPY[capability.id as keyof typeof DINGTALK_CAPABILITY_COPY]
+  if (dingtalkCopy !== undefined) return language === 'zh-CN' ? dingtalkCopy.zh.description : dingtalkCopy.en.description
   const translate = t as (key: string, options?: { defaultValue?: string }) => string
   return translate(`connectorSettings.capabilityDescriptions.${capabilityTranslationKey(capability.id)}`, {
     defaultValue: capability.description,
@@ -810,7 +1007,10 @@ function capabilityDescription(
 function capabilityName(
   capability: ConnectorCapabilityDefinition,
   t: ReturnType<typeof useTranslation>['t'],
+  language: string,
 ): string {
+  const dingtalkCopy = DINGTALK_CAPABILITY_COPY[capability.id as keyof typeof DINGTALK_CAPABILITY_COPY]
+  if (dingtalkCopy !== undefined) return language === 'zh-CN' ? dingtalkCopy.zh.name : dingtalkCopy.en.name
   const translate = t as (key: string, options?: { defaultValue?: string }) => string
   return translate(`connectorSettings.capabilities.${capabilityTranslationKey(capability.id)}`, {
     defaultValue: capability.name,

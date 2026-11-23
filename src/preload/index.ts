@@ -46,6 +46,7 @@ import type {
   TerminalDataEvent,
   TerminalExitEvent,
   ConnectorBridge,
+  DingTalkBridge,
   CreateConnectorInput,
   UpdateConnectorInput,
   SaveConnectorCredentialsInput,
@@ -197,6 +198,13 @@ const connectors: ConnectorBridge = {
   cancelAction: (actionId: string) => ipcRenderer.invoke('connectors:cancel-action', actionId),
 }
 
+const dingtalk: DingTalkBridge = {
+  status: () => ipcRenderer.invoke('dingtalk:status'),
+  install: () => ipcRenderer.invoke('dingtalk:install'),
+  login: () => ipcRenderer.invoke('dingtalk:login'),
+  logout: () => ipcRenderer.invoke('dingtalk:logout'),
+}
+
 const permissions: PermissionBridge = {
   getPolicy: () => ipcRenderer.invoke('permissions:get-policy'),
   setPolicy: (policy: PermissionPolicy) => ipcRenderer.invoke('permissions:set-policy', policy),
@@ -286,5 +294,6 @@ const api: BarnBridge = {
   diagnostics,
   memory,
   connectors,
+  dingtalk,
 }
 contextBridge.exposeInMainWorld('barn', api)
