@@ -82,6 +82,79 @@ test('configures and removes an email connector from the plugins page', async ()
 })
 
 
+test('configures and removes a GitHub token connector', async () => {
+  const userData = await mkdtemp(join(tmpdir(), 'barn-desktop-github-e2e-'))
+  const inheritedEnv = Object.fromEntries(
+    Object.entries(process.env).filter((entry): entry is [string, string] => entry[1] !== undefined),
+  )
+  const app = await electron.launch({
+    args: ['.'],
+    env: {
+      ...inheritedEnv,
+      ELECTRON_DISABLE_SECURITY_WARNINGS: 'true',
+      BARN_USER_DATA_DIR: userData,
+      BARN_UI_LANGUAGE: 'en',
+    },
+  })
+
+  try {
+    const page = await app.firstWindow()
+    await page.waitForLoadState('domcontentloaded')
+    await page.locator('.app-rail-button', { hasText: 'Plugins' }).click()
+    const plugins = page.locator('.plugins-page')
+    const github = plugins.locator('[data-plugin-kind="github"]')
+    await expect(github).toContainText('GitHub')
+    await expect(github.locator('[data-brand-icon="github"] svg')).toHaveAttribute('viewBox', '0 0 24 24')
+    await github.getByRole('button', { name: 'Add GitHub' }).click()
+
+    const help = plugins.getByRole('link', { name: 'Create a GitHub personal access token' })
+    await expect(help).toHaveAttribute('href', 'https://github.com/settings/personal-access-tokens/new')
+    await plugins.getByRole('textbox', { name: 'Connection name' }).fill('GitHub work')
+    await plugins.getByLabel('Personal access token').fill('github_pat_test-token')
+    await page.screenshot({ path: 'test-results/barn-github-form.png', fullPage: true })
+    await plugins.getByRole('button', { name: 'Save', exact: true }).click()
+
+    await expect(plugins.locator('.plugin-instance-row')).toContainText('GitHub work')
+    await expect(plugins.locator('.plugin-instance-row')).toContainText('Ready')
+    await expect(plugins.getByText('Search repositories', { exact: true })).toBeVisible()
+    await expect.poll(async () => page.evaluate(async () => {
+      const instances = await window.barn.connectors.list()
+      return instances.map((instance) => ({
+        kind: instance.kind,
+        name: instance.name,
+        configured: instance.configured,
+        status: instance.status,
+        capabilities: instance.capabilities.map((capability) => capability.id),
+      }))
+    })).toEqual([{
+      kind: 'github',
+      name: 'GitHub work',
+      configured: true,
+      status: 'ready',
+      capabilities: [
+        'github.searchRepositories',
+        'github.searchIssues',
+        'github.listIssues',
+        'github.getIssue',
+        'github.listPullRequests',
+        'github.getPullRequest',
+        'github.createIssue',
+        'github.comment',
+      ],
+    }])
+    await page.waitForTimeout(500)
+    await page.screenshot({ path: 'test-results/barn-github.png', fullPage: true })
+
+    page.once('dialog', (confirmation) => void confirmation.accept())
+    await plugins.getByRole('button', { name: 'Remove connector' }).click()
+    await expect(plugins.getByText('No connections yet')).toBeVisible()
+    await expect.poll(async () => page.evaluate(async () => (await window.barn.connectors.list()).length)).toBe(0)
+  } finally {
+    await app.close()
+  }
+})
+
+
 test('configures and removes a signed DingTalk robot from the plugins page', async () => {
   const userData = await mkdtemp(join(tmpdir(), 'barn-desktop-dingtalk-e2e-'))
   const inheritedEnv = Object.fromEntries(

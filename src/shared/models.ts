@@ -155,7 +155,7 @@ export interface ConnectorDefinition {
   kind: string
   name: string
   description: string
-  icon: 'mail' | 'message-circle'
+  icon: 'github' | 'mail' | 'message-circle'
   configFields: ConnectorSetupField[]
   credentialFields: ConnectorSetupField[]
   capabilities: ConnectorCapabilityDefinition[]
