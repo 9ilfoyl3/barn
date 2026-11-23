@@ -7,6 +7,7 @@ import type { ShellService } from '../../src/main/sandbox/shell-service'
 import { AesGcmEventCipher } from '../../src/main/session/event-cipher'
 import { SessionStore } from '../../src/main/session/session-store'
 import { randomBytes } from 'node:crypto'
+import type { SkillService } from '../../src/main/skills/skill-service'
 
 async function createService(): Promise<{
   service: ToolService
@@ -72,6 +73,44 @@ describe('ToolService', () => {
     expect(filtered.details).toMatchObject({ matched: 1, returned: 1 })
     expect(filtered.content[0]?.type === 'text' ? filtered.content[0].text : '').toContain('green alternative')
     sessions.close()
+  })
+
+  it('lists enabled skills and reads their full instructions through tools', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'barn-tools-skills-'))
+    await Promise.all([
+      mkdir(join(root, 'workspace')),
+      mkdir(join(root, 'output')),
+      mkdir(join(root, 'temp')),
+    ])
+    const skillDetail = {
+      id: 'skill-1',
+      name: 'Weekly review',
+      description: 'Summarize the week.',
+      source: 'custom' as const,
+      enabled: true,
+      updatedAt: '2026-11-23T00:00:00.000Z',
+      instructions: '# Weekly review\n\nList outcomes.',
+    }
+    const skills = {
+      list: vi.fn(() => [skillDetail]),
+      get: vi.fn((id: string) => {
+        if (id !== skillDetail.id) throw new Error('Unknown skill')
+        return skillDetail
+      }),
+    } as unknown as SkillService
+    const service = new ToolService({
+      workspaceRoot: join(root, 'workspace'),
+      outputRoot: join(root, 'output'),
+      privateTempRoot: join(root, 'temp'),
+      shell: { run: vi.fn() } as unknown as ShellService,
+      skills,
+    })
+
+    const list = await service.execute('skill_list', {})
+    expect(list.content[0]?.type === 'text' ? list.content[0].text : '').toContain('Weekly review')
+    const read = await service.execute('skill_read', { id: 'skill-1' })
+    expect(read.content[0]?.type === 'text' ? read.content[0].text : '').toContain('List outcomes')
+    await expect(service.execute('skill_read', { id: 'missing' })).resolves.toMatchObject({ isError: true })
   })
 
   it('reads text with line ranges and metadata', async () => {

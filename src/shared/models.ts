@@ -248,6 +248,48 @@ export interface ConnectorBridge {
   cancelAction(actionId: string): Promise<ConnectorActionSummary>
 }
 
+export type SkillSource = 'system' | 'custom'
+
+export interface SkillSummary {
+  id: string
+  name: string
+  description: string
+  source: SkillSource
+  enabled: boolean
+  updatedAt: string
+}
+
+export interface SkillDetail extends SkillSummary {
+  instructions: string
+}
+
+export interface CreateSkillInput {
+  name: string
+  description: string
+  instructions: string
+}
+
+export interface UpdateSkillInput {
+  name?: string
+  description?: string
+  instructions?: string
+}
+
+export type SkillLiveEvent = {
+  type: 'skill.updated'
+  skill: SkillSummary
+}
+
+export interface SkillBridge {
+  list(): Promise<SkillSummary[]>
+  get(skillId: string): Promise<SkillDetail>
+  create(input: CreateSkillInput): Promise<SkillDetail>
+  update(skillId: string, input: UpdateSkillInput): Promise<SkillDetail>
+  setEnabled(skillId: string, enabled: boolean): Promise<SkillDetail>
+  remove(skillId: string): Promise<void>
+  onEvent(listener: (event: SkillLiveEvent) => void): () => void
+}
+
 export type VisibleMessageRole = 'user' | 'assistant' | 'system'
 
 /** The single user-visible Assistant history. Session IDs never define this identity. */
@@ -1021,6 +1063,7 @@ export interface BarnBridge {
   router: RouterBridge
   delegation: DelegationBridge
   tasks: TaskBridge
+  skills: SkillBridge
   permissions: PermissionBridge
   approvals: ApprovalBridge
   localSources: LocalSourceBridge

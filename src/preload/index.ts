@@ -50,6 +50,10 @@ import type {
   UpdateConnectorInput,
   SaveConnectorCredentialsInput,
   ConnectorCallInput,
+  SkillBridge,
+  CreateSkillInput,
+  UpdateSkillInput,
+  SkillLiveEvent,
 } from '../shared/models'
 
 const models: ModelBridge = {
@@ -165,6 +169,20 @@ const tasks: TaskBridge = {
 }
 
 
+const skills: SkillBridge = {
+  list: () => ipcRenderer.invoke('skills:list'),
+  get: (skillId: string) => ipcRenderer.invoke('skills:get', skillId),
+  create: (input: CreateSkillInput) => ipcRenderer.invoke('skills:create', input),
+  update: (skillId: string, input: UpdateSkillInput) => ipcRenderer.invoke('skills:update', { skillId, input }),
+  setEnabled: (skillId: string, enabled: boolean) => ipcRenderer.invoke('skills:set-enabled', { skillId, enabled }),
+  remove: (skillId: string) => ipcRenderer.invoke('skills:remove', skillId),
+  onEvent: (listener: (event: SkillLiveEvent) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, liveEvent: SkillLiveEvent): void => listener(liveEvent)
+    ipcRenderer.on('skills:event', handler)
+    return () => ipcRenderer.removeListener('skills:event', handler)
+  },
+}
+
 const connectors: ConnectorBridge = {
   listDefinitions: () => ipcRenderer.invoke('connectors:list-definitions'),
   list: () => ipcRenderer.invoke('connectors:list'),
@@ -260,6 +278,7 @@ const api: BarnBridge = {
   router,
   delegation,
   tasks,
+  skills,
   permissions,
   approvals,
   localSources,
