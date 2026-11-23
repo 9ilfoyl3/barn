@@ -17,12 +17,10 @@
   backdrop-filter: blur(14px);
 }
 
-[data-sonner-toast].barn-toast[data-type="success"] {
-  border-color: color-mix(in srgb, var(--green) 34%, var(--line-strong));
-}
-
+/* Semantic state stays on the icon; every toast uses the same neutral frame. */
+[data-sonner-toast].barn-toast[data-type="success"],
 [data-sonner-toast].barn-toast[data-type="error"] {
-  border-color: color-mix(in srgb, var(--danger) 38%, var(--line-strong));
+  border-color: var(--line-strong);
 }
 
 [data-sonner-toast].barn-toast[data-type="success"] [data-icon] {
