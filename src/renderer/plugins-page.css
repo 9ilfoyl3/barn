@@ -266,13 +266,24 @@
 }
 
 .plugin-artwork-email {
-  background: color-mix(in srgb, #dceeff 64%, var(--panel));
-  color: #1487d6;
+  background: light-dark(#eef7ff, var(--panel-raised));
+  color: #2c84d8;
 }
 
 .plugin-artwork-dingtalk {
-  background: color-mix(in srgb, #dceeff 64%, var(--panel));
+  background: light-dark(#ffffff, var(--panel-raised));
   color: #1677ff;
+}
+
+.plugin-brand-svg {
+  display: block;
+  width: 19px;
+  height: 19px;
+}
+
+.plugin-brand-svg.large {
+  width: 22px;
+  height: 22px;
 }
 
 .plugin-artwork-large {
