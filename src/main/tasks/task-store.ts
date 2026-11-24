@@ -437,7 +437,7 @@ export class TaskStore {
     const encrypted = this.cipher.encrypt(normalized, resultAssociatedData(taskId))
     this.database.prepare(`
       UPDATE tasks SET
-        status = ?, waiting_reason = ?, detail = ?, updated_at = ?, finished_at = ?,
+        status = ?, approval_id = NULL, waiting_reason = ?, detail = ?, updated_at = ?, finished_at = ?,
         result_ciphertext = ?, result_nonce = ?, result_tag = ?
       WHERE id = ?
     `).run(
@@ -446,6 +446,30 @@ export class TaskStore {
       normalized.summary,
       now,
       status === 'waiting' ? null : now,
+      encrypted.ciphertext,
+      encrypted.nonce,
+      encrypted.tag,
+      taskId,
+    )
+    return this.get(taskId)
+  }
+
+  /** Persist the Worker's report without claiming a pending external effect is complete. */
+  recordPendingResult(taskId: string, result: TaskResultEnvelope): Task {
+    const current = this.get(taskId)
+    if (current.status !== 'running' && current.status !== 'waiting') {
+      throw new Error(`A pending Task result cannot be recorded while the task is ${current.status}`)
+    }
+    const normalized = normalizeResult(result)
+    const encrypted = this.cipher.encrypt(normalized, resultAssociatedData(taskId))
+    this.database.prepare(`
+      UPDATE tasks SET
+        detail = ?, updated_at = ?,
+        result_ciphertext = ?, result_nonce = ?, result_tag = ?
+      WHERE id = ?
+    `).run(
+      normalized.summary,
+      new Date().toISOString(),
       encrypted.ciphertext,
       encrypted.nonce,
       encrypted.tag,

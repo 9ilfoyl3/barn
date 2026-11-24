@@ -81,6 +81,7 @@ const readInput = z.object({
 export interface BrowserToolContext {
   workingDirectory?: string | undefined
   sessionId?: string | undefined
+  taskId?: string | undefined
 }
 
 export interface BrowserToolServiceOptions {
@@ -153,6 +154,7 @@ export class BrowserToolService {
               title: 'Approve browser action',
               summary: classification.summary,
               details: classification.details,
+              ...(context.taskId === undefined ? {} : { taskId: context.taskId }),
             })
             if (outcome.decision === 'denied') return errorResult(outcome.reason)
             if (outcome.decision === 'approval_required') {

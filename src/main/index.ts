@@ -29,6 +29,7 @@ import { RouterService } from './router/router-service'
 import { ModelRouterDecisionEngine } from './router/router-decision'
 import { TaskRunner } from './tasks/task-runner'
 import { TaskService } from './tasks/task-service'
+import { TaskActionCoordinator } from './tasks/task-action-coordinator'
 import { SessionStore } from './session/session-store'
 import { scrubbedShellEnvironment } from './sandbox/environment'
 import { ToolService } from './tools/tool-service'
@@ -75,6 +76,7 @@ let taskRunner: TaskRunner | undefined
 let routerService: RouterService | undefined
 let permissionService: PermissionService | undefined
 let actionService: ActionService | undefined
+let taskActionCoordinator: TaskActionCoordinator | undefined
 let localSourceService: LocalSourceService | undefined
 let lifecycle: AlwaysOnLifecycle | undefined
 let diagnosticsService: DiagnosticsService | undefined
@@ -272,6 +274,9 @@ void app.whenReady().then(async () => {
   agentService = new AgentService(supervisor, modelService, sessionStore, tools, memoryService, threadService)
   await agentService.start()
   taskService = new TaskService(sessionStore.tasks)
+  permissionService = new PermissionService(sessionStore.permissions, taskService)
+  actionService = new ActionService(sessionStore.actions, permissionService)
+  taskActionCoordinator = new TaskActionCoordinator(taskService, actionService)
   taskConversationService = new TaskConversationService(
     taskService,
     sessionStore,
@@ -291,17 +296,25 @@ void app.whenReady().then(async () => {
         status: connector.status,
         capabilities: connector.capabilities.map((capability) => capability.id),
       })),
+      getPendingApprovals: () => permissionService?.listPending() ?? [],
     },
   )
   taskRunner = new TaskRunner(agentService, taskService, sessionStore, {
     routerRequestIdForTask: (taskId) => routerService?.getSnapshot().requests.findLast((request) => request.taskId === taskId)?.id,
+    taskEffectsForTask: (taskId) => actionService?.list()
+      .filter((action) => action.taskId === taskId)
+      .map((action) => ({
+        id: action.id,
+        status: action.status,
+        ...(action.approvalId === undefined ? {} : { approvalId: action.approvalId }),
+        ...(action.lastError === undefined ? {} : { lastError: action.lastError }),
+      })) ?? [],
   }, threadService)
   taskRunner.start()
   routerService.start()
-  permissionService = new PermissionService(sessionStore.permissions, taskService)
-  actionService = new ActionService(sessionStore.actions, permissionService)
-  actionService.start()
   connectorService.registerActionHandler(actionService)
+  actionService.start()
+  taskActionCoordinator.start()
   localSourceService = new LocalSourceService(sessionStore.localSources, taskService)
   localSourceService.start()
   registerModelIpc(modelService, trustedSender)
@@ -380,6 +393,8 @@ app.on('before-quit', () => {
   routerService = undefined
   taskService = undefined
   permissionService = undefined
+  taskActionCoordinator?.stop()
+  taskActionCoordinator = undefined
   actionService?.stop()
   actionService = undefined
   localSourceService?.stop()

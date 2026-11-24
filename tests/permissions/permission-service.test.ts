@@ -59,7 +59,7 @@ describe('PermissionService', () => {
     h.sessions.close()
   })
 
-  it('queues an approved task and cancels a denied task', async () => {
+  it('records a decision without owning the Task lifecycle', async () => {
     const h = await harness()
     const approvedTask = h.tasks.create({ title: 'Approved task', origin: 'user', prompt: 'Continue.' })
     const approved = h.permissions.request({
@@ -71,10 +71,10 @@ describe('PermissionService', () => {
     if (approved.decision !== 'approval_required') throw new Error('approval expected')
     h.permissions.resolve(approved.approval.id, 'approved')
     expect(h.tasks.get(approvedTask.id)).toMatchObject({
-      status: 'queued',
-      detail: 'Approved by a person.',
+      status: 'waiting',
+      waitingReason: 'approval',
+      approvalId: approved.approval.id,
     })
-    expect(h.tasks.get(approvedTask.id).approvalId).toBeUndefined()
 
     const deniedTask = h.tasks.create({ title: 'Denied task', origin: 'user', prompt: 'Continue.' })
     const denied = h.permissions.request({
@@ -86,8 +86,9 @@ describe('PermissionService', () => {
     if (denied.decision !== 'approval_required') throw new Error('approval expected')
     h.permissions.resolve(denied.approval.id, 'denied')
     expect(h.tasks.get(deniedTask.id)).toMatchObject({
-      status: 'cancelled',
-      detail: 'Denied by a person.',
+      status: 'waiting',
+      waitingReason: 'approval',
+      approvalId: denied.approval.id,
     })
     h.sessions.close()
   })

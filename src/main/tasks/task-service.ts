@@ -58,6 +58,12 @@ export class TaskService {
     return task
   }
 
+  recordPendingResult(taskId: string, result: TaskResultEnvelope): Task {
+    const task = this.store.recordPendingResult(taskId, result)
+    this.emit(task)
+    return task
+  }
+
   rescheduleReminder(taskId: string, scheduledFor: string): Task {
     const task = this.store.rescheduleReminder(taskId, scheduledFor)
     this.emit(task)

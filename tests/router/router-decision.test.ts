@@ -237,6 +237,64 @@ describe('ModelRouterDecisionEngine', () => {
     expect(stream.mock.calls[1]?.[1].messages.at(-1)?.content).toContain('did not match the route_decision schema')
   })
 
+  it('gives the Router pending approvals and the Task result summary', async () => {
+    const model = fakeModel(JSON.stringify({
+      tool: 'reply',
+      arguments: { text: 'Use the approval card in the Task result.' },
+      confidence: 0.99,
+      rationaleCodes: ['approval_card_visible'],
+    }))
+    const stream = vi.spyOn(model, 'streamSimple')
+    const engine = new ModelRouterDecisionEngine(model)
+    const taskId = '22222222-2222-4222-8222-222222222222'
+    const approvalId = '33333333-3333-4333-8333-333333333333'
+
+    await engine.decide({
+      ...input(),
+      activeTasks: [{
+        id: taskId,
+        title: 'Send the update',
+        status: 'waiting',
+        origin: 'user',
+        waitingReason: 'approval',
+        approvalId,
+        result: {
+          outcome: 'needs_review',
+          summary: 'The message is waiting for approval.',
+          artifacts: [],
+          evidenceRefs: [],
+          limitations: [],
+          externalEffectReceipts: [],
+        },
+        createdAt: '2026-11-24T00:00:00.000Z',
+        updatedAt: '2026-11-24T00:00:01.000Z',
+      }],
+      pendingApprovals: [{
+        id: approvalId,
+        kind: 'external-write',
+        title: 'Send update',
+        summary: 'Send the update to the team.',
+        taskId,
+        status: 'pending',
+        createdAt: '2026-11-24T00:00:01.000Z',
+      }],
+    })
+
+    const content = stream.mock.calls[0]?.[1].messages[1]?.content
+    expect(typeof content).toBe('string')
+    const context = JSON.parse(content as string) as {
+      pendingApprovals: Array<Record<string, unknown>>
+      activeTasks: Array<Record<string, unknown>>
+    }
+    expect(context.pendingApprovals[0]).toMatchObject({ id: approvalId, taskId, status: 'pending' })
+    expect(context.activeTasks[0]).toMatchObject({
+      id: taskId,
+      waitingReason: 'approval',
+      approvalId,
+      result: { summary: 'The message is waiting for approval.' },
+    })
+  })
+
   it('fails closed when the Router returns unstructured text', async () => {
     const engine = new ModelRouterDecisionEngine(fakeModel('A quick direct answer.'))
     await expect(engine.decide(input())).rejects.toThrow('invalid tool decision')
@@ -254,6 +312,7 @@ function input() {
     attachments: [],
     recentMessages,
     activeTasks: [],
+    pendingApprovals: [],
     connectors: [],
     workingDirectory: '/tmp/project',
     now: new Date('2026-11-18T00:00:00.000Z'),

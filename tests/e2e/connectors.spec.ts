@@ -307,10 +307,10 @@ test('shows and resolves a connector approval in the task center', async () => {
     const connectorGroup = page.locator('.connector-action-group')
     await expect(connectorGroup).toContainText('Comment on an issue or pull request')
     await expect(connectorGroup).toContainText('Approval account')
-    await expect(connectorGroup).toContainText('Needs approval')
+    await expect(connectorGroup).toContainText('Waiting for your decision')
     await page.screenshot({ path: 'test-results/barn-connector-approval.png', fullPage: true })
 
-    await connectorGroup.getByRole('button', { name: 'Dismiss' }).click()
+    await connectorGroup.getByRole('button', { name: 'Reject', exact: true }).click()
     await expect(page.getByRole('heading', { name: 'Connector actions' })).toBeVisible()
     await expect(connectorGroup).toContainText('Dismissed', { timeout: 6_000 })
   } finally {

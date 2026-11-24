@@ -19,7 +19,7 @@ export class PermissionService {
 
   constructor(
     private readonly store: PermissionStore,
-    private readonly tasks: Pick<TaskService, 'get' | 'requestApproval' | 'updateStatus'>,
+    private readonly tasks: Pick<TaskService, 'requestApproval'>,
   ) {}
 
   getPolicy(): PermissionPolicy {
@@ -56,18 +56,6 @@ export class PermissionService {
   /** Only the trusted Desktop surface calls this; a task cannot approve its own request. */
   resolve(approvalId: string, decision: 'approved' | 'denied'): ApprovalRequest {
     const approval = this.store.resolve(approvalId, decision)
-    if (approval.taskId !== undefined) {
-      try {
-        const task = this.tasks.get(approval.taskId)
-        if (task.status === 'waiting' && task.approvalId === approval.id) {
-          this.tasks.updateStatus(approval.taskId, decision === 'approved'
-            ? { status: 'queued', detail: 'Approved by a person.' }
-            : { status: 'cancelled', detail: 'Denied by a person.' })
-        }
-      } catch {
-        // An approval remains a valid audit record even if its Task was deleted or finished elsewhere.
-      }
-    }
     this.emitChange(approval)
     for (const listener of this.resolutionListeners) listener({ approval, decision })
     return approval

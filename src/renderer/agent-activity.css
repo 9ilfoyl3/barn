@@ -101,3 +101,21 @@
   background: var(--assistant-bubble-bg);
   padding: 10px 13px;
 }
+
+.task-approval-stack,
+.task-approval-card {
+  width: 100%;
+}
+
+.task-approval-stack {
+  display: grid;
+  gap: 8px;
+}
+
+.task-approval-details {
+  margin: 0;
+  color: var(--text-dim);
+  font-size: 12px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+}

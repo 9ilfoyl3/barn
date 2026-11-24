@@ -100,6 +100,7 @@ export interface ToolServiceOptions {
 export interface ToolExecutionContext {
   workingDirectory?: string | undefined
   sessionId?: string | undefined
+  taskId?: string | undefined
   signal?: AbortSignal | undefined
 }
 
@@ -122,6 +123,7 @@ export class ToolService {
       return browser.execute(toolName, rawArgs, {
         workingDirectory: context.workingDirectory,
         sessionId: context.sessionId,
+        ...(context.taskId === undefined ? {} : { taskId: context.taskId }),
       }, context.signal)
     }
 
@@ -193,7 +195,10 @@ export class ToolService {
       if (connectors === undefined) return errorResult('Connector tools are unavailable')
       try {
         const args = connectorCallInput.parse(rawArgs)
-        const result = await connectors.call(args, context.sessionId)
+        const result = await connectors.call(args, {
+          ...(context.sessionId === undefined ? {} : { sessionId: context.sessionId }),
+          ...(context.taskId === undefined ? {} : { taskId: context.taskId }),
+        })
         return { content: [{ type: 'text', text: JSON.stringify(result) }], details: { kind: result.kind } }
       } catch (error) {
         return errorResult(error instanceof Error ? error.message : String(error))

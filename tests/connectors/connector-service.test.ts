@@ -139,16 +139,18 @@ describe('ConnectorService', () => {
 
   it('queues external writes instead of executing them', async () => {
     const h = await harness()
+    const taskId = randomUUID()
     const result = await h.service.call({
       connectorId: h.connector.id,
       capability: 'email.send',
       arguments: { to: 'client@example.com', subject: 'Hello', text: 'Body' },
-    }, 'session-1')
+    }, { sessionId: 'session-1', taskId })
     expect(result).toMatchObject({ kind: 'action', status: 'pending_approval' })
     expect(h.enqueued).toHaveLength(1)
     expect(h.enqueued[0]).toMatchObject({
       kind: 'connector.effect',
       permissionKind: 'external-write',
+      taskId,
       payload: expect.objectContaining({ connectorId: h.connector.id, capability: 'email.send' }),
     })
     expect(h.adapter.call).not.toHaveBeenCalled()
