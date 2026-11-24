@@ -9,18 +9,18 @@ import {
   FolderOpen,
   LoaderCircle,
   LockKeyhole,
+  MoreHorizontal,
+  MousePointerClick,
   Pencil,
   Plus,
   RefreshCw,
   Sparkles,
-  Trash2,
   Upload,
   X,
 } from 'lucide-react'
 import { Streamdown } from 'streamdown'
 import type {
   SkillDetail,
-  SkillDiscoveryStatus,
   SkillFileContent,
   SkillFileSummary,
   SkillSummary,
@@ -33,12 +33,13 @@ type SkillEditorState =
   | { mode: 'create' }
   | { mode: 'edit'; skill: SkillDetail }
 
-export function SkillsPanel({ query }: { query: string }) {
+export function SkillsPanel({ query, onTrySkill }: { query: string; onTrySkill?: (skill: SkillSummary) => void }) {
   const { t } = useTranslation()
   const [skills, setSkills] = useState<SkillSummary[]>([])
-  const [discovery, setDiscovery] = useState<SkillDiscoveryStatus>()
   const [category, setCategory] = useState<SkillCategory>('all')
   const [selected, setSelected] = useState<SkillDetail>()
+  const [menuOpen, setMenuOpen] = useState(false)
+  const [resourcesOpen, setResourcesOpen] = useState(false)
   const [resource, setResource] = useState<SkillFileContent>()
   const [resourceLoading, setResourceLoading] = useState<string>()
   const [editor, setEditor] = useState<SkillEditorState>()
@@ -60,12 +61,8 @@ export function SkillsPanel({ query }: { query: string }) {
 
   async function reload(): Promise<void> {
     try {
-      const [next, status] = await Promise.all([
-        window.barn.skills.list(),
-        window.barn.skills.discovery(),
-      ])
+      const next = await window.barn.skills.list()
       setSkills(next)
-      setDiscovery(status)
       setError(undefined)
     } catch (reason) {
       setError(errorMessage(reason))
@@ -79,6 +76,8 @@ export function SkillsPanel({ query }: { query: string }) {
     setError(undefined)
     try {
       setSelected(await window.barn.skills.get(skill.id))
+      setMenuOpen(false)
+      setResourcesOpen(false)
       setResource(undefined)
     } catch (reason) {
       setError(errorMessage(reason))
@@ -107,7 +106,6 @@ export function SkillsPanel({ query }: { query: string }) {
     try {
       const snapshot = await window.barn.skills.refresh()
       setSkills(snapshot.skills)
-      setDiscovery(snapshot.discovery)
       notifySuccess(t('plugins.skillUi.rescanned'))
     } catch (reason) {
       setError(errorMessage(reason))
@@ -122,11 +120,19 @@ export function SkillsPanel({ query }: { query: string }) {
     setError(undefined)
     try {
       setResource(await window.barn.skills.readFile(selected.id, file.path))
+      setResourcesOpen(true)
+      setMenuOpen(false)
     } catch (reason) {
       setError(errorMessage(reason))
     } finally {
       setResourceLoading(undefined)
     }
+  }
+
+  function trySkill(skill: SkillDetail): void {
+    onTrySkill?.(skill)
+    setSelected(undefined)
+    setMenuOpen(false)
   }
 
   async function saveSkill(input: { name: string; description: string; instructions: string }): Promise<void> {
@@ -264,15 +270,6 @@ export function SkillsPanel({ query }: { query: string }) {
         </div>
       </div>
 
-      {discovery !== undefined && discovery.warnings.length > 0 && (
-        <details className="skills-discovery-warning">
-          <summary>{t('plugins.skillUi.discoveryWarnings', { count: discovery.warnings.length })}</summary>
-          <ul>
-            {discovery.warnings.map((warning) => <li key={warning}>{warning}</li>)}
-          </ul>
-        </details>
-      )}
-
       {loading ? (
         <div className="skills-loading" role="status">
           <LoaderCircle className="spin" size={16} aria-hidden="true" />
@@ -336,87 +333,114 @@ export function SkillsPanel({ query }: { query: string }) {
       )}
 
       {selected !== undefined && editor === undefined && (
-        <div className="skill-dialog-backdrop" role="presentation" onMouseDown={() => setSelected(undefined)}>
+        <div className="skill-detail-backdrop" role="presentation" onMouseDown={() => setSelected(undefined)}>
           <section
             aria-label={selected.name}
             aria-modal="true"
-            className="skill-dialog"
+            className="skill-detail-dialog"
             onMouseDown={(event) => event.stopPropagation()}
             role="dialog"
           >
-            <header className="skill-dialog-header">
-              <span className="skill-dialog-icon" aria-hidden="true">
+            <header className="skill-detail-header">
+              <span className="skill-detail-icon" aria-hidden="true">
                 {selected.source === 'system'
-                  ? <Sparkles size={20} />
+                  ? <Sparkles size={21} />
                   : selected.source === 'local'
-                    ? <FolderOpen size={20} />
-                    : <BookOpen size={20} />}
+                    ? <FolderOpen size={21} />
+                    : <BookOpen size={21} />}
               </span>
-              <div>
-                <span className="skill-dialog-kicker">
-                  {t('plugins.skillUi.detailKicker')} · {sourceLabel(selected)}
-                </span>
+              <div className="skill-detail-heading">
                 <h2>{selected.name}</h2>
-                <p>{selected.description}</p>
+                <span>{t('plugins.skillUi.skillLabel')}</span>
               </div>
-              <button className="skill-dialog-close" type="button" aria-label={t('common.close')} onClick={() => setSelected(undefined)}>
-                <X size={16} aria-hidden="true" />
-              </button>
-            </header>
-
-            <div className="skill-dialog-actions">
-              {selected.source !== 'system' && (
-                <label className="skill-dialog-toggle">
-                  <span>{selected.enabled ? t('plugins.skillUi.enabled') : t('plugins.skillUi.disabled')}</span>
-                  <span className="skill-switch">
+              <div className="skill-detail-controls">
+                {selected.source !== 'system' && (
+                  <label className="skill-detail-toggle" title={selected.enabled ? t('plugins.skillUi.enabled') : t('plugins.skillUi.disabled')}>
                     <input
+                      aria-label={selected.enabled ? t('plugins.skillUi.disableNamed', { name: selected.name }) : t('plugins.skillUi.enableNamed', { name: selected.name })}
                       type="checkbox"
                       checked={selected.enabled}
                       disabled={busyId === selected.id}
                       onChange={() => void toggle(selected)}
                     />
                     <span />
-                  </span>
-                </label>
-              )}
-              {selected.source === 'custom' && (
-                <>
-                  <button className="skills-outline-button" type="button" onClick={() => setEditor({ mode: 'edit', skill: selected })}>
-                    <Pencil size={13} aria-hidden="true" />
-                    {t('plugins.skillUi.edit')}
+                  </label>
+                )}
+                <div className="skill-detail-menu-wrap">
+                  <button
+                    aria-expanded={menuOpen}
+                    aria-haspopup="menu"
+                    aria-label={t('plugins.skillUi.moreActions')}
+                    className="skill-detail-icon-button"
+                    type="button"
+                    onClick={() => setMenuOpen((open) => !open)}
+                  >
+                    <MoreHorizontal size={18} aria-hidden="true" />
                   </button>
-                  <button className="skills-outline-button danger" type="button" disabled={busyId === selected.id} onClick={() => void removeSkill(selected)}>
-                    <Trash2 size={13} aria-hidden="true" />
-                    {t('plugins.skillUi.delete')}
-                  </button>
-                </>
-              )}
-              {selected.source === 'local' && (
-                <span className="skill-readonly-note">{t('plugins.skillUi.externalReadOnly')}</span>
-              )}
-              <button className="skills-outline-button" type="button" onClick={() => void copyMarkdown(selected)}>
-                {copied ? <Check size={13} aria-hidden="true" /> : <Copy size={13} aria-hidden="true" />}
-                {copied ? t('plugins.skillUi.copied') : t('plugins.skillUi.copyMarkdown')}
-              </button>
+                  {menuOpen && (
+                    <div className="skill-detail-menu" role="menu">
+                      {selected.source === 'custom' && (
+                        <button
+                          role="menuitem"
+                          type="button"
+                          onClick={() => {
+                            setMenuOpen(false)
+                            setEditor({ mode: 'edit', skill: selected })
+                          }}
+                        >
+                          <Pencil size={14} aria-hidden="true" />
+                          {t('plugins.skillUi.edit')}
+                        </button>
+                      )}
+                      {selected.files.length > 0 && (
+                        <button
+                          role="menuitem"
+                          type="button"
+                          onClick={() => {
+                            setMenuOpen(false)
+                            setResourcesOpen(true)
+                          }}
+                        >
+                          <FileText size={14} aria-hidden="true" />
+                          {t('plugins.skillUi.resources')}
+                        </button>
+                      )}
+                      <button role="menuitem" type="button" onClick={() => void copyMarkdown(selected)}>
+                        {copied ? <Check size={14} aria-hidden="true" /> : <Copy size={14} aria-hidden="true" />}
+                        {copied ? t('plugins.skillUi.copied') : t('plugins.skillUi.copyMarkdown')}
+                      </button>
+                    </div>
+                  )}
+                </div>
+                <button className="skill-detail-icon-button" type="button" aria-label={t('common.close')} onClick={() => setSelected(undefined)}>
+                  <X size={18} aria-hidden="true" />
+                </button>
+              </div>
+            </header>
+
+            <p className="skill-detail-description">{selected.description}</p>
+
+            <div className="skill-detail-content">
+              <Streamdown className="skill-detail-markdown assistant-markdown" animated={false} isAnimating={false}>
+                {selected.instructions}
+              </Streamdown>
             </div>
 
-            {selected.location !== undefined && (
-              <div className="skill-source-location" title={selected.location}>
-                <FolderOpen size={12} aria-hidden="true" />
-                <span>{selected.location}</span>
-              </div>
-            )}
-
-            {selected.files.length > 0 && (
-              <section className="skill-resources" aria-label={t('plugins.skillUi.resources')}>
-                <div className="skill-resources-heading">
-                  <h3>{t('plugins.skillUi.resources')}</h3>
-                  <span>{t('plugins.skillUi.resourceCount', { count: selected.files.length })}</span>
-                </div>
-                <div className="skill-resource-list">
+            {resourcesOpen && selected.files.length > 0 && (
+              <section className="skill-detail-resources" aria-label={t('plugins.skillUi.resources')}>
+                <header className="skill-detail-resources-heading">
+                  <strong>{t('plugins.skillUi.resources')}</strong>
+                  <button className="skill-detail-icon-button" type="button" aria-label={t('plugins.skillUi.closeResources')} onClick={() => {
+                    setResourcesOpen(false)
+                    setResource(undefined)
+                  }}>
+                    <X size={15} aria-hidden="true" />
+                  </button>
+                </header>
+                <div className="skill-detail-resource-list">
                   {selected.files.map((file) => (
                     <button
-                      className={resource?.path === file.path ? 'skill-resource active' : 'skill-resource'}
+                      className={resource?.path === file.path ? 'skill-detail-resource active' : 'skill-detail-resource'}
                       key={file.path}
                       type="button"
                       onClick={() => void openResource(file)}
@@ -429,37 +453,40 @@ export function SkillsPanel({ query }: { query: string }) {
                     </button>
                   ))}
                 </div>
-              </section>
-            )}
-
-            <div className="skill-dialog-content">
-              <Streamdown className="skill-dialog-markdown assistant-markdown" animated={false} isAnimating={false}>
-                {selected.instructions}
-              </Streamdown>
-            </div>
-
-            {resource !== undefined && (
-              <section className="skill-resource-preview" aria-label={resource.path}>
-                <header>
-                  <div>
-                    <strong>{resource.path}</strong>
-                    <span>{resource.mediaType} · {formatBytes(resource.size)}</span>
+                {resource !== undefined && (
+                  <div className="skill-detail-resource-preview" aria-label={resource.path}>
+                    {resource.binary || resource.text === undefined ? (
+                      <p>{t('plugins.skillUi.binaryResource')}</p>
+                    ) : resource.path.endsWith('.md') || resource.path.endsWith('.markdown') ? (
+                      <Streamdown className="skill-detail-markdown assistant-markdown" animated={false} isAnimating={false}>
+                        {resource.text}
+                      </Streamdown>
+                    ) : (
+                      <pre>{resource.text}</pre>
+                    )}
                   </div>
-                  <button className="skill-dialog-close" type="button" aria-label={t('common.close')} onClick={() => setResource(undefined)}>
-                    <X size={15} aria-hidden="true" />
-                  </button>
-                </header>
-                {resource.binary || resource.text === undefined ? (
-                  <p>{t('plugins.skillUi.binaryResource')}</p>
-                ) : resource.path.endsWith('.md') || resource.path.endsWith('.markdown') ? (
-                  <Streamdown className="skill-dialog-markdown assistant-markdown" animated={false} isAnimating={false}>
-                    {resource.text}
-                  </Streamdown>
-                ) : (
-                  <pre>{resource.text}</pre>
                 )}
               </section>
             )}
+
+            <footer className="skill-detail-footer">
+              <div>
+                {selected.source === 'custom' && (
+                  <button className="skill-detail-secondary danger" type="button" disabled={busyId === selected.id} onClick={() => void removeSkill(selected)}>
+                    {t('plugins.skillUi.uninstall')}
+                  </button>
+                )}
+                {selected.source === 'local' && (
+                  <button className="skill-detail-secondary" type="button" disabled={busyId === selected.id} onClick={() => void toggle(selected)}>
+                    {selected.enabled ? t('plugins.skillUi.disable') : t('plugins.skillUi.enable')}
+                  </button>
+                )}
+              </div>
+              <button className="skill-detail-primary" type="button" onClick={() => trySkill(selected)}>
+                <MousePointerClick size={14} aria-hidden="true" />
+                {t('plugins.skillUi.tryNow')}
+              </button>
+            </footer>
           </section>
         </div>
       )}

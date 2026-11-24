@@ -26,6 +26,7 @@ import type {
   ConnectorSetupField,
   ConnectorTestResult,
   DingTalkRuntimeStatus,
+  SkillSummary,
 } from '../shared/models'
 import { SkillsPanel } from './SkillsPanel'
 import { notifyError, notifySuccess, useErrorToast } from './notifications'
@@ -108,7 +109,7 @@ const DINGTALK_SETUP_COPY = {
   },
 } as const
 
-export function PluginsPage() {
+export function PluginsPage({ onTrySkill }: { onTrySkill?: (skill: SkillSummary) => void }) {
   const { t, i18n } = useTranslation()
   const [tab, setTab] = useState<PluginsTab>('plugins')
   const [query, setQuery] = useState('')
@@ -304,7 +305,7 @@ export function PluginsPage() {
 
       {tab === 'skills' ? (
         <section role="tabpanel" aria-label={t('plugins.skills')}>
-          <SkillsPanel query={query} />
+          <SkillsPanel query={query} {...(onTrySkill === undefined ? {} : { onTrySkill })} />
         </section>
       ) : loading ? (
         <div className="plugins-loading" role="status">

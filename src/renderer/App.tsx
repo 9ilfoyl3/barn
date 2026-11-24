@@ -29,6 +29,7 @@ import type {
   SessionLiveEvent,
   RouterRequest,
   SessionSummary,
+  SkillSummary,
   Task,
   TaskLiveEvent,
   VisibleMessage,
@@ -534,6 +535,12 @@ export function App() {
       setAttachments(filesToSend)
       setError(errorMessage(reason, t))
     }
+  }
+
+  function trySkill(skill: SkillSummary): void {
+    const prompt = t('plugins.skillUi.tryPrompt', { name: skill.name })
+    setInput((current) => current.trim().length === 0 ? prompt : `${current.trim()}\n\n${prompt}`)
+    setView('conversation')
   }
 
   async function attachFiles(): Promise<void> {
@@ -1154,7 +1161,7 @@ export function App() {
         <main className="workspace">
         <div className={workspaceBodyClassName} style={homeLayoutStyle}>
           {view === 'plugins' ? (
-            <PluginsPage />
+            <PluginsPage onTrySkill={trySkill} />
           ) : view === 'settings' ? (
             <SettingsPage
               onOpenModels={() => setSettingsOpen(true)}

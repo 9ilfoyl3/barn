@@ -54,11 +54,14 @@ test('manages local skills from the Plugins page and exposes them to the Agent b
     await expect(skills.getByText('Launch checklist')).toBeVisible()
     await skills.locator('.skill-row', { hasText: 'Launch checklist' }).getByRole('button', { name: 'Open Launch checklist skill' }).click()
     const discoveredDetail = page.getByRole('dialog', { name: 'Launch checklist' })
-    await expect(discoveredDetail).toContainText('portable-skills')
+    await expect(discoveredDetail).toContainText('Skill')
+    await expect(discoveredDetail).toContainText('Prepare a launch readiness checklist.')
+    await discoveredDetail.getByRole('button', { name: 'More actions' }).click()
+    await discoveredDetail.getByRole('menuitem', { name: 'Resources' }).click()
     await discoveredDetail.getByRole('button', { name: 'references/checklist.md' }).click()
-    await expect(discoveredDetail.getByRole('region', { name: 'references/checklist.md' })).toContainText('Verify rollback')
+    await expect(discoveredDetail.locator('.skill-detail-resource-preview')).toContainText('Verify rollback')
     await page.screenshot({ path: 'test-results/barn-skill-local-resource.png', fullPage: true })
-    await discoveredDetail.getByRole('button', { name: 'Close' }).last().click()
+    await discoveredDetail.getByRole('button', { name: 'Close resources' }).click()
     await discoveredDetail.getByRole('button', { name: 'Close' }).click()
     const discoveredRow = skills.locator('.skill-row', { hasText: 'Launch checklist' })
     await discoveredRow.locator('.skill-switch').click()
@@ -92,7 +95,8 @@ test('manages local skills from the Plugins page and exposes them to the Agent b
       skill.name === 'Weekly status' && skill.source === 'custom' && skill.enabled
     )))).toBe(true)
 
-    await detail.getByRole('button', { name: 'Edit' }).click()
+    await detail.getByRole('button', { name: 'More actions' }).click()
+    await detail.getByRole('menuitem', { name: 'Edit' }).click()
     const edit = page.getByRole('dialog', { name: 'Edit skill' })
     await edit.getByLabel('Description').fill('Create a concise weekly status update.')
     await edit.getByRole('button', { name: 'Save', exact: true }).click()
@@ -118,9 +122,13 @@ test('manages local skills from the Plugins page and exposes them to the Agent b
 
     page.once('dialog', (confirmation) => void confirmation.accept())
     await skills.locator('.skill-row', { hasText: 'Weekly status' }).getByRole('button', { name: 'Open Weekly status skill' }).click()
-    await page.getByRole('dialog', { name: 'Weekly status' }).getByRole('button', { name: 'Delete' }).click()
+    await page.getByRole('dialog', { name: 'Weekly status' }).getByRole('button', { name: 'Uninstall' }).click()
     await expect(skills.getByText('Weekly status')).toHaveCount(0)
     await page.screenshot({ path: 'test-results/barn-skills.png', fullPage: true })
+
+    await skills.locator('.skill-row', { hasText: 'Launch brief' }).getByRole('button', { name: 'Open Launch brief skill' }).click()
+    await page.getByRole('dialog', { name: 'Launch brief' }).getByRole('button', { name: 'Try now' }).click()
+    await expect(page.getByRole('textbox', { name: 'Message Barn' })).toContainText('Use the “Launch brief” skill to help me with')
   } finally {
     await app.close()
   }
