@@ -743,7 +743,7 @@ const en = {
     emptyTitle: 'No connectors yet',
     emptyDescription: 'Choose an app below. You can pause, test, or remove it at any time.',
     availableTitle: 'Available connectors',
-    availableDescription: 'Start with email, GitHub, DingTalk, and WeCom Mail. More office apps will appear here.',
+    availableDescription: 'Start with email, GitHub, and DingTalk. More office apps will appear here.',
     removeConfirm: 'Remove {{name}}? Its stored credentials will be deleted from this device.',
     unknownDefinition: 'No connector definition is available for {{kind}}.',
     saved: '{{name}} saved.',
@@ -769,14 +769,12 @@ const en = {
       fromName: 'Sender name',
       username: 'Username',
       password: 'Password or app password',
-      apiKeyOrUrl: 'API key (or full endpoint URL)',
       token: 'Personal access token',
     },
     fieldPlaceholders: {
-      apiKeyOrUrl: 'Paste an API key or https://qyapi.weixin.qq.com/mcp/robot-mail?apikey=...',
       token: 'github_pat_…',
     },
-    helpLink: 'How to get the API key (or full endpoint URL)',
+    helpLink: 'Open connector documentation',
     githubTokenHelp: 'Create a GitHub personal access token',
     kinds: {
       email: {
@@ -791,11 +789,6 @@ const en = {
         name: 'GitHub',
         description: 'Search repositories, read issues and pull requests, and make approved updates.',
         note: 'Barn uses a fine-grained personal access token stored in the operating system credential store. Grant repository metadata, issues, and pull requests access. The token is never sent to the model.',
-      },
-      wecomMail: {
-        name: 'WeCom Mail',
-        description: 'Search, read, and send WeCom Mail through the official WeCom MCP endpoint.',
-        note: 'Barn sends this API key or full endpoint URL only to WeCom Mail. No OAuth account or device is required, and the key is never sent to the model.',
       },
     },
     status: {
@@ -819,9 +812,6 @@ const en = {
       githubGetPullRequest: 'Read a pull request',
       githubCreateIssue: 'Create an issue',
       githubComment: 'Comment on an issue or pull request',
-      wecomMailSearch: 'Search WeCom Mail',
-      wecomMailGet: 'Read WeCom Mail',
-      wecomMailSend: 'Send WeCom Mail',
     },
     capabilityDescriptions: {
       emailList: 'List recent inbox messages without opening their full content.',
@@ -838,9 +828,6 @@ const en = {
       githubGetPullRequest: 'Read one pull request with its branches, summary, and change counts.',
       githubCreateIssue: 'Create a GitHub issue after approval.',
       githubComment: 'Add a comment to an issue or pull request after approval.',
-      wecomMailSearch: 'Search the mailbox by sender, recipient, time, folder, or labels.',
-      wecomMailGet: 'Read one WeCom Mail message by its encoded mail id.',
-      wecomMailSend: 'Send, reply to, or forward WeCom Mail after approval.',
     },
   },
 } as const
@@ -1586,7 +1573,7 @@ const zhCN: TranslationSchema = {
     emptyTitle: '还没有连接器',
     emptyDescription: '从下方选择一个应用。你可以随时暂停、测试或移除。',
     availableTitle: '可添加的连接器',
-    availableDescription: '先支持邮箱、GitHub、钉钉和企业微信邮件，后续会在这里加入更多办公应用。',
+    availableDescription: '先支持邮箱、GitHub 和钉钉，后续会在这里加入更多办公应用。',
     removeConfirm: '移除 {{name}}？本机保存的凭证也会一并删除。',
     unknownDefinition: '找不到 {{kind}} 的连接器定义。',
     saved: '{{name}} 已保存。',
@@ -1612,14 +1599,12 @@ const zhCN: TranslationSchema = {
       fromName: '发件人名称',
       username: '用户名',
       password: '密码或应用专用密码',
-      apiKeyOrUrl: 'apikey（或整段地址）',
       token: '个人访问令牌',
     },
     fieldPlaceholders: {
-      apiKeyOrUrl: '粘贴 apikey，或 https://qyapi.weixin.qq.com/mcp/robot-mail?apikey=…',
       token: 'github_pat_…',
     },
-    helpLink: '如何获取 apikey（或整段地址）',
+    helpLink: '打开连接器文档',
     githubTokenHelp: '创建 GitHub 个人访问令牌',
     kinds: {
       email: {
@@ -1634,11 +1619,6 @@ const zhCN: TranslationSchema = {
         name: 'GitHub',
         description: '搜索仓库、读取 Issue 和 PR，并经你批准后执行更新。',
         note: 'Barn 使用保存在操作系统凭证库中的细粒度个人访问令牌。请授予仓库元数据、Issue 和 Pull Request 权限。令牌不会发送给模型。',
-      },
-      wecomMail: {
-        name: '企业微信邮件',
-        description: '通过企业微信官方 MCP 地址搜索、读取和发送企业微信邮件。',
-        note: 'Barn 只会把这个 apikey（或整段地址）发送给企业微信邮件。无需 OAuth 账号或设备，密钥不会发送给模型。',
       },
     },
     status: {
@@ -1662,9 +1642,6 @@ const zhCN: TranslationSchema = {
       githubGetPullRequest: '读取 Pull Request',
       githubCreateIssue: '创建 Issue',
       githubComment: '评论 Issue 或 PR',
-      wecomMailSearch: '搜索企业微信邮件',
-      wecomMailGet: '读取企业微信邮件',
-      wecomMailSend: '发送企业微信邮件',
     },
     capabilityDescriptions: {
       emailList: '列出收件箱中的最近邮件，不打开完整正文。',
@@ -1681,9 +1658,6 @@ const zhCN: TranslationSchema = {
       githubGetPullRequest: '读取单个 Pull Request 的分支、摘要和变更统计。',
       githubCreateIssue: '经你批准后创建 GitHub Issue。',
       githubComment: '经你批准后在 Issue 或 Pull Request 下发表评论。',
-      wecomMailSearch: '按发件人、收件人、时间、文件夹或标签搜索企业微信邮件。',
-      wecomMailGet: '通过加密邮件 ID 读取一封企业微信邮件。',
-      wecomMailSend: '经你批准后，发送、回复或转发企业微信邮件。',
     },
   },
 }

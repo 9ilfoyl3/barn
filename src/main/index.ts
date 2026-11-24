@@ -51,7 +51,6 @@ import { EmailConnectorAdapter } from './connectors/email-adapter'
 import { DingTalkConnectorAdapter } from './connectors/dingtalk-adapter'
 import { DingTalkRuntime } from './connectors/dingtalk-runtime'
 import { GithubConnectorAdapter } from './connectors/github-adapter'
-import { WeComMailConnectorAdapter } from './connectors/wecom-mail-adapter'
 import { registerConnectorIpc } from './connectors/connector-ipc'
 import { registerDingTalkIpc } from './connectors/dingtalk-ipc'
 import { ElectronSecretCodec } from './models/electron-secret-codec'
@@ -252,10 +251,10 @@ void app.whenReady().then(async () => {
         new EmailConnectorAdapter(),
         new GithubConnectorAdapter(),
         new DingTalkConnectorAdapter(dingTalkRuntime),
-        new WeComMailConnectorAdapter(),
       ],
     },
   )
+  await connectorService.removeUnsupportedKinds(['wecomMail'])
   await clearDingTalkLegacyCredentials(connectorService)
   const threadService = new ThreadService(sessionStore.threads)
   terminalService = new TerminalService(outputRoot, privateTempRoot)
