@@ -8,6 +8,8 @@ import { AesGcmEventCipher } from '../../src/main/session/event-cipher'
 import { SessionStore } from '../../src/main/session/session-store'
 import { randomBytes } from 'node:crypto'
 import type { SkillService } from '../../src/main/skills/skill-service'
+import type { ConnectorService } from '../../src/main/connectors/connector-service'
+import { DINGTALK_CONNECTOR } from '../../src/main/connectors/catalog'
 
 async function createService(): Promise<{
   service: ToolService
@@ -34,6 +36,41 @@ async function createService(): Promise<{
 }
 
 describe('ToolService', () => {
+  it('returns connector capability input schemas to the Worker', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'barn-tools-connectors-'))
+    await Promise.all([
+      mkdir(join(root, 'workspace')),
+      mkdir(join(root, 'output')),
+      mkdir(join(root, 'temp')),
+    ])
+    const connectors = {
+      listDefinitions: vi.fn(() => [DINGTALK_CONNECTOR]),
+      list: vi.fn(async () => []),
+      call: vi.fn(),
+    } as unknown as ConnectorService
+    const service = new ToolService({
+      workspaceRoot: join(root, 'workspace'),
+      outputRoot: join(root, 'output'),
+      privateTempRoot: join(root, 'temp'),
+      shell: { run: vi.fn() } as unknown as ShellService,
+      connectors,
+    })
+
+    const result = await service.execute('connector_list', {})
+    const payload = JSON.parse(result.content[0]?.type === 'text' ? result.content[0].text : '{}')
+    const send = payload.definitions
+      .find((definition: { kind: string }) => definition.kind === 'dingtalk')
+      .capabilities.find((capability: { id: string }) => capability.id === 'dingtalk.send')
+
+    expect(send).toMatchObject({
+      requiresApproval: false,
+      inputSchema: {
+        required: ['content'],
+        properties: { content: { type: 'string' } },
+      },
+    })
+  })
+
   it('retrieves bounded Session history by sequence, role, and query', async () => {
     const root = await mkdtemp(join(tmpdir(), 'barn-tools-history-'))
     const sessions = new SessionStore(join(root, 'sessions.db'), new AesGcmEventCipher(randomBytes(32)))

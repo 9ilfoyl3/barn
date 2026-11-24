@@ -314,6 +314,7 @@ void app.whenReady().then(async () => {
   routerService.start()
   connectorService.registerActionHandler(actionService)
   actionService.start()
+  connectorService.reconcileDirectWriteApprovals()
   taskActionCoordinator.start()
   localSourceService = new LocalSourceService(sessionStore.localSources, taskService)
   localSourceService.start()

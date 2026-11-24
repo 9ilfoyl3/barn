@@ -96,7 +96,7 @@ describe('DingTalk connector', () => {
     ], undefined)
   })
 
-  it('searches messages and sends as the connected user after approval', async () => {
+  it('searches messages and sends directly as the connected user', async () => {
     const { runtime, runJson } = fakeRuntime()
     const adapter = new DingTalkConnectorAdapter(runtime)
 
@@ -123,6 +123,36 @@ describe('DingTalk connector', () => {
       '--group', 'cid-1',
       '--title', 'Release',
       '--content', 'Release is ready.',
+      '--format', 'json',
+      '--yes',
+    ], undefined)
+  })
+
+  it('advertises the send contract and accepts legacy text arguments from old approval actions', async () => {
+    const { runtime, runJson } = fakeRuntime()
+    const adapter = new DingTalkConnectorAdapter(runtime)
+    const sendCapability = capability('dingtalk.send')
+
+    expect(sendCapability.inputSchema).toMatchObject({
+      required: ['content'],
+      properties: {
+        content: { type: 'string' },
+        userId: { type: 'string' },
+        openDingTalkId: { type: 'string' },
+        conversationId: { type: 'string' },
+      },
+    })
+    expect(sendCapability.requiresApproval).toBe(false)
+
+    await adapter.call({ connector, secrets: {} }, sendCapability, {
+      openDingTalkId: 'open-user-1',
+      text: 'Legacy approval body',
+    })
+
+    expect(runJson).toHaveBeenCalledWith([
+      'chat', 'message', 'send',
+      '--open-dingtalk-id', 'open-user-1',
+      '--content', 'Legacy approval body',
       '--format', 'json',
       '--yes',
     ], undefined)
