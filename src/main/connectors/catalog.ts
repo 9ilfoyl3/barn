@@ -47,6 +47,19 @@ export const EMAIL_CONNECTOR: ConnectorDefinition = {
   ],
 }
 
+const DINGTALK_TARGET_PROPERTIES = {
+  conversationId: { type: 'string', description: 'Group conversation openConversationId.' },
+  userId: { type: 'string', description: 'Direct-message recipient userId.' },
+  openDingTalkId: { type: 'string', description: 'Direct-message recipient openDingTalkId.' },
+} as const
+
+const DINGTALK_TARGET_RULE = {
+  oneOf: [
+    { required: ['conversationId'] },
+    { required: ['userId'] },
+    { required: ['openDingTalkId'] },
+  ],
+} as const
 
 export const DINGTALK_CONNECTOR: ConnectorDefinition = {
   kind: 'dingtalk',
@@ -62,30 +75,76 @@ export const DINGTALK_CONNECTOR: ConnectorDefinition = {
       name: 'Search contacts',
       description: 'Search DingTalk colleagues and contacts by name or keyword.',
       risk: 'read',
+      inputSchema: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['query'],
+        properties: { query: { type: 'string', description: 'Name or keyword to search.' } },
+      },
     },
     {
       id: 'dingtalk.calendarList',
       name: 'Read calendar',
       description: 'List calendar events for a date range.',
       risk: 'read',
+      inputSchema: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          start: { type: 'string', description: 'Optional start time, yyyy-MM-dd HH:mm:ss.' },
+          end: { type: 'string', description: 'Optional end time, yyyy-MM-dd HH:mm:ss.' },
+          limit: { type: 'integer', minimum: 1, maximum: 100, default: 20 },
+        },
+      },
     },
     {
       id: 'dingtalk.todoList',
       name: 'Read tasks',
       description: 'List personal DingTalk tasks.',
       risk: 'read',
+      inputSchema: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          page: { type: 'integer', minimum: 1, maximum: 10_000, default: 1 },
+          size: { type: 'integer', minimum: 1, maximum: 100, default: 20 },
+        },
+      },
     },
     {
       id: 'dingtalk.chatSearch',
       name: 'Search messages',
       description: 'Search DingTalk messages by keyword, conversation, and time range.',
       risk: 'read',
+      inputSchema: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['query'],
+        properties: {
+          query: { type: 'string', description: 'Message keyword or phrase.' },
+          conversationId: { type: 'string', description: 'Optional group conversation to search.' },
+          start: { type: 'string', description: 'Optional start time, yyyy-MM-dd HH:mm:ss.' },
+          end: { type: 'string', description: 'Optional end time, yyyy-MM-dd HH:mm:ss.' },
+          limit: { type: 'integer', minimum: 1, maximum: 100, default: 20 },
+        },
+      },
     },
     {
       id: 'dingtalk.messageList',
       name: 'Read messages',
       description: 'Read recent messages from one DingTalk conversation.',
       risk: 'read',
+      inputSchema: {
+        type: 'object',
+        additionalProperties: false,
+        ...DINGTALK_TARGET_RULE,
+        properties: {
+          ...DINGTALK_TARGET_PROPERTIES,
+          time: { type: 'string', description: 'Optional cursor time, yyyy-MM-dd HH:mm:ss.' },
+          direction: { type: 'string', enum: ['newer', 'older'], default: 'older' },
+          limit: { type: 'integer', minimum: 1, maximum: 100, default: 50 },
+        },
+      },
     },
     {
       id: 'dingtalk.send',
@@ -93,6 +152,17 @@ export const DINGTALK_CONNECTOR: ConnectorDefinition = {
       description: 'Send a DingTalk message immediately as the connected user.',
       risk: 'external-write',
       requiresApproval: false,
+      inputSchema: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['content'],
+        ...DINGTALK_TARGET_RULE,
+        properties: {
+          ...DINGTALK_TARGET_PROPERTIES,
+          content: { type: 'string', description: 'Message body. This is the required content field, not text.' },
+          title: { type: 'string', description: 'Optional message title.' },
+        },
+      },
     },
   ],
 }

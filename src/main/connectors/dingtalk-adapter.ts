@@ -43,13 +43,22 @@ const sendMessageArgsSchema = z.object({
   conversationId: z.string().trim().min(1).max(500).optional(),
   userId: z.string().trim().min(1).max(200).optional(),
   openDingTalkId: z.string().trim().min(1).max(500).optional(),
-  content: z.string().trim().min(1).max(20_000),
+  content: z.string().trim().min(1).max(20_000).optional(),
+  /** Compatibility for approval actions queued before the connector argument contract was exposed. */
+  text: z.string().trim().min(1).max(20_000).optional(),
   title: z.string().trim().min(1).max(200).optional(),
 }).strict().refine((value) => (
   [value.conversationId, value.userId, value.openDingTalkId].filter((target) => target !== undefined).length === 1
 ), {
   message: 'Provide exactly one DingTalk target: conversationId, userId, or openDingTalkId',
-})
+}).refine((value) => (
+  [value.content, value.text].filter((content) => content !== undefined).length === 1
+), {
+  message: 'Provide exactly one message body: content (preferred) or legacy text',
+}).transform(({ text, content, ...value }) => ({
+  ...value,
+  content: content ?? text ?? '',
+}))
 
 export class DingTalkConnectorAdapter implements ConnectorAdapter {
   readonly kind = 'dingtalk'

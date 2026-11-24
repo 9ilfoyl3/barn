@@ -18,6 +18,8 @@ At startup, Barn also clears legacy DingTalk Webhook and signing credentials fro
 
 The first capability set is: contact search, calendar list, task list, message search, recent message reading, and sending a message as the signed-in user. Reads use the connector external-read policy. DingTalk sending is an explicit product exception: the capability is marked `requiresApproval: false`, so the allowlisted send command executes immediately and returns its result without creating an approval action. Other connector writes retain the approval queue.
 
+Connector discovery exposes each DingTalk capability's JSON input schema so the model uses the exact argument names, including `content` for message text. At startup Barn cancels and denies pending approval-linked DingTalk send actions left by versions that predated direct execution. The adapter also accepts the legacy `text` argument from those old actions and normalizes it to `content`.
+
 ## Alternatives considered
 
 **Keep the webhook robot connector.** Rejected because the user asked to replace it and because it cannot provide user-scoped workspace data.
@@ -34,6 +36,7 @@ The first capability set is: contact search, calendar list, task list, message s
 
 - The DingTalk card now represents an account connection, not a robot webhook.
 - Private user-identity reads and message sends use the connector discovery boundary; DingTalk sends execute directly by explicit product choice, while other connector writes retain approvals.
+- Upgrades remove stale DingTalk approval prompts instead of asking the user to approve a capability that now sends directly.
 - Installation requires network access and approximately 20 MB of download space; the component is kept under Barn's user-data directory and can be repaired by reinstalling.
 - Authentication requires the organization to enable CLI access; the UI surfaces this as a sign-in failure rather than exposing implementation terminology.
 - Future work can add more allowlisted DingTalk capabilities without changing the install and authorization flow.

@@ -53,6 +53,7 @@ async function harness(options: {
   }
   const enqueued: ActionRequestInput[] = []
   const listedActions: ActionRecord[] = []
+  const resolvedApprovals: Array<{ approvalId: string; decision: 'approved' | 'denied' }> = []
   const handlers = new Map<string, (action: ActionRecord, context: { actionId: string; idempotencyKey: string; signal: AbortSignal }) => Promise<unknown>>()
   const actions = {
     list: () => listedActions,
@@ -98,14 +99,20 @@ async function harness(options: {
     sessions.connectors,
     credentials,
     () => actions,
-    () => ({ request: () => ({ decision: 'allowed' as const }) }),
+    () => ({
+      request: () => ({ decision: 'allowed' as const }),
+      resolve: (approvalId: string, decision: 'approved' | 'denied') => {
+        resolvedApprovals.push({ approvalId, decision })
+        return undefined
+      },
+    }),
     { definitions: new Map([[definition.kind, definition]]), adapters: [adapter] },
   )
   const connector = await service.create({ kind: definition.kind, name: options.name ?? 'Work mail', config: connectorConfig })
   if (Object.keys(connectorCredentials).length > 0) {
     await service.saveCredentials({ connectorId: connector.id, values: connectorCredentials })
   }
-  return { directory, sessions, credentials, adapter, service, actions, handlers, enqueued, listedActions, connector }
+  return { directory, sessions, credentials, adapter, service, actions, handlers, enqueued, listedActions, resolvedApprovals, connector }
 }
 
 describe('ConnectorService', () => {
@@ -180,6 +187,38 @@ describe('ConnectorService', () => {
       expect.objectContaining({ id: 'dingtalk.send', requiresApproval: false }),
       { userId: 'user-1', content: 'Hello' },
     )
+    h.sessions.close()
+  })
+
+  it('cancels approvals queued before a connector became direct-write', async () => {
+    const h = await harness({
+      definition: DINGTALK_CONNECTOR,
+      config: {},
+      credentials: {},
+      name: 'DingTalk',
+    })
+    h.listedActions.push({
+      id: 'legacy-approval',
+      kind: 'connector.effect',
+      idempotencyKey: 'legacy-key',
+      title: 'Send message',
+      summary: 'DingTalk: Send a DingTalk message as the connected user after approval.',
+      status: 'pending_approval',
+      approvalId: 'approval-1',
+      payload: {
+        connectorId: h.connector.id,
+        capability: 'dingtalk.send',
+        arguments: { userId: 'user-1', text: 'Hello' },
+      },
+      attempts: 0,
+      maxAttempts: 5,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    })
+
+    expect(h.service.reconcileDirectWriteApprovals()).toBe(1)
+    expect(h.listedActions[0]).toMatchObject({ status: 'cancelled' })
+    expect(h.resolvedApprovals).toEqual([{ approvalId: 'approval-1', decision: 'denied' }])
     h.sessions.close()
   })
 

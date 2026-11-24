@@ -37,6 +37,7 @@ export interface ConnectorPermissionService {
     details?: string
     taskId?: string
   }): PermissionOutcome
+  resolve(approvalId: string, decision: 'approved' | 'denied'): unknown
 }
 
 export interface ConnectorCallContext {
@@ -159,6 +160,37 @@ export class ConnectorService {
       updatedAt: action.updatedAt,
       ...(action.completedAt === undefined ? {} : { completedAt: action.completedAt }),
     }
+  }
+
+  /** Clear approvals queued before a capability was changed to direct execution. */
+  reconcileDirectWriteApprovals(): number {
+    const actions = this.getActions()
+    const permissions = this.getPermissions()
+    if (actions === undefined || permissions === undefined) return 0
+    let reconciled = 0
+    for (const action of actions.list()) {
+      if (action.kind !== 'connector.effect' || action.status !== 'pending_approval') continue
+      if (action.approvalId === undefined) continue
+      const parsed = effectPayloadSchema.safeParse(action.payload)
+      if (!parsed.success) continue
+      let record: ConnectorRecord
+      try {
+        record = this.store.get(parsed.data.connectorId)
+      } catch {
+        continue
+      }
+      const definition = this.definitions.get(record.kind)
+      const capability = definition?.capabilities.find((entry) => entry.id === parsed.data.capability)
+      if (capability?.risk !== 'external-write' || capability.requiresApproval !== false) continue
+      actions.cancel(action.id, 'Cancelled because this connector now executes direct sends without approval.')
+      try {
+        permissions.resolve(action.approvalId, 'denied')
+      } catch {
+        // The action is already terminal; leave any inconsistent approval untouched for manual review.
+      }
+      reconciled++
+    }
+    return reconciled
   }
 
   retryAction(actionId: string): Promise<import('../../shared/models').ConnectorActionSummary> {
