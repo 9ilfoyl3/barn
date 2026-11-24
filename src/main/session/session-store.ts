@@ -16,9 +16,9 @@ import { SkillStore } from '../skills/skill-store'
 
 export type SessionStatus = SessionSummary['status']
 
-// Schema 11 adds locally managed Agent skills. Older schema versions are
-// upgraded in place by idempotent store initialization.
-export const CURRENT_SCHEMA_VERSION = 11
+// Schema 12 adds persisted enablement for host-discovered skills. Older schema
+// versions are upgraded in place by idempotent store initialization.
+export const CURRENT_SCHEMA_VERSION = 12
 
 export interface NewSessionEvent {
   type: string

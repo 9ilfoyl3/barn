@@ -35,6 +35,11 @@ export class SkillStore {
         updated_at TEXT NOT NULL
       );
       CREATE INDEX IF NOT EXISTS skills_enabled_idx ON skills(enabled, updated_at DESC);
+      CREATE TABLE IF NOT EXISTS skill_preferences (
+        skill_key TEXT PRIMARY KEY,
+        enabled INTEGER NOT NULL CHECK (enabled IN (0, 1)),
+        updated_at TEXT NOT NULL
+      );
     `)
   }
 
@@ -121,6 +126,20 @@ export class SkillStore {
     return this.get(skillId)
   }
 
+  getPreference(skillKey: string): boolean | undefined {
+    const row = this.database.prepare('SELECT enabled FROM skill_preferences WHERE skill_key = ?')
+      .get(skillKey) as { enabled: number } | undefined
+    return row === undefined ? undefined : row.enabled === 1
+  }
+
+  setPreference(skillKey: string, enabled: boolean): void {
+    this.database.prepare(`
+      INSERT INTO skill_preferences (skill_key, enabled, updated_at)
+      VALUES (?, ?, ?)
+      ON CONFLICT(skill_key) DO UPDATE SET enabled = excluded.enabled, updated_at = excluded.updated_at
+    `).run(skillKey, enabled ? 1 : 0, new Date().toISOString())
+  }
+
   remove(skillId: string): void {
     this.get(skillId)
     this.database.prepare('DELETE FROM skills WHERE id = ?').run(skillId)
@@ -134,12 +153,17 @@ export class SkillStore {
       source: 'custom',
       enabled: row.enabled === 1,
       updatedAt: row.updated_at,
+      provider: 'barn',
+      providerLabel: 'Barn',
+      editable: true,
+      fileCount: 0,
     }
   }
 
   private toDetail(row: SkillRow): SkillDetail {
     return {
       ...this.toSummary(row),
+      files: [],
       instructions: this.cipher.decrypt<string>(
         {
           ciphertext: row.instructions_ciphertext,

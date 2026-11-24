@@ -156,6 +156,44 @@ describe('AgentService integration', () => {
     sessions.close()
   })
 
+  it('opens the Worker with the enabled local skill catalog as session context', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'barn-agent-skills-'))
+    const workspace = join(directory, 'workspace')
+    const output = join(directory, 'output')
+    const temp = join(directory, 'temp')
+    await Promise.all([mkdir(workspace), mkdir(output), mkdir(temp)])
+    const sessions = new SessionStore(join(directory, 'sessions.db'), new AesGcmEventCipher(randomBytes(32)))
+    await sessions.initialize()
+    const prompt = vi.fn(async (_sessionId: string, _text: string) => undefined)
+    const openSession = vi.fn(async () => undefined)
+    const supervisor = {
+      onMessage: () => () => undefined,
+      onStatus: () => () => undefined,
+      openSession,
+      prompt,
+    } as unknown as WorkerSupervisor
+    const tools = new ToolService({
+      workspaceRoot: workspace,
+      outputRoot: output,
+      privateTempRoot: temp,
+      shell: { run: vi.fn() } as unknown as ShellService,
+    })
+    const skills = {
+      agentContext: () => '<available_skills>\n- Release notes (local:agents:release-notes)\n</available_skills>',
+      getRevision: () => 'skills:1',
+    }
+    const agent = new AgentService(supervisor, fakeModels(), sessions, tools, undefined, undefined, skills)
+
+    await agent.prompt(randomUUID(), 'Draft release notes')
+
+    expect(openSession).toHaveBeenCalledWith(expect.objectContaining({
+      skillContext: expect.stringContaining('local:agents:release-notes'),
+      skillRevision: 'skills:1',
+    }))
+    expect(prompt.mock.calls[0]?.[1]).not.toContain('<available_skills>')
+    sessions.close()
+  })
+
   it('injects bounded parent-session context into a side-chat prompt', async () => {
     const directory = await mkdtemp(join(tmpdir(), 'barn-agent-parent-context-'))
     const workspace = join(directory, 'workspace')

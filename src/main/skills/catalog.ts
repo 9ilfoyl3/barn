@@ -10,6 +10,11 @@ export const SYSTEM_SKILLS: readonly SkillDetail[] = [
     source: 'system',
     enabled: true,
     updatedAt: SYSTEM_SKILL_UPDATED_AT,
+    provider: 'barn',
+    providerLabel: 'Barn',
+    editable: false,
+    fileCount: 0,
+    files: [],
     instructions: `# Meeting notes to actions
 
 Use this skill when the user provides meeting notes, a transcript, or a recording summary.
@@ -30,6 +35,11 @@ Use this skill when the user provides meeting notes, a transcript, or a recordin
     source: 'system',
     enabled: true,
     updatedAt: SYSTEM_SKILL_UPDATED_AT,
+    provider: 'barn',
+    providerLabel: 'Barn',
+    editable: false,
+    fileCount: 0,
+    files: [],
     instructions: `# Research brief
 
 Use this skill when the user asks for research, a comparison, or a decision brief.
@@ -50,6 +60,11 @@ Use this skill when the user asks for research, a comparison, or a decision brie
     source: 'system',
     enabled: true,
     updatedAt: SYSTEM_SKILL_UPDATED_AT,
+    provider: 'barn',
+    providerLabel: 'Barn',
+    editable: false,
+    fileCount: 0,
+    files: [],
     instructions: `# Email drafting
 
 Use this skill when the user asks to draft, reply to, or rewrite an email.

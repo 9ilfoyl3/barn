@@ -20,6 +20,10 @@ const setEnabledSchema = z.object({
   skillId: skillIdSchema,
   enabled: z.boolean(),
 }).strict()
+const readFileSchema = z.object({
+  skillId: skillIdSchema,
+  path: z.string().trim().min(1).max(1_000),
+}).strict()
 
 export function registerSkillIpc(skills: SkillService, isTrustedSender: (event: IpcMainInvokeEvent) => boolean): void {
   ipcMain.handle('skills:list', (event) => {
@@ -30,6 +34,22 @@ export function registerSkillIpc(skills: SkillService, isTrustedSender: (event: 
   ipcMain.handle('skills:get', (event, skillId: unknown) => {
     requireTrusted(event, isTrustedSender)
     return skills.get(skillIdSchema.parse(skillId))
+  })
+
+  ipcMain.handle('skills:refresh', (event) => {
+    requireTrusted(event, isTrustedSender)
+    return skills.refresh()
+  })
+
+  ipcMain.handle('skills:discovery', (event) => {
+    requireTrusted(event, isTrustedSender)
+    return skills.discoveryStatus()
+  })
+
+  ipcMain.handle('skills:read-file', (event, value: unknown) => {
+    requireTrusted(event, isTrustedSender)
+    const parsed = readFileSchema.parse(value)
+    return skills.readFile(parsed.skillId, parsed.path)
   })
 
   ipcMain.handle('skills:create', (event, input: unknown) => {

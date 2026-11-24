@@ -23,6 +23,8 @@ export const workerSessionSeedSchema = z.object({
   messages: z.array(z.unknown()),
   model: modelDescriptorSchema,
   reasoningEffort: z.enum(REASONING_EFFORTS).optional(),
+  skillContext: z.string().max(32_000).optional(),
+  skillRevision: z.string().max(200).optional(),
 })
 
 export type WorkerSessionSeed = z.infer<typeof workerSessionSeedSchema>

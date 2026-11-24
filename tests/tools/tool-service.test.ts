@@ -89,7 +89,12 @@ describe('ToolService', () => {
       source: 'custom' as const,
       enabled: true,
       updatedAt: '2026-11-23T00:00:00.000Z',
+      provider: 'barn' as const,
+      providerLabel: 'Barn',
+      editable: true,
+      fileCount: 0,
       instructions: '# Weekly review\n\nList outcomes.',
+      files: [],
     }
     const skills = {
       list: vi.fn(() => [skillDetail]),
@@ -97,6 +102,14 @@ describe('ToolService', () => {
         if (id !== skillDetail.id) throw new Error('Unknown skill')
         return skillDetail
       }),
+      readFile: vi.fn(() => ({
+        path: 'SKILL.md',
+        size: 30,
+        mediaType: 'text/markdown',
+        text: '# Weekly review\n\nList outcomes.',
+        truncated: false,
+        binary: false,
+      })),
     } as unknown as SkillService
     const service = new ToolService({
       workspaceRoot: join(root, 'workspace'),
@@ -110,6 +123,8 @@ describe('ToolService', () => {
     expect(list.content[0]?.type === 'text' ? list.content[0].text : '').toContain('Weekly review')
     const read = await service.execute('skill_read', { id: 'skill-1' })
     expect(read.content[0]?.type === 'text' ? read.content[0].text : '').toContain('List outcomes')
+    const file = await service.execute('skill_file', { id: 'skill-1', path: 'SKILL.md' })
+    expect(file.content[0]?.type === 'text' ? file.content[0].text : '').toContain('List outcomes')
     await expect(service.execute('skill_read', { id: 'missing' })).resolves.toMatchObject({ isError: true })
   })
 

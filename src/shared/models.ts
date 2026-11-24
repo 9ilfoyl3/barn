@@ -266,7 +266,15 @@ export interface ConnectorBridge {
   cancelAction(actionId: string): Promise<ConnectorActionSummary>
 }
 
-export type SkillSource = 'system' | 'custom'
+export type SkillSource = 'system' | 'custom' | 'local'
+
+export type SkillProvider = 'barn' | 'codex' | 'agents' | 'claude' | 'plugin' | 'workspace' | 'custom'
+
+export interface SkillFileSummary {
+  path: string
+  size: number
+  mediaType: string
+}
 
 export interface SkillSummary {
   id: string
@@ -275,10 +283,47 @@ export interface SkillSummary {
   source: SkillSource
   enabled: boolean
   updatedAt: string
+  provider: SkillProvider
+  providerLabel: string
+  editable: boolean
+  fileCount: number
+  location?: string
 }
 
 export interface SkillDetail extends SkillSummary {
   instructions: string
+  files: SkillFileSummary[]
+}
+
+export interface SkillFileContent {
+  path: string
+  size: number
+  mediaType: string
+  text?: string
+  truncated: boolean
+  binary: boolean
+}
+
+export interface SkillDiscoveryRoot {
+  id: string
+  label: string
+  provider: SkillProvider
+  path: string
+  available: boolean
+  skillCount: number
+  error?: string
+}
+
+export interface SkillDiscoveryStatus {
+  scannedAt?: string
+  revision: string
+  roots: SkillDiscoveryRoot[]
+  warnings: string[]
+}
+
+export interface SkillCatalogSnapshot {
+  skills: SkillSummary[]
+  discovery: SkillDiscoveryStatus
 }
 
 export interface CreateSkillInput {
@@ -293,14 +338,22 @@ export interface UpdateSkillInput {
   instructions?: string
 }
 
-export type SkillLiveEvent = {
-  type: 'skill.updated'
-  skill: SkillSummary
-}
+export type SkillLiveEvent =
+  | {
+    type: 'skill.updated'
+    skill: SkillSummary
+  }
+  | {
+    type: 'skills.changed'
+    revision: string
+  }
 
 export interface SkillBridge {
   list(): Promise<SkillSummary[]>
   get(skillId: string): Promise<SkillDetail>
+  refresh(): Promise<SkillCatalogSnapshot>
+  discovery(): Promise<SkillDiscoveryStatus>
+  readFile(skillId: string, path: string): Promise<SkillFileContent>
   create(input: CreateSkillInput): Promise<SkillDetail>
   update(skillId: string, input: UpdateSkillInput): Promise<SkillDetail>
   setEnabled(skillId: string, enabled: boolean): Promise<SkillDetail>
