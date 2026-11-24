@@ -320,11 +320,6 @@
   color: var(--text);
 }
 
-.plugin-artwork-wecomMail {
-  background: light-dark(#ffffff, var(--panel-raised));
-  color: #07c160;
-}
-
 .plugin-brand-svg {
   display: block;
   width: 19px;

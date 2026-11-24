@@ -2,6 +2,8 @@
 
 Status: implemented
 
+Superseded by [Remove the WeCom Mail connector](2026-11-24-remove-wecom-mail-connector.md).
+
 ## Problem
 
 WeCom Mail exposes search, read, and send through the member-authorized smart-robot MCP server. Barn needed to support that official endpoint without adding provider-specific Worker tools, exposing the endpoint API key to the model, or bypassing approval for sends. The console can provide either a bare `apikey` or a complete Streamable HTTP URL, and the key expires and must be reauthorized by a member.

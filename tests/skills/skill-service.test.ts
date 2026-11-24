@@ -79,6 +79,22 @@ describe('SkillService', () => {
     h.sessions.close()
   })
 
+  it('keeps the catalog revision bounded as the skill list grows', async () => {
+    const h = await harness()
+    for (let index = 0; index < 40; index++) {
+      h.skills.create({
+        name: `Catalog skill ${index}`,
+        description: `Description ${index}`,
+        instructions: `# Skill ${index}`,
+      })
+    }
+
+    const revision = h.skills.getRevision()
+    expect(revision).toMatch(/^skills:[a-f0-9]{64}$/)
+    expect(revision.length).toBeLessThanOrEqual(200)
+    h.sessions.close()
+  })
+
   it('keeps system skills read-only', async () => {
     const h = await harness()
     await expect(h.skills.update('system-meeting-notes', { name: 'Changed' })).rejects.toThrow('read-only')

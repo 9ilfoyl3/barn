@@ -9,7 +9,7 @@ import { SessionStore } from '../../src/main/session/session-store'
 import { randomBytes } from 'node:crypto'
 import type { SkillService } from '../../src/main/skills/skill-service'
 import type { ConnectorService } from '../../src/main/connectors/connector-service'
-import { DINGTALK_CONNECTOR } from '../../src/main/connectors/catalog'
+import { BUILT_IN_CONNECTORS } from '../../src/main/connectors/catalog'
 
 async function createService(): Promise<{
   service: ToolService
@@ -36,7 +36,7 @@ async function createService(): Promise<{
 }
 
 describe('ToolService', () => {
-  it('returns connector capability input schemas to the Worker', async () => {
+  it('returns complete connector capability input schemas to the Worker', async () => {
     const root = await mkdtemp(join(tmpdir(), 'barn-tools-connectors-'))
     await Promise.all([
       mkdir(join(root, 'workspace')),
@@ -44,7 +44,7 @@ describe('ToolService', () => {
       mkdir(join(root, 'temp')),
     ])
     const connectors = {
-      listDefinitions: vi.fn(() => [DINGTALK_CONNECTOR]),
+      listDefinitions: vi.fn(() => [...BUILT_IN_CONNECTORS]),
       list: vi.fn(async () => []),
       call: vi.fn(),
     } as unknown as ConnectorService
@@ -58,15 +58,50 @@ describe('ToolService', () => {
 
     const result = await service.execute('connector_list', {})
     const payload = JSON.parse(result.content[0]?.type === 'text' ? result.content[0].text : '{}')
-    const send = payload.definitions
-      .find((definition: { kind: string }) => definition.kind === 'dingtalk')
-      .capabilities.find((capability: { id: string }) => capability.id === 'dingtalk.send')
+    const definitions = payload.definitions as Array<{
+      kind: string
+      capabilities: Array<{ id: string; inputSchema?: unknown }>
+    }>
+    for (const definition of definitions) {
+      for (const capability of definition.capabilities) {
+        expect(capability.inputSchema, `${capability.id} should advertise its argument contract`).toBeDefined()
+      }
+    }
+    const send = definitions
+      .find((definition) => definition.kind === 'dingtalk')
+      ?.capabilities.find((capability) => capability.id === 'dingtalk.send')
+    const emailSend = definitions
+      .find((definition) => definition.kind === 'email')
+      ?.capabilities.find((capability) => capability.id === 'email.send')
+    const githubCreateIssue = definitions
+      .find((definition) => definition.kind === 'github')
+      ?.capabilities.find((capability) => capability.id === 'github.createIssue')
 
     expect(send).toMatchObject({
       requiresApproval: false,
       inputSchema: {
         required: ['content'],
         properties: { content: { type: 'string' } },
+      },
+    })
+    expect(emailSend).toMatchObject({
+      inputSchema: {
+        additionalProperties: false,
+        required: ['to', 'subject'],
+        properties: {
+          text: { type: 'string' },
+          html: { type: 'string' },
+        },
+      },
+    })
+    expect(githubCreateIssue).toMatchObject({
+      inputSchema: {
+        additionalProperties: false,
+        required: ['owner', 'repo', 'title'],
+        properties: {
+          title: { type: 'string' },
+          body: { type: 'string' },
+        },
       },
     })
   })

@@ -6,6 +6,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { DINGTALK_CONNECTOR, EMAIL_CONNECTOR } from '../../src/main/connectors/catalog'
 import { ConnectorCredentialStore } from '../../src/main/connectors/connector-credentials'
 import { ConnectorService } from '../../src/main/connectors/connector-service'
+import { DingTalkConnectorAdapter } from '../../src/main/connectors/dingtalk-adapter'
 import type { ConnectorAdapter } from '../../src/main/connectors/types'
 import type { ActionRecord, ActionRequestInput } from '../../src/main/actions/types'
 import type { ConnectorConfig, ConnectorDefinition } from '../../src/shared/models'
@@ -38,6 +39,7 @@ async function harness(options: {
   config?: ConnectorConfig
   credentials?: Record<string, string>
   name?: string
+  adapter?: ConnectorAdapter
 } = {}) {
   const definition = options.definition ?? EMAIL_CONNECTOR
   const connectorConfig = options.config ?? config
@@ -46,7 +48,7 @@ async function harness(options: {
   const sessions = new SessionStore(join(directory, 'sessions.db'), new AesGcmEventCipher(randomBytes(32)))
   await sessions.initialize()
   const credentials = new ConnectorCredentialStore(join(directory, 'credentials.enc'), new TestCodec())
-  const adapter: ConnectorAdapter = {
+  const adapter: ConnectorAdapter = options.adapter ?? {
     kind: definition.kind,
     test: vi.fn(async () => ({ message: 'connected' })),
     call: vi.fn(async (_context, capability) => ({ capability: capability.id })),
@@ -274,6 +276,70 @@ describe('ConnectorService', () => {
       expect.objectContaining({ id: 'email.send' }),
       expect.anything(),
     )
+    h.sessions.close()
+  })
+
+  it('retries a legacy DingTalk send action that still uses text as its body field', async () => {
+    const runJson = vi.fn(async () => ({ ok: true }))
+    const h = await harness({
+      definition: DINGTALK_CONNECTOR,
+      config: {},
+      credentials: {},
+      name: 'DingTalk',
+      adapter: new DingTalkConnectorAdapter({
+        status: vi.fn(async () => ({ installed: true, authenticated: true })),
+        runJson,
+      }),
+    })
+    h.service.registerActionHandler(h.actions)
+    const execute = h.handlers.get('connector.effect')
+    expect(execute).toBeDefined()
+
+    await execute!({
+      id: 'legacy-dingtalk-action',
+      kind: 'connector.effect',
+      idempotencyKey: 'legacy-key',
+      title: 'Send message',
+      summary: 'Send a DingTalk message',
+      status: 'running',
+      payload: {
+        connectorId: h.connector.id,
+        capability: 'dingtalk.send',
+        arguments: { openDingTalkId: 'open-user-1', text: 'Legacy approval body' },
+      },
+      attempts: 1,
+      maxAttempts: 5,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    }, {
+      actionId: 'legacy-dingtalk-action',
+      idempotencyKey: 'legacy-key',
+      signal: new AbortController().signal,
+    })
+
+    expect(runJson).toHaveBeenCalledWith([
+      'chat', 'message', 'send',
+      '--open-dingtalk-id', 'open-user-1',
+      '--content', 'Legacy approval body',
+      '--format', 'json',
+      '--yes',
+    ], expect.anything())
+    h.sessions.close()
+  })
+
+  it('removes connectors for unsupported providers and their stored credentials', async () => {
+    const h = await harness()
+    const legacy = h.sessions.connectors.create({
+      kind: 'wecomMail',
+      name: 'Legacy WeCom Mail',
+      config: {},
+    })
+    await h.credentials.save(legacy.id, { apiKeyOrUrl: 'legacy-secret' }, true)
+
+    await expect(h.service.removeUnsupportedKinds(['wecomMail'])).resolves.toBe(1)
+
+    expect(h.sessions.connectors.list().some((connector) => connector.id === legacy.id)).toBe(false)
+    await expect(h.credentials.keys(legacy.id)).resolves.toEqual([])
     h.sessions.close()
   })
 })

@@ -110,6 +110,19 @@ export class ConnectorService {
     this.store.remove(connectorId)
   }
 
+  /** Remove connectors for providers that are no longer shipped, including their encrypted credentials. */
+  async removeUnsupportedKinds(kinds: readonly string[]): Promise<number> {
+    const unsupported = new Set(kinds)
+    let removed = 0
+    for (const record of this.store.list()) {
+      if (!unsupported.has(record.kind)) continue
+      await this.credentials.delete(record.id)
+      this.store.remove(record.id)
+      removed++
+    }
+    return removed
+  }
+
   async saveCredentials(input: SaveConnectorCredentialsInput): Promise<ConnectorInstance> {
     const connector = this.store.get(input.connectorId)
     const definition = this.requireDefinition(connector.kind)

@@ -1,5 +1,42 @@
 import type { ConnectorDefinition } from '../../shared/models'
 
+const EMAIL_MAILBOX_PROPERTY = {
+  type: 'string',
+  description: 'Mailbox name. Defaults to INBOX.',
+  default: 'INBOX',
+} as const
+
+const EMAIL_LIMIT_PROPERTY = {
+  type: 'integer',
+  minimum: 1,
+  maximum: 50,
+  default: 20,
+} as const
+
+const EMAIL_ADDRESS_PROPERTY = {
+  oneOf: [
+    { type: 'string', format: 'email' },
+    { type: 'array', items: { type: 'string', format: 'email' }, minItems: 1, maxItems: 50 },
+  ],
+} as const
+
+const GITHUB_REPOSITORY_PROPERTIES = {
+  owner: { type: 'string', description: 'Repository owner login.' },
+  repo: { type: 'string', description: 'Repository name.' },
+} as const
+
+const GITHUB_PAGINATION_PROPERTIES = {
+  page: { type: 'integer', minimum: 1, maximum: 1_000, default: 1 },
+  perPage: { type: 'integer', minimum: 1, maximum: 50 },
+  limit: { type: 'integer', minimum: 1, maximum: 50 },
+} as const
+
+const GITHUB_STATE_PROPERTY = {
+  type: 'string',
+  enum: ['open', 'closed', 'all'],
+  default: 'open',
+} as const
+
 export const EMAIL_CONNECTOR: ConnectorDefinition = {
   kind: 'email',
   name: 'Email',
@@ -25,24 +62,65 @@ export const EMAIL_CONNECTOR: ConnectorDefinition = {
       name: 'List recent mail',
       description: 'List recent messages in the inbox without opening their full content.',
       risk: 'read',
+      inputSchema: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          mailbox: EMAIL_MAILBOX_PROPERTY,
+          limit: EMAIL_LIMIT_PROPERTY,
+        },
+      },
     },
     {
       id: 'email.search',
       name: 'Search mail',
       description: 'Search messages by sender, recipient, subject, or text.',
       risk: 'read',
+      inputSchema: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['query'],
+        properties: {
+          query: { type: 'string', description: 'Search phrase.' },
+          mailbox: EMAIL_MAILBOX_PROPERTY,
+          limit: EMAIL_LIMIT_PROPERTY,
+        },
+      },
     },
     {
       id: 'email.read',
       name: 'Read mail',
       description: 'Read one message by its UID, including bounded text content and attachment metadata.',
       risk: 'read',
+      inputSchema: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['uid'],
+        properties: {
+          uid: { type: 'integer', minimum: 1, description: 'Message UID returned by list or search.' },
+          mailbox: EMAIL_MAILBOX_PROPERTY,
+        },
+      },
     },
     {
       id: 'email.send',
       name: 'Send mail',
       description: 'Send a plain-text or HTML email. Sending is queued for approval before execution.',
       risk: 'external-write',
+      inputSchema: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['to', 'subject'],
+        anyOf: [{ required: ['text'] }, { required: ['html'] }],
+        properties: {
+          to: { ...EMAIL_ADDRESS_PROPERTY, description: 'One recipient or up to 50 recipients.' },
+          cc: { ...EMAIL_ADDRESS_PROPERTY, description: 'Optional one or more cc recipients.' },
+          bcc: { ...EMAIL_ADDRESS_PROPERTY, description: 'Optional one or more bcc recipients.' },
+          subject: { type: 'string', description: 'Message subject.' },
+          text: { type: 'string', description: 'Plain-text body. Provide text, html, or both.' },
+          html: { type: 'string', description: 'HTML body. Provide text, html, or both.' },
+        },
+      },
     },
   ],
 }
@@ -189,99 +267,155 @@ export const GITHUB_CONNECTOR: ConnectorDefinition = {
       name: 'Search repositories',
       description: 'Search repositories visible to the connected GitHub account with page/perPage pagination and optional language enrichment.',
       risk: 'read',
+      inputSchema: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['query'],
+        properties: {
+          query: { type: 'string', description: 'GitHub repository search query.' },
+          includeLanguages: { type: 'boolean', default: false },
+          ...GITHUB_PAGINATION_PROPERTIES,
+        },
+      },
     },
     {
       id: 'github.listRepositories',
       name: 'List my repositories',
       description: 'List repositories owned by the connected account, including private and fork repositories, with page/perPage pagination and optional language enrichment.',
       risk: 'read',
+      inputSchema: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          includeLanguages: { type: 'boolean', default: false },
+          ...GITHUB_PAGINATION_PROPERTIES,
+        },
+      },
     },
     {
       id: 'github.getRepository',
       name: 'Read a repository',
       description: 'Read one repository with its visibility, fork and archive state, stars, forks, topics, license, and language breakdown.',
       risk: 'read',
+      inputSchema: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['owner', 'repo'],
+        properties: {
+          ...GITHUB_REPOSITORY_PROPERTIES,
+          includeLanguages: { type: 'boolean', default: true },
+        },
+      },
     },
     {
       id: 'github.searchIssues',
       name: 'Search issues and pull requests',
       description: 'Search issues and pull requests with GitHub search syntax.',
       risk: 'read',
+      inputSchema: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['query'],
+        properties: {
+          query: { type: 'string', description: 'GitHub issues and pull requests search query.' },
+          ...GITHUB_PAGINATION_PROPERTIES,
+        },
+      },
     },
     {
       id: 'github.listIssues',
       name: 'List repository issues',
       description: 'List open, closed, or all issues in one repository.',
       risk: 'read',
+      inputSchema: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['owner', 'repo'],
+        properties: {
+          ...GITHUB_REPOSITORY_PROPERTIES,
+          state: GITHUB_STATE_PROPERTY,
+          ...GITHUB_PAGINATION_PROPERTIES,
+        },
+      },
     },
     {
       id: 'github.getIssue',
       name: 'Read an issue',
       description: 'Read one issue with its bounded body text.',
       risk: 'read',
+      inputSchema: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['owner', 'repo', 'number'],
+        properties: {
+          ...GITHUB_REPOSITORY_PROPERTIES,
+          number: { type: 'integer', minimum: 1, description: 'Issue number.' },
+        },
+      },
     },
     {
       id: 'github.listPullRequests',
       name: 'List pull requests',
       description: 'List open, closed, or all pull requests in one repository.',
       risk: 'read',
+      inputSchema: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['owner', 'repo'],
+        properties: {
+          ...GITHUB_REPOSITORY_PROPERTIES,
+          state: GITHUB_STATE_PROPERTY,
+          ...GITHUB_PAGINATION_PROPERTIES,
+        },
+      },
     },
     {
       id: 'github.getPullRequest',
       name: 'Read a pull request',
       description: 'Read one pull request with its branches, summary, and change counts.',
       risk: 'read',
+      inputSchema: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['owner', 'repo', 'number'],
+        properties: {
+          ...GITHUB_REPOSITORY_PROPERTIES,
+          number: { type: 'integer', minimum: 1, description: 'Pull request number.' },
+        },
+      },
     },
     {
       id: 'github.createIssue',
       name: 'Create an issue',
       description: 'Create a GitHub issue after approval.',
       risk: 'external-write',
+      inputSchema: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['owner', 'repo', 'title'],
+        properties: {
+          ...GITHUB_REPOSITORY_PROPERTIES,
+          title: { type: 'string', description: 'Issue title.' },
+          body: { type: 'string', description: 'Optional issue body.' },
+          labels: { type: 'array', items: { type: 'string' }, maxItems: 20 },
+        },
+      },
     },
     {
       id: 'github.comment',
       name: 'Comment on an issue or pull request',
       description: 'Add a comment to an issue or pull request after approval.',
       risk: 'external-write',
-    },
-  ],
-}
-
-export const WECOM_MAIL_CONNECTOR: ConnectorDefinition = {
-  kind: 'wecomMail',
-  name: 'WeCom Mail',
-  description: 'Search, read, and send WeCom Mail through the official WeCom MCP endpoint.',
-  icon: 'mail',
-  helpUrl: 'https://developer.work.weixin.qq.com/document/path/101805',
-  hideConnectionName: true,
-  configFields: [],
-  credentialFields: [
-    {
-      key: 'apiKeyOrUrl',
-      label: 'API key (or full endpoint URL)',
-      type: 'password',
-      required: true,
-      placeholder: 'Paste an API key or https://qyapi.weixin.qq.com/mcp/robot-mail?apikey=...',
-    },
-  ],
-  capabilities: [
-    {
-      id: 'wecomMail.search',
-      name: 'Search WeCom Mail',
-      description: 'Search the mailbox and list messages by sender, recipient, time, folder, or labels.',
-      risk: 'read',
-    },
-    {
-      id: 'wecomMail.get',
-      name: 'Read WeCom Mail',
-      description: 'Read one WeCom Mail message by its encoded mail id.',
-      risk: 'read',
-    },
-    {
-      id: 'wecomMail.send',
-      name: 'Send WeCom Mail',
-      description: 'Send, reply to, or forward WeCom Mail. Sending is queued for approval first.',
-      risk: 'external-write',
+      inputSchema: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['owner', 'repo', 'number', 'body'],
+        properties: {
+          ...GITHUB_REPOSITORY_PROPERTIES,
+          number: { type: 'integer', minimum: 1, description: 'Issue or pull request number.' },
+          body: { type: 'string', description: 'Comment body.' },
+        },
+      },
     },
   ],
 }
@@ -290,7 +424,6 @@ export const BUILT_IN_CONNECTORS: readonly ConnectorDefinition[] = [
   EMAIL_CONNECTOR,
   GITHUB_CONNECTOR,
   DINGTALK_CONNECTOR,
-  WECOM_MAIL_CONNECTOR,
 ]
 
 export function builtinConnectorDefinitions(): Map<string, ConnectorDefinition> {
