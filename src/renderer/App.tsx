@@ -53,6 +53,7 @@ import { TaskCenter } from './TaskCenter'
 import { TodayPanel } from './TodayPanel'
 import { TaskRail } from './TaskRail'
 import { TaskDetailPage } from './TaskDetailPage'
+import { TaskApprovalCard } from './TaskApprovalCard'
 import { ReplyGuideGroup } from './ReplyGuideGroup'
 import { CommandPalette } from './CommandPalette'
 import { isExecutingTask, resolveMessageActivity } from './message-activity'
@@ -161,7 +162,8 @@ export function App() {
     downloads: [],
     history: [],
   })
-  const [pendingApprovals, setPendingApprovals] = useState<ApprovalRequest[]>([])
+  const [approvals, setApprovals] = useState<ApprovalRequest[]>([])
+  const [busyApprovalId, setBusyApprovalId] = useState<string>()
   const listRef = useRef<HTMLElement>(null)
   const composerDockRef = useRef<HTMLDivElement>(null)
   const accountAreaRef = useRef<HTMLDivElement>(null)
@@ -370,13 +372,13 @@ export function App() {
   }, [])
   useEffect(() => {
     const upsert = (approval: ApprovalRequest): void => {
-      setPendingApprovals((current) => {
+      setApprovals((current) => {
         const rest = current.filter((entry) => entry.id !== approval.id)
-        return approval.status === 'pending' ? [approval, ...rest] : rest
+        return [approval, ...rest]
       })
     }
     const unsubscribe = window.barn.approvals.onChange(upsert)
-    void window.barn.approvals.listPending().then((approvals) => setPendingApprovals(approvals))
+    void window.barn.approvals.listPending().then(setApprovals)
       .catch((reason: unknown) => setError(errorMessage(reason, t)))
     return unsubscribe
   }, [])
@@ -729,13 +731,26 @@ export function App() {
   }
 
   async function resolveBrowserApproval(decision: 'approved' | 'denied'): Promise<void> {
-    const approval = pendingApprovals.find((entry) => entry.title === 'Approve browser action')
+    const approval = approvals.find((entry) => entry.status === 'pending' && entry.title === 'Approve browser action')
     if (approval === undefined) return
     try {
-      await window.barn.approvals.resolve(approval.id, decision)
-      setPendingApprovals((current) => current.filter((entry) => entry.id !== approval.id))
+      const resolved = await window.barn.approvals.resolve(approval.id, decision)
+      setApprovals((current) => [resolved, ...current.filter((entry) => entry.id !== resolved.id)])
     } catch (reason) {
       setError(errorMessage(reason, t))
+    }
+  }
+
+  async function resolveTaskApproval(approval: ApprovalRequest, decision: 'approved' | 'denied'): Promise<void> {
+    setBusyApprovalId(approval.id)
+    setError(undefined)
+    try {
+      const resolved = await window.barn.approvals.resolve(approval.id, decision)
+      setApprovals((current) => [resolved, ...current.filter((entry) => entry.id !== resolved.id)])
+    } catch (reason) {
+      setError(errorMessage(reason, t))
+    } finally {
+      setBusyApprovalId(undefined)
     }
   }
 
@@ -781,6 +796,7 @@ export function App() {
   const workingDirectoryLabel = workingDirectory === undefined
     ? t('conversation.chooseWorkingDirectory')
     : workingDirectory.split(/[\\/]/).filter(Boolean).at(-1) ?? workingDirectory
+  const pendingApprovals = approvals.filter((approval) => approval.status === 'pending')
   const browserApproval = pendingApprovals.find((approval) => approval.title === 'Approve browser action')
   const routines = displayMessages
     .filter((message) => message.routineDelivery === true && !acknowledgedRoutineIds.has(message.key))
@@ -833,6 +849,12 @@ export function App() {
     return task === undefined || !isExecutingTask(task)
   })
   const renderEntries = conversationRenderEntries(completedDisplayMessages)
+  const taskResultTaskIds = new Set(completedDisplayMessages.flatMap((message) => (
+    message.taskResult === true && message.taskId !== undefined ? [message.taskId] : []
+  )))
+  const standaloneApprovals = pendingApprovals.filter((approval) => (
+    approval.taskId !== undefined && !taskResultTaskIds.has(approval.taskId)
+  ))
   const activityState = messageActivity?.kind === 'task' ? 'working' : 'composing'
   const activityLabel = messageActivity?.kind === 'task'
     ? messageActivity.task.status === 'queued'
@@ -1202,10 +1224,15 @@ export function App() {
                         const task = message.taskId === undefined
                           ? undefined
                           : tasks.find((candidate) => candidate.id === message.taskId)
+                        const taskApprovals = message.taskId === undefined
+                          ? []
+                          : approvals.filter((approval) => approval.taskId === message.taskId)
                         return (
                           <article className="task-result-notice" data-message-key={message.key} key={message.key}>
                             <span className="task-result-label">
-                              {t('tasks.taskResultFor', { title: task?.title ?? t('tasks.title') })}
+                              {task?.status === 'waiting' && task.waitingReason === 'approval'
+                                ? t('approvals.taskLabel', { title: task.title })
+                                : t('tasks.taskResultFor', { title: task?.title ?? t('tasks.title') })}
                             </span>
                             <MessageBubble
                               aria-label={t('conversation.barnMessage')}
@@ -1216,6 +1243,18 @@ export function App() {
                             >
                               <ConversationParts parts={message.parts} role="assistant" keyPrefix={message.key} />
                             </MessageBubble>
+                            {taskApprovals.length > 0 && (
+                              <div className="task-approval-stack">
+                                {taskApprovals.map((approval) => (
+                                  <TaskApprovalCard
+                                    approval={approval}
+                                    busy={busyApprovalId === approval.id}
+                                    key={approval.id}
+                                    onResolve={(decision) => void resolveTaskApproval(approval, decision)}
+                                  />
+                                ))}
+                              </div>
+                            )}
                           </article>
                         )
                       }
@@ -1250,6 +1289,23 @@ export function App() {
                             </div>
                           ))}
                         </ReplyGuideGroup>
+                      )
+                    })}
+                    {standaloneApprovals.map((approval) => {
+                      const task = approval.taskId === undefined
+                        ? undefined
+                        : tasks.find((candidate) => candidate.id === approval.taskId)
+                      return (
+                        <article className="task-result-notice" data-approval-id={approval.id} key={`approval:${approval.id}`}>
+                          <span className="task-result-label">
+                            {t('approvals.taskLabel', { title: task?.title ?? t('tasks.title') })}
+                          </span>
+                          <TaskApprovalCard
+                            approval={approval}
+                            busy={busyApprovalId === approval.id}
+                            onResolve={(decision) => void resolveTaskApproval(approval, decision)}
+                          />
+                        </article>
                       )
                     })}
                     {(showMessageActivity || displayLiveParts.length > 0) && (
@@ -1431,20 +1487,13 @@ export function App() {
         </div>
       </main>
 
-      {browserApproval !== undefined && !browserOpen && (
+      {browserApproval !== undefined && !browserOpen && (view !== 'conversation' || browserApproval.taskId === undefined) && (
         <aside className="background-browser-approval" role="alertdialog" aria-label="Browser action approval">
-          <div className="background-browser-approval-copy">
-            <strong>Approve browser action?</strong>
-            <span>{browserApproval.summary}</span>
-          </div>
-          <div className="background-browser-approval-actions">
-            <button type="button" className="is-deny" onClick={() => void resolveBrowserApproval('denied')}>
-              Deny
-            </button>
-            <button type="button" className="is-approve" aria-label="Approve browser action" onClick={() => void resolveBrowserApproval('approved')}>
-              Approve
-            </button>
-          </div>
+          <TaskApprovalCard
+            approval={browserApproval}
+            busy={busyApprovalId === browserApproval.id}
+            onResolve={(decision) => void resolveBrowserApproval(decision)}
+          />
         </aside>
       )}
 

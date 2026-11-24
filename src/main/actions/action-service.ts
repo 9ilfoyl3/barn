@@ -17,6 +17,7 @@ export interface ActionServiceOptions {
 /** Durable outbox for consequential actions: permission gate, idempotent execution, retries, and audit. */
 export class ActionService {
   private readonly handlers = new Map<string, ActionHandler>()
+  private readonly changeListeners = new Set<(action: ActionRecord) => void>()
   private readonly options: Required<ActionServiceOptions>
   private disposers: Array<() => void> = []
   private timer: NodeJS.Timeout | undefined
@@ -50,10 +51,10 @@ export class ActionService {
       const action = this.store.findByApprovalId(approval.id)
       if (action === undefined) return
       if (decision === 'approved') {
-        if (action.status === 'pending_approval') this.store.queueAfterApproval(action.id, this.now())
+        if (action.status === 'pending_approval') this.emitChange(this.store.queueAfterApproval(action.id, this.now()))
         this.schedule()
       } else if (action.status === 'pending_approval') {
-        this.store.cancel(action.id, 'Denied by a person.', this.now())
+        this.emitChange(this.store.cancel(action.id, 'Denied by a person.', this.now()))
       }
     }))
     if (this.options.pollIntervalMs > 0) {
@@ -83,12 +84,13 @@ export class ActionService {
     })
     if (permission.decision === 'denied') {
       const action = this.store.create(input, 'queued')
-      return this.store.cancel(action.id, permission.reason, this.now())
+      return this.emitChange(this.store.cancel(action.id, permission.reason, this.now()))
     }
     if (permission.decision === 'approval_required') {
-      return this.store.create(input, 'pending_approval', permission.approval.id)
+      return this.emitChange(this.store.create(input, 'pending_approval', permission.approval.id))
     }
     const action = this.store.create(input, 'queued')
+    this.emitChange(action)
     this.schedule()
     return action
   }
@@ -107,12 +109,18 @@ export class ActionService {
 
   retry(actionId: string): ActionRecord {
     const action = this.store.retry(actionId, this.now())
+    this.emitChange(action)
     this.schedule()
     return action
   }
 
   cancel(actionId: string, reason = 'Cancelled by a person.'): ActionRecord {
-    return this.store.cancel(actionId, reason, this.now())
+    return this.emitChange(this.store.cancel(actionId, reason, this.now()))
+  }
+
+  onChange(listener: (action: ActionRecord) => void): () => void {
+    this.changeListeners.add(listener)
+    return () => this.changeListeners.delete(listener)
   }
 
   /** Execute every action that is due now. The timer calls this, and tests can drive it deterministically. */
@@ -125,6 +133,7 @@ export class ActionService {
         if (due === undefined) return
         const claimed = this.store.claim(due.id, this.now())
         if (claimed === undefined) continue
+        this.emitChange(claimed)
         await this.execute(claimed)
       }
     } finally {
@@ -155,7 +164,7 @@ export class ActionService {
             signal.addEventListener('abort', () => reject(new Error('Action execution was aborted')), { once: true })
           }),
         ])
-        this.store.succeed(action.id, result, this.now())
+        this.emitChange(this.store.succeed(action.id, result, this.now()))
       } finally {
         clearTimeout(timer)
       }
@@ -169,7 +178,7 @@ export class ActionService {
     const retryAt = action.attempts >= action.maxAttempts
       ? undefined
       : new Date(this.options.now().getTime() + retryDelay(action.attempts)).toISOString()
-    this.store.fail(action.id, message, retryAt, this.now())
+    this.emitChange(this.store.fail(action.id, message, retryAt, this.now()))
   }
 
   private schedule(): void {
@@ -179,6 +188,11 @@ export class ActionService {
 
   private now(): string {
     return this.options.now().toISOString()
+  }
+
+  private emitChange(action: ActionRecord): ActionRecord {
+    for (const listener of this.changeListeners) listener(action)
+    return action
   }
 }
 

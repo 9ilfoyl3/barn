@@ -1,4 +1,5 @@
 import type { AgentPromptOptions, AttachmentDescriptor, SessionLiveEvent, Task, TaskResultEnvelope } from '../../shared/models'
+import type { ActionStatus } from '../actions/types'
 import type { SessionStore } from '../session/session-store'
 import type { ThreadService } from '../threads/thread-service'
 import type { TaskService } from './task-service'
@@ -7,6 +8,14 @@ export interface TaskRunnerOptions {
   maxConcurrent?: number
   now?: () => Date
   routerRequestIdForTask?: (taskId: string) => string | undefined
+  taskEffectsForTask?: (taskId: string) => TaskEffectSnapshot[]
+}
+
+export interface TaskEffectSnapshot {
+  id: string
+  status: ActionStatus
+  approvalId?: string
+  lastError?: string
 }
 
 export interface TaskAgent {
@@ -33,6 +42,7 @@ export class TaskRunner {
   private readonly maxConcurrent: number
   private readonly now: () => Date
   private readonly routerRequestIdForTask: (taskId: string) => string | undefined
+  private readonly taskEffectsForTask: (taskId: string) => TaskEffectSnapshot[]
   private readonly active = new Map<string, ActiveTask>()
   private readonly activeSessions = new Map<string, string>()
   private disposers: Array<() => void> = []
@@ -45,7 +55,7 @@ export class TaskRunner {
     private readonly agent: TaskAgent,
     private readonly tasks: Pick<
       TaskService,
-      'list' | 'updateStatus' | 'recordResult' | 'rescheduleReminder' | 'assignSession' | 'onEvent'
+      'list' | 'updateStatus' | 'recordResult' | 'recordPendingResult' | 'requestApproval' | 'rescheduleReminder' | 'assignSession' | 'onEvent'
     >,
     private readonly sessions: Pick<SessionStore, 'append' | 'createSession' | 'getSession' | 'read'>,
     options: TaskRunnerOptions = {},
@@ -54,6 +64,7 @@ export class TaskRunner {
     this.maxConcurrent = Math.max(1, options.maxConcurrent ?? 3)
     this.now = options.now ?? (() => new Date())
     this.routerRequestIdForTask = options.routerRequestIdForTask ?? (() => undefined)
+    this.taskEffectsForTask = options.taskEffectsForTask ?? (() => [])
   }
 
   start(): void {
@@ -73,6 +84,12 @@ export class TaskRunner {
         }
         if (task.status === 'cancelled') {
           void this.cancelActive(task.id)
+          return
+        }
+        if (task.status === 'waiting' && task.waitingReason === 'approval' && this.active.has(task.id)) {
+          // The Worker run continues until it publishes its report. The Task is
+          // waiting for a person, not finished, and its result must not claim
+          // the external effect succeeded before approval.
           return
         }
         if (task.status === 'waiting' || task.status === 'completed' || task.status === 'failed') {
@@ -248,17 +265,53 @@ export class TaskRunner {
       return
     }
     this.removeActive(taskId)
+    const currentTask = this.tasks.list().find((task) => task.id === taskId)
+    const effects = this.taskEffectsForTask(taskId)
+    const pendingEffects = effects.filter((effect) => (
+      effect.status === 'pending_approval' || effect.status === 'queued' || effect.status === 'running'
+    ))
+    const failedEffects = effects.filter((effect) => (
+      effect.status === 'failed' || effect.status === 'cancelled' || effect.status === 'unknown_effect'
+    ))
+    const succeededReceipts = effects
+      .filter((effect) => effect.status === 'succeeded')
+      .map((effect) => `action:${effect.id}:succeeded`)
+    const pendingApproval = pendingEffects.find((effect) => effect.status === 'pending_approval' && effect.approvalId !== undefined)
     const result: TaskResultEnvelope = {
-      outcome: 'completed',
+      outcome: pendingEffects.length > 0
+        ? 'needs_review'
+        : failedEffects.length > 0
+          ? failedEffects.some((effect) => effect.status === 'unknown_effect') ? 'needs_review' : 'failed'
+          : 'completed',
       summary: answer.text,
       artifacts: taskArtifacts(this.tasks.list().find((task) => task.id === taskId)),
       evidenceRefs: [`session:${active.workerSessionId}:event:${answer.eventId}`],
-      limitations: [],
-      externalEffectReceipts: [],
+      limitations: failedEffects.flatMap((effect): string[] => effect.lastError === undefined ? [] : [effect.lastError]),
+      externalEffectReceipts: [
+        ...new Set([
+          ...succeededReceipts,
+          ...failedEffects.map((effect) => `action:${effect.id}:${effect.status}`),
+        ]),
+      ],
     }
-    this.tasks.recordResult(taskId, result)
+    if (pendingEffects.length > 0) {
+      if (currentTask?.status !== 'waiting' || currentTask.waitingReason !== 'approval') {
+        if (currentTask !== undefined && pendingApproval?.approvalId !== undefined) {
+          this.tasks.requestApproval(taskId, pendingApproval.approvalId, 'Waiting for a person to approve an external action.')
+        } else {
+          this.tasks.updateStatus(taskId, {
+            status: 'waiting',
+            waitingReason: 'review',
+            detail: 'Waiting for an external action to finish.',
+          })
+        }
+      }
+      this.tasks.recordPendingResult(taskId, result)
+    } else {
+      this.tasks.recordResult(taskId, result)
+    }
     this.recordResultForRouter(active.workerSessionId, taskId, result)
-    void this.projectTaskResult(taskId, active.workerSessionId, result, answer.eventId)
+    void this.projectTaskResult(taskId, active.workerSessionId, result, answer.eventId, pendingEffects.length > 0)
     this.schedule()
   }
 
@@ -303,6 +356,7 @@ export class TaskRunner {
         visibleActivity: false,
         visibleMetadata: { taskId: task.id },
         clientMessageIdPrefix: `task-assistant:${task.id}`,
+        taskId: task.id,
       },
     )
   }
@@ -328,6 +382,7 @@ export class TaskRunner {
     sessionId: string,
     result: TaskResultEnvelope,
     sessionEventId?: string,
+    pendingEffect = false,
   ): Promise<void> {
     const task = this.tasks.list().find((candidate) => candidate.id === taskId)
     if (task === undefined || result.summary.trim().length === 0) return
@@ -341,6 +396,7 @@ export class TaskRunner {
         sessionId,
         taskResult: true,
         taskOutcome: result.outcome,
+        ...(pendingEffect ? { taskPendingEffect: true } : {}),
         ...(sessionEventId === undefined ? {} : { sessionEventId }),
         ...(routerRequestId === undefined ? {} : { routerRequestId }),
       },

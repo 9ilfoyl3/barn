@@ -15,6 +15,7 @@ import {
 import './task-center.css'
 import type { ApprovalRequest, ConnectorActionSummary, Task, TaskStatus } from '../shared/models'
 import { useErrorToast } from './notifications'
+import { TaskApprovalCard } from './TaskApprovalCard'
 
 export type TaskGroupKey = 'needsYou' | 'inProgress' | 'recent'
 
@@ -519,22 +520,13 @@ function ConnectorActionSection({
       {approvals.map((approval) => {
         const busy = busyApprovalId === approval.id
         return (
-          <article className="task-row connector-action-card" key={approval.id}>
-            <div className="connector-action-card-heading">
-              <span className="task-card-title">{approval.title}</span>
-              <span className="task-status task-status-waiting">{t('tasks.connectorActionStatus.pending_approval')}</span>
-            </div>
-            <p>{approval.summary}</p>
-            {approval.details !== undefined && <small className="connector-action-details">{approval.details}</small>}
+          <article className="task-row connector-action-card task-approval-card-row" key={approval.id}>
+            <TaskApprovalCard
+              approval={approval}
+              busy={busy}
+              onResolve={(decision) => void onResolve(approval, decision)}
+            />
             <time dateTime={approval.createdAt}>{updatedLabel(approval.createdAt, dateLocale, t)}</time>
-            <div className="task-card-actions">
-              <button className="task-action quiet" type="button" disabled={busy} onClick={() => void onResolve(approval, 'denied')}>
-                {t('tasks.dismiss')}
-              </button>
-              <button className="task-action primary" type="button" disabled={busy} onClick={() => void onResolve(approval, 'approved')}>
-                {t('tasks.approve')}
-              </button>
-            </div>
           </article>
         )
       })}

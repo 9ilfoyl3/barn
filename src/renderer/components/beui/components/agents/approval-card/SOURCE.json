@@ -1,0 +1,7 @@
+{
+  "name": "beUI Approval Card",
+  "upstream": "https://beui.dev/components/agents/approval-card",
+  "registry": "https://beui.dev/r/approval-card.json",
+  "license": "MIT",
+  "adaptation": "Imports are rewritten into the isolated components/beui tree; Barn supplies localized labels and durable approval facts from the Host."
+}

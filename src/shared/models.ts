@@ -224,6 +224,7 @@ export type ConnectorCallResult =
 
 export interface ConnectorActionSummary {
   id: string
+  taskId?: string
   title: string
   summary: string
   details?: string
@@ -444,6 +445,8 @@ export interface AgentPromptOptions {
   userActorRole?: 'router' | 'worker'
   /** Source identity recorded on assistant Session events for this prompt. */
   assistantActorRole?: 'router' | 'worker'
+  /** Durable Task that owns this run. Host tools use it to bind approvals and effects. */
+  taskId?: string
   includeMemory?: boolean
   visibleMetadata?: Record<string, unknown>
   clientMessageIdPrefix?: string

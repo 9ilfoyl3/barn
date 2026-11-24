@@ -32,6 +32,7 @@ export class AgentService {
     clientMessageIdPrefix: string
     memoryRefs: string[]
     projectAssistantMessage: boolean
+    taskId?: string
   }>()
 
   constructor(
@@ -72,6 +73,7 @@ export class AgentService {
       clientMessageIdPrefix: options.clientMessageIdPrefix ?? `session-assistant:${sessionId}`,
       memoryRefs: [],
       projectAssistantMessage: options.projectAssistantMessage !== false,
+      ...(options.taskId === undefined ? {} : { taskId: options.taskId }),
     })
     try {
       const snapshot = await this.models.getSnapshot()
@@ -295,6 +297,9 @@ export class AgentService {
         void this.tools.execute(message.toolName, message.args, {
           workingDirectory: this.sessions.getSession(message.sessionId).workingDirectory,
           sessionId: message.sessionId,
+          ...(this.promptProjections.get(message.sessionId)?.taskId === undefined
+            ? {}
+            : { taskId: this.promptProjections.get(message.sessionId)!.taskId }),
           signal: controller.signal,
         })
           .then((result) => {

@@ -6,7 +6,7 @@ import { describe, expect, it, vi } from 'vitest'
 import type { SessionLiveEvent, Task } from '../../src/shared/models'
 import { AesGcmEventCipher } from '../../src/main/session/event-cipher'
 import { SessionStore } from '../../src/main/session/session-store'
-import { TaskRunner } from '../../src/main/tasks/task-runner'
+import { TaskRunner, type TaskEffectSnapshot } from '../../src/main/tasks/task-runner'
 import { TaskService } from '../../src/main/tasks/task-service'
 import { ThreadService } from '../../src/main/threads/thread-service'
 
@@ -28,6 +28,7 @@ class FakeAgent {
 async function harness(maxConcurrent = 1, options: {
   now?: () => Date
   threads?: ThreadService
+  taskEffectsForTask?: (taskId: string) => TaskEffectSnapshot[]
 } = {}) {
   const directory = await mkdtemp(join(tmpdir(), 'barn-task-runner-'))
   const sessions = new SessionStore(join(directory, 'sessions.db'), new AesGcmEventCipher(randomBytes(32)))
@@ -38,7 +39,11 @@ async function harness(maxConcurrent = 1, options: {
     agent,
     tasks,
     sessions,
-    { maxConcurrent, ...(options.now === undefined ? {} : { now: options.now }) },
+    {
+      maxConcurrent,
+      ...(options.now === undefined ? {} : { now: options.now }),
+      ...(options.taskEffectsForTask === undefined ? {} : { taskEffectsForTask: options.taskEffectsForTask }),
+    },
     options.threads,
   )
   return { sessions, tasks, agent, runner }
@@ -118,6 +123,42 @@ describe('TaskRunner', () => {
       && isRecord(event.data.result)
       && event.data.result.outcome === 'completed'
     ))).toBe(true)
+    h.runner.stop()
+    h.sessions.close()
+  })
+
+  it('keeps a Task waiting for approval when the Worker reports a pending external effect', async () => {
+    const approvalId = '11111111-1111-4111-8111-111111111111'
+    const h = await harness(1, {
+      taskEffectsForTask: () => [{
+        id: 'action-1',
+        status: 'pending_approval',
+        approvalId,
+      }],
+    })
+    h.runner.start()
+    const task = h.tasks.create({
+      title: 'Send the update',
+      origin: 'user',
+      prompt: 'Send the update to the team.',
+    })
+    const running = await waitForTask(h.tasks, task.id, (current) => current.status === 'running')
+
+    h.tasks.requestApproval(task.id, approvalId, 'Send the prepared update.')
+    finishWorker(h, running.sessionId!, 'The message is waiting for approval.')
+
+    const waiting = await waitForTask(h.tasks, task.id, (current) => (
+      current.status === 'waiting' && current.result !== undefined
+    ))
+    expect(waiting).toMatchObject({
+      status: 'waiting',
+      waitingReason: 'approval',
+      approvalId,
+      result: {
+        outcome: 'needs_review',
+        summary: 'The message is waiting for approval.',
+      },
+    })
     h.runner.stop()
     h.sessions.close()
   })

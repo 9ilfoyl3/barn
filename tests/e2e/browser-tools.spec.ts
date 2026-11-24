@@ -62,11 +62,14 @@ test('uses semantic browser tools to fill and submit a real page', async () => {
     await composer.fill('Fill the local form with Ada and submit it.')
     await composer.press('Enter')
 
-    const approval = page.getByRole('alertdialog', { name: 'Browser action approval' })
-    await expect(approval).toBeVisible({ timeout: 15_000 })
-    await expect(approval).toContainText('Submit a form on 127.0.0.1')
-    await approval.getByRole('button', { name: 'Approve browser action' }).click()
+    const mainApproval = page.locator('.task-result-notice .task-approval-card').filter({ hasText: 'Submit a form on 127.0.0.1' })
+    await expect(mainApproval).toBeVisible({ timeout: 15_000 })
+    await expect(mainApproval).toContainText('Waiting for your decision')
+    await mainApproval.getByRole('button', { name: 'Approve', exact: true }).click()
+    await expect(page.locator('.background-browser-approval')).toHaveCount(0)
     await expect.poll(async () => page.evaluate(async () => (await window.barn.tasks.list())[0]?.status), { timeout: 20_000 }).toBe('completed')
+    await expect(page.locator('.task-result-notice .task-approval-card').filter({ hasText: 'Submit a form on 127.0.0.1' }))
+      .toContainText('Approved')
     await expect(page.getByTestId('browser-panel')).toHaveCount(0)
     await expect.poll(async () => page.evaluate(() => window.barn.browser.getState())).toMatchObject({
       open: false,
@@ -74,9 +77,9 @@ test('uses semantic browser tools to fill and submit a real page', async () => {
     })
     expect(requests.length).toBeGreaterThanOrEqual(7)
 
-    const taskCard = page.locator('.assistant-result', { hasText: 'Fill and submit the local browser form' }).last()
-    await expect(taskCard.locator('.assistant-result-status')).toHaveText('Completed')
-    await taskCard.getByRole('button', { name: 'View details' }).click()
+    const taskCard = page.locator('.task-rail-card', { hasText: 'Fill and submit the local browser form' }).last()
+    await expect(taskCard).toContainText('Completed')
+    await taskCard.click()
     await expect(page.locator('.task-detail-page')).toContainText('Browser task completed.')
     await page.screenshot({ path: 'test-results/barn-browser-task-detail.png', fullPage: true })
 

@@ -35,7 +35,13 @@ export interface ConnectorPermissionService {
     title: string
     summary: string
     details?: string
+    taskId?: string
   }): PermissionOutcome
+}
+
+export interface ConnectorCallContext {
+  sessionId?: string
+  taskId?: string
 }
 
 export interface ConnectorServiceOptions {
@@ -142,6 +148,7 @@ export class ConnectorService {
   private toActionSummary(action: ActionRecord): import('../../shared/models').ConnectorActionSummary {
     return {
       id: action.id,
+      ...(action.taskId === undefined ? {} : { taskId: action.taskId }),
       title: action.title,
       summary: action.summary,
       ...(action.details === undefined ? {} : { details: action.details }),
@@ -175,7 +182,7 @@ export class ConnectorService {
     return this.toActionSummary(action)
   }
 
-  async call(input: ConnectorCallInput, sessionId?: string): Promise<ConnectorCallResult> {
+  async call(input: ConnectorCallInput, context: ConnectorCallContext = {}): Promise<ConnectorCallResult> {
     const { record, secrets } = await this.executionContext(input.connectorId)
     if (!record.enabled) throw new Error('This connector is disabled')
     const definition = this.requireDefinition(record.kind)
@@ -201,6 +208,7 @@ export class ConnectorService {
         kind: 'external-read',
         title: capability.name,
         summary: `${record.name}: ${capability.description}`,
+        ...(context.taskId === undefined ? {} : { taskId: context.taskId }),
       })
       if (permission.decision === 'denied') throw new Error(permission.reason)
       if (permission.decision === 'approval_required') {
@@ -219,11 +227,12 @@ export class ConnectorService {
     const actions = this.requireActions()
     const action = actions.enqueue({
       kind: 'connector.effect',
-      idempotencyKey: effectIdempotencyKey(record.id, capability.id, input.arguments, sessionId),
+      idempotencyKey: effectIdempotencyKey(record.id, capability.id, input.arguments, context.sessionId),
       permissionKind: 'external-write',
       title: capability.name,
       summary: `${record.name}: ${capability.description}`,
       details: summarizeConnectorArguments(input.arguments),
+      ...(context.taskId === undefined ? {} : { taskId: context.taskId }),
       payload: {
         connectorId: record.id,
         capability: capability.id,

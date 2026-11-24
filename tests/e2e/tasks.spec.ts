@@ -440,7 +440,7 @@ test('opens a task agent conversation with properties and accepts a follow-up me
   }
 })
 
-test('requires durable approval before a task can resume', async () => {
+test('records a person approval without letting the renderer own Task completion', async () => {
   const server = await startMockModelServer('Approved task completed.')
   const address = server.address()
   if (address === null || typeof address === 'string') throw new Error('Mock server did not bind')
@@ -506,13 +506,18 @@ test('requires durable approval before a task can resume', async () => {
     await expect(row).toContainText('Waiting')
     await expect(row).toContainText('Send the prepared draft externally.')
     await row.getByRole('button', { name: 'Approve', exact: true }).click()
-    await expect(row.locator('.task-status')).toHaveText('Completed', { timeout: 15_000 })
+    await expect(row.locator('.task-status')).toHaveText('Waiting')
     const approval = await page.evaluate(
       (approvalId) => window.barn.approvals.get(approvalId),
       outcome.approval.id,
     )
     expect(approval.status).toBe('approved')
     expect(approval.resolvedAt).toBeDefined()
+    expect(await page.evaluate((taskId) => window.barn.tasks.get(taskId), task.id)).toMatchObject({
+      status: 'waiting',
+      waitingReason: 'approval',
+      approvalId: outcome.approval.id,
+    })
   } finally {
     await app.close()
     await new Promise<void>((resolve, reject) => server.close((error) => error === undefined ? resolve() : reject(error)))

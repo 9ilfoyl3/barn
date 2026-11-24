@@ -12,7 +12,7 @@ A Task has one responsible execution Session at a time. The global Router decide
 
 Messages sent inside a Task are appended once and serialized per Task. Before any model runs, a Task Router decision with no execution tools chooses exactly one authority: `worker.dispatch`, `router.reply`, or `task.cancel`. Worker and Router therefore never answer the same follow-up in parallel. The Router may answer status, failure explanation, review, approval, memory, or other coordination questions from bounded Task context, but it cannot execute Task work. An actionable or ambiguous request goes to the Worker. Invalid Router output or a Router call failure falls back to the Worker without dropping the user message.
 
-The TaskRunner writes each validated Result Envelope into the Task Session as Router-readable coordination context before projecting the result to the Principal Thread. The Worker remains the only source of completion evidence and external effects.
+The TaskRunner writes each validated Result Envelope into the Task Session as Router-readable coordination context before projecting the result to the Principal Thread. The Worker remains the only source of completion evidence and external effects. When an external Action is still pending, the TaskRunner stores the report without claiming completion; the Action receipt settles the waiting Task.
 
 Task Contracts are normalized and encrypted in the Task row. Task results use a typed Result Envelope with outcome, summary, artifacts, evidence refs, limitations, and external-effect receipts. A Worker run completes a Task only when it produced a final assistant answer; the TaskRunner records a Result Envelope before projecting the result into the Principal Thread. Missing answers and Worker failures record failed envelopes rather than claiming completion.
 
@@ -41,3 +41,4 @@ Principal-Thread Router decisions fail closed when the model returns unstructure
 - Rerouting appends the new instruction to the Contract constraints and clears the previous result.
 - `needs_review` Tasks return to the Needs you queue with a review waiting reason.
 - Worker output is still summarized from the final assistant message until a dedicated structured-result tool exists; the Result Envelope improves durability and evidence refs but does not yet prove acceptance criteria.
+- Final assistant prose does not complete a Task while an approval or external Action is pending.

@@ -16,6 +16,7 @@ import {
 } from 'lucide-react'
 import type { ApprovalRequest, BrowserState } from '../shared/models'
 import { BrowserNewTab, browserTarget, type BrowserQuickAction } from './BrowserNewTab'
+import { TaskApprovalCard } from './TaskApprovalCard'
 
 export type { BrowserQuickAction } from './BrowserNewTab'
 
@@ -166,18 +167,7 @@ export function BrowserPanel({
 
       {approval !== undefined && (
         <div className="browser-approval-bar" role="alertdialog" aria-label="Browser action approval">
-          <div className="browser-approval-copy">
-            <strong>Approve browser action?</strong>
-            <span>{approval.summary}</span>
-          </div>
-          <div className="browser-approval-actions">
-            <button type="button" className="is-deny" onClick={() => void onResolveApproval('denied')}>
-              Deny
-            </button>
-            <button type="button" className="is-approve" aria-label="Approve browser action" onClick={() => void onResolveApproval('approved')}>
-              Approve
-            </button>
-          </div>
+          <TaskApprovalCard approval={approval} onResolve={(decision) => void onResolveApproval(decision)} />
         </div>
       )}
 

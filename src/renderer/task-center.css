@@ -311,6 +311,16 @@
   margin-top: 10px;
 }
 
+.task-approval-card-row {
+  padding: 10px;
+}
+
+.task-approval-card-row > time {
+  display: block;
+  margin-top: 6px;
+  padding-left: 2px;
+}
+
 .task-card-card:hover {
   border-color: color-mix(in srgb, var(--line-strong) 92%, transparent);
   background: color-mix(in srgb, var(--panel-raised) 48%, var(--panel));

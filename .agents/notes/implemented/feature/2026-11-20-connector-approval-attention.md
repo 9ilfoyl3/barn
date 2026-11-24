@@ -10,7 +10,7 @@ Connector writes entered the durable Action Outbox and could create Approval rec
 
 ConnectorService exposes a bounded, payload-free summary of recent `connector.effect` Actions. The Renderer receives only id, title, summary, details, status, attempts, error, and timestamps; it never receives the encrypted Action payload.
 
-The Task Center accepts general pending Approvals and renders connector approvals alongside Task attention. Browser approvals remain on their existing browser-specific surface and are filtered out of the Task Center. Approving or denying a connector Approval resolves the durable Approval record; the Task Center then refreshes recent connector action status. Recent non-pending connector actions show queued, running, sent, failed, or dismissed state and their failure reason.
+The Task Center accepts general pending Approvals and renders connector approvals with the beUI Approval Card alongside Task attention. Browser approvals remain on their existing browser-specific surface and are filtered out of the Task Center. Approving or denying a connector Approval resolves the durable Approval record; the Task Center then refreshes recent connector action status. Recent non-pending connector actions show queued, running, sent, failed, or dismissed state and their failure reason.
 
 ## Alternatives considered
 
