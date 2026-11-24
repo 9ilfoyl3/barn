@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import { basename } from 'node:path'
 import type {
   CreateSkillInput,
@@ -188,7 +189,9 @@ export class SkillService {
     const customRevision = this.store.list()
       .map((skill) => `${skill.id}:${skill.enabled ? 1 : 0}:${skill.updatedAt}`)
       .join(',')
-    return `${this.discovery.revision}|${this.preferenceRevision()}|custom:${customRevision}`
+    return `skills:${createHash('sha256')
+      .update(`${this.discovery.revision}|${this.preferenceRevision()}|custom:${customRevision}`)
+      .digest('hex')}`
   }
 
   onEvent(listener: (event: SkillLiveEvent) => void): () => void {

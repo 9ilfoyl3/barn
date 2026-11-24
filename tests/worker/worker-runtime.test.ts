@@ -146,6 +146,26 @@ async function viWait(predicate: () => boolean): Promise<void> {
 }
 
 describe('WorkerRuntime', () => {
+  it('correlates malformed host requests with the original request ID', async () => {
+    const host = new FakeHost()
+    const runtime = new WorkerRuntime(host)
+    runtime.start()
+
+    host.send({
+      type: 'session.prompt',
+      requestId: 'host:malformed-prompt',
+      sessionId: 'session-1',
+      text: '',
+    })
+
+    await viWait(() => host.received.some(
+      (message) => message.type === 'request.error' && message.requestId === 'host:malformed-prompt',
+    ))
+    expect(host.received.find(
+      (message) => message.type === 'request.error' && message.requestId === 'host:malformed-prompt',
+    )).toMatchObject({ type: 'request.error' })
+  })
+
   it('runs a multi-turn prompt and persists complete messages', async () => {
     const host = new FakeHost()
     const runtime = new WorkerRuntime(host)

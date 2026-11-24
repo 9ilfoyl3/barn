@@ -30,5 +30,6 @@ The scanner skips platform built-ins such as Codex `skills/.system`, plugin cach
 - Enablement is a Barn preference, not an edit to the source package.
 - Only the local Barn runtime can use host-discovered skills; they are not part of a cloud or shared catalog.
 - Custom Markdown imports remain single-file, encrypted SQLite records. Host-discovered skills support bounded multi-file resources.
+- The catalog revision sent to the Worker is a bounded digest, so the number of installed skills does not affect the protocol payload.
 - A missing, malformed, oversized, or externally symlinked package may appear as a scan warning instead of a usable skill.
 - See [Local skills are explicit, on-demand procedures](2026-11-23-local-skills.md) for the base catalog and tool model.

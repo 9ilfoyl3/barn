@@ -81,9 +81,10 @@ export class WorkerRuntime {
     try {
       message = parseHostToWorkerMessage(value)
     } catch (error) {
+      const requestId = requestIdFromUnknown(value)
       this.port.postMessage({
         type: 'request.error',
-        requestId: 'invalid-host-message',
+        requestId: requestId ?? 'invalid-host-message',
         error: error instanceof Error ? error.message : String(error),
       })
       return
@@ -683,6 +684,12 @@ function serializedToolArguments(value: unknown): string {
   } catch {
     return ''
   }
+}
+
+function requestIdFromUnknown(value: unknown): string | undefined {
+  if (typeof value !== 'object' || value === null || !('requestId' in value)) return undefined
+  const requestId = (value as { requestId?: unknown }).requestId
+  return typeof requestId === 'string' && requestId.length > 0 ? requestId : undefined
 }
 
 function errorMessage(model: Model<Api>, message: string): AssistantMessage {
