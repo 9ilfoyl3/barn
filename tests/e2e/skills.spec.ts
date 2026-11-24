@@ -128,7 +128,20 @@ test('manages local skills from the Plugins page and exposes them to the Agent b
 
     await skills.locator('.skill-row', { hasText: 'Launch brief' }).getByRole('button', { name: 'Open Launch brief skill' }).click()
     await page.getByRole('dialog', { name: 'Launch brief' }).getByRole('button', { name: 'Try now' }).click()
-    await expect(page.getByRole('textbox', { name: 'Message Barn' })).toContainText('Use the “Launch brief” skill to help me with')
+    const composer = page.getByRole('textbox', { name: 'Message Barn' })
+    await expect(composer).toContainText('/launch-brief')
+
+    await composer.fill('/launch')
+    const commandMenu = page.getByRole('listbox', { name: 'Skill commands' })
+    await expect(commandMenu).toBeVisible()
+    await page.screenshot({ path: 'test-results/barn-skill-command-menu.png', fullPage: true })
+    await commandMenu.getByRole('option', { name: /\/launch-brief/ }).click()
+    await expect(composer).toContainText('/launch-brief')
+
+    await composer.fill('/launch')
+    await composer.press('ArrowDown')
+    await composer.press('Enter')
+    await expect(composer).toContainText('/launch-checklist')
   } finally {
     await app.close()
   }

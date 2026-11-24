@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import 'streamdown/styles.css'
 import {
@@ -63,6 +63,7 @@ import './home-redesign.css'
 import './agent-activity.css'
 import './conversation-guide.css'
 import { initializeAppLanguage } from './i18n'
+import { buildSkillCommands, commandForSkill } from './skill-commands'
 import { TooltipButton } from './components/TooltipButton'
 import { MessageBubble, MessageBubbleGroup } from '@/components/beui/components/agents/message-bubble'
 import { PromptInput } from '@/components/beui/components/agents/prompt-input'
@@ -130,6 +131,7 @@ export function App() {
   const [threadMessages, setThreadMessages] = useState<VisibleMessage[]>([])
   const [routerRequests, setRouterRequests] = useState<RouterRequest[]>([])
   const [input, setInput] = useState('')
+  const [availableSkills, setAvailableSkills] = useState<SkillSummary[]>([])
   const [attachments, setAttachments] = useState<AttachmentDescriptor[]>([])
   const [workingDirectory, setWorkingDirectory] = useState<string>()
   const [liveParts, setLiveParts] = useState<ConversationPart[]>([])
@@ -172,6 +174,7 @@ export function App() {
   const activeSessionIdRef = useRef<string | undefined>(undefined)
   const draftSessionIdRef = useRef<string | undefined>(undefined)
   const homePaneResizeRef = useRef<{ side: HomePane; startX: number; startWidth: number; pointerId: number } | undefined>(undefined)
+  const promptCommands = useMemo(() => buildSkillCommands(availableSkills), [availableSkills])
 
   const syncConversationFades = useCallback((): void => {
     const surface = listRef.current
@@ -230,11 +233,17 @@ export function App() {
     void window.barn.router.getSnapshot()
       .then((routerSnapshot) => setRouterRequests(routerSnapshot.requests))
       .catch((reason: unknown) => setError(errorMessage(reason, t)))
+    const reloadSkills = (): void => {
+      void window.barn.skills.list().then(setAvailableSkills).catch(() => undefined)
+    }
+    reloadSkills()
+    const unsubscribeSkills = window.barn.skills.onEvent(reloadSkills)
     return () => {
       unsubscribeTheme()
       unsubscribeTasks()
       unsubscribeThread()
       unsubscribeRouter()
+      unsubscribeSkills()
     }
   }, [])
 
@@ -538,8 +547,9 @@ export function App() {
   }
 
   function trySkill(skill: SkillSummary): void {
-    const prompt = t('plugins.skillUi.tryPrompt', { name: skill.name })
-    setInput((current) => current.trim().length === 0 ? prompt : `${current.trim()}\n\n${prompt}`)
+    const command = commandForSkill(skill, promptCommands)
+      ?? buildSkillCommands([skill])[0]
+    setInput(command === undefined ? `${skill.name} ` : `${command.value} `)
     setView('conversation')
   }
 
@@ -1412,6 +1422,10 @@ export function App() {
                     }]}
                     aria-label={t('conversation.messageBarn')}
                     className="barn-prompt-input barn-prompt-inline"
+                    commandEmpty={t('conversation.skillCommandEmpty')}
+                    commandHint={t('conversation.skillCommandHint')}
+                    commandMenuLabel={t('conversation.skillCommands')}
+                    commands={promptCommands}
                     disabled={modelSelectionBusy}
                     leadingAction={(
                       <ModelPicker
