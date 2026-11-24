@@ -131,10 +131,13 @@ test('manages local skills from the Plugins page and exposes them to the Agent b
     const composer = page.getByRole('textbox', { name: 'Message Barn' })
     await expect(composer).toContainText('/launch-brief')
 
-    await composer.fill('/launch')
+    await composer.fill('/')
     const commandMenu = page.getByRole('listbox', { name: 'Skill commands' })
     await expect(commandMenu).toBeVisible()
+    await expect(commandMenu.getByRole('option')).toHaveCount(5)
+    await expect(commandMenu).toContainText('Type to search 5 skills')
     await page.screenshot({ path: 'test-results/barn-skill-command-menu.png', fullPage: true })
+    await composer.fill('/launch')
     await commandMenu.getByRole('option', { name: /\/launch-brief/ }).click()
     await expect(composer).toContainText('/launch-brief')
 

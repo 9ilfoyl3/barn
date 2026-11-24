@@ -312,8 +312,7 @@ export function PromptInput({
         .filter((command) => {
           const haystack = `${command.label} ${command.description ?? ""} ${command.keywords ?? ""}`.toLocaleLowerCase();
           return haystack.includes(slashToken.query);
-        })
-        .slice(0, 8);
+        });
   const commandMenuOpen = slashToken !== undefined && commands.length > 0;
 
   useEffect(() => {

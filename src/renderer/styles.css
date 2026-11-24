@@ -3922,7 +3922,7 @@ select:focus-visible {
 
 .prompt-command-list {
   display: grid;
-  max-height: 280px;
+  max-height: min(480px, 56vh);
   gap: 2px;
   overflow-y: auto;
 }

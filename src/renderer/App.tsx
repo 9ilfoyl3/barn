@@ -1423,7 +1423,7 @@ export function App() {
                     aria-label={t('conversation.messageBarn')}
                     className="barn-prompt-input barn-prompt-inline"
                     commandEmpty={t('conversation.skillCommandEmpty')}
-                    commandHint={t('conversation.skillCommandHint')}
+                    commandHint={t('conversation.skillCommandHint', { count: promptCommands.length })}
                     commandMenuLabel={t('conversation.skillCommands')}
                     commands={promptCommands}
                     disabled={modelSelectionBusy}
