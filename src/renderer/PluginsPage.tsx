@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
-  AlertCircle,
   ArrowLeft,
   CheckCircle2,
-  CircleDashed,
+  CircleAlert,
+  CircleCheck,
   CirclePause,
+  CircleX,
   Info,
   LoaderCircle,
   Mail,
@@ -516,7 +517,7 @@ function PluginSection({
                   <span className="plugin-row-title">
                     <strong>{translatedDefinitionName(definition, t)}</strong>
                     {connectors.length > 0 && status !== undefined && (
-                      <ConnectorStatusBadge label={t(`connectorSettings.status.${status}`)} status={status} />
+                      <ConnectorStatusIndicator label={t(`connectorSettings.status.${status}`)} status={status} />
                     )}
                   </span>
                   <small>
@@ -566,13 +567,17 @@ function ConnectorInstanceRow({
   const { t, i18n } = useTranslation()
   return (
     <article className={`plugin-instance-row plugin-instance-row-${connector.status}`} data-connector-id={connector.id}>
-      <span className="plugin-instance-mark" aria-hidden="true">
-        <ConnectorStatusIcon size={15} status={connector.status} />
+      <span
+        className="plugin-instance-mark"
+        aria-label={t(`connectorSettings.status.${connector.status}`)}
+        role="img"
+        title={t(`connectorSettings.status.${connector.status}`)}
+      >
+        <ConnectorStatusGlyph size={15} status={connector.status} />
       </span>
       <div className="plugin-instance-copy">
         <div className="plugin-instance-title">
           <strong>{connector.name}</strong>
-          <ConnectorStatusBadge label={t(`connectorSettings.status.${connector.status}`)} status={connector.status} />
         </div>
         <p>{connector.capabilities.map((capability) => capabilityName(capability, t, i18n.language)).join(' · ')}</p>
         {connector.lastError !== undefined && <small className="plugins-row-error">{connector.lastError}</small>}
@@ -608,7 +613,7 @@ function ConnectorInstanceRow({
   )
 }
 
-function ConnectorStatusIcon({
+function ConnectorStatusGlyph({
   status,
   size = 12,
 }: {
@@ -616,16 +621,16 @@ function ConnectorStatusIcon({
   size?: number
 }) {
   const Icon = status === 'ready'
-    ? CheckCircle2
+    ? CircleCheck
     : status === 'error'
-      ? AlertCircle
+      ? CircleX
       : status === 'needs_setup'
-        ? CircleDashed
+        ? CircleAlert
         : CirclePause
   return <Icon aria-hidden="true" data-status-icon={status} size={size} />
 }
 
-function ConnectorStatusBadge({
+function ConnectorStatusIndicator({
   status,
   label,
 }: {
@@ -633,9 +638,14 @@ function ConnectorStatusBadge({
   label: string
 }) {
   return (
-    <span className={`connector-status connector-status-${status}`} data-connector-status={status}>
-      <ConnectorStatusIcon status={status} />
-      <span>{label}</span>
+    <span
+      aria-label={label}
+      className={`connector-status connector-status-${status}`}
+      data-connector-status={status}
+      role="img"
+      title={label}
+    >
+      <ConnectorStatusGlyph size={16} status={status} />
     </span>
   )
 }

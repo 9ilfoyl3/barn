@@ -56,7 +56,7 @@ test('configures and removes an email connector from the plugins page', async ()
     await plugins.getByRole('button', { name: 'Save', exact: true }).click()
 
     await expect(plugins.locator('.plugin-instance-row')).toContainText('Work mail')
-    await expect(plugins.locator('.plugin-instance-row')).toContainText('Ready')
+    await expect(plugins.locator('.plugin-instance-row').getByRole('img', { name: 'Ready' })).toBeVisible()
     await plugins.getByRole('button', { name: 'Back to plugins' }).click()
     const emailPlugin = plugins.locator('[data-plugin-kind="email"]')
     await expect(emailPlugin).toContainText('1 connection')
@@ -116,7 +116,7 @@ test('configures and removes a GitHub token connector', async () => {
     await plugins.getByRole('button', { name: 'Save', exact: true }).click()
 
     await expect(plugins.locator('.plugin-instance-row')).toContainText('GitHub work')
-    await expect(plugins.locator('.plugin-instance-row')).toContainText('Ready')
+    await expect(plugins.locator('.plugin-instance-row').getByRole('img', { name: 'Ready' })).toBeVisible()
     await expect(plugins.getByText('Search repositories', { exact: true })).toBeVisible()
     await expect(plugins.getByText('List my repositories', { exact: true })).toBeVisible()
     await expect(plugins.getByText('Read a repository', { exact: true })).toBeVisible()
@@ -151,8 +151,9 @@ test('configures and removes a GitHub token connector', async () => {
     await page.screenshot({ path: 'test-results/barn-github.png', fullPage: true })
 
     await plugins.getByRole('button', { name: 'Back to plugins' }).click()
-    const githubStatus = plugins.locator('[data-plugin-kind="github"] .connector-status-ready')
-    await expect(githubStatus).toContainText('Ready')
+    const githubStatus = plugins.locator('[data-plugin-kind="github"] [data-connector-status="ready"]')
+    await expect(githubStatus).toHaveAttribute('aria-label', 'Ready')
+    await expect(githubStatus).toHaveText('')
     await expect(githubStatus.locator('[data-status-icon="ready"]')).toBeVisible()
     await page.screenshot({ path: 'test-results/barn-plugin-status.png', fullPage: true })
     await plugins.locator('[data-plugin-kind="github"]').getByRole('button', { name: 'Manage GitHub' }).click()
@@ -242,7 +243,7 @@ test('configures WeCom Mail with an apikey or full MCP endpoint', async () => {
     await plugins.getByRole('button', { name: 'Save', exact: true }).click()
 
     await expect(plugins.locator('.plugin-instance-row')).toContainText('WeCom Mail')
-    await expect(plugins.locator('.plugin-instance-row')).toContainText('Ready')
+    await expect(plugins.locator('.plugin-instance-row').getByRole('img', { name: 'Ready' })).toBeVisible()
     await expect.poll(async () => page.evaluate(async () => {
       const instances = await window.barn.connectors.list()
       return instances.map((instance) => ({
