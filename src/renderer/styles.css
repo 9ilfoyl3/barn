@@ -3905,3 +3905,87 @@ select:focus-visible {
     transition: none;
   }
 }
+
+.prompt-command-menu {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 8px);
+  left: 0;
+  z-index: 40;
+  overflow: hidden;
+  border: 1px solid var(--menu-border);
+  border-radius: 12px;
+  background: var(--panel);
+  padding: 4px;
+  box-shadow: var(--menu-shadow);
+}
+
+.prompt-command-list {
+  display: grid;
+  max-height: min(480px, 56vh);
+  gap: 2px;
+  overflow-y: auto;
+}
+
+.prompt-command-row {
+  display: flex;
+  min-width: 0;
+  min-height: 40px;
+  align-items: center;
+  gap: 10px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  padding: 8px;
+  color: var(--text-dim);
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+}
+
+.prompt-command-row:hover,
+.prompt-command-row.active {
+  background: var(--panel-raised);
+  color: var(--text);
+}
+
+.prompt-command-row:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent) 68%, transparent);
+  outline-offset: 2px;
+}
+
+.prompt-command-name {
+  flex: 0 0 auto;
+  max-width: 190px;
+  overflow: hidden;
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 560;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.prompt-command-description {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  color: var(--text-faint);
+  font-size: 11px;
+  line-height: 1.4;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.prompt-command-hint {
+  margin-top: 4px;
+  border-top: 1px solid var(--line);
+  padding: 8px;
+  color: var(--text-faint);
+  font-size: 10px;
+}
+
+.prompt-command-empty {
+  padding: 10px 8px;
+  color: var(--text-faint);
+  font-size: 11px;
+}

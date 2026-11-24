@@ -1,5 +1,5 @@
 import { mkdir } from 'node:fs/promises'
-import { join } from 'node:path'
+import { delimiter, join } from 'node:path'
 import { app, BrowserWindow, dialog, nativeTheme, net, powerMonitor, shell, type IpcMainInvokeEvent } from 'electron'
 import { registerModelIpc } from './ipc'
 import { ModelService } from './models/model-service'
@@ -58,6 +58,7 @@ import { ElectronSecretCodec } from './models/electron-secret-codec'
 import { registerTerminalIpc } from './terminal/terminal-ipc'
 import { SkillService } from './skills/skill-service'
 import { registerSkillIpc } from './skills/skill-ipc'
+import { LocalSkillScanner, parseSkillRootList } from './skills/local-skill-scanner'
 
 if (process.env.BARN_USER_DATA_DIR !== undefined) {
   app.setPath('userData', process.env.BARN_USER_DATA_DIR)
@@ -225,7 +226,18 @@ void app.whenReady().then(async () => {
     mkdir(privateTempRoot, { recursive: true, mode: 0o700 }),
   ])
   const memoryService = new MemoryService(sessionStore.memories)
-  skillService = new SkillService(sessionStore.skills)
+  const scanInterval = Number(process.env.BARN_SKILL_SCAN_INTERVAL_MS)
+  const skillScanner = new LocalSkillScanner({
+    ...(process.env.BARN_SKILL_HOME_DIR === undefined ? {} : { homeDirectory: process.env.BARN_SKILL_HOME_DIR }),
+    workspaceRoot,
+    extraRoots: parseSkillRootList(process.env.BARN_SKILL_ROOTS, delimiter),
+    includeDefaultRoots: process.env.BARN_SKIP_DEFAULT_SKILL_ROOTS !== '1',
+    includePluginRoots: process.env.BARN_DISABLE_PLUGIN_SKILLS !== '1',
+    ...(Number.isFinite(scanInterval) && scanInterval > 0 ? { pollIntervalMs: scanInterval } : {}),
+  })
+  skillService = new SkillService(sessionStore.skills, skillScanner)
+  await skillService.initialize()
+  skillService.start()
   const dingTalkRuntime = new DingTalkRuntime(join(userData, 'connectors'), {
     fetch: (input, init) => net.fetch(input instanceof URL ? input.toString() : input, init),
   })
@@ -271,7 +283,7 @@ void app.whenReady().then(async () => {
       scrubbedShellEnvironment(process.env, privateTempRoot),
     ),
   })
-  agentService = new AgentService(supervisor, modelService, sessionStore, tools, memoryService, threadService)
+  agentService = new AgentService(supervisor, modelService, sessionStore, tools, memoryService, threadService, skillService)
   await agentService.start()
   taskService = new TaskService(sessionStore.tasks)
   permissionService = new PermissionService(sessionStore.permissions, taskService)
@@ -400,6 +412,8 @@ app.on('before-quit', () => {
   actionService = undefined
   localSourceService?.stop()
   localSourceService = undefined
+  skillService?.stop()
+  skillService = undefined
   diagnosticsService = undefined
   connectorService = undefined
   memoryExtractionService?.stop()

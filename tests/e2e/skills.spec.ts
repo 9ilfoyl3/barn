@@ -1,10 +1,25 @@
-import { mkdtemp } from 'node:fs/promises'
+import { mkdir, mkdtemp, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { _electron as electron, expect, test } from '@playwright/test'
 
 test('manages local skills from the Plugins page and exposes them to the Agent bridge', async () => {
   const userData = await mkdtemp(join(tmpdir(), 'barn-desktop-skills-e2e-'))
+  const skillHome = await mkdtemp(join(tmpdir(), 'barn-desktop-skill-home-e2e-'))
+  const skillRoot = join(skillHome, 'portable-skills')
+  const discoveredSkill = join(skillRoot, 'launch-checklist')
+  await mkdir(join(discoveredSkill, 'references'), { recursive: true })
+  await writeFile(join(discoveredSkill, 'SKILL.md'), [
+    '---',
+    'name: Launch checklist',
+    'description: Prepare a launch readiness checklist.',
+    '---',
+    '',
+    '# Launch checklist',
+    '',
+    'List owners, risks, and rollback steps.',
+  ].join('\n'))
+  await writeFile(join(discoveredSkill, 'references', 'checklist.md'), '# Checklist\n\n- Verify rollback')
   const inheritedEnv = Object.fromEntries(
     Object.entries(process.env).filter((entry): entry is [string, string] => entry[1] !== undefined),
   )
@@ -14,6 +29,11 @@ test('manages local skills from the Plugins page and exposes them to the Agent b
       ...inheritedEnv,
       ELECTRON_DISABLE_SECURITY_WARNINGS: 'true',
       BARN_USER_DATA_DIR: userData,
+      BARN_SKILL_HOME_DIR: skillHome,
+      BARN_SKILL_ROOTS: skillRoot,
+      BARN_SKIP_DEFAULT_SKILL_ROOTS: '1',
+      BARN_DISABLE_PLUGIN_SKILLS: '1',
+      BARN_SKILL_SCAN_INTERVAL_MS: '5000',
       BARN_UI_LANGUAGE: 'en',
     },
   })
@@ -28,6 +48,29 @@ test('manages local skills from the Plugins page and exposes them to the Agent b
     const skills = page.locator('.skills-panel')
     await expect(skills.getByText('Meeting notes to actions')).toBeVisible()
     await expect(skills.getByText('System', { exact: true }).first()).toBeVisible()
+    await expect(skills.getByText('Launch checklist')).toBeVisible()
+
+    await skills.getByRole('button', { name: /^Local/ }).click()
+    await expect(skills.getByText('Launch checklist')).toBeVisible()
+    await skills.locator('.skill-row', { hasText: 'Launch checklist' }).getByRole('button', { name: 'Open Launch checklist skill' }).click()
+    const discoveredDetail = page.getByRole('dialog', { name: 'Launch checklist' })
+    await expect(discoveredDetail).toContainText('Skill')
+    await expect(discoveredDetail).toContainText('Prepare a launch readiness checklist.')
+    await discoveredDetail.getByRole('button', { name: 'More actions' }).click()
+    await discoveredDetail.getByRole('menuitem', { name: 'Resources' }).click()
+    await discoveredDetail.getByRole('button', { name: 'references/checklist.md' }).click()
+    await expect(discoveredDetail.locator('.skill-detail-resource-preview')).toContainText('Verify rollback')
+    await page.screenshot({ path: 'test-results/barn-skill-local-resource.png', fullPage: true })
+    await discoveredDetail.getByRole('button', { name: 'Close resources' }).click()
+    await discoveredDetail.getByRole('button', { name: 'Close' }).click()
+    const discoveredRow = skills.locator('.skill-row', { hasText: 'Launch checklist' })
+    await discoveredRow.locator('.skill-switch').click()
+    await expect.poll(async () => page.evaluate(async () => {
+      const skill = (await window.barn.skills.list()).find((entry) => entry.name === 'Launch checklist')
+      return skill?.enabled
+    })).toBe(false)
+    await discoveredRow.locator('.skill-switch').click()
+    await skills.getByRole('button', { name: /^All/ }).click()
 
     const search = page.getByRole('searchbox', { name: 'Search skills' })
     await search.focus()
@@ -52,7 +95,8 @@ test('manages local skills from the Plugins page and exposes them to the Agent b
       skill.name === 'Weekly status' && skill.source === 'custom' && skill.enabled
     )))).toBe(true)
 
-    await detail.getByRole('button', { name: 'Edit' }).click()
+    await detail.getByRole('button', { name: 'More actions' }).click()
+    await detail.getByRole('menuitem', { name: 'Edit' }).click()
     const edit = page.getByRole('dialog', { name: 'Edit skill' })
     await edit.getByLabel('Description').fill('Create a concise weekly status update.')
     await edit.getByRole('button', { name: 'Save', exact: true }).click()
@@ -78,9 +122,29 @@ test('manages local skills from the Plugins page and exposes them to the Agent b
 
     page.once('dialog', (confirmation) => void confirmation.accept())
     await skills.locator('.skill-row', { hasText: 'Weekly status' }).getByRole('button', { name: 'Open Weekly status skill' }).click()
-    await page.getByRole('dialog', { name: 'Weekly status' }).getByRole('button', { name: 'Delete' }).click()
+    await page.getByRole('dialog', { name: 'Weekly status' }).getByRole('button', { name: 'Uninstall' }).click()
     await expect(skills.getByText('Weekly status')).toHaveCount(0)
     await page.screenshot({ path: 'test-results/barn-skills.png', fullPage: true })
+
+    await skills.locator('.skill-row', { hasText: 'Launch brief' }).getByRole('button', { name: 'Open Launch brief skill' }).click()
+    await page.getByRole('dialog', { name: 'Launch brief' }).getByRole('button', { name: 'Try now' }).click()
+    const composer = page.getByRole('textbox', { name: 'Message Barn' })
+    await expect(composer).toContainText('/launch-brief')
+
+    await composer.fill('/')
+    const commandMenu = page.getByRole('listbox', { name: 'Skill commands' })
+    await expect(commandMenu).toBeVisible()
+    await expect(commandMenu.getByRole('option')).toHaveCount(5)
+    await expect(commandMenu).toContainText('Type to search 5 skills')
+    await page.screenshot({ path: 'test-results/barn-skill-command-menu.png', fullPage: true })
+    await composer.fill('/launch')
+    await commandMenu.getByRole('option', { name: /\/launch-brief/ }).click()
+    await expect(composer).toContainText('/launch-brief')
+
+    await composer.fill('/launch')
+    await composer.press('ArrowDown')
+    await composer.press('Enter')
+    await expect(composer).toContainText('/launch-checklist')
   } finally {
     await app.close()
   }

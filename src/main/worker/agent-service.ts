@@ -16,6 +16,7 @@ import type { SessionStore } from '../session/session-store'
 import { WorkerSupervisor, type WorkerSupervisorStatus } from './worker-supervisor'
 import type { MemoryService } from '../memory/memory-service'
 import type { ThreadService } from '../threads/thread-service'
+import type { SkillService } from '../skills/skill-service'
 
 export class AgentService {
   private readonly broker: ModelStreamBroker
@@ -42,6 +43,7 @@ export class AgentService {
     private readonly tools: ToolService,
     private readonly memory?: Pick<MemoryService, 'contextForPrompt' | 'contextForPromptWithSources'>,
     private readonly threads?: Pick<ThreadService, 'appendMessage'>,
+    private readonly skills?: Pick<SkillService, 'agentContext' | 'getRevision'>,
   ) {
     this.broker = new ModelStreamBroker(models, (message) => supervisor.post(message))
     supervisor.onMessage((message) => this.handleWorkerMessage(message))
@@ -90,16 +92,19 @@ export class AgentService {
         session = this.sessions.updateWorkingDirectory(sessionId, workingDirectory)
       }
 
-      const modelKey = `${this.models.getModelFingerprint(selection)
-        ?? `${selection.providerId}:${selection.modelId}`}:${reasoningEffort ?? 'off'}`
-      if (this.openSessions.get(sessionId) !== modelKey) {
+      const skillContext = this.skills?.agentContext() ?? ''
+      const skillRevision = this.skills?.getRevision() ?? 'none'
+      const sessionKey = `${this.models.getModelFingerprint(selection)
+        ?? `${selection.providerId}:${selection.modelId}`}:${reasoningEffort ?? 'off'}:skills:${skillRevision}`
+      if (this.openSessions.get(sessionId) !== sessionKey) {
         await this.supervisor.openSession({
           sessionId,
           messages: this.loadAgentMessages(sessionId),
           model,
           ...(reasoningEffort === undefined ? {} : { reasoningEffort }),
+          ...(skillContext === '' ? {} : { skillContext, skillRevision }),
         })
-        this.openSessions.set(sessionId, modelKey)
+        this.openSessions.set(sessionId, sessionKey)
       }
 
       const [userEvent] = options.recordUserMessage === false

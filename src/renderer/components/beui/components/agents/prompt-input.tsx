@@ -8,6 +8,7 @@ import {
   type FormEvent,
   type KeyboardEvent,
   type ReactNode,
+  useEffect,
   useLayoutEffect,
   useRef,
   useState,
@@ -43,6 +44,13 @@ export interface PromptAction {
   disabled?: boolean;
 }
 
+export interface PromptCommand {
+  value: string;
+  label: string;
+  description?: string;
+  keywords?: string;
+}
+
 export interface PromptInputProps extends Omit<
   React.HTMLAttributes<HTMLDivElement>,
   "children" | "onChange" | "onInput" | "onSubmit"
@@ -56,6 +64,10 @@ export interface PromptInputProps extends Omit<
   onModelChange?: (model: string) => void;
   actions?: PromptAction[];
   onAction?: (action: string) => void;
+  commands?: PromptCommand[];
+  commandMenuLabel?: string;
+  commandHint?: string;
+  commandEmpty?: string;
   onSubmit?: (value: string, model?: string) => void | Promise<void>;
   loading?: boolean;
   stopping?: boolean;
@@ -78,12 +90,28 @@ interface EditorSelection {
   end: number;
 }
 
+interface SlashToken {
+  query: string;
+  start: number;
+  end: number;
+}
+
 interface EditorPoint {
   container: Node;
   offset: number;
 }
 
 const EDITOR_LINE_SENTINEL = "\u200b";
+
+function parseSlashToken(value: string): SlashToken | undefined {
+  const match = /(^|\s)\/([^\s/]*)$/u.exec(value);
+  if (match === null) return undefined;
+  return {
+    query: (match[2] ?? "").toLocaleLowerCase(),
+    start: match.index + (match[1]?.length ?? 0),
+    end: value.length,
+  };
+}
 
 function appendTextWithBreaks(parent: DocumentFragment, text: string): void {
   const lines = text.split("\n");
@@ -231,6 +259,10 @@ export function PromptInput({
   onModelChange,
   actions = [],
   onAction,
+  commands = [],
+  commandMenuLabel = "Commands",
+  commandHint = "Type to search commands",
+  commandEmpty = "No matching commands",
   onSubmit,
   loading = false,
   stopping = false,
@@ -262,6 +294,8 @@ export function PromptInput({
   );
   const [actionsOpen, setActionsOpen] = useState(false);
   const [multiline, setMultiline] = useState(false);
+  const [commandIndex, setCommandIndex] = useState(0);
+  const [commandDismissed, setCommandDismissed] = useState(false);
   const currentValue = value ?? internalValue;
   const currentModelValue = model ?? internalModel;
   const currentModel = models.find(
@@ -271,6 +305,23 @@ export function PromptInput({
   const hasWebLinks = promptTextSegments(currentValue).some(
     (segment) => segment.kind === "link",
   );
+  const slashToken = commandDismissed ? undefined : parseSlashToken(currentValue);
+  const filteredCommands = slashToken === undefined || commands.length === 0
+    ? []
+    : commands
+        .filter((command) => {
+          const haystack = `${command.label} ${command.description ?? ""} ${command.keywords ?? ""}`.toLocaleLowerCase();
+          return haystack.includes(slashToken.query);
+        });
+  const commandMenuOpen = slashToken !== undefined && commands.length > 0;
+
+  useEffect(() => {
+    setCommandIndex(0);
+  }, [slashToken?.query, commands.length]);
+
+  useEffect(() => {
+    setCommandDismissed(false);
+  }, [currentValue]);
 
   useLayoutEffect(() => {
     const editor = editorRef.current;
@@ -307,6 +358,24 @@ export function PromptInput({
   const setValue = (next: string) => {
     if (value === undefined) setInternalValue(next);
     onValueChange?.(next);
+  };
+
+  const chooseCommand = (command: PromptCommand) => {
+    if (slashToken === undefined) return;
+    const next = `${currentValue.slice(0, slashToken.start)}${command.value} ${currentValue.slice(slashToken.end)}`;
+    setValue(next);
+    setCommandDismissed(true);
+    requestAnimationFrame(() => {
+      const editor = editorRef.current;
+      if (!editor) return;
+      editor.focus({ preventScroll: true });
+      const range = document.createRange();
+      range.selectNodeContents(editor);
+      range.collapse(false);
+      const selection = window.getSelection();
+      selection?.removeAllRanges();
+      selection?.addRange(range);
+    });
   };
 
   const setModel = (next: string) => {
@@ -358,6 +427,25 @@ export function PromptInput({
   const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     onKeyDown?.(event);
     if (event.defaultPrevented || event.nativeEvent.isComposing) return;
+    if (commandMenuOpen) {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setCommandDismissed(true);
+        return;
+      }
+      if (filteredCommands.length > 0 && (event.key === "ArrowDown" || event.key === "ArrowUp")) {
+        event.preventDefault();
+        setCommandIndex((current) => (
+          current + (event.key === "ArrowDown" ? 1 : filteredCommands.length - 1)
+        ) % filteredCommands.length);
+        return;
+      }
+      if (filteredCommands.length > 0 && (event.key === "Enter" || event.key === "Tab")) {
+        event.preventDefault();
+        chooseCommand(filteredCommands[commandIndex] ?? filteredCommands[0]!);
+        return;
+      }
+    }
     if (event.key !== "Enter") return;
 
     event.preventDefault();
@@ -380,6 +468,32 @@ export function PromptInput({
         className,
       )}
     >
+      {commandMenuOpen ? (
+        <div className="prompt-command-menu" role="listbox" aria-label={commandMenuLabel}>
+          <div className="prompt-command-list">
+            {filteredCommands.length === 0 ? (
+              <div className="prompt-command-empty">{commandEmpty}</div>
+            ) : filteredCommands.map((command, index) => (
+              <button
+                key={command.value}
+                type="button"
+                role="option"
+                aria-selected={index === commandIndex}
+                onMouseDown={(event) => event.preventDefault()}
+                onMouseEnter={() => setCommandIndex(index)}
+                onClick={() => chooseCommand(command)}
+                className={cn("prompt-command-row", index === commandIndex && "active")}
+              >
+                <span className="prompt-command-name">{command.label}</span>
+                {command.description ? (
+                  <span className="prompt-command-description">{command.description}</span>
+                ) : null}
+              </button>
+            ))}
+          </div>
+          <div className="prompt-command-hint">{commandHint}</div>
+        </div>
+      ) : null}
       <div
         ref={editorRef}
         {...editorProps}
@@ -400,6 +514,7 @@ export function PromptInput({
           if (!editor) return;
           const next = normalizeEditorValue(editorText(editor));
           if (next.length === 0) clearEditor(editor);
+          setCommandDismissed(false);
           setValue(next);
         }}
         onKeyDown={handleKeyDown}
@@ -421,6 +536,7 @@ export function PromptInput({
           const editor = editorRef.current;
           if (!editor) return;
           const next = normalizeEditorValue(editorText(editor));
+          setCommandDismissed(false);
           setValue(next);
           if (next.length === 0) clearEditor(editor);
           else renderEditorContent(editor, next);

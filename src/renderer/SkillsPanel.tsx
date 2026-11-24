@@ -5,35 +5,49 @@ import {
   Check,
   ChevronRight,
   Copy,
+  FileText,
+  FolderOpen,
   LoaderCircle,
   LockKeyhole,
+  MoreHorizontal,
+  MousePointerClick,
   Pencil,
   Plus,
+  RefreshCw,
   Sparkles,
-  Trash2,
   Upload,
   X,
 } from 'lucide-react'
 import { Streamdown } from 'streamdown'
-import type { SkillDetail, SkillSummary } from '../shared/models'
+import type {
+  SkillDetail,
+  SkillFileContent,
+  SkillFileSummary,
+  SkillSummary,
+} from '../shared/models'
 import { notifySuccess, useErrorToast } from './notifications'
 import './skills-panel.css'
 
-type SkillCategory = 'all' | 'system' | 'custom'
+type SkillCategory = 'all' | 'system' | 'local' | 'custom'
 type SkillEditorState =
   | { mode: 'create' }
   | { mode: 'edit'; skill: SkillDetail }
 
-export function SkillsPanel({ query }: { query: string }) {
+export function SkillsPanel({ query, onTrySkill }: { query: string; onTrySkill?: (skill: SkillSummary) => void }) {
   const { t } = useTranslation()
   const [skills, setSkills] = useState<SkillSummary[]>([])
   const [category, setCategory] = useState<SkillCategory>('all')
   const [selected, setSelected] = useState<SkillDetail>()
+  const [menuOpen, setMenuOpen] = useState(false)
+  const [resourcesOpen, setResourcesOpen] = useState(false)
+  const [resource, setResource] = useState<SkillFileContent>()
+  const [resourceLoading, setResourceLoading] = useState<string>()
   const [editor, setEditor] = useState<SkillEditorState>()
   const [loading, setLoading] = useState(true)
   const [detailLoadingId, setDetailLoadingId] = useState<string>()
   const [busyId, setBusyId] = useState<string>()
   const [saving, setSaving] = useState(false)
+  const [refreshing, setRefreshing] = useState(false)
   const [error, setError] = useState<string>()
   const [copied, setCopied] = useState(false)
   const importRef = useRef<HTMLInputElement>(null)
@@ -62,6 +76,9 @@ export function SkillsPanel({ query }: { query: string }) {
     setError(undefined)
     try {
       setSelected(await window.barn.skills.get(skill.id))
+      setMenuOpen(false)
+      setResourcesOpen(false)
+      setResource(undefined)
     } catch (reason) {
       setError(errorMessage(reason))
     } finally {
@@ -81,6 +98,41 @@ export function SkillsPanel({ query }: { query: string }) {
     } finally {
       setBusyId(undefined)
     }
+  }
+
+  async function refreshSkills(): Promise<void> {
+    setRefreshing(true)
+    setError(undefined)
+    try {
+      const snapshot = await window.barn.skills.refresh()
+      setSkills(snapshot.skills)
+      notifySuccess(t('plugins.skillUi.rescanned'))
+    } catch (reason) {
+      setError(errorMessage(reason))
+    } finally {
+      setRefreshing(false)
+    }
+  }
+
+  async function openResource(file: SkillFileSummary): Promise<void> {
+    if (selected === undefined) return
+    setResourceLoading(file.path)
+    setError(undefined)
+    try {
+      setResource(await window.barn.skills.readFile(selected.id, file.path))
+      setResourcesOpen(true)
+      setMenuOpen(false)
+    } catch (reason) {
+      setError(errorMessage(reason))
+    } finally {
+      setResourceLoading(undefined)
+    }
+  }
+
+  function trySkill(skill: SkillDetail): void {
+    onTrySkill?.(skill)
+    setSelected(undefined)
+    setMenuOpen(false)
   }
 
   async function saveSkill(input: { name: string; description: string; instructions: string }): Promise<void> {
@@ -154,13 +206,19 @@ export function SkillsPanel({ query }: { query: string }) {
   const visible = skills.filter((skill) => (
     (category === 'all' || skill.source === category)
     && (normalizedQuery.length === 0
-      || `${skill.name} ${skill.description}`.toLocaleLowerCase().includes(normalizedQuery))
+      || `${skill.name} ${skill.description} ${skill.providerLabel}`.toLocaleLowerCase().includes(normalizedQuery))
   ))
   const categories: Array<{ id: SkillCategory; label: string; count: number }> = [
     { id: 'all', label: t('plugins.skillUi.all'), count: skills.length },
     { id: 'system', label: t('plugins.skillUi.system'), count: skills.filter((skill) => skill.source === 'system').length },
+    { id: 'local', label: t('plugins.skillUi.local'), count: skills.filter((skill) => skill.source === 'local').length },
     { id: 'custom', label: t('plugins.skillUi.custom'), count: skills.filter((skill) => skill.source === 'custom').length },
   ]
+  const sourceLabel = (skill: SkillSummary): string => skill.source === 'system'
+    ? t('plugins.skillUi.system')
+    : skill.source === 'custom'
+      ? t('plugins.skillUi.custom')
+      : skill.providerLabel
 
   return (
     <div className="skills-panel">
@@ -180,6 +238,15 @@ export function SkillsPanel({ query }: { query: string }) {
           ))}
         </div>
         <div className="skills-toolbar-actions">
+          <button
+            className="skills-outline-button"
+            type="button"
+            disabled={refreshing}
+            onClick={() => void refreshSkills()}
+          >
+            <RefreshCw className={refreshing ? 'spin' : undefined} size={14} aria-hidden="true" />
+            {t('plugins.skillUi.rescan')}
+          </button>
           <input
             ref={importRef}
             accept=".md,.markdown,text/markdown,text/plain"
@@ -220,16 +287,27 @@ export function SkillsPanel({ query }: { query: string }) {
             <li className={skill.enabled ? 'skill-row' : 'skill-row disabled'} key={skill.id}>
               <button className="skill-row-main" type="button" onClick={() => void openSkill(skill)}>
                 <span className="skill-row-icon" aria-hidden="true">
-                  {skill.source === 'system' ? <Sparkles size={18} /> : <BookOpen size={18} />}
+                  {skill.source === 'system'
+                    ? <Sparkles size={18} />
+                    : skill.source === 'local'
+                      ? <FolderOpen size={18} />
+                      : <BookOpen size={18} />}
                 </span>
                 <span className="skill-row-copy">
                   <span className="skill-row-title">
                     <strong>{skill.name}</strong>
+                    <span className="skill-source-badge" data-provider={skill.provider}>{sourceLabel(skill)}</span>
+                    {skill.fileCount > 0 && (
+                      <span className="skill-file-count" title={t('plugins.skillUi.resourceCount', { count: skill.fileCount })}>
+                        <FileText size={11} aria-hidden="true" />
+                        {skill.fileCount}
+                      </span>
+                    )}
                   </span>
                   <small>{skill.description}</small>
                 </span>
               </button>
-              {skill.source === 'custom' ? (
+              {skill.source !== 'system' ? (
                 <label className="skill-switch" title={skill.enabled ? t('plugins.skillUi.enabled') : t('plugins.skillUi.disabled')}>
                   <input
                     type="checkbox"
@@ -255,66 +333,160 @@ export function SkillsPanel({ query }: { query: string }) {
       )}
 
       {selected !== undefined && editor === undefined && (
-        <div className="skill-dialog-backdrop" role="presentation" onMouseDown={() => setSelected(undefined)}>
+        <div className="skill-detail-backdrop" role="presentation" onMouseDown={() => setSelected(undefined)}>
           <section
             aria-label={selected.name}
             aria-modal="true"
-            className="skill-dialog"
+            className="skill-detail-dialog"
             onMouseDown={(event) => event.stopPropagation()}
             role="dialog"
           >
-            <header className="skill-dialog-header">
-              <span className="skill-dialog-icon" aria-hidden="true">
-                {selected.source === 'system' ? <Sparkles size={20} /> : <BookOpen size={20} />}
+            <header className="skill-detail-header">
+              <span className="skill-detail-icon" aria-hidden="true">
+                {selected.source === 'system'
+                  ? <Sparkles size={21} />
+                  : selected.source === 'local'
+                    ? <FolderOpen size={21} />
+                    : <BookOpen size={21} />}
               </span>
-              <div>
-                <span className="skill-dialog-kicker">
-                  {t('plugins.skillUi.detailKicker')} · {selected.source === 'system' ? t('plugins.skillUi.system') : t('plugins.skillUi.custom')}
-                </span>
+              <div className="skill-detail-heading">
                 <h2>{selected.name}</h2>
-                <p>{selected.description}</p>
+                <span>{t('plugins.skillUi.skillLabel')}</span>
               </div>
-              <button className="skill-dialog-close" type="button" aria-label={t('common.close')} onClick={() => setSelected(undefined)}>
-                <X size={16} aria-hidden="true" />
-              </button>
+              <div className="skill-detail-controls">
+                {selected.source !== 'system' && (
+                  <label className="skill-detail-toggle" title={selected.enabled ? t('plugins.skillUi.enabled') : t('plugins.skillUi.disabled')}>
+                    <input
+                      aria-label={selected.enabled ? t('plugins.skillUi.disableNamed', { name: selected.name }) : t('plugins.skillUi.enableNamed', { name: selected.name })}
+                      type="checkbox"
+                      checked={selected.enabled}
+                      disabled={busyId === selected.id}
+                      onChange={() => void toggle(selected)}
+                    />
+                    <span />
+                  </label>
+                )}
+                <div className="skill-detail-menu-wrap">
+                  <button
+                    aria-expanded={menuOpen}
+                    aria-haspopup="menu"
+                    aria-label={t('plugins.skillUi.moreActions')}
+                    className="skill-detail-icon-button"
+                    type="button"
+                    onClick={() => setMenuOpen((open) => !open)}
+                  >
+                    <MoreHorizontal size={18} aria-hidden="true" />
+                  </button>
+                  {menuOpen && (
+                    <div className="skill-detail-menu" role="menu">
+                      {selected.source === 'custom' && (
+                        <button
+                          role="menuitem"
+                          type="button"
+                          onClick={() => {
+                            setMenuOpen(false)
+                            setEditor({ mode: 'edit', skill: selected })
+                          }}
+                        >
+                          <Pencil size={14} aria-hidden="true" />
+                          {t('plugins.skillUi.edit')}
+                        </button>
+                      )}
+                      {selected.files.length > 0 && (
+                        <button
+                          role="menuitem"
+                          type="button"
+                          onClick={() => {
+                            setMenuOpen(false)
+                            setResourcesOpen(true)
+                          }}
+                        >
+                          <FileText size={14} aria-hidden="true" />
+                          {t('plugins.skillUi.resources')}
+                        </button>
+                      )}
+                      <button role="menuitem" type="button" onClick={() => void copyMarkdown(selected)}>
+                        {copied ? <Check size={14} aria-hidden="true" /> : <Copy size={14} aria-hidden="true" />}
+                        {copied ? t('plugins.skillUi.copied') : t('plugins.skillUi.copyMarkdown')}
+                      </button>
+                    </div>
+                  )}
+                </div>
+                <button className="skill-detail-icon-button" type="button" aria-label={t('common.close')} onClick={() => setSelected(undefined)}>
+                  <X size={18} aria-hidden="true" />
+                </button>
+              </div>
             </header>
 
-            <div className="skill-dialog-actions">
-              {selected.source === 'custom' && (
-                <>
-                  <label className="skill-dialog-toggle">
-                    <span>{selected.enabled ? t('plugins.skillUi.enabled') : t('plugins.skillUi.disabled')}</span>
-                    <span className="skill-switch">
-                      <input
-                        type="checkbox"
-                        checked={selected.enabled}
-                        disabled={busyId === selected.id}
-                        onChange={() => void toggle(selected)}
-                      />
-                      <span />
-                    </span>
-                  </label>
-                  <button className="skills-outline-button" type="button" onClick={() => setEditor({ mode: 'edit', skill: selected })}>
-                    <Pencil size={13} aria-hidden="true" />
-                    {t('plugins.skillUi.edit')}
-                  </button>
-                  <button className="skills-outline-button danger" type="button" disabled={busyId === selected.id} onClick={() => void removeSkill(selected)}>
-                    <Trash2 size={13} aria-hidden="true" />
-                    {t('plugins.skillUi.delete')}
-                  </button>
-                </>
-              )}
-              <button className="skills-outline-button" type="button" onClick={() => void copyMarkdown(selected)}>
-                {copied ? <Check size={13} aria-hidden="true" /> : <Copy size={13} aria-hidden="true" />}
-                {copied ? t('plugins.skillUi.copied') : t('plugins.skillUi.copyMarkdown')}
-              </button>
-            </div>
+            <p className="skill-detail-description">{selected.description}</p>
 
-            <div className="skill-dialog-content">
-              <Streamdown className="skill-dialog-markdown assistant-markdown" animated={false} isAnimating={false}>
+            <div className="skill-detail-content">
+              <Streamdown className="skill-detail-markdown assistant-markdown" animated={false} isAnimating={false}>
                 {selected.instructions}
               </Streamdown>
             </div>
+
+            {resourcesOpen && selected.files.length > 0 && (
+              <section className="skill-detail-resources" aria-label={t('plugins.skillUi.resources')}>
+                <header className="skill-detail-resources-heading">
+                  <strong>{t('plugins.skillUi.resources')}</strong>
+                  <button className="skill-detail-icon-button" type="button" aria-label={t('plugins.skillUi.closeResources')} onClick={() => {
+                    setResourcesOpen(false)
+                    setResource(undefined)
+                  }}>
+                    <X size={15} aria-hidden="true" />
+                  </button>
+                </header>
+                <div className="skill-detail-resource-list">
+                  {selected.files.map((file) => (
+                    <button
+                      className={resource?.path === file.path ? 'skill-detail-resource active' : 'skill-detail-resource'}
+                      key={file.path}
+                      type="button"
+                      onClick={() => void openResource(file)}
+                    >
+                      {resourceLoading === file.path
+                        ? <LoaderCircle className="spin" size={12} aria-hidden="true" />
+                        : <FileText size={12} aria-hidden="true" />}
+                      <span>{file.path}</span>
+                      <small>{formatBytes(file.size)}</small>
+                    </button>
+                  ))}
+                </div>
+                {resource !== undefined && (
+                  <div className="skill-detail-resource-preview" aria-label={resource.path}>
+                    {resource.binary || resource.text === undefined ? (
+                      <p>{t('plugins.skillUi.binaryResource')}</p>
+                    ) : resource.path.endsWith('.md') || resource.path.endsWith('.markdown') ? (
+                      <Streamdown className="skill-detail-markdown assistant-markdown" animated={false} isAnimating={false}>
+                        {resource.text}
+                      </Streamdown>
+                    ) : (
+                      <pre>{resource.text}</pre>
+                    )}
+                  </div>
+                )}
+              </section>
+            )}
+
+            <footer className="skill-detail-footer">
+              <div>
+                {selected.source === 'custom' && (
+                  <button className="skill-detail-secondary danger" type="button" disabled={busyId === selected.id} onClick={() => void removeSkill(selected)}>
+                    {t('plugins.skillUi.uninstall')}
+                  </button>
+                )}
+                {selected.source === 'local' && (
+                  <button className="skill-detail-secondary" type="button" disabled={busyId === selected.id} onClick={() => void toggle(selected)}>
+                    {selected.enabled ? t('plugins.skillUi.disable') : t('plugins.skillUi.enable')}
+                  </button>
+                )}
+              </div>
+              <button className="skill-detail-primary" type="button" onClick={() => trySkill(selected)}>
+                <MousePointerClick size={14} aria-hidden="true" />
+                {t('plugins.skillUi.tryNow')}
+              </button>
+            </footer>
           </section>
         </div>
       )}
@@ -431,7 +603,16 @@ function summary(skill: SkillDetail): SkillSummary {
     source: skill.source,
     enabled: skill.enabled,
     updatedAt: skill.updatedAt,
+    provider: skill.provider,
+    providerLabel: skill.providerLabel,
+    editable: skill.editable,
+    fileCount: skill.fileCount,
+    ...(skill.location === undefined ? {} : { location: skill.location }),
   }
+}
+
+function formatBytes(bytes: number): string {
+  return bytes >= 1024 * 1024 ? `${(bytes / 1024 / 1024).toFixed(1)} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`
 }
 
 function errorMessage(error: unknown): string {

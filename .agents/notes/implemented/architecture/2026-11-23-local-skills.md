@@ -30,4 +30,4 @@ The Worker receives two stable tools: `skill_list` returns only enabled skill su
 - Disabling a custom skill removes it from `skill_list` and blocks `skill_read`.
 - System skills remain available and read-only across upgrades.
 - Markdown import supports the conventional `SKILL.md` shape but currently stores the instructions in SQLite rather than a filesystem package.
-- Multi-file skill packages and executable skill scripts remain future work.
+- Host-discovered skills extend this catalog with read-only, multi-file package sources; custom Markdown imports remain single-file. See [Host-discovered skills are read-only package sources](2026-11-24-local-skill-discovery.md).

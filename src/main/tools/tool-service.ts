@@ -51,8 +51,15 @@ const sessionHistoryInput = z.object({
 }).strict()
 
 const connectorListInput = z.object({}).strict()
-const skillListInput = z.object({}).strict()
+const skillListInput = z.object({
+  query: z.string().trim().max(200).optional(),
+  limit: z.number().int().min(1).max(200).default(100),
+}).strict()
 const skillReadInput = z.object({ id: z.string().trim().min(1).max(160) }).strict()
+const skillFileInput = z.object({
+  id: z.string().trim().min(1).max(160),
+  path: z.string().trim().min(1).max(1_000),
+}).strict()
 
 const connectorCallInput = z.object({
   connectorId: z.string().uuid(),
@@ -82,6 +89,7 @@ const TOOL_INPUTS = {
   connector_call: connectorCallInput,
   skill_list: skillListInput,
   skill_read: skillReadInput,
+  skill_file: skillFileInput,
   session_history: sessionHistoryInput,
 } as const
 
@@ -209,7 +217,12 @@ export class ToolService {
       const skills = this.options.skills
       if (skills === undefined) return errorResult('Skill tools are unavailable')
       try {
-        const summaries = skills.list().filter((skill) => skill.enabled)
+        const args = skillListInput.parse(rawArgs)
+        const query = args.query?.toLocaleLowerCase()
+        const summaries = skills.list()
+          .filter((skill) => skill.enabled)
+          .filter((skill) => query === undefined || `${skill.name} ${skill.description} ${skill.providerLabel}`.toLocaleLowerCase().includes(query))
+          .slice(0, args.limit)
         return {
           content: [{ type: 'text', text: JSON.stringify({ skills: summaries }) }],
           details: { skills: summaries.length },
@@ -224,11 +237,31 @@ export class ToolService {
       if (skills === undefined) return errorResult('Skill tools are unavailable')
       try {
         const args = skillReadInput.parse(rawArgs)
-        const skill = skills.get(args.id)
+        const skill = await skills.get(args.id)
         if (!skill.enabled) return errorResult(`Skill is disabled: ${args.id}`)
         return {
           content: [{ type: 'text', text: JSON.stringify(skill) }],
           details: { skillId: skill.id, source: skill.source },
+        }
+      } catch (error) {
+        return errorResult(error instanceof Error ? error.message : String(error))
+      }
+    }
+
+    if (toolName === 'skill_file') {
+      const skills = this.options.skills
+      if (skills === undefined) return errorResult('Skill tools are unavailable')
+      try {
+        const args = skillFileInput.parse(rawArgs)
+        const skill = await skills.get(args.id)
+        if (!skill.enabled) return errorResult(`Skill is disabled: ${args.id}`)
+        const file = await skills.readFile(args.id, args.path)
+        return {
+          content: [{
+            type: 'text',
+            text: file.text ?? `Binary skill resource: ${file.path}\nSize: ${file.size} bytes\nMedia type: ${file.mediaType}`,
+          }],
+          details: { skillId: skill.id, path: file.path, size: file.size, binary: file.binary },
         }
       } catch (error) {
         return errorResult(error instanceof Error ? error.message : String(error))
