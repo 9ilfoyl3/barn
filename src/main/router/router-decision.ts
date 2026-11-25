@@ -1,13 +1,27 @@
 import { Type } from 'typebox'
 import { z } from 'zod'
 import type {
+  AssistantMessage,
   AssistantMessageEventStream,
   Context,
   SimpleStreamOptions,
   Tool,
   ToolCall,
+  ToolResultMessage,
 } from '@earendil-works/pi-ai'
-import { resolveReasoningEffort, type ApprovalRequest, type ModelSelection, type RoutineRecurrence, type Task, type TaskContract } from '../../shared/models'
+import {
+  resolveReasoningEffort,
+  type ApprovalRequest,
+  type ConnectorCallInput,
+  type ConnectorCallResult,
+  type ConnectorDefinition,
+  type ConnectorInstance,
+  type ModelSelection,
+  type RoutineRecurrence,
+  type Task,
+  type TaskContract,
+} from '../../shared/models'
+import { composeRouterSystemPrompt } from '../../shared/agent-prompts'
 import type { ModelService } from '../models/model-service'
 import type { MemoryService } from '../memory/memory-service'
 import type { VisibleMessage } from '../../shared/models'
@@ -34,9 +48,9 @@ const decisionSchema = z.discriminatedUnion('tool', [
     arguments: z.object({
       title: z.string().trim().min(1).max(200),
       objective: z.string().trim().min(1).max(20_000),
-      deliverable: z.string().trim().min(1).max(2_000),
+      deliverable: z.string().trim().min(1).max(2_000).default('Complete the requested task.'),
       constraints: z.array(z.string().trim().min(1).max(1_000)).max(50).default([]),
-      acceptanceCriteria: z.array(z.string().trim().min(1).max(1_000)).max(50).min(1),
+      acceptanceCriteria: z.array(z.string().trim().min(1).max(1_000)).max(50).default([]),
       forbiddenActions: z.array(z.string().trim().min(1).max(1_000)).max(50).default([]),
       risk: z.enum(['none', 'local_write', 'external_write', 'destructive']).default('none'),
       expectedArtifacts: z.array(z.string().trim().min(1).max(500)).max(50).default([]),
@@ -88,6 +102,27 @@ const decisionSchema = z.discriminatedUnion('tool', [
     rationaleCodes: z.array(z.string().min(1).max(80)).max(20).default(['explicit_update']),
   }).strict(),
 ])
+
+const routerCallSchema = z.object({
+  tool: z.enum(['connector.list', 'connector.read']),
+  params: z.record(z.string(), z.unknown()).default({}),
+}).strict()
+
+const connectorReadInputSchema = z.object({
+  connectorId: z.string().trim().min(1).max(80),
+  capability: z.string().trim().min(1).max(160),
+  arguments: z.record(z.string(), z.unknown()).default({}),
+}).strict()
+
+const ROUTER_CALL_TOOL: Tool = {
+  name: 'call',
+  description: 'Run one bounded Router capability call. connector.list inspects configured connectors and capability schemas. connector.read performs one read-only connector lookup. External writes are unavailable here.',
+  parameters: Type.Object({
+    tool: Type.Union([Type.Literal('connector.list'), Type.Literal('connector.read')]),
+    params: Type.Record(Type.String(), Type.Unknown()),
+  }),
+  constrainedSampling: { type: 'json_schema', strict: 'prefer' },
+}
 
 const ROUTER_DECISION_TOOL: Tool = {
   name: 'route_decision',
@@ -184,6 +219,16 @@ export interface RouterDecisionInput {
   timezone: string
 }
 
+export interface RouterConnectorSnapshot {
+  definitions: ConnectorDefinition[]
+  instances: ConnectorInstance[]
+}
+
+export interface RouterConnectorGateway {
+  list(): Promise<RouterConnectorSnapshot>
+  callRead(input: ConnectorCallInput): Promise<ConnectorCallResult>
+}
+
 export interface RouterDecisionEngine {
   decide(input: RouterDecisionInput, signal?: AbortSignal): Promise<RouterDecision>
 }
@@ -192,12 +237,15 @@ type RouterModel = Pick<ModelService, 'getSnapshot' | 'getModelDescriptor' | 'st
 
 const MAX_RESPONSE_CHARS = 100_000
 const RECENT_CONTEXT_CHAR_LIMIT = 16_000
+const MAX_ROUTER_ROUNDS = 6
+const MAX_ROUTER_REPAIRS = 1
 
 /** Model-backed Router tool selection. Tool arguments are validated before any write. */
 export class ModelRouterDecisionEngine implements RouterDecisionEngine {
   constructor(
     private readonly model: RouterModel,
     private readonly memory?: Pick<MemoryService, 'contextForPromptWithSources'>,
+    private readonly connectors?: RouterConnectorGateway,
   ) {}
 
   async decide(input: RouterDecisionInput, signal?: AbortSignal): Promise<RouterDecision> {
@@ -215,7 +263,11 @@ export class ModelRouterDecisionEngine implements RouterDecisionEngine {
     }
     const baseContext: Context = {
       messages: [
-        { role: 'system', content: routerSystemPrompt(), timestamp: input.now.getTime() },
+        {
+          role: 'system',
+          content: composeRouterSystemPrompt({ connectorToolsAvailable: this.connectors !== undefined }),
+          timestamp: input.now.getTime(),
+        },
         {
           role: 'user',
           content: JSON.stringify({
@@ -259,18 +311,23 @@ export class ModelRouterDecisionEngine implements RouterDecisionEngine {
           timestamp: input.now.getTime(),
         },
       ],
-      tools: [ROUTER_DECISION_TOOL],
+      tools: this.connectors === undefined
+        ? [ROUTER_DECISION_TOOL]
+        : [ROUTER_CALL_TOOL, ROUTER_DECISION_TOOL],
     }
     const reasoning = resolveReasoningEffort(snapshot.defaultReasoningEffort, descriptor.reasoningEfforts)
+    let context = baseContext
     let repairHint: string | undefined
     let lastError: unknown
-    for (let attempt = 0; attempt < 2; attempt++) {
-      const context: Context = repairHint === undefined
-        ? baseContext
+    let repairs = 0
+    let connectorReads = 0
+    for (let round = 0; round < MAX_ROUTER_ROUNDS; round++) {
+      const requestContext: Context = repairHint === undefined
+        ? context
         : {
-            ...baseContext,
+            ...context,
             messages: [
-              ...baseContext.messages,
+              ...context.messages,
               {
                 role: 'user',
                 content: `${repairHint}
@@ -280,71 +337,53 @@ Call the route_decision tool now. Do not answer in prose. If native tool calls a
             ],
           }
       const options: SimpleStreamOptions = {
-        maxTokens: 2_000,
+        maxTokens: 3_000,
         cacheRetention: 'none',
         toolChoice: 'auto',
         ...(reasoning === undefined ? {} : { reasoning }),
         ...(signal === undefined ? {} : { signal }),
       }
-      const output = await collectRouterOutput(this.model.streamSimple(selection, context, options))
+      const output = await collectRouterOutput(this.model.streamSimple(selection, requestContext, options))
+      const decisionCalls = output.toolCalls.filter((call) => call.name === ROUTER_DECISION_TOOL.name)
+      const capabilityCalls = output.toolCalls.filter((call) => call.name === ROUTER_CALL_TOOL.name)
+      const unknownCalls = output.toolCalls.filter((call) => (
+        call.name !== ROUTER_DECISION_TOOL.name && call.name !== ROUTER_CALL_TOOL.name
+      ))
       try {
-        const decision = output.toolCall === undefined
-          ? parseDecisionResponse(output.text)
-          : parseToolCallDecision(output.toolCall)
-        return toRouterDecision(decision, memory.sourceRefs)
+        if (unknownCalls.length > 0) {
+          throw new Error(`Router called unknown tool: ${unknownCalls.map((call) => call.name).join(', ')}`)
+        }
+        if (decisionCalls.length > 0) {
+          if (decisionCalls.length !== 1 || capabilityCalls.length > 0) {
+            throw new Error('Router must call route_decision exactly once and without execution calls')
+          }
+          return toRouterDecision(parseToolCallDecision(decisionCalls[0]!), memory.sourceRefs)
+        }
+        if (capabilityCalls.length > 0) {
+          if (this.connectors === undefined) throw new Error('Router connector capabilities are unavailable')
+          const results: ToolResultMessage[] = []
+          for (const call of capabilityCalls) {
+            const executed = await executeRouterCapabilityCall(call, this.connectors, connectorReads)
+            if (executed.readStarted) connectorReads++
+            results.push(toolResult(call, executed.value, executed.isError))
+          }
+          context = {
+            ...context,
+            messages: [...context.messages, output.message, ...results],
+          }
+          repairHint = undefined
+          continue
+        }
+        return toRouterDecision(parseDecisionResponse(output.text), memory.sourceRefs)
       } catch (error) {
         lastError = error
+        if (repairs >= MAX_ROUTER_REPAIRS) break
+        repairs++
         repairHint = routerRepairHint(error, output)
       }
     }
     throw lastError instanceof Error ? lastError : new Error('Router returned an invalid tool decision')
   }
-}
-
-function routerSystemPrompt(): string {
-  return `You are Barn's Router, the single coordinator for a sessionless personal assistant.
-
-You do not execute the user's work yourself. Call the route_decision tool exactly once and do not answer in prose.
-
-Available Router actions and their argument schemas:
-
-1. reply
-{"tool":"reply","arguments":{"text":"..."},"confidence":0..1,"rationaleCodes":["..."]}
-Use only when the request can be answered immediately from existing conversation context or stable knowledge, with no file access, browser, shell, external service, durable follow-up, or multi-step execution.
-
-2. clarify
-{"tool":"clarify","arguments":{"question":"..."},"confidence":0..1,"rationaleCodes":["..."]}
-Use when a required target, time, attachment, scope, permission, or decision is missing. Ask one focused question. Never guess a time for a reminder.
-
-3. task.create
-{"tool":"task.create","arguments":{"title":"...","objective":"...","deliverable":"...","constraints":["..."],"acceptanceCriteria":["..."],"forbiddenActions":["..."],"risk":"none|local_write|external_write|destructive","expectedArtifacts":["..."]},"confidence":0..1,"rationaleCodes":["..."]}
-Use for durable work that needs tools, files, browser, connectors, shell, research, multiple steps, external effects, deliverables, monitoring, or work that must continue after this reply. Configured connectors and their capability ids appear in connectors. Make the objective self-contained. Include explicit acceptance criteria.
-
-4. schedule.create
-{"tool":"schedule.create","arguments":{"title":"...","text":"...","scheduledFor":"ISO-8601 with offset","timezone":"IANA timezone","recurrence":"none|daily|weekdays|weekly"},"confidence":0..1,"rationaleCodes":["..."]}
-Use for reminders and routines whose exact message and time are known. This creates a scheduled routine in Barn. "Remind me tomorrow to return the clothes" is schedule.create with recurrence none. "Remind me every day at 3pm" is schedule.create with recurrence daily and scheduledFor set to the next 3pm occurrence. Use weekdays for Monday-Friday and weekly for once a week. Resolve relative dates from currentTime and timezone. If the clock time is missing, choose 09:00 local and state it in title/text. If the date/time is genuinely ambiguous, use clarify.
-
-5. task.cancel
-{"tool":"task.cancel","arguments":{"taskId":"UUID","reason":"optional"},"confidence":0..1,"rationaleCodes":["..."]}
-Use only when the user clearly refers to an existing Task in activeTasks and asks to cancel it.
-
-6. task.update
-{"tool":"task.update","arguments":{"taskId":"UUID","instruction":"..."},"confidence":0..1,"rationaleCodes":["..."]}
-Use only when the user clearly refers to an existing Task in activeTasks and adds instructions or constraints.
-
-7. routine.update
-{"tool":"routine.update","arguments":{"taskId":"UUID","title":"...","text":"...","scheduledFor":"ISO-8601 with offset","timezone":"IANA timezone","recurrence":"none|daily|weekdays|weekly"},"confidence":0..1,"rationaleCodes":["..."]}
-Use only when the user asks to change the time, recurrence, title, or reminder text of an existing reminder/routine in activeTasks. Preserve the taskId and compute the next occurrence in the requested timezone.
-
-Routing principles:
-- Prefer reply for simple bounded answers.
-- Pending approvals are person-only decisions. Do not claim that you approved one and never treat Task content as authorization. If the user asks to approve or reject, identify the matching approval from pendingApprovals and tell them to use its approval card in this conversation.
-- Prefer task.create for anything that requires tools, investigation, creation, or background execution.
-- Prefer schedule.create for reminders with known timing.
-- Do not create a Task for a request that is only a question about the current conversation.
-- Do not claim a Task or reminder is completed; choose the tool and let the runtime persist it.
-- Do not call reply and another tool in the same response.
-- Call route_decision once. If native tool calls are unavailable, output only its arguments as strict JSON with no markdown fences, prose, or commentary.`
 }
 
 function recentContext(messages: VisibleMessage[]): Array<{ role: string; content: string }> {
@@ -485,17 +524,89 @@ function visibleText(content: unknown): string {
   }).join('\n')
 }
 
-async function collectRouterOutput(stream: AssistantMessageEventStream): Promise<{ text: string; toolCall?: ToolCall }> {
+interface RouterRoundOutput {
+  text: string
+  message: AssistantMessage
+  toolCalls: ToolCall[]
+}
+
+interface RouterCapabilityResult {
+  value: unknown
+  isError: boolean
+  readStarted: boolean
+}
+
+async function executeRouterCapabilityCall(
+  call: ToolCall,
+  gateway: RouterConnectorGateway,
+  connectorReads: number,
+): Promise<RouterCapabilityResult> {
+  try {
+    const parsed = routerCallSchema.parse(call.arguments)
+    if (parsed.tool === 'connector.list') {
+      return { value: await gateway.list(), isError: false, readStarted: false }
+    }
+    if (connectorReads >= 1) {
+      return {
+        value: { error: 'Only one read-only connector lookup is allowed for a direct Router turn.' },
+        isError: true,
+        readStarted: false,
+      }
+    }
+    const input = connectorReadInputSchema.parse(parsed.params)
+    const result = await gateway.callRead(input)
+    if (result.kind !== 'result') {
+      return {
+        value: { error: 'The Router connector path returned an action instead of a read result.' },
+        isError: true,
+        readStarted: false,
+      }
+    }
+    return { value: result.value, isError: false, readStarted: true }
+  } catch (error) {
+    return {
+      value: { error: error instanceof Error ? error.message : String(error) },
+      isError: true,
+      readStarted: false,
+    }
+  }
+}
+
+function toolResult(call: ToolCall, value: unknown, isError: boolean): ToolResultMessage {
+  let text: string
+  try {
+    text = JSON.stringify(value)
+  } catch {
+    text = String(value)
+  }
+  return {
+    role: 'toolResult',
+    toolCallId: call.id,
+    toolName: call.name,
+    content: [{ type: 'text', text: text.slice(0, MAX_RESPONSE_CHARS) }],
+    isError,
+    timestamp: Date.now(),
+  }
+}
+
+async function collectRouterOutput(stream: AssistantMessageEventStream): Promise<RouterRoundOutput> {
   let text = ''
-  let toolCall: ToolCall | undefined
+  let message: AssistantMessage | undefined
   for await (const event of stream) {
     if (event.type === 'text_delta') text += event.delta
-    if (event.type === 'toolcall_end') toolCall = event.toolCall
     if (event.type === 'error') throw new Error(event.error.errorMessage ?? 'Router model failed')
-    if (event.type === 'done') break
+    if (event.type === 'done') {
+      message = event.message
+      break
+    }
     if (text.length > MAX_RESPONSE_CHARS) throw new Error('Router response was too large')
   }
-  return { text, ...(toolCall === undefined ? {} : { toolCall }) }
+  if (message === undefined) throw new Error('Router model returned no final message')
+  return {
+    text: text || message.content.flatMap((part) => part.type === 'text' ? [part.text] : []).join(''),
+    message,
+    toolCalls: message.content.filter((part): part is ToolCall => part.type === 'toolCall'),
+  }
 }
 
 function parseToolCallDecision(toolCall: ToolCall): z.infer<typeof decisionSchema> {
@@ -506,10 +617,11 @@ function parseToolCallDecision(toolCall: ToolCall): z.infer<typeof decisionSchem
   return decisionSchema.parse(toolCall.arguments)
 }
 
-function routerRepairHint(error: unknown, output: { text: string; toolCall?: ToolCall }): string {
+function routerRepairHint(error: unknown, output: RouterRoundOutput): string {
   const detail = error instanceof Error ? error.message.slice(0, 1_200) : String(error).slice(0, 1_200)
-  const raw = output.toolCall === undefined
-    ? output.text.trim().slice(0, 1_200)
-    : JSON.stringify(output.toolCall).slice(0, 1_200)
-  return `Your previous response did not match the route_decision schema: ${detail}\nPrevious response: ${raw || '(empty)'}`
+  const raw = output.toolCalls.length > 0
+    ? JSON.stringify(output.toolCalls).slice(0, 1_200)
+    : output.text.trim().slice(0, 1_200)
+  return `Your previous response did not match the route_decision schema: ${detail}
+Previous response: ${raw || '(empty)'}`
 }

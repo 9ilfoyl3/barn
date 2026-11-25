@@ -4,11 +4,11 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { _electron as electron, expect, test } from '@playwright/test'
 
-test('streams a multi-turn conversation through the Agent Worker', async () => {
+test('streams a multi-turn conversation with attachments', async () => {
   let requestCount = 0
   const server = await startMockModelServer(() => {
     requestCount++
-    return `Barn reply ${requestCount}`
+    return routerReplyDecision(`Barn reply ${requestCount}`)
   })
   const address = server.address()
   if (address === null || typeof address === 'string') throw new Error('Mock server did not bind')
@@ -260,7 +260,7 @@ test('selects a working directory and attaches a folder', async () => {
 
 test('selects a configured model and reasoning effort from the composer', async () => {
   const requests: Array<Record<string, unknown>> = []
-  const server = await startMockModelServer(() => 'Reasoning reply', requests)
+  const server = await startMockModelServer(() => routerReplyDecision('Reasoning reply'), requests)
   const address = server.address()
   if (address === null || typeof address === 'string') throw new Error('Mock server did not bind')
   const baseUrl = `http://127.0.0.1:${address.port}/v1`
@@ -546,7 +546,7 @@ test('selects a configured model and reasoning effort from the composer', async 
 })
 
 test('keeps Router execution activity out of the visible thread', async () => {
-  const server = await startMockModelServer(() => 'Router reply only.')
+  const server = await startMockModelServer(() => routerReplyDecision('Router reply only.'))
   const address = server.address()
   if (address === null || typeof address === 'string') throw new Error('Mock server did not bind')
   const userData = await mkdtemp(join(tmpdir(), 'barn-router-visible-e2e-'))
@@ -601,6 +601,15 @@ test('keeps Router execution activity out of the visible thread', async () => {
     await new Promise<void>((resolve, reject) => server.close((error) => error === undefined ? resolve() : reject(error)))
   }
 })
+
+function routerReplyDecision(text: string): string {
+  return JSON.stringify({
+    tool: 'reply',
+    arguments: { text },
+    confidence: 0.99,
+    rationaleCodes: ['e2e_direct_reply'],
+  })
+}
 
 function routerTaskDecision(title: string): string {
   return JSON.stringify({

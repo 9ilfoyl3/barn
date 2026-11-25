@@ -97,6 +97,12 @@ async function startMarkdownServer(markdown: string): Promise<Server> {
     }
     request.resume()
     request.on('end', () => {
+      const reply = JSON.stringify({
+        tool: 'reply',
+        arguments: { text: markdown },
+        confidence: 0.99,
+        rationaleCodes: ['e2e_markdown_reply'],
+      })
       response.writeHead(200, {
         'content-type': 'text/event-stream',
         'cache-control': 'no-cache',
@@ -107,7 +113,7 @@ async function startMarkdownServer(markdown: string): Promise<Server> {
         type: 'message',
         status: 'completed',
         role: 'assistant',
-        content: [{ type: 'output_text', text: markdown, annotations: [] }],
+        content: [{ type: 'output_text', text: reply, annotations: [] }],
       }
       sendEvent(response, {
         type: 'response.created',
@@ -123,7 +129,7 @@ async function startMarkdownServer(markdown: string): Promise<Server> {
         output_index: 0,
         item_id: item.id,
         content_index: 0,
-        delta: markdown,
+        delta: reply,
       })
       sendEvent(response, { type: 'response.output_item.done', output_index: 0, item })
       sendEvent(response, {

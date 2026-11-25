@@ -64,7 +64,7 @@ test('updates an existing recurring routine without showing Thinking Orbs', asyn
       }
     })).toEqual({
       title: '每日16:00提醒：起来站一下',
-      scheduledFor: '2026-11-20T08:00:00.000Z',
+      scheduledFor: '2099-01-20T08:00:00.000Z',
       recurrence: 'daily',
       timezone: 'Asia/Shanghai',
       status: 'queued',
@@ -99,7 +99,7 @@ async function startRoutineUpdateServer(): Promise<Server> {
             arguments: {
               title: '每日15:00提醒：起来站一下',
               text: '每天下午三点提醒我起来站一下。',
-              scheduledFor: '2026-11-20T07:00:00.000Z',
+              scheduledFor: '2099-01-20T07:00:00.000Z',
               timezone: 'Asia/Shanghai',
               recurrence: 'daily',
             },
@@ -112,7 +112,7 @@ async function startRoutineUpdateServer(): Promise<Server> {
               taskId,
               title: '每日16:00提醒：起来站一下',
               text: '每天下午四点提醒我起来站一下。',
-              scheduledFor: '2026-11-20T08:00:00.000Z',
+              scheduledFor: '2099-01-20T08:00:00.000Z',
               timezone: 'Asia/Shanghai',
               recurrence: 'daily',
             },

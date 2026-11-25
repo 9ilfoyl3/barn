@@ -227,6 +227,17 @@ export class ConnectorService {
     return this.toActionSummary(action)
   }
 
+  /** Router-facing connector path: discovery plus reads only, never an approval-backed write. */
+  async callRead(input: ConnectorCallInput, context: ConnectorCallContext = {}): Promise<ConnectorCallResult> {
+    const { record } = await this.executionContext(input.connectorId)
+    if (!record.enabled) throw new Error('This connector is disabled')
+    const definition = this.requireDefinition(record.kind)
+    const capability = definition.capabilities.find((entry) => entry.id === input.capability)
+    if (capability === undefined) throw new Error(`Unknown connector capability: ${input.capability}`)
+    if (capability.risk !== 'read') throw new Error('This connector capability is not a read capability')
+    return this.call(input, context)
+  }
+
   async call(input: ConnectorCallInput, context: ConnectorCallContext = {}): Promise<ConnectorCallResult> {
     const { record, secrets } = await this.executionContext(input.connectorId)
     if (!record.enabled) throw new Error('This connector is disabled')

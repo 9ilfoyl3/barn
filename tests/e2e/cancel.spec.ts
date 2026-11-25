@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { _electron as electron, expect, test } from '@playwright/test'
 
-test('stops an in-progress response', async () => {
+test('cancels an in-progress Router request', async () => {
   const intervals = new Set<NodeJS.Timeout>()
   const server = createServer((request, response) => {
     if (request.method !== 'POST' || request.url !== '/v1/chat/completions') {
@@ -86,13 +86,18 @@ test('stops an in-progress response', async () => {
     await composer.fill('Explain this in a long response')
     await composer.press('Enter')
 
-    const cancel = page.getByRole('button', { name: 'Cancel request' })
-    await expect(cancel).toBeVisible({ timeout: 10_000 })
-    await cancel.click()
-
-    await expect(page.getByText('Cancelled', { exact: true })).toBeVisible({ timeout: 5_000 })
+    await expect.poll(async () => page.evaluate(async () => (
+      await window.barn.router.getSnapshot()
+    ).requests[0]?.status), { timeout: 10_000 }).toBe('routing')
+    const requestId = await page.evaluate(async () => (
+      await window.barn.router.getSnapshot()
+    ).requests[0]?.id)
+    expect(requestId).toBeDefined()
+    await page.evaluate((id) => window.barn.router.cancel(id), requestId!)
+    await expect.poll(async () => page.evaluate(async () => (
+      await window.barn.router.getSnapshot()
+    ).requests[0]?.status), { timeout: 5_000 }).toBe('cancelled')
     await expect(page.getByText('Request aborted')).toHaveCount(0)
-    expect(await page.evaluate(async () => (await window.barn.router.getSnapshot()).requests[0]?.status)).toBe('cancelled')
   } finally {
     for (const interval of intervals) clearInterval(interval)
     await app.close()

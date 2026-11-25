@@ -73,6 +73,40 @@ describe('TaskConversationService', () => {
     h.store.close()
   })
 
+  it('dispatches an active Task follow-up directly without a Task Router model call', async () => {
+    const h = await harness({
+      action: 'delegate',
+      confidence: 0.5,
+      rationaleCodes: ['should_not_run'],
+      memoryRefs: [],
+    }, 'running')
+    const continued = await h.conversations.continueTask(h.task.id, '再补充一个来源')
+
+    expect(continued).toMatchObject({ delivery: 'worker', task: { status: 'queued' } })
+    expect(h.router.decide).not.toHaveBeenCalled()
+    h.store.close()
+  })
+
+  it('cancels an active Task from an explicit stop request without a model call', async () => {
+    const h = await harness({
+      action: 'delegate',
+      confidence: 0.5,
+      rationaleCodes: ['should_not_run'],
+      memoryRefs: [],
+    }, 'running')
+    const continued = await h.conversations.continueTask(h.task.id, '停止这个任务')
+
+    expect(continued).toMatchObject({
+      delivery: 'router',
+      task: { status: 'cancelled' },
+    })
+    expect(h.router.decide).not.toHaveBeenCalled()
+    expect(h.store.read(h.session.id).at(-1)).toMatchObject({
+      data: { actorRole: 'router', message: { role: 'assistant' } },
+    })
+    h.store.close()
+  })
+
   it('lets the Router answer a coordination message without requeueing the Worker', async () => {
     const h = await harness({
       action: 'reply',
@@ -105,11 +139,9 @@ describe('TaskConversationService', () => {
 
   it('cancels a Task without starting or continuing a Worker run', async () => {
     const h = await harness({
-      action: 'cancel',
-      message: '好，已经停止这个任务。',
-      reason: '用户要求停止。',
-      confidence: 0.99,
-      rationaleCodes: ['explicit_cancel'],
+      action: 'delegate',
+      confidence: 0.5,
+      rationaleCodes: ['should_not_run'],
       memoryRefs: [],
     }, 'running')
     const continued = await h.conversations.continueTask(h.task.id, '停止这个任务')
@@ -118,9 +150,10 @@ describe('TaskConversationService', () => {
       delivery: 'router',
       task: {
         status: 'cancelled',
-        detail: '用户要求停止。',
+        detail: 'Cancelled from the Task conversation.',
       },
     })
+    expect(h.router.decide).not.toHaveBeenCalled()
     expect(continued.task.visiblePrompt).toBe('帮我看看天气')
     expect(h.store.read(h.session.id).at(-1)).toMatchObject({
       data: {

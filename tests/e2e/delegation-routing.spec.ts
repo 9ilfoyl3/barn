@@ -54,7 +54,8 @@ test('routes a high-confidence side-effect request through the durable Task path
     await expect.poll(async () => page.evaluate(async () => (await window.barn.tasks.list()).length)).toBe(1)
     const task = await page.evaluate(async () => (await window.barn.tasks.list())[0])
     expect(task).toMatchObject({ title: request, origin: 'user' })
-    expect(task?.prompt).toContain('Task contract:')
+    expect(task?.prompt).toContain('Task goal:')
+    expect(task?.prompt).toContain('Expected deliverable:')
     expect(task?.visiblePrompt).toBe(request)
     await expect(page.locator('.task-rail-card', { hasText: request })).toBeVisible()
 

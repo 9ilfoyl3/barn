@@ -12,6 +12,14 @@
 - `pnpm package:mac`
 - `pnpm package:win`
 
+When a real model provider is configured, run the live Electron smoke test against an isolated copy of the encrypted model configuration:
+
+```sh
+BARN_LIVE_MODEL_USER_DATA="$HOME/Library/Application Support/barn-desktop" \
+BARN_LIVE_MODEL_APP="$PWD/release/mac-arm64/Barn.app/Contents/MacOS/Barn" \
+pnpm exec playwright test tests/e2e/live-model.spec.ts --workers=1
+```
+
 ## Signing and notarization
 
 macOS secrets:

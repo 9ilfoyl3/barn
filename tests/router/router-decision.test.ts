@@ -2,7 +2,8 @@ import { createAssistantMessageEventStream, type AssistantMessage, type Context,
 import { describe, expect, it, vi } from 'vitest'
 import type { ModelSelection, VisibleMessage } from '../../src/shared/models'
 import type { ModelService } from '../../src/main/models/model-service'
-import { ModelRouterDecisionEngine } from '../../src/main/router/router-decision'
+import { ModelRouterDecisionEngine, type RouterConnectorGateway } from '../../src/main/router/router-decision'
+import { EMAIL_CONNECTOR } from '../../src/main/connectors/catalog'
 
 function fakeModel(response: string): ModelService {
   const selection: ModelSelection = { providerId: 'openai', modelId: 'router-model' }
@@ -149,6 +150,80 @@ const recentMessages: VisibleMessage[] = [{
   createdAt: '2026-11-18T00:00:00.000Z',
 }]
 
+function fakeToolSequence(responses: Array<{ name: string; arguments: ToolCall['arguments'] } | string>): ModelService {
+  const selection: ModelSelection = { providerId: 'openai', modelId: 'router-model' }
+  let index = 0
+  return {
+    getSnapshot: async () => ({
+      providers: [],
+      defaultModel: selection,
+      defaultReasoningEffort: 'max',
+      modelSettingsVersion: 1,
+    }),
+    getModelDescriptor: () => ({
+      id: 'router-model',
+      name: 'Router Model',
+      providerId: 'openai',
+      api: 'openai-responses',
+      reasoning: true,
+      reasoningEfforts: ['high', 'max'],
+      contextWindow: 128_000,
+      maxTokens: 8_000,
+      input: ['text'],
+    }),
+    streamSimple: () => {
+      const response = responses[index++] ?? responses.at(-1)!
+      const stream = createAssistantMessageEventStream()
+      if (typeof response === 'string') {
+        const partial = assistant(response)
+        stream.push({ type: 'start', partial: assistant('') })
+        stream.push({ type: 'text_start', contentIndex: 0, partial: assistant('') })
+        stream.push({ type: 'text_delta', contentIndex: 0, delta: response, partial })
+        stream.push({ type: 'text_end', contentIndex: 0, content: response, partial })
+        stream.push({ type: 'done', reason: 'stop', message: partial })
+        return stream
+      }
+      const toolCall: ToolCall = {
+        type: 'toolCall',
+        id: `call-${index}`,
+        name: response.name,
+        arguments: response.arguments,
+      }
+      const partial = assistantWithContent([toolCall], 'toolUse')
+      stream.push({ type: 'start', partial })
+      stream.push({ type: 'toolcall_start', contentIndex: 0, partial })
+      stream.push({ type: 'toolcall_delta', contentIndex: 0, delta: JSON.stringify(response.arguments), partial })
+      stream.push({ type: 'toolcall_end', contentIndex: 0, toolCall, partial })
+      stream.push({ type: 'done', reason: 'toolUse', message: partial })
+      return stream
+    },
+  } as unknown as ModelService
+}
+
+function connectorGateway(): RouterConnectorGateway & {
+  list: ReturnType<typeof vi.fn>
+  callRead: ReturnType<typeof vi.fn>
+} {
+  return {
+    list: vi.fn(async () => ({
+      definitions: [EMAIL_CONNECTOR],
+      instances: [{
+        id: 'connector-1',
+        kind: 'email',
+        name: 'Work mail',
+        enabled: true,
+        configured: true,
+        status: 'ready' as const,
+        config: {},
+        capabilities: EMAIL_CONNECTOR.capabilities,
+        createdAt: '2026-11-24T00:00:00.000Z',
+        updatedAt: '2026-11-24T00:00:00.000Z',
+      }],
+    })),
+    callRead: vi.fn(async () => ({ kind: 'result' as const, value: { messages: [{ subject: 'Build finished' }] } })),
+  }
+}
+
 describe('ModelRouterDecisionEngine', () => {
   it('prefers a native route_decision tool call over text JSON', async () => {
     const args = {
@@ -216,6 +291,34 @@ describe('ModelRouterDecisionEngine', () => {
       expect.anything(),
       expect.objectContaining({ reasoning: 'max' }),
     )
+  })
+
+  it('accepts a minimal task contract and fills host-owned defaults', async () => {
+    const response = JSON.stringify({
+      tool: 'task.create',
+      arguments: {
+        title: 'Write the note',
+        objective: 'Write a short note in the workspace.',
+      },
+      confidence: 0.96,
+      rationaleCodes: ['durable_work'],
+    })
+    const engine = new ModelRouterDecisionEngine(fakeModel(response))
+
+    const decision = await engine.decide(input())
+
+    expect(decision).toMatchObject({
+      action: 'create_task',
+      taskContract: {
+        objective: 'Write a short note in the workspace.',
+        deliverable: 'Complete the requested task.',
+        constraints: [],
+        acceptanceCriteria: [],
+        forbiddenActions: [],
+        risk: 'none',
+        expectedArtifacts: [],
+      },
+    })
   })
 
   it('retries once after an invalid model response', async () => {
@@ -292,6 +395,71 @@ describe('ModelRouterDecisionEngine', () => {
       waitingReason: 'approval',
       approvalId,
       result: { summary: 'The message is waiting for approval.' },
+    })
+  })
+
+  it('executes connector discovery inside the Router and replies without creating a Task', async () => {
+    const model = fakeToolSequence([
+      { name: 'call', arguments: { tool: 'connector.list', params: {} } },
+      {
+        name: 'route_decision',
+        arguments: {
+          tool: 'reply',
+          arguments: { text: 'You have one email connector configured.' },
+          confidence: 0.98,
+          rationaleCodes: ['direct_connector_inventory'],
+        },
+      },
+    ])
+    const gateway = connectorGateway()
+    const stream = vi.spyOn(model, 'streamSimple')
+    const engine = new ModelRouterDecisionEngine(model, undefined, gateway)
+
+    await expect(engine.decide(input())).resolves.toMatchObject({
+      action: 'reply',
+      text: 'You have one email connector configured.',
+    })
+    expect(gateway.list).toHaveBeenCalledTimes(1)
+    expect(stream).toHaveBeenCalledTimes(2)
+    expect(stream.mock.calls[1]?.[1].messages).toEqual(expect.arrayContaining([
+      expect.objectContaining({ role: 'toolResult', toolName: 'call', isError: false }),
+    ]))
+  })
+
+  it('allows one read-only connector lookup inside the Router', async () => {
+    const model = fakeToolSequence([
+      {
+        name: 'call',
+        arguments: {
+          tool: 'connector.read',
+          params: {
+            connectorId: 'connector-1',
+            capability: 'email.list',
+            arguments: { limit: 5 },
+          },
+        },
+      },
+      {
+        name: 'route_decision',
+        arguments: {
+          tool: 'reply',
+          arguments: { text: 'The latest message is “Build finished”.' },
+          confidence: 0.97,
+          rationaleCodes: ['direct_connector_read'],
+        },
+      },
+    ])
+    const gateway = connectorGateway()
+    const engine = new ModelRouterDecisionEngine(model, undefined, gateway)
+
+    await expect(engine.decide(input())).resolves.toMatchObject({
+      action: 'reply',
+      text: 'The latest message is “Build finished”.',
+    })
+    expect(gateway.callRead).toHaveBeenCalledWith({
+      connectorId: 'connector-1',
+      capability: 'email.list',
+      arguments: { limit: 5 },
     })
   })
 

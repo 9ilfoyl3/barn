@@ -14,6 +14,7 @@ import type { TaskService } from '../tasks/task-service'
 import type { ThreadService } from '../threads/thread-service'
 import type { RouterStore } from './router-store'
 import type { RouterDecision, RouterDecisionEngine } from './router-decision'
+import { formatTaskBrief } from '../../shared/agent-prompts'
 
 const ROUTER_LEASE_MS = 10 * 60 * 1_000
 const ROUTER_CONTEXT_MESSAGE_LIMIT = 40
@@ -289,7 +290,7 @@ export class RouterService {
         status: 'queued',
         kind: 'work',
         contract: decision.taskContract,
-        prompt: taskPrompt(decision.taskContract.objective, decision.taskContract),
+        prompt: taskPrompt(decision.taskContract),
         visiblePrompt: text,
         ...(workingDirectory === undefined ? {} : { workingDirectory }),
         ...(attachments.length === 0 ? {} : { attachments }),
@@ -435,8 +436,8 @@ function routerFailureText(detail: string, locale: 'en' | 'zh-CN'): string {
     : 'This request did not complete because Barn could not process the message. Check the model connection and try again.'
 }
 
-function taskPrompt(objective: string, contract: NonNullable<Extract<RouterDecision, { action: 'create_task' }>['taskContract']>): string {
-  return `${objective}\n\nTask contract:\n${JSON.stringify(contract, null, 2)}`
+function taskPrompt(contract: NonNullable<Extract<RouterDecision, { action: 'create_task' }>['taskContract']>): string {
+  return formatTaskBrief(contract)
 }
 
 function recurrenceScheduleLabel(
