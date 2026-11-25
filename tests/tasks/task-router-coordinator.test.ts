@@ -114,6 +114,23 @@ describe('ModelTaskRouterDecisionEngine', () => {
     )
   })
 
+  it('passes the Task language into the Task Router prompt', async () => {
+    const model = modelWithToolCall({
+      tool: 'router.reply',
+      arguments: { text: '任务仍在执行。' },
+      confidence: 0.98,
+      rationaleCodes: ['status_reply'],
+    })
+    const stream = vi.spyOn(model, 'streamSimple')
+    const engine = new ModelTaskRouterDecisionEngine(model)
+
+    await engine.decide({ ...input(), locale: 'zh-CN' })
+
+    const system = stream.mock.calls[0]?.[1].messages[0]?.content
+    expect(system).toContain('## Channel and language')
+    expect(system).toContain('Preferred UI language: Simplified Chinese')
+  })
+
   it('routes actionable work to the Worker without generating a visible answer', async () => {
     const model = modelWithToolCall({
       tool: 'worker.dispatch',

@@ -131,7 +131,16 @@ async function startMockArkServer(requests: Array<Record<string, unknown>>): Pro
     request.setEncoding('utf8')
     request.on('data', (chunk: string) => { body += chunk })
     request.on('end', () => {
-      requests.push(JSON.parse(body) as Record<string, unknown>)
+      const payload = JSON.parse(body) as Record<string, unknown>
+      requests.push(payload)
+      const reply = requests.length <= 2
+        ? 'OK'
+        : JSON.stringify({
+            tool: 'reply',
+            arguments: { text: 'Ark says OK' },
+            confidence: 0.99,
+            rationaleCodes: ['e2e_direct_reply'],
+          })
       response.writeHead(200, {
         'content-type': 'text/event-stream',
         'cache-control': 'no-cache',
@@ -142,7 +151,7 @@ async function startMockArkServer(requests: Array<Record<string, unknown>>): Pro
         type: 'message',
         status: 'completed',
         role: 'assistant',
-        content: [{ type: 'output_text', text: 'Ark says OK', annotations: [] }],
+        content: [{ type: 'output_text', text: reply, annotations: [] }],
       }
       sendEvent(response, {
         type: 'response.created',
@@ -158,7 +167,7 @@ async function startMockArkServer(requests: Array<Record<string, unknown>>): Pro
         output_index: 0,
         item_id: 'msg-1',
         content_index: 0,
-        delta: 'Ark says OK',
+        delta: reply,
       })
       sendEvent(response, {
         type: 'response.output_item.done',

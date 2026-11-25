@@ -69,6 +69,23 @@ export class TaskConversationService {
       actor: { kind: 'user', id: 'desktop-user' },
     }])
 
+    if (task.status === 'running' || task.status === 'queued') {
+      if (isExplicitCancellation(normalized)) {
+        const updated = this.tasks.updateStatus(task.id, {
+          status: 'cancelled',
+          detail: 'Cancelled from the Task conversation.',
+        })
+        const reply = this.appendRouterReply(
+          sessionId,
+          task.id,
+          cancellationConfirmation(normalized),
+          [],
+        )
+        return { task: updated, delivery: 'router', replyMessageId: reply.eventId }
+      }
+      return this.dispatchToWorker(task.id, normalized)
+    }
+
     let decision: TaskRouterDecision
     try {
       decision = await this.router.decide({
@@ -79,6 +96,7 @@ export class TaskConversationService {
         ...(task.workingDirectory === undefined ? {} : { workingDirectory: task.workingDirectory }),
         now: new Date(),
         timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        locale: /[\u3400-\u9fff]/u.test(normalized) ? 'zh-CN' : 'en',
       })
     } catch (error) {
       this.sessions.append(sessionId, [{
@@ -164,4 +182,14 @@ function cancellationUnavailableText(text: string): string {
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
+}
+
+function isExplicitCancellation(text: string): boolean {
+  const value = text.trim().toLowerCase()
+  return /^(?:please\s+)?(?:stop|cancel|abort)(?:\s+(?:this|the|current))?(?:\s+task)?[.!?]*$/iu.test(value)
+    || /^(?:请)?(?:停止|取消|终止|结束)(?:这个|该|当前)?(?:任务)?[。！？!?]*$/u.test(value)
+}
+
+function cancellationConfirmation(text: string): string {
+  return /[\u3400-\u9fff]/u.test(text) ? '好，已经停止这个任务。' : 'Okay, I stopped this Task.'
 }

@@ -298,7 +298,13 @@ void app.whenReady().then(async () => {
     threadService,
     sessionStore,
     taskService,
-    new ModelRouterDecisionEngine(modelService, memoryService),
+    new ModelRouterDecisionEngine(modelService, memoryService, {
+      listTools: () => tools.listRouterTools(),
+      execute: (toolName, args, context) => tools.execute(toolName, args, {
+        ...(context.workingDirectory === undefined ? {} : { workingDirectory: context.workingDirectory }),
+        ...(context.signal === undefined ? {} : { signal: context.signal }),
+      }),
+    }),
     {
       getConnectorContext: async () => (await connectorService!.list()).map((connector) => ({
         id: connector.id,

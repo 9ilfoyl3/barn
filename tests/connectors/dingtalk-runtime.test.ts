@@ -4,6 +4,7 @@ import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import {
   DingTalkRuntime,
+  nativeProcessRunner,
   resolveRuntimeAsset,
   type DingTalkProcessRunner,
 } from '../../src/main/connectors/dingtalk-runtime'
@@ -114,4 +115,23 @@ describe('DingTalk runtime', () => {
 
     await expect(runtime.runJson(['todo', 'task', 'list'])).rejects.toThrow('DingTalk request failed')
   })
+  it('resolves after CLI exit even when an inherited stdio handle delays close', async () => {
+    const startedAt = Date.now()
+    const script = [
+      "const { spawn } = require('node:child_process')",
+      "const child = spawn(process.execPath, ['-e', 'setTimeout(() => {}, 5000)'], { detached: true, stdio: 'inherit' })",
+      'child.unref()',
+      "console.log(JSON.stringify({ success: true }))",
+      'process.exit(0)',
+    ].join('; ')
+    const result = await nativeProcessRunner.run(process.execPath, ['-e', script], {
+      env: process.env,
+      timeoutMs: 5_000,
+    })
+
+    expect(result.code).toBe(0)
+    expect(result.stdout).toContain('"success":true')
+    expect(Date.now() - startedAt).toBeLessThan(2_000)
+  })
+
 })

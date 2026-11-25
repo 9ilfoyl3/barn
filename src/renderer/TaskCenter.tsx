@@ -51,7 +51,7 @@ export interface TaskCenterProps {
   onError(message: string | undefined): void
 }
 
-/** Comma-style task workspace: a board of status columns with task cards. */
+/** Barn task workspace: a board of status columns with task cards. */
 export function TaskCenter({ tasks, approvals, loading, error, onOpenTask, onRefresh, onError }: TaskCenterProps) {
   const { t, i18n } = useTranslation()
   const dateLocale = i18n.language === 'zh-CN' ? 'zh-CN' : 'en-US'

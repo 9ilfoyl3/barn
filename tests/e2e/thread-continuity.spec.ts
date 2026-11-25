@@ -80,6 +80,12 @@ async function startModelServer(text: string): Promise<Server> {
     }
     request.resume()
     request.on('end', () => {
+      const reply = JSON.stringify({
+        tool: 'reply',
+        arguments: { text },
+        confidence: 0.99,
+        rationaleCodes: ['e2e_thread_reply'],
+      })
       response.writeHead(200, {
         'content-type': 'text/event-stream',
         'cache-control': 'no-cache',
@@ -93,7 +99,7 @@ async function startModelServer(text: string): Promise<Server> {
       }
       response.write(`data: ${JSON.stringify({
         ...base,
-        choices: [{ index: 0, delta: { role: 'assistant', content: text }, finish_reason: null }],
+        choices: [{ index: 0, delta: { role: 'assistant', content: reply }, finish_reason: null }],
       })}\n\n`)
       response.write(`data: ${JSON.stringify({
         ...base,

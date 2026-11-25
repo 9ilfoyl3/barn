@@ -12,6 +12,7 @@ const DOWNLOAD_TIMEOUT_MS = 180_000
 const LOGIN_TIMEOUT_MS = 300_000
 const COMMAND_TIMEOUT_MS = 30_000
 const MAX_OUTPUT_BYTES = 12 * 1024 * 1024
+const EXIT_DRAIN_GRACE_MS = 500
 
 interface RuntimeAsset {
   archive: string
@@ -207,7 +208,7 @@ export function resolveRuntimeAsset(
   return RUNTIME_ASSETS[`${platform}-${arch}`]
 }
 
-const nativeProcessRunner: DingTalkProcessRunner = {
+export const nativeProcessRunner: DingTalkProcessRunner = {
   run(file, args, options) {
     return new Promise((resolve, reject) => {
       const child = spawn(file, [...args], {
@@ -217,12 +218,40 @@ const nativeProcessRunner: DingTalkProcessRunner = {
       let stdout = ''
       let stderr = ''
       let settled = false
+      let exited = false
+      let exitCode: number | null = null
+      let timer: NodeJS.Timeout
+      let drainTimer: NodeJS.Timeout | undefined
+      const destroyPipes = (): void => {
+        child.stdout?.destroy()
+        child.stderr?.destroy()
+      }
       const finish = (callback: () => void): void => {
         if (settled) return
         settled = true
         clearTimeout(timer)
+        if (drainTimer !== undefined) clearTimeout(drainTimer)
         options.signal?.removeEventListener('abort', abort)
         callback()
+      }
+      const resolveResult = (code: number): void => {
+        destroyPipes()
+        finish(() => resolve({ code, stdout, stderr }))
+      }
+      const resolveAfterExit = (): void => {
+        if (!exited || settled) return
+        resolveResult(exitCode ?? 1)
+      }
+      const waitForPipeDrain = (): void => {
+        if (child.stdout?.readableEnded !== false && child.stderr?.readableEnded !== false) {
+          resolveAfterExit()
+          return
+        }
+        // A successful CLI may leave a grandchild or telemetry handle holding
+        // stdout/stderr. `close` then waits forever even though the command has
+        // already exited and its bounded output is complete.
+        drainTimer = setTimeout(resolveAfterExit, EXIT_DRAIN_GRACE_MS)
+        drainTimer.unref?.()
       }
       const append = (current: string, chunk: Buffer): string => {
         const next = current + chunk.toString('utf8')
@@ -232,7 +261,7 @@ const nativeProcessRunner: DingTalkProcessRunner = {
         }
         return next
       }
-      const timer = setTimeout(() => {
+      timer = setTimeout(() => {
         child.kill()
         finish(() => reject(new Error('DingTalk operation timed out')))
       }, options.timeoutMs)
@@ -240,23 +269,38 @@ const nativeProcessRunner: DingTalkProcessRunner = {
         child.kill()
         finish(() => reject(new Error('DingTalk operation was cancelled')))
       }
+      if (options.signal?.aborted === true) {
+        abort()
+        return
+      }
       options.signal?.addEventListener('abort', abort, { once: true })
-      child.stdout.on('data', (chunk: Buffer) => {
+      child.stdout?.on('data', (chunk: Buffer) => {
         try {
           stdout = append(stdout, chunk)
         } catch (error) {
           finish(() => reject(error))
         }
       })
-      child.stderr.on('data', (chunk: Buffer) => {
+      child.stderr?.on('data', (chunk: Buffer) => {
         try {
           stderr = append(stderr, chunk)
         } catch (error) {
           finish(() => reject(error))
         }
       })
+      child.stdout?.on('end', () => {
+        if (exited) waitForPipeDrain()
+      })
+      child.stderr?.on('end', () => {
+        if (exited) waitForPipeDrain()
+      })
       child.on('error', (error) => finish(() => reject(error)))
-      child.on('close', (code) => finish(() => resolve({ code: code ?? 1, stdout, stderr })))
+      child.on('exit', (code) => {
+        exited = true
+        exitCode = code ?? 1
+        waitForPipeDrain()
+      })
+      child.on('close', (code) => resolveResult(code ?? exitCode ?? 1))
     })
   },
 }

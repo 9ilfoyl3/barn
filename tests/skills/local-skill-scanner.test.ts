@@ -1,6 +1,6 @@
 import { mkdir, mkdtemp, readFile, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { join, resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { LocalSkillScanner, parseSkillRootList } from '../../src/main/skills/local-skill-scanner'
 
@@ -165,7 +165,7 @@ describe('LocalSkillScanner', () => {
 
   it('parses configured root lists and rejects malformed JSON', () => {
     const roots = parseSkillRootList(JSON.stringify(['/tmp/one', '/tmp/two']), ':')
-    expect(roots.map((root) => root.path)).toEqual(['/tmp/one', '/tmp/two'])
+    expect(roots.map((root) => root.path)).toEqual([resolve('/tmp/one'), resolve('/tmp/two')])
     expect(roots.every((root) => root.provider === 'custom')).toBe(true)
     expect(() => parseSkillRootList('{"bad":true}', ':')).toThrow('BARN_SKILL_ROOTS')
   })

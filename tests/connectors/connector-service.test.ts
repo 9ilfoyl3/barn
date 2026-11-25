@@ -146,6 +146,22 @@ describe('ConnectorService', () => {
     h.sessions.close()
   })
 
+  it('exposes a read-only call path that rejects external writes', async () => {
+    const h = await harness()
+    await expect(h.service.callRead({
+      connectorId: h.connector.id,
+      capability: 'email.list',
+      arguments: { limit: 3 },
+    })).resolves.toEqual({ kind: 'result', value: { capability: 'email.list' } })
+    await expect(h.service.callRead({
+      connectorId: h.connector.id,
+      capability: 'email.send',
+      arguments: { to: 'client@example.com', subject: 'Hello', text: 'Body' },
+    })).rejects.toThrow('not a read capability')
+    expect(h.enqueued).toHaveLength(0)
+    h.sessions.close()
+  })
+
   it('queues external writes instead of executing them', async () => {
     const h = await harness()
     const taskId = randomUUID()
