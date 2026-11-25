@@ -8,6 +8,20 @@ const settingsSchema = z.object({
   generateMemories: z.boolean().optional(),
   idleMinutes: z.number().int().min(15).max(10_080).optional(),
   maxEntries: z.number().int().min(10).max(2_000).optional(),
+  memoryCharLimit: z.number().int().min(200).max(20_000).optional(),
+  userCharLimit: z.number().int().min(200).max(20_000).optional(),
+}).strict()
+
+const documentNameSchema = z.enum(['memory', 'user'])
+const memoryUpdateSchema = z.object({
+  id: z.uuid(),
+  expectedVersion: z.number().int().positive(),
+  title: z.string().min(1).max(120).optional(),
+  content: z.string().min(1).max(2_000).optional(),
+  tags: z.array(z.string().min(1).max(40)).max(20).optional(),
+  pinned: z.boolean().optional(),
+  confidence: z.number().min(0).max(1).optional(),
+  validUntil: z.string().nullable().optional(),
 }).strict()
 
 const sessionControlsSchema = z.object({
@@ -26,6 +40,28 @@ export function registerMemoryIpc(
   ipcMain.handle('memory:set-settings', (event, value: unknown) => {
     requireTrusted(event, isTrustedSender)
     return memory.setSettings(compact(settingsSchema.parse(value)))
+  })
+  ipcMain.handle('memory:get-document', (event, name: unknown) => {
+    requireTrusted(event, isTrustedSender)
+    return memory.getDocument(documentNameSchema.parse(name))
+  })
+  ipcMain.handle('memory:list-document-revisions', (event, name: unknown) => {
+    requireTrusted(event, isTrustedSender)
+    return memory.listDocumentRevisions(documentNameSchema.parse(name))
+  })
+  ipcMain.handle('memory:save-document', (event, value: unknown) => {
+    requireTrusted(event, isTrustedSender)
+    const parsed = z.object({
+      name: documentNameSchema,
+      content: z.string().max(20_000),
+      expectedVersion: z.number().int().nonnegative().optional(),
+    }).strict().parse(value)
+    return memory.saveDocument(parsed.name, parsed.content, parsed.expectedVersion)
+  })
+  ipcMain.handle('memory:update', (event, value: unknown) => {
+    requireTrusted(event, isTrustedSender)
+    const { id, expectedVersion, ...change } = memoryUpdateSchema.parse(value)
+    return memory.update({ id, expectedVersion, ...compact(change) })
   })
   ipcMain.handle('memory:list', (event) => {
     requireTrusted(event, isTrustedSender)

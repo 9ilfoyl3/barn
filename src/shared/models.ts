@@ -692,11 +692,13 @@ export interface LocalSourceBridge {
 
 export type MemoryScope = 'global' | 'workspace'
 export type MemoryKind = 'preference' | 'fact' | 'procedure' | 'decision' | 'project'
-export type MemoryStatus = 'candidate' | 'active' | 'archived'
+export type MemoryStatus = 'candidate' | 'active' | 'archived' | 'superseded' | 'rejected'
 export type MemorySourceAuthority = 'explicit' | 'verified' | 'observed' | 'inferred'
+export type MemoryDocumentName = 'memory' | 'user'
 
 export interface MemoryEntry {
   id: string
+  key: string
   scope: MemoryScope
   kind: MemoryKind
   title: string
@@ -724,6 +726,23 @@ export interface MemorySettings {
   generateMemories: boolean
   idleMinutes: number
   maxEntries: number
+  memoryCharLimit: number
+  userCharLimit: number
+}
+
+export interface MemoryDocument {
+  name: MemoryDocumentName
+  content: string
+  charLimit: number
+  version: number
+  updatedAt?: string
+}
+
+export interface MemoryDocumentRevision {
+  name: MemoryDocumentName
+  version: number
+  content: string
+  archivedAt: string
 }
 
 export interface MemorySessionControls {
@@ -762,12 +781,28 @@ export interface MemorySaveInput {
   sourceAuthority?: MemorySourceAuthority
   status?: MemoryStatus
   validUntil?: string
+  expectedVersion?: number
+}
+
+export interface MemoryUpdateInput {
+  id: string
+  expectedVersion: number
+  title?: string
+  content?: string
+  tags?: string[]
+  pinned?: boolean
+  confidence?: number
+  validUntil?: string | null
 }
 
 export interface MemoryBridge {
   getSettings(): Promise<MemorySettings>
   setSettings(settings: Partial<MemorySettings>): Promise<MemorySettings>
+  getDocument(name: MemoryDocumentName): Promise<MemoryDocument>
+  saveDocument(name: MemoryDocumentName, content: string, expectedVersion?: number): Promise<MemoryDocument>
+  listDocumentRevisions(name: MemoryDocumentName): Promise<MemoryDocumentRevision[]>
   list(): Promise<MemoryEntry[]>
+  update(input: MemoryUpdateInput): Promise<MemoryEntry>
   delete(id: string): Promise<void>
   setPinned(id: string, pinned: boolean): Promise<MemoryEntry>
   listCandidates(): Promise<MemoryEntry[]>

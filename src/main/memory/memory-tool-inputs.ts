@@ -14,6 +14,18 @@ export const memorySaveInput = z.object({
   tags: z.array(z.string().min(1).max(40)).max(20).default([]),
   key: z.string().min(1).max(100).optional(),
   pinned: z.boolean().default(false),
+  expectedVersion: z.number().int().positive().optional(),
+})
+
+export const memoryUpdateInput = z.object({
+  id: z.uuid(),
+  expectedVersion: z.number().int().positive(),
+  title: z.string().min(1).max(120).optional(),
+  content: z.string().min(1).max(2_000).optional(),
+  tags: z.array(z.string().min(1).max(40)).max(20).optional(),
+  pinned: z.boolean().optional(),
+  confidence: z.number().min(0).max(1).optional(),
+  validUntil: z.string().nullable().optional(),
 })
 
 export const memoryForgetInput = z.object({

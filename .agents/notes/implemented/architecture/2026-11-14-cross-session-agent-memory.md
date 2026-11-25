@@ -42,3 +42,15 @@ Memory is disabled by default. When generation is enabled, a background extracto
 - asynchronous extraction runs against the configured model provider only when the user enables generation;
 - repeated extraction is avoided by Session sequence tracking, while later turns can produce a new extraction pass;
 - user-facing settings and management build on the typed Memory bridge.
+
+## Production memory update
+
+The memory surface now has two complementary layers. `USER.md` and `MEMORY.md` are encrypted, versioned documents edited from Settings; they are injected into every eligible prompt inside a bounded `<memory_context>` block. Within that block `USER.md` is always included first, `MEMORY.md` second, and query-relevant confirmed entries follow in a separate JSON section. The whole block is escaped and marked as untrusted reference data.
+
+Structured entries keep their provenance and candidate lifecycle. Contradictory inferred candidates coexist with the active key instead of overwriting it. Confirming a candidate atomically archives and supersedes the active entry, while rejecting it preserves an audit record. Memory edits use `id + expectedVersion`; omitted fields are preserved, so pin, tags, confidence, and validity are not reset accidentally. Document saves use the same optimistic-concurrency rule and retain prior versions in `memory_document_revisions`.
+
+Extraction failures no longer advance the processed sequence. They only persist the error and retry time, so the same window is retried and cannot be skipped. Confirming a candidate also respects the active-entry quota.
+
+Extraction candidates may cite message-level refs from the bounded transcript. The Host keeps only refs present in that transcript, falling back to the user-message refs when the model omits or fabricates them. Automatic prompt recall applies a minimum relevance threshold, while explicit `memory_search` remains broader. Due `valid_until` entries move to `expired` during extraction maintenance, with their prior content retained in history. Document revisions are readable from Settings and can be restored through the same optimistic-concurrency save path.
+
+The model-facing `memory_save` tool always creates an inferred candidate. Only the user-facing confirmation path can move a candidate into active recall, preventing autonomous model writes from directly polluting long-term memory.

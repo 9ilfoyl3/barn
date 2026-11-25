@@ -60,7 +60,7 @@ Worker output is a Task result. State what was completed and which evidence or a
 const WORKER_TOOL_PROTOCOL = `Use list_dir, find_files, search_files, and read_file to inspect files. Use write_file only for new files or complete rewrites; use edit_file after reading the target.
 Use the visible browser for websites. Prefer browser_observe and browser_act over screenshots.
 Use connector_list before assuming an app is unavailable, then use connector_call with an exact capability id and arguments matching its inputSchema.
-Use memory_search when prior preferences or decisions may matter. Use memory_save only for stable, reusable facts, preferences, procedures, or decisions, and never save credentials.
+Use memory_search when prior preferences or decisions may matter. Use memory_save only for stable, reusable facts, preferences, procedures, or decisions. To correct an existing memory, call memory_search first, then memory_update with its id and current version. Never save credentials.
 Use skill_list, skill_read, and skill_file for reusable user-installed workflows.`
 
 const ROUTER_TOOL_PROTOCOL = `Call ordinary business tools through the single native tool \`call\`. In its arguments, set \`tool\` to one disclosed tool name and \`params\` to that tool's JSON arguments.
