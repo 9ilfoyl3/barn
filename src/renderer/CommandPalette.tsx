@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { ArrowRight, Inbox, Search, X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import type { Task } from '../shared/models'
+import { Input } from './components/Input'
 
 export interface CommandPaletteProps {
   open: boolean
@@ -44,12 +45,14 @@ export function CommandPalette({ open, tasks, onClose, onOpenTask, onOpenTasks }
       <section className="command-palette" role="dialog" aria-modal="true" aria-label={t('secretary.search')}>
         <header className="command-search">
           <Search size={17} aria-hidden="true" />
-          <input
+          <Input
             ref={inputRef}
             type="search"
             value={query}
             placeholder={t('secretary.searchPlaceholder')}
             onChange={(event) => setQuery(event.target.value)}
+            appearance="flush"
+            density="compact"
           />
           <button type="button" aria-label={t('common.close')} onClick={onClose}><X size={15} /></button>
         </header>

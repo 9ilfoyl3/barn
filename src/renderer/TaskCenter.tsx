@@ -14,6 +14,7 @@ import {
 } from 'lucide-react'
 import './task-center.css'
 import type { ApprovalRequest, ConnectorActionSummary, Task, TaskStatus } from '../shared/models'
+import { Input } from './components/Input'
 import { useErrorToast } from './notifications'
 import { TaskApprovalCard } from './TaskApprovalCard'
 
@@ -456,12 +457,13 @@ export function TaskCenter({ tasks, approvals, loading, error, onOpenTask, onRef
             </header>
             <label>
               <span>{t('tasks.newTaskTitle')}</span>
-              <input
+              <Input
                 autoFocus
                 maxLength={200}
                 placeholder={t('tasks.newTaskTitlePlaceholder')}
                 value={createTitle}
                 onChange={(event) => setCreateTitle(event.target.value)}
+                density="compact"
               />
             </label>
             <label>

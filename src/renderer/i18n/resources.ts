@@ -223,6 +223,12 @@ const en = {
     diagnostics: 'Diagnostics',
     settings: 'Settings',
   },
+  input: {
+    invalidEmail: 'That doesn’t look like a valid email',
+    invalidUrl: 'Enter a valid URL',
+    invalidValue: 'Invalid value',
+    validValue: 'Valid value',
+  },
   appSettings: {
     title: 'Settings',
     overview: 'Overview',
@@ -1113,6 +1119,12 @@ const zhCN: TranslationSchema = {
     localSources: '本地事件源',
     diagnostics: '诊断',
     settings: '设置',
+  },
+  input: {
+    invalidEmail: '这看起来不是有效的邮箱地址',
+    invalidUrl: '请输入有效的 URL',
+    invalidValue: '输入无效',
+    validValue: '输入有效',
   },
   appSettings: {
     title: '设置',

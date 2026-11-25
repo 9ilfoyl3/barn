@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { AlertCircle, Check, LoaderCircle, Pencil, Pin, PinOff, Settings2, Trash2, X } from 'lucide-react'
 import type { MemoryDocument, MemoryDocumentName, MemoryDocumentRevision, MemoryEntry, MemorySettings } from '../shared/models'
+import { Input } from './components/Input'
 import { notifySuccess, useErrorToast } from './notifications'
 import './memory-settings.css'
 
@@ -254,10 +255,11 @@ export function MemorySettingsPanel({ onChanged }: { onChanged?(): void }) {
           <div className="memory-entry-editor">
             <label>
               <span>{t('memorySettings.entryTitle')}</span>
-              <input
+              <Input
                 value={editingEntry.title}
                 maxLength={120}
                 onChange={(event) => setEditingEntry((current) => current === undefined ? current : { ...current, title: event.target.value })}
+                density="compact"
               />
             </label>
             <label>
@@ -391,7 +393,7 @@ export function MemorySettingsPanel({ onChanged }: { onChanged?(): void }) {
                 </button>
               ) : (
                 <span className="memory-limit-editor">
-                  <input
+                  <Input
                     aria-label={t('memorySettings.charLimit')}
                     type="number"
                     min={200}
@@ -402,6 +404,7 @@ export function MemorySettingsPanel({ onChanged }: { onChanged?(): void }) {
                       if (event.key === 'Enter') void applyLimit()
                       if (event.key === 'Escape') setAdjustingLimit(false)
                     }}
+                    density="compact"
                   />
                   <button type="button" onClick={() => void applyLimit()}>{t('memorySettings.applyLimit')}</button>
                   <button type="button" onClick={() => setAdjustingLimit(false)}>{t('memorySettings.cancelLimit')}</button>
@@ -578,23 +581,25 @@ export function MemorySettingsPanel({ onChanged }: { onChanged?(): void }) {
             <div className="memory-number-grid">
               <label>
                 <span>{t('memorySettings.idleMinutes')}</span>
-                <input
+                <Input
                   type="number"
                   min={15}
                   max={10_080}
                   value={settings.idleMinutes}
                   onChange={(event) => setSettings((current) => ({ ...current, idleMinutes: Number(event.target.value) }))}
+                  density="compact"
                 />
                 <small>{t('memorySettings.idleMinutesDescription')}</small>
               </label>
               <label>
                 <span>{t('memorySettings.maxEntries')}</span>
-                <input
+                <Input
                   type="number"
                   min={10}
                   max={2_000}
                   value={settings.maxEntries}
                   onChange={(event) => setSettings((current) => ({ ...current, maxEntries: Number(event.target.value) }))}
+                  density="compact"
                 />
                 <small>{t('memorySettings.maxEntriesDescription')}</small>
               </label>

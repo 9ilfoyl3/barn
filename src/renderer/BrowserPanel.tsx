@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { Input } from './components/Input'
 import {
   ArrowLeft,
   ArrowRight,
@@ -186,7 +187,7 @@ export function BrowserPanel({
             <ShieldCheck size={15} />
           </button>
           <form className="browser-address" onSubmit={(event) => { event.preventDefault(); void submit() }}>
-            <input
+            <Input
               aria-label="Browser address"
               type="text"
               inputMode="url"
@@ -196,6 +197,8 @@ export function BrowserPanel({
               placeholder={t('browser.searchPlaceholder')}
               value={address}
               onChange={(event) => setAddress(event.target.value)}
+              appearance="flush"
+              density="compact"
             />
           </form>
           <button

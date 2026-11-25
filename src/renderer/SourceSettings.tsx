@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { CalendarClock, FolderSearch, Plus, Trash2, X } from 'lucide-react'
 import type { AutomationSettings, LocalSource } from '../shared/models'
 import { TooltipButton } from './components/TooltipButton'
+import { Input } from './components/Input'
 import { notifySuccess, useErrorToast } from './notifications'
 import './source-settings.css'
 
@@ -188,15 +189,15 @@ export function SourceSettings({ onClose }: { onClose(): void }) {
                 </label>
                 <label>
                   <span>{t('sourceSettings.pendingLimit')}</span>
-                  <input type="number" min={1} max={200} value={automation.maxPendingSuggestions} onChange={(event) => {
+                  <Input type="number" min={1} max={200} value={automation.maxPendingSuggestions} onChange={(event) => {
                     setAutomation({ ...automation, maxPendingSuggestions: Number(event.target.value) })
-                  }} />
+                  }} density="compact" />
                 </label>
                 <label>
                   <span>{t('sourceSettings.cooldown')}</span>
-                  <input type="number" min={0} max={10080} value={automation.suggestionCooldownMinutes} onChange={(event) => {
+                  <Input type="number" min={0} max={10080} value={automation.suggestionCooldownMinutes} onChange={(event) => {
                     setAutomation({ ...automation, suggestionCooldownMinutes: Number(event.target.value) })
-                  }} />
+                  }} density="compact" />
                 </label>
               </div>
               <button className="secondary-button" type="button" disabled={busy} onClick={() => void saveAutomation()}>
@@ -256,14 +257,14 @@ export function SourceSettings({ onClose }: { onClose(): void }) {
               <h3>{mode === 'file-watch' ? t('sourceSettings.newWatchTitle') : t('sourceSettings.newScheduleTitle')}</h3>
               <label>
                 <span>{t('sourceSettings.name')}</span>
-                <input value={name} required onChange={(event) => setName(event.target.value)} />
+                <Input value={name} required onChange={(event) => setName(event.target.value)} density="compact" />
               </label>
               {mode === 'file-watch' ? (
                 <>
                   <label>
                     <span>{t('sourceSettings.folder')}</span>
                     <div className="source-path-row">
-                      <input value={watchPath} required readOnly placeholder={t('sourceSettings.noFolder')} />
+                      <Input value={watchPath} required readOnly placeholder={t('sourceSettings.noFolder')} density="compact" />
                       <button className="secondary-button" type="button" onClick={() => void chooseFolder()}>{t('sourceSettings.chooseFolder')}</button>
                     </div>
                   </label>
@@ -284,7 +285,7 @@ export function SourceSettings({ onClose }: { onClose(): void }) {
                 <>
                   <label>
                     <span>{t('sourceSettings.taskTitle')}</span>
-                    <input value={scheduleTitle} required onChange={(event) => setScheduleTitle(event.target.value)} />
+                    <Input value={scheduleTitle} required onChange={(event) => setScheduleTitle(event.target.value)} density="compact" />
                   </label>
                   <label>
                     <span>{t('sourceSettings.instructions')}</span>
@@ -292,7 +293,7 @@ export function SourceSettings({ onClose }: { onClose(): void }) {
                   </label>
                   <label>
                     <span>{t('sourceSettings.intervalMinutes')}</span>
-                    <input type="number" min={1} max={10080} value={intervalMinutes} required onChange={(event) => setIntervalMinutes(Number(event.target.value))} />
+                    <Input type="number" min={1} max={10080} value={intervalMinutes} required onChange={(event) => setIntervalMinutes(Number(event.target.value))} density="compact" />
                   </label>
                 </>
               )}

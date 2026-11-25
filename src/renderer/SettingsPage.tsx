@@ -10,6 +10,7 @@ import {
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { changeAppLanguage, currentLanguagePreference, type LanguagePreference } from './i18n'
+import { Input } from './components/Input'
 import { MemorySettingsPanel } from './MemorySettingsPanel'
 import './settings-page.css'
 
@@ -141,16 +142,17 @@ export function SettingsPage({ onOpenModels, onOpenPlugins, onOpenSources, onOpe
     <div className="settings-page">
       <h1 className="settings-page-sr-title">{t('appSettings.title')}</h1>
       <aside className="settings-page-nav" aria-label={t('appSettings.navLabel')}>
-        <label className="settings-page-search">
-          <Search size={14} aria-hidden="true" />
-          <input
+        <Input
+          containerClassName="settings-page-search"
+          leadingIcon={<Search size={14} aria-hidden="true" />}
+          density="compact"
+          appearance="flush"
             type="search"
             value={query}
             placeholder={t('appSettings.searchSettings')}
             aria-label={t('appSettings.searchSettings')}
             onChange={(event) => setQuery(event.target.value)}
-          />
-        </label>
+        />
 
         <nav className="settings-page-nav-groups" aria-label={t('appSettings.navLabel')}>
           {groups.map((group) => {

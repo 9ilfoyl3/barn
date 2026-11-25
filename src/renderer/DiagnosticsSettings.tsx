@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { Activity, X } from 'lucide-react'
 import type { DiagnosticsSnapshot } from '../shared/models'
 import { TooltipButton } from './components/TooltipButton'
+import { Input } from './components/Input'
 import { notifySuccess, useErrorToast } from './notifications'
 import './diagnostics-settings.css'
 
@@ -132,7 +133,7 @@ export function DiagnosticsSettings({ onClose }: { onClose(): void }) {
                 <div className="diagnostics-retention-actions">
                   <label>
                     <span>{t('diagnostics.retentionDays')}</span>
-                    <input type="number" min={30} max={3650} value={retention} onChange={(event) => setRetention(Number(event.target.value))} />
+                    <Input type="number" min={30} max={3650} value={retention} onChange={(event) => setRetention(Number(event.target.value))} density="compact" />
                   </label>
                   <button className="secondary-button" type="button" disabled={busy} onClick={() => void saveRetention()}>{t('common.save')}</button>
                   <button className="secondary-button" type="button" disabled={busy} onClick={() => void runMaintenance()}>{t('diagnostics.runCleanup')}</button>

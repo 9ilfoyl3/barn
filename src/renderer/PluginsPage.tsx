@@ -29,6 +29,7 @@ import type {
   SkillSummary,
 } from '../shared/models'
 import { SkillsPanel } from './SkillsPanel'
+import { Input } from './components/Input'
 import { notifyError, notifySuccess, useErrorToast } from './notifications'
 import './plugins-page.css'
 
@@ -287,21 +288,22 @@ export function PluginsPage({ onTrySkill }: { onTrySkill?: (skill: SkillSummary)
         </div>
       </header>
 
-      <label className="plugins-search">
-        <Search size={17} aria-hidden="true" />
-        <input
-          aria-label={tab === 'skills' ? t('plugins.searchSkills') : t('plugins.search')}
-          onChange={(event) => setQuery(event.target.value)}
-          placeholder={tab === 'skills' ? t('plugins.searchSkillsPlaceholder') : t('plugins.searchPlaceholder')}
-          type="search"
-          value={query}
-        />
-        {query.length > 0 && (
+      <Input
+        containerClassName="plugins-search"
+        leadingIcon={<Search size={17} aria-hidden="true" />}
+        aria-label={tab === 'skills' ? t('plugins.searchSkills') : t('plugins.search')}
+        onChange={(event) => setQuery(event.target.value)}
+        placeholder={tab === 'skills' ? t('plugins.searchSkillsPlaceholder') : t('plugins.searchPlaceholder')}
+        type="search"
+        value={query}
+        appearance="flush"
+        density="compact"
+        trailing={query.length > 0 ? (
           <button type="button" aria-label={t('plugins.clearSearch')} onClick={() => setQuery('')}>
             <X size={14} />
           </button>
-        )}
-      </label>
+        ) : undefined}
+      />
 
       {tab === 'skills' ? (
         <section role="tabpanel" aria-label={t('plugins.skills')}>
@@ -719,7 +721,7 @@ function ConnectorEditor({
       {!definition.hideConnectionName && (
         <label>
           <span>{t('connectorSettings.name')}</span>
-          <input value={name} required maxLength={200} onChange={(event) => setName(event.target.value)} />
+          <Input value={name} required maxLength={200} onChange={(event) => setName(event.target.value)} density="compact" />
         </label>
       )}
 
@@ -738,7 +740,7 @@ function ConnectorEditor({
             ) : (
               <>
                 <span>{fieldLabel(field, t)}{field.required ? ' *' : ''}</span>
-                <input
+                <Input
                   type={field.type === 'number' ? 'number' : field.type === 'url' ? 'url' : 'text'}
                   required={field.required}
                   value={String(config[field.key] ?? '')}
@@ -747,6 +749,7 @@ function ConnectorEditor({
                     field,
                     field.type === 'number' ? Number(event.target.value) : event.target.value,
                   )}
+                  density="compact"
                 />
               </>
             )}
@@ -763,7 +766,7 @@ function ConnectorEditor({
           {definition.credentialFields.map((field) => (
             <label key={field.key}>
               <span>{fieldLabel(field, t)}{field.required && instance === undefined ? ' *' : ''}</span>
-              <input
+              <Input
                 type={field.type === 'password' ? 'password' : 'text'}
                 required={field.required && instance === undefined}
                 value={credentials[field.key] ?? ''}
@@ -772,6 +775,7 @@ function ConnectorEditor({
                   : t('connectorSettings.leaveBlank')}
                 autoComplete="off"
                 onChange={(event) => setCredential(field, event.target.value)}
+                density="compact"
               />
             </label>
           ))}

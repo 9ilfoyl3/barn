@@ -12,6 +12,7 @@ import {
   X,
 } from 'lucide-react'
 import { TooltipButton } from './components/TooltipButton'
+import { Input } from './components/Input'
 import { notifyError, notifySuccess, useErrorToast } from './notifications'
 import {
   REASONING_EFFORTS,
@@ -239,11 +240,13 @@ export function ModelSettings({ snapshot, onSnapshot, onClose }: ModelSettingsPr
             <div className="provider-column">
               <div className="provider-search">
                 <Search size={15} />
-                <input
+                <Input
                   value={query}
                   onChange={(event) => setQuery(event.target.value)}
                   placeholder={t('settings.searchProviders')}
                   aria-label={t('settings.searchProviders')}
+                  appearance="flush"
+                  density="compact"
                 />
               </div>
               <div className="provider-list">
@@ -291,13 +294,14 @@ export function ModelSettings({ snapshot, onSnapshot, onClose }: ModelSettingsPr
 
                   <label className="field-label" htmlFor="api-key">{t('settings.apiKey')}</label>
                   <div className="secret-row">
-                    <input
+                    <Input
                       id="api-key"
                       type="password"
                       value={apiKey}
                       onChange={(event) => setApiKey(event.target.value)}
                       placeholder={selectedProvider.configured ? t('settings.replaceStoredKey') : t('settings.enterProviderKey')}
                       autoComplete="off"
+                      density="compact"
                     />
                     <button
                       className="primary-button"
@@ -604,20 +608,21 @@ function CustomProviderForm({
         <div className="form-grid">
           <label>
             <span>{t('settings.providerId')}</span>
-            <input
+            <Input
               value={id}
               readOnly={mode === 'edit'}
               onChange={(event) => setId(event.target.value)}
               placeholder="acme-gateway"
+              density="compact"
             />
           </label>
           <label>
             <span>{t('settings.displayName')}</span>
-            <input value={name} onChange={(event) => setName(event.target.value)} placeholder="Acme Gateway" />
+            <Input value={name} onChange={(event) => setName(event.target.value)} placeholder="Acme Gateway" density="compact" />
           </label>
           <label className="span-two">
             <span>{t('settings.baseUrl')}</span>
-            <input value={baseUrl} onChange={(event) => setBaseUrl(event.target.value)} placeholder="https://gateway.example/v1" />
+            <Input type="url" value={baseUrl} onChange={(event) => setBaseUrl(event.target.value)} placeholder="https://gateway.example/v1" density="compact" />
           </label>
           <label className="span-two">
             <span>{t('settings.protocol')}</span>
@@ -629,12 +634,13 @@ function CustomProviderForm({
           </label>
           <label className="span-two">
             <span>{t('settings.apiKey')}</span>
-            <input
+            <Input
               type="password"
               value={apiKey}
               onChange={(event) => setApiKey(event.target.value)}
               placeholder={providerConfigured ? t('settings.leaveBlankForStoredKey') : t('settings.pasteProviderKey')}
               autoComplete="off"
+              density="compact"
             />
           </label>
         </div>
@@ -667,19 +673,19 @@ function CustomProviderForm({
               <div className="model-editor-grid">
                 <label>
                   <span>{t('settings.modelId')}</span>
-                  <input value={model.id} onChange={(event) => updateModel(model.key, { id: event.target.value })} placeholder="model-id" />
+                  <Input value={model.id} onChange={(event) => updateModel(model.key, { id: event.target.value })} placeholder="model-id" density="compact" />
                 </label>
                 <label>
                   <span>{t('settings.modelName')}</span>
-                  <input value={model.name} onChange={(event) => updateModel(model.key, { name: event.target.value })} placeholder={t('settings.modelName')} />
+                  <Input value={model.name} onChange={(event) => updateModel(model.key, { name: event.target.value })} placeholder={t('settings.modelName')} density="compact" />
                 </label>
                 <label>
                   <span>{t('settings.contextWindow')}</span>
-                  <input inputMode="numeric" value={model.contextWindow} onChange={(event) => updateModel(model.key, { contextWindow: event.target.value })} />
+                  <Input inputMode="numeric" value={model.contextWindow} onChange={(event) => updateModel(model.key, { contextWindow: event.target.value })} density="compact" />
                 </label>
                 <label>
                   <span>{t('settings.maxOutput')}</span>
-                  <input inputMode="numeric" value={model.maxTokens} onChange={(event) => updateModel(model.key, { maxTokens: event.target.value })} />
+                  <Input inputMode="numeric" value={model.maxTokens} onChange={(event) => updateModel(model.key, { maxTokens: event.target.value })} density="compact" />
                 </label>
                 <div className="option-row span-two">
                   <label className="check-row">

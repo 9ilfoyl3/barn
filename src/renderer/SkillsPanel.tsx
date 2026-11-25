@@ -19,6 +19,7 @@ import {
   X,
 } from 'lucide-react'
 import { Streamdown } from 'streamdown'
+import { Input } from './components/Input'
 import type {
   SkillDetail,
   SkillFileContent,
@@ -544,11 +545,11 @@ function SkillEditor({
       <div className="skill-editor-fields">
         <label>
           <span>{t('plugins.skillUi.name')}</span>
-          <input maxLength={120} required value={name} onChange={(event) => setName(event.target.value)} />
+          <Input maxLength={120} required value={name} onChange={(event) => setName(event.target.value)} density="compact" />
         </label>
         <label>
           <span>{t('plugins.skillUi.description')}</span>
-          <input maxLength={500} value={description} onChange={(event) => setDescription(event.target.value)} />
+          <Input maxLength={500} value={description} onChange={(event) => setDescription(event.target.value)} density="compact" />
         </label>
         <label>
           <span>{t('plugins.skillUi.instructions')}</span>
