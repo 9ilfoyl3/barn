@@ -82,11 +82,13 @@ test('does not persist a Session before the first message and exposes no Session
 
     await page.locator('.account-row').click()
     await page.getByRole('menuitem', { name: 'Settings' }).click()
-    await expect(page.getByRole('heading', { name: 'Settings', level: 1 })).toBeVisible()
+    await expect(page.getByRole('searchbox', { name: 'Search settings' })).toBeVisible()
     await expect(page.getByText('Archived chats', { exact: true })).toHaveCount(0)
-    await expect(page.getByRole('heading', { name: 'Models' })).toBeVisible()
-    await expect(page.getByRole('heading', { name: 'Local sources' })).toBeVisible()
-    await expect(page.getByRole('heading', { name: 'Diagnostics and memory' })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'General', exact: true })).toHaveAttribute('aria-current', 'page')
+    await expect(page.getByRole('button', { name: 'Memory', exact: true })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Models', exact: true })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Local sources', exact: true })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Diagnostics', exact: true })).toBeVisible()
   } finally {
     await app.close()
   }

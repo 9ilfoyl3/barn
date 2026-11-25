@@ -46,15 +46,6 @@ test('shows diagnostics and runs local maintenance', async () => {
     expect(toastPosition.top).toBeLessThan(100)
     await dialog.getByRole('button', { name: 'Run cleanup' }).click()
     await expect(page.locator('[data-sonner-toast]').filter({ hasText: /Cleanup removed/ })).toBeVisible()
-
-    await expect(dialog.getByRole('heading', { name: 'Agent memory' })).toBeVisible()
-    await expect(dialog.getByText('No memories yet.')).toBeVisible()
-    const memorySwitch = dialog.getByRole('switch', { name: /Enable agent memory/ })
-    await expect(memorySwitch).not.toBeChecked()
-    await memorySwitch.check()
-    await dialog.getByRole('button', { name: 'Save memory settings' }).click()
-    await expect(page.locator('[data-sonner-toast]').filter({ hasText: 'Memory settings saved.' })).toBeVisible()
-    await expect.poll(() => page.evaluate(async () => (await window.barn.memory.getSettings()).enabled)).toBe(true)
     await page.waitForTimeout(600)
     await page.screenshot({ path: 'test-results/barn-diagnostics.png', fullPage: true })
   } finally {
