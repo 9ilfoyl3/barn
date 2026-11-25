@@ -25,6 +25,7 @@ test('shared Input keeps states and layout in dark and narrow layouts', async ()
     await page.getByRole('menuitem', { name: 'Settings' }).click()
     await page.getByRole('button', { name: 'Models', exact: true }).click()
     await page.getByRole('button', { name: 'Add provider' }).click()
+    await page.getByRole('button', { name: 'Custom provider', exact: true }).click()
     await page.getByRole('button', { name: /Volcengine Ark/i }).click()
 
     const baseUrl = page.getByLabel('Base URL')

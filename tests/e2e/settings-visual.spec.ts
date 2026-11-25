@@ -34,7 +34,7 @@ test('renders the Comma-style Chinese settings layout with scroll edge blur', as
     await page.screenshot({ path: 'test-results/barn-settings-general-zh.png', fullPage: true })
 
     await page.getByRole('button', { name: '模型', exact: true }).click()
-    await expect(page.getByRole('heading', { name: '模型', level: 1 })).toBeVisible()
+    await expect(page.getByRole('heading', { name: '模型与 API', level: 1 })).toBeVisible()
     await page.screenshot({ path: 'test-results/barn-settings-models-zh.png', fullPage: true })
 
     await page.getByRole('button', { name: '诊断', exact: true }).click()

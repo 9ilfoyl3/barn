@@ -180,9 +180,11 @@ export function SettingsPage({ snapshot, onSnapshot, initialSection }: SettingsP
           }}
         >
           <div className="settings-page-inner">
-            <header className="settings-page-heading">
-              <h1>{selected.title}</h1>
-            </header>
+            {selected.key !== 'models' && (
+              <header className="settings-page-heading">
+                <h1>{selected.title}</h1>
+              </header>
+            )}
             {selected.key === 'memory' ? <MemorySettingsPanel /> : selected.key === 'general' ? (
               <GeneralSettings language={language} onLanguageChange={(next) => void updateLanguage(next)} />
             ) : selected.key === 'models' ? (

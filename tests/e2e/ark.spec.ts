@@ -31,6 +31,7 @@ test('configures Volcengine Ark and completes a Responses API call', async () =>
     await page.getByRole('menuitem', { name: 'Settings' }).click()
     await page.getByRole('button', { name: 'Models', exact: true }).click()
     await page.getByRole('button', { name: 'Add provider' }).click()
+    await page.getByRole('button', { name: 'Custom provider', exact: true }).click()
     await page.getByRole('button', { name: /Volcengine Ark/i }).click()
     const reasoningCheckbox = page.getByLabel('Reasoning model')
     const checkboxBox = await reasoningCheckbox.boundingBox()
@@ -66,7 +67,9 @@ test('configures Volcengine Ark and completes a Responses API call', async () =>
     expect(requests[0]).not.toHaveProperty('prompt_cache_retention')
     expect(requests[0]).not.toHaveProperty('prompt_cache_options')
 
-    await page.getByRole('button', { name: 'Edit provider' }).click()
+    await expect(page.locator('.model-library-row').filter({ hasText: 'DeepSeek V4.1 Flash' })).toBeVisible()
+    await page.getByRole('button', { name: 'Add provider' }).click()
+    await page.getByRole('button', { name: 'Volcengine Ark', exact: true }).click()
     await expect(page.getByRole('heading', { name: 'Edit Volcengine Ark' })).toBeVisible()
     await expect(page.getByLabel('Provider ID')).toHaveAttribute('readonly', '')
     await page.getByLabel('Display name').fill('Volcengine Ark Edited')
@@ -81,7 +84,7 @@ test('configures Volcengine Ark and completes a Responses API call', async () =>
     await page.getByRole('button', { name: 'Save changes' }).click()
 
     await expect.poll(() => requests.length).toBe(2)
-    await expect(page.getByRole('heading', { name: 'Volcengine Ark Edited' })).toBeVisible()
+    await expect(page.locator('.model-library-row').filter({ hasText: 'DeepSeek V4.1 Flash Edited' })).toBeVisible()
     const editedModels = await page.evaluate(() => window.barn.models.getModels('volcengine-ark'))
     expect(editedModels.map((model) => ({
       id: model.id,
