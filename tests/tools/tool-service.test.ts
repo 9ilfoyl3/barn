@@ -36,6 +36,25 @@ async function createService(): Promise<{
 }
 
 describe('ToolService', () => {
+  it('discloses only ordinary synchronous tools to the Router', async () => {
+    const { service } = await createService()
+    const tools = service.listRouterTools()
+    const names = tools.map((tool) => tool.name)
+
+    expect(names).toEqual(expect.arrayContaining([
+      'read_file',
+      'write_file',
+      'edit_file',
+      'list_dir',
+      'search_files',
+      'find_files',
+      'view_image',
+    ]))
+    expect(names).not.toContain('shell')
+    expect(names).not.toContain('browser_open')
+    expect(tools.every((tool) => tool.inputSchema.type === 'object')).toBe(true)
+  })
+
   it('returns complete connector capability input schemas to the Worker', async () => {
     const root = await mkdtemp(join(tmpdir(), 'barn-tools-connectors-'))
     await Promise.all([

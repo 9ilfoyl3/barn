@@ -2,8 +2,8 @@ import { createAssistantMessageEventStream, type AssistantMessage, type Context,
 import { describe, expect, it, vi } from 'vitest'
 import type { ModelSelection, VisibleMessage } from '../../src/shared/models'
 import type { ModelService } from '../../src/main/models/model-service'
-import { ModelRouterDecisionEngine, type RouterConnectorGateway } from '../../src/main/router/router-decision'
-import { EMAIL_CONNECTOR } from '../../src/main/connectors/catalog'
+import { ModelRouterDecisionEngine } from '../../src/main/router/router-decision'
+import type { RouterToolGateway } from '../../src/shared/router-tools'
 
 function fakeModel(response: string): ModelService {
   const selection: ModelSelection = { providerId: 'openai', modelId: 'router-model' }
@@ -200,27 +200,36 @@ function fakeToolSequence(responses: Array<{ name: string; arguments: ToolCall['
   } as unknown as ModelService
 }
 
-function connectorGateway(): RouterConnectorGateway & {
-  list: ReturnType<typeof vi.fn>
-  callRead: ReturnType<typeof vi.fn>
+function routerToolGateway(): RouterToolGateway & {
+  execute: ReturnType<typeof vi.fn>
 } {
   return {
-    list: vi.fn(async () => ({
-      definitions: [EMAIL_CONNECTOR],
-      instances: [{
-        id: 'connector-1',
-        kind: 'email',
-        name: 'Work mail',
-        enabled: true,
-        configured: true,
-        status: 'ready' as const,
-        config: {},
-        capabilities: EMAIL_CONNECTOR.capabilities,
-        createdAt: '2026-11-24T00:00:00.000Z',
-        updatedAt: '2026-11-24T00:00:00.000Z',
+    listTools: () => [
+      {
+        name: 'connector_list',
+        description: 'List configured connectors and capability schemas.',
+        inputSchema: { type: 'object', properties: {}, additionalProperties: false },
+      },
+      {
+        name: 'connector_call',
+        description: 'Call one connector capability.',
+        inputSchema: { type: 'object', properties: {}, additionalProperties: false },
+      },
+      {
+        name: 'read_file',
+        description: 'Read a workspace file.',
+        inputSchema: { type: 'object', properties: { path: { type: 'string' } }, required: ['path'] },
+      },
+    ],
+    execute: vi.fn(async (toolName: string) => ({
+      content: [{
+        type: 'text' as const,
+        text: toolName === 'connector_list'
+          ? JSON.stringify({ connectors: [{ id: 'connector-1', kind: 'email', name: 'Work mail' }] })
+          : JSON.stringify({ messages: [{ subject: 'Build finished' }] }),
       }],
+      details: {},
     })),
-    callRead: vi.fn(async () => ({ kind: 'result' as const, value: { messages: [{ subject: 'Build finished' }] } })),
   }
 }
 
@@ -415,9 +424,9 @@ describe('ModelRouterDecisionEngine', () => {
     })
   })
 
-  it('executes connector discovery inside the Router and replies without creating a Task', async () => {
+  it('executes ordinary tools through one stable call envelope and replies without creating a Task', async () => {
     const model = fakeToolSequence([
-      { name: 'call', arguments: { tool: 'connector.list', params: {} } },
+      { name: 'call', arguments: { tool: 'connector_list', params: {} } },
       {
         name: 'route_decision',
         arguments: {
@@ -428,7 +437,7 @@ describe('ModelRouterDecisionEngine', () => {
         },
       },
     ])
-    const gateway = connectorGateway()
+    const gateway = routerToolGateway()
     const stream = vi.spyOn(model, 'streamSimple')
     const engine = new ModelRouterDecisionEngine(model, undefined, gateway)
 
@@ -436,19 +445,24 @@ describe('ModelRouterDecisionEngine', () => {
       action: 'reply',
       text: 'You have one email connector configured.',
     })
-    expect(gateway.list).toHaveBeenCalledTimes(1)
+    expect(gateway.execute).toHaveBeenCalledWith(
+      'connector_list',
+      {},
+      expect.objectContaining({ workingDirectory: '/tmp/project' }),
+    )
     expect(stream).toHaveBeenCalledTimes(2)
     expect(stream.mock.calls[1]?.[1].messages).toEqual(expect.arrayContaining([
       expect.objectContaining({ role: 'toolResult', toolName: 'call', isError: false }),
     ]))
   })
 
-  it('allows one read-only connector lookup inside the Router', async () => {
+  it('allows multiple ordinary tool calls in the same Router turn', async () => {
     const model = fakeToolSequence([
+      { name: 'call', arguments: { tool: 'connector_list', params: {} } },
       {
         name: 'call',
         arguments: {
-          tool: 'connector.read',
+          tool: 'connector_call',
           params: {
             connectorId: 'connector-1',
             capability: 'email.list',
@@ -457,27 +471,37 @@ describe('ModelRouterDecisionEngine', () => {
         },
       },
       {
+        name: 'call',
+        arguments: { tool: 'read_file', params: { path: 'notes.md' } },
+      },
+      {
         name: 'route_decision',
         arguments: {
           tool: 'reply',
           arguments: { text: 'The latest message is “Build finished”.' },
           confidence: 0.97,
-          rationaleCodes: ['direct_connector_read'],
+          rationaleCodes: ['direct_multi_tool_work'],
         },
       },
     ])
-    const gateway = connectorGateway()
+    const gateway = routerToolGateway()
     const engine = new ModelRouterDecisionEngine(model, undefined, gateway)
 
     await expect(engine.decide(input())).resolves.toMatchObject({
       action: 'reply',
       text: 'The latest message is “Build finished”.',
     })
-    expect(gateway.callRead).toHaveBeenCalledWith({
-      connectorId: 'connector-1',
-      capability: 'email.list',
-      arguments: { limit: 5 },
-    })
+    expect(gateway.execute).toHaveBeenCalledTimes(3)
+    expect(gateway.execute).toHaveBeenNthCalledWith(
+      2,
+      'connector_call',
+      {
+        connectorId: 'connector-1',
+        capability: 'email.list',
+        arguments: { limit: 5 },
+      },
+      expect.objectContaining({ workingDirectory: '/tmp/project' }),
+    )
   })
 
   it('fails closed when the Router returns unstructured text', async () => {

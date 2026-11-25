@@ -299,11 +299,11 @@ void app.whenReady().then(async () => {
     sessionStore,
     taskService,
     new ModelRouterDecisionEngine(modelService, memoryService, {
-      list: async () => ({
-        definitions: connectorService!.listDefinitions(),
-        instances: await connectorService!.list(),
+      listTools: () => tools.listRouterTools(),
+      execute: (toolName, args, context) => tools.execute(toolName, args, {
+        ...(context.workingDirectory === undefined ? {} : { workingDirectory: context.workingDirectory }),
+        ...(context.signal === undefined ? {} : { signal: context.signal }),
       }),
-      callRead: (input) => connectorService!.callRead(input),
     }),
     {
       getConnectorContext: async () => (await connectorService!.list()).map((connector) => ({

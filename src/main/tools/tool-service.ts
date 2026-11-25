@@ -4,6 +4,7 @@ import { readFile, realpath, stat } from 'node:fs/promises'
 import { dirname, extname, isAbsolute, relative, resolve, sep } from 'node:path'
 import { z } from 'zod'
 import type { ToolExecutionResult } from '../../shared/agent-protocol'
+import type { RouterToolDescriptor } from '../../shared/router-tools'
 import type { ShellService } from '../sandbox/shell-service'
 import type { BrowserToolService } from '../browser/browser-tools'
 import { resolveSandboxPolicy } from '../sandbox/policy'
@@ -93,6 +94,42 @@ const TOOL_INPUTS = {
   session_history: sessionHistoryInput,
 } as const
 
+const ROUTER_DIRECT_TOOLS = [
+  'read_file',
+  'write_file',
+  'edit_file',
+  'list_dir',
+  'search_files',
+  'find_files',
+  'view_image',
+  'memory_search',
+  'memory_save',
+  'memory_forget',
+  'connector_list',
+  'connector_call',
+  'skill_list',
+  'skill_read',
+  'skill_file',
+] as const satisfies readonly (keyof typeof TOOL_INPUTS)[]
+
+const ROUTER_TOOL_DESCRIPTIONS: Record<(typeof ROUTER_DIRECT_TOOLS)[number], string> = {
+  read_file: 'Read a UTF-8 text file inside the managed workspace, optionally by line range.',
+  write_file: 'Create or completely overwrite a UTF-8 text file inside the managed workspace.',
+  edit_file: 'Apply exact text replacements to an existing UTF-8 workspace file. Read it first.',
+  list_dir: 'List files and folders in the managed workspace with bounded depth and entries.',
+  search_files: 'Search UTF-8 workspace file contents by literal string or regular expression.',
+  find_files: 'Find workspace files by glob pattern, respecting ignores and sensitive paths.',
+  view_image: 'Attach a local PNG, JPEG, WebP, or GIF image from the managed workspace.',
+  memory_search: 'Search durable cross-session memory for relevant preferences, facts, decisions, or procedures.',
+  memory_save: 'Save a stable reusable preference, fact, procedure, or decision. Never save credentials.',
+  memory_forget: 'Archive one durable memory entry by id.',
+  connector_list: 'List configured connectors, their status, and every capability input schema. Call this before using a connector.',
+  connector_call: 'Invoke one connector capability with arguments matching its declared inputSchema. Reads return immediately; approval-backed writes queue an Action.',
+  skill_list: 'List enabled user-installed skills and their summaries.',
+  skill_read: 'Read the full instructions for one enabled skill.',
+  skill_file: 'Read one supporting resource from an enabled skill folder.',
+}
+
 export interface ToolServiceOptions {
   workspaceRoot: string
   outputRoot: string
@@ -118,6 +155,20 @@ export class ToolService {
   constructor(private readonly options: ToolServiceOptions) {
     this.defaultRoots = [options.workspaceRoot, options.outputRoot, options.privateTempRoot]
       .map((root) => realpathSync.native(root))
+  }
+
+  /** Stable disclosure for the Router's single `call` envelope. */
+  listRouterTools(): RouterToolDescriptor[] {
+    return ROUTER_DIRECT_TOOLS.flatMap((name) => {
+      if (name.startsWith('memory_') && this.options.memory === undefined) return []
+      if (name.startsWith('connector_') && this.options.connectors === undefined) return []
+      if (name.startsWith('skill_') && this.options.skills === undefined) return []
+      return [{
+        name,
+        description: ROUTER_TOOL_DESCRIPTIONS[name],
+        inputSchema: jsonObjectSchema(TOOL_INPUTS[name]),
+      }]
+    })
   }
 
   async execute(
@@ -554,8 +605,12 @@ export class ToolService {
     })
     if (!allowed) throw new Error('Path is outside the managed workspace')
   }
+}
 
-
+function jsonObjectSchema(schema: z.ZodType): Record<string, unknown> {
+  const generated = z.toJSONSchema(schema, { io: 'input' }) as Record<string, unknown>
+  delete generated.$schema
+  return generated
 }
 
 function imageMimeType(path: string): string | undefined {

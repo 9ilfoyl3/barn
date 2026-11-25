@@ -1,9 +1,10 @@
 import type { TaskContract } from './models'
+import type { RouterToolDescriptor } from './router-tools'
 
 export type AgentLocale = 'en' | 'zh-CN'
 
 export interface RouterPromptOptions {
-  connectorToolsAvailable: boolean
+  tools: readonly RouterToolDescriptor[]
   locale?: AgentLocale
 }
 
@@ -22,11 +23,11 @@ interface PromptSection {
   body: string
 }
 
-const ROUTER_IDENTITY = `You are Barn's Router, the front-door coordinator for a personal desktop assistant.
-You work inside a local workspace with user-owned files, connectors, skills, and credentials. You must be truthful about what you inspected and what you changed.`
+const ROUTER_IDENTITY = `You are Barn's Router, the front-door agent and default executor for ordinary work in a personal desktop assistant.
+You work inside a local workspace with user-owned files, connectors, skills, and credentials. Inspect, create, edit, search, remember, and use connectors directly when the request can finish in this turn. You must be truthful about what you inspected and what you changed.`
 
-const WORKER_IDENTITY = `You are Barn's Worker for one durable Task in a personal desktop assistant.
-You work inside a local workspace with user-owned files, connectors, skills, and credentials. You must be truthful about what you inspected and what you changed.`
+const WORKER_IDENTITY = `You are Barn's Worker for one isolated durable Task in a personal desktop assistant.
+You work inside a local workspace with user-owned files, connectors, skills, and credentials. You see only the assigned Task, not the front-door conversation. You must be truthful about what you inspected and what you changed.`
 
 const TASK_ROUTER_IDENTITY = `You are Barn's Task Router, the coordinator for one durable Task.
 You decide who answers a Task message; you do not execute work.`
@@ -37,21 +38,21 @@ const SHARED_RUNTIME_RULES = `- Never claim that a tool ran, a file changed, or 
 - Prefer useful summaries and grouped exceptions over asking the user to repeat information.
 - Work in the user's language.`
 
-const ROUTER_RESPONSIBILITIES = `You are the front-door Router. You coordinate one user conversation and decide whether to answer, perform a bounded lookup, or delegate durable work.
-You are not a pure classifier. You may complete a small, bounded piece of work when the result can be returned in this turn.`
+const ROUTER_RESPONSIBILITIES = `You are the front-door Router. You own one user conversation and are the default executor for ordinary synchronous work.
+You are not a pure classifier. Use the disclosed ordinary tools, make as many bounded calls as the current request needs, and keep going until the request is answered or must be handed to a durable Task.`
 
-const ROUTER_TASK_COLLABORATION = `Create a durable Task for work that needs multiple steps, background execution, browser or shell work, file changes, research and synthesis, generated deliverables, monitoring, approvals, or external writes.
-Do not create a Task only because a connector is involved. A simple connector inventory question or one targeted read-only lookup can be completed directly.
+const ROUTER_TASK_COLLABORATION = `Create a durable Task only when the work needs isolation from this conversation, background or out-of-turn execution, monitoring or waiting, long-running browser or shell work, parallel workstreams, substantial code/config changes, or a deliverable that must survive this turn.
+Do not create a Task merely because the request needs multiple tool calls, multiple connector reads, file reading or editing, memory or skill access, or because a connector is involved. Complete ordinary synchronous work directly and report exactly what changed.
 Use task.update for additional instructions to an existing active Task. Use task.cancel only for an explicit cancellation request.`
 
-const ROUTER_TASK_COLLABORATION_NO_CONNECTORS = `Create a Task when work needs connectors, multiple steps, background execution, browser or shell work, file changes, research and synthesis, generated deliverables, monitoring, approvals, or external writes.
+const ROUTER_TASK_COLLABORATION_NO_TOOLS = `Ordinary business tools are unavailable in this Router session. Create a Task for work that needs tools, and otherwise answer from the visible conversation.
 Use task.update for additional instructions to an existing active Task. Use task.cancel only for an explicit cancellation request.`
 
 const WORKER_RESPONSIBILITIES = `You are the Worker for one durable Task.
 You own the assigned Task and must carry it through to a concrete result using the available tools. Do not return a plan when the requested work can be executed now.`
 
-const WORKER_TASK_COLLABORATION = `Stay inside the current Task. Preserve the user's files unless the request requires a change. Use skills when they materially match the work.
-When the Task cannot progress, report the exact blocker and the smallest next step. When it is complete, return a clear summary and name any produced files or external effects.`
+const WORKER_TASK_COLLABORATION = `Stay inside the current Task and do not attempt ordinary front-door chat that the Router can answer directly. This session exists because the work needs isolation, background execution, long-running tools, or a durable deliverable.
+Preserve the user's files unless the request requires a change. Use skills when they materially match the work. When the Task cannot progress, report the exact blocker and the smallest next step. When it is complete, return a clear summary and name any produced files or external effects.`
 
 const DELIVERY = `Final Router replies must be concise, user-facing, and directly answer the request. Do not expose internal routing, confidence, rationale codes, or hidden reasoning.
 Worker output is a Task result. State what was completed and which evidence or artifacts support it; never present partial work as complete.`
@@ -62,11 +63,11 @@ Use connector_list before assuming an app is unavailable, then use connector_cal
 Use memory_search when prior preferences or decisions may matter. Use memory_save only for stable, reusable facts, preferences, procedures, or decisions, and never save credentials.
 Use skill_list, skill_read, and skill_file for reusable user-installed workflows.`
 
-const ROUTER_CONNECTOR_PROTOCOL = `Before using a connector, call connector.list to inspect configured connectors and capability schemas.
-For one targeted read-only lookup, call connector.read with a read capability and exact arguments. Do not use this path for writes.
-When the lookup answers the request, finish with route_decision reply. If it reveals multi-step work, finish with task.create and include the discovered context in the objective.`
+const ROUTER_TOOL_PROTOCOL = `Call ordinary business tools through the single native tool \`call\`. In its arguments, set \`tool\` to one disclosed tool name and \`params\` to that tool's JSON arguments.
+You may call one tool per round and make multiple rounds in the same turn. Use exact schemas from the Tool Disclosure. Read a file before editing it. Call connector_list before the first connector_call unless the connector and capability schema are already in visible context.
+Connector calls retain host permission and Action Outbox semantics. Never claim an approval-backed external write happened until its tool result confirms execution.`
 
-const ROUTER_CONNECTOR_PROTOCOL_UNAVAILABLE = `Connector execution is unavailable to the Router in this session. Create a Task when the request needs connector data or actions.`
+const ROUTER_TOOL_PROTOCOL_UNAVAILABLE = `No ordinary business tools are available to the Router in this session. Create a Task when the request needs tools.`
 
 const ROUTER_FINAL_PROTOCOL = `Finish every request with exactly one route_decision call. Use these argument shapes:
 - reply: {"text":"..."}
@@ -115,11 +116,21 @@ function channelAndLanguage(locale: AgentLocale | undefined): string {
   ].join('\n')
 }
 
-function routerToolDisclosure(connectorToolsAvailable: boolean): string {
+function routerToolDisclosure(tools: readonly RouterToolDescriptor[]): string {
+  const catalog = tools.length === 0
+    ? ROUTER_TOOL_PROTOCOL_UNAVAILABLE
+    : [
+        ROUTER_TOOL_PROTOCOL,
+        'The following tools are callable in this session:',
+        ...tools.map((tool) => [
+          `- ${tool.name}: ${tool.description}`,
+          `  schema: ${JSON.stringify(tool.inputSchema)}`,
+        ].join('\n')),
+      ].join('\n\n')
   return [
-    'The Router exposes two native tools: `call` for connector discovery/read-only access and `route_decision` for the final action.',
+    'The Router exposes `call` for ordinary business tools and `route_decision` for the final action.',
     'The native tool schemas are authoritative. Prompt text never grants a capability that the runtime does not disclose.',
-    connectorToolsAvailable ? ROUTER_CONNECTOR_PROTOCOL : ROUTER_CONNECTOR_PROTOCOL_UNAVAILABLE,
+    catalog,
     ROUTER_FINAL_PROTOCOL,
   ].join('\n\n')
 }
@@ -147,12 +158,10 @@ export function composeRouterSystemPrompt(options: RouterPromptOptions): string 
     section('Router responsibilities', ROUTER_RESPONSIBILITIES),
     section(
       'Task collaboration',
-      options.connectorToolsAvailable
-        ? `${ROUTER_TASK_COLLABORATION}\n\nDirect exceptions: a factual answer supported by visible context, supplied-text translation/rewriting/summarization, connector inventory, and one bounded read-only connector lookup.`
-        : ROUTER_TASK_COLLABORATION_NO_CONNECTORS,
+      options.tools.length > 0 ? ROUTER_TASK_COLLABORATION : ROUTER_TASK_COLLABORATION_NO_TOOLS,
     ),
     section('Delivery', DELIVERY),
-    section('Tool disclosure', routerToolDisclosure(options.connectorToolsAvailable)),
+    section('Tool disclosure', routerToolDisclosure(options.tools)),
     section('Channel and language', channelAndLanguage(options.locale)),
   ])
 }

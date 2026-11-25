@@ -79,7 +79,7 @@ async function startRouterConnectorModelServer(requests: Array<Record<string, un
       requests.push(payload)
       if (requests.length === 1) {
         sendToolCall(response, 'call', {
-          tool: 'connector.list',
+          tool: 'connector_list',
           params: {},
         })
         return

@@ -2,6 +2,8 @@
 
 Status: implemented
 
+Superseded by [Router executes ordinary work through one stable call envelope](2026-11-25-router-general-work-loop.md).
+
 ## Problem
 
 The Router could only classify a message and delegate work. Any request that mentioned a connector became a new durable Task even when it was a simple inventory question or one targeted read-only lookup. The Task contract also required the model to invent deliverables and acceptance criteria before execution. Active Task follow-ups made a second model call to the Task Router before the Worker could continue, so ordinary corrections accumulated routing delay and repeated intent interpretation.

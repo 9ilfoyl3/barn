@@ -12,10 +12,6 @@ import type {
 import {
   resolveReasoningEffort,
   type ApprovalRequest,
-  type ConnectorCallInput,
-  type ConnectorCallResult,
-  type ConnectorDefinition,
-  type ConnectorInstance,
   type ModelSelection,
   type RoutineRecurrence,
   type Task,
@@ -25,6 +21,8 @@ import { composeRouterSystemPrompt, type AgentLocale } from '../../shared/agent-
 import type { ModelService } from '../models/model-service'
 import type { MemoryService } from '../memory/memory-service'
 import type { VisibleMessage } from '../../shared/models'
+import type { RouterToolGateway } from '../../shared/router-tools'
+import type { ToolExecutionResult } from '../../shared/agent-protocol'
 
 const decisionSchema = z.discriminatedUnion('tool', [
   z.object({
@@ -104,21 +102,15 @@ const decisionSchema = z.discriminatedUnion('tool', [
 ])
 
 const routerCallSchema = z.object({
-  tool: z.enum(['connector.list', 'connector.read']),
+  tool: z.string().trim().min(1).max(160),
   params: z.record(z.string(), z.unknown()).default({}),
-}).strict()
-
-const connectorReadInputSchema = z.object({
-  connectorId: z.string().trim().min(1).max(80),
-  capability: z.string().trim().min(1).max(160),
-  arguments: z.record(z.string(), z.unknown()).default({}),
 }).strict()
 
 const ROUTER_CALL_TOOL: Tool = {
   name: 'call',
-  description: 'Run one bounded Router capability call. connector.list inspects configured connectors and capability schemas. connector.read performs one read-only connector lookup. External writes are unavailable here.',
+  description: 'Call one ordinary business tool disclosed in the Tool Disclosure. Set tool to the exact tool name and params to that tool input object. Calls execute sequentially; multiple rounds are allowed within the host budget.',
   parameters: Type.Object({
-    tool: Type.Union([Type.Literal('connector.list'), Type.Literal('connector.read')]),
+    tool: Type.String({ minLength: 1, maxLength: 160 }),
     params: Type.Record(Type.String(), Type.Unknown()),
   }),
   constrainedSampling: { type: 'json_schema', strict: 'prefer' },
@@ -220,16 +212,6 @@ export interface RouterDecisionInput {
   locale?: AgentLocale
 }
 
-export interface RouterConnectorSnapshot {
-  definitions: ConnectorDefinition[]
-  instances: ConnectorInstance[]
-}
-
-export interface RouterConnectorGateway {
-  list(): Promise<RouterConnectorSnapshot>
-  callRead(input: ConnectorCallInput): Promise<ConnectorCallResult>
-}
-
 export interface RouterDecisionEngine {
   decide(input: RouterDecisionInput, signal?: AbortSignal): Promise<RouterDecision>
 }
@@ -238,15 +220,17 @@ type RouterModel = Pick<ModelService, 'getSnapshot' | 'getModelDescriptor' | 'st
 
 const MAX_RESPONSE_CHARS = 100_000
 const RECENT_CONTEXT_CHAR_LIMIT = 16_000
-const MAX_ROUTER_ROUNDS = 6
+const MAX_ROUTER_ROUNDS = 10
 const MAX_ROUTER_REPAIRS = 1
+const MAX_ROUTER_TOOL_CALLS = 8
+const MAX_ROUTER_TOOL_OUTPUT_CHARS = 120_000
 
 /** Model-backed Router tool selection. Tool arguments are validated before any write. */
 export class ModelRouterDecisionEngine implements RouterDecisionEngine {
   constructor(
     private readonly model: RouterModel,
     private readonly memory?: Pick<MemoryService, 'contextForPromptWithSources'>,
-    private readonly connectors?: RouterConnectorGateway,
+    private readonly tools?: RouterToolGateway,
   ) {}
 
   async decide(input: RouterDecisionInput, signal?: AbortSignal): Promise<RouterDecision> {
@@ -262,12 +246,16 @@ export class ModelRouterDecisionEngine implements RouterDecisionEngine {
     } catch {
       // Confirmed memory is optional and must never block routing.
     }
+    const disclosedTools = this.tools?.listTools() ?? []
+    const routerTools = descriptor.input.includes('image')
+      ? disclosedTools
+      : disclosedTools.filter((tool) => tool.name !== 'view_image')
     const baseContext: Context = {
       messages: [
         {
           role: 'system',
           content: composeRouterSystemPrompt({
-            connectorToolsAvailable: this.connectors !== undefined,
+            tools: routerTools,
             ...(input.locale === undefined ? {} : { locale: input.locale }),
           }),
           timestamp: input.now.getTime(),
@@ -315,7 +303,7 @@ export class ModelRouterDecisionEngine implements RouterDecisionEngine {
           timestamp: input.now.getTime(),
         },
       ],
-      tools: this.connectors === undefined
+      tools: routerTools.length === 0
         ? [ROUTER_DECISION_TOOL]
         : [ROUTER_CALL_TOOL, ROUTER_DECISION_TOOL],
     }
@@ -324,7 +312,8 @@ export class ModelRouterDecisionEngine implements RouterDecisionEngine {
     let repairHint: string | undefined
     let lastError: unknown
     let repairs = 0
-    let connectorReads = 0
+    let executedToolCalls = 0
+    let toolOutputChars = 0
     for (let round = 0; round < MAX_ROUTER_ROUNDS; round++) {
       const requestContext: Context = repairHint === undefined
         ? context
@@ -364,12 +353,25 @@ Call the route_decision tool now. Do not answer in prose. If native tool calls a
           return toRouterDecision(parseToolCallDecision(decisionCalls[0]!), memory.sourceRefs)
         }
         if (capabilityCalls.length > 0) {
-          if (this.connectors === undefined) throw new Error('Router connector capabilities are unavailable')
+          if (this.tools === undefined || routerTools.length === 0) {
+            throw new Error('Router ordinary tool execution is unavailable')
+          }
           const results: ToolResultMessage[] = []
           for (const call of capabilityCalls) {
-            const executed = await executeRouterCapabilityCall(call, this.connectors, connectorReads)
-            if (executed.readStarted) connectorReads++
-            results.push(toolResult(call, executed.value, executed.isError))
+            let result: ToolExecutionResult
+            if (executedToolCalls >= MAX_ROUTER_TOOL_CALLS) {
+              result = errorToolResult(`Router tool-call budget exhausted after ${MAX_ROUTER_TOOL_CALLS} calls. Finish with reply, or create a Task for the remaining work.`)
+            } else if (toolOutputChars >= MAX_ROUTER_TOOL_OUTPUT_CHARS) {
+              result = errorToolResult('Router tool-output budget exhausted. Finish with reply, or create a Task for the remaining work.')
+            } else {
+              result = await executeRouterToolCall(call, this.tools, routerTools.map((tool) => tool.name), {
+                ...(input.workingDirectory === undefined ? {} : { workingDirectory: input.workingDirectory }),
+                ...(signal === undefined ? {} : { signal }),
+              })
+              executedToolCalls++
+              toolOutputChars += toolResultCharacterCount(result)
+            }
+            results.push(toolResult(call, result))
           }
           context = {
             ...context,
@@ -534,62 +536,51 @@ interface RouterRoundOutput {
   toolCalls: ToolCall[]
 }
 
-interface RouterCapabilityResult {
-  value: unknown
-  isError: boolean
-  readStarted: boolean
-}
-
-async function executeRouterCapabilityCall(
+async function executeRouterToolCall(
   call: ToolCall,
-  gateway: RouterConnectorGateway,
-  connectorReads: number,
-): Promise<RouterCapabilityResult> {
+  gateway: RouterToolGateway,
+  availableTools: readonly string[],
+  context: { workingDirectory?: string; signal?: AbortSignal },
+): Promise<ToolExecutionResult> {
   try {
     const parsed = routerCallSchema.parse(call.arguments)
-    if (parsed.tool === 'connector.list') {
-      return { value: await gateway.list(), isError: false, readStarted: false }
+    if (!availableTools.includes(parsed.tool)) {
+      return errorToolResult(`Unknown or unavailable Router tool: ${parsed.tool}. Available tools: ${availableTools.join(', ')}`)
     }
-    if (connectorReads >= 1) {
-      return {
-        value: { error: 'Only one read-only connector lookup is allowed for a direct Router turn.' },
-        isError: true,
-        readStarted: false,
-      }
-    }
-    const input = connectorReadInputSchema.parse(parsed.params)
-    const result = await gateway.callRead(input)
-    if (result.kind !== 'result') {
-      return {
-        value: { error: 'The Router connector path returned an action instead of a read result.' },
-        isError: true,
-        readStarted: false,
-      }
-    }
-    return { value: result.value, isError: false, readStarted: true }
+    return await gateway.execute(parsed.tool, parsed.params, context)
   } catch (error) {
-    return {
-      value: { error: error instanceof Error ? error.message : String(error) },
-      isError: true,
-      readStarted: false,
-    }
+    return errorToolResult(error instanceof Error ? error.message : String(error))
   }
 }
 
-function toolResult(call: ToolCall, value: unknown, isError: boolean): ToolResultMessage {
-  let text: string
-  try {
-    text = JSON.stringify(value)
-  } catch {
-    text = String(value)
-  }
+function toolResult(call: ToolCall, result: ToolExecutionResult): ToolResultMessage {
+  const content = result.content.flatMap((part): ToolResultMessage['content'] => {
+    if (part.type === 'text') {
+      return [{ type: 'text', text: part.text.slice(0, MAX_RESPONSE_CHARS) }]
+    }
+    return [{ type: 'image', data: part.data, mimeType: part.mimeType }]
+  })
   return {
     role: 'toolResult',
     toolCallId: call.id,
     toolName: call.name,
-    content: [{ type: 'text', text: text.slice(0, MAX_RESPONSE_CHARS) }],
-    isError,
+    content: content.length === 0 ? [{ type: 'text', text: '(no tool output)' }] : content,
+    isError: result.isError === true,
     timestamp: Date.now(),
+  }
+}
+
+function toolResultCharacterCount(result: ToolExecutionResult): number {
+  return result.content.reduce((total, part) => (
+    total + (part.type === 'text' ? part.text.length : part.data.length)
+  ), 0)
+}
+
+function errorToolResult(message: string): ToolExecutionResult {
+  return {
+    content: [{ type: 'text', text: message }],
+    details: { error: message },
+    isError: true,
   }
 }
 

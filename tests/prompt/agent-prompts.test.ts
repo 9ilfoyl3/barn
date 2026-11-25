@@ -1,6 +1,16 @@
 import { describe, expect, it } from 'vitest'
 import { composeRouterSystemPrompt, composeTaskRouterSystemPrompt, composeWorkerSystemPrompt, formatTaskBrief } from '../../src/shared/agent-prompts'
 
+const routerTools = [{
+  name: 'connector_call',
+  description: 'Call one connector capability.',
+  inputSchema: { type: 'object', properties: { connectorId: { type: 'string' } } },
+}, {
+  name: 'read_file',
+  description: 'Read a workspace file.',
+  inputSchema: { type: 'object', properties: { path: { type: 'string' } } },
+}]
+
 function positions(prompt: string, headings: string[]): number[] {
   return headings.map((heading) => {
     const index = prompt.indexOf(heading)
@@ -11,7 +21,7 @@ function positions(prompt: string, headings: string[]): number[] {
 
 describe('agent prompt composition', () => {
   it('keeps Router sections in a stable role-first order', () => {
-    const prompt = composeRouterSystemPrompt({ connectorToolsAvailable: true, locale: 'zh-CN' })
+    const prompt = composeRouterSystemPrompt({ tools: routerTools, locale: 'zh-CN' })
     const ordered = positions(prompt, [
       '## Identity',
       '## Shared runtime rules',
@@ -22,16 +32,19 @@ describe('agent prompt composition', () => {
       '## Channel and language',
     ])
     expect(ordered).toEqual(ordered.toSorted((left, right) => left - right))
-    expect(prompt).toContain('one bounded read-only connector lookup')
-    expect(prompt).toContain('Do not create a Task only because a connector is involved')
-    expect(prompt).toContain('connector.read')
+    expect(prompt).toContain('default executor for ordinary synchronous work')
+    expect(prompt).toContain('Do not create a Task merely because the request needs multiple tool calls')
+    expect(prompt).toContain('Call ordinary business tools through the single native tool `call`')
+    expect(prompt).toContain('connector_call')
+    expect(prompt).toContain('read_file')
     expect(prompt).toContain('Preferred UI language: Simplified Chinese')
   })
 
-  it('omits the direct connector protocol when no connector gateway is available', () => {
-    const prompt = composeRouterSystemPrompt({ connectorToolsAvailable: false })
-    expect(prompt).not.toContain('connector.read')
-    expect(prompt).toContain('Create a Task when work needs connectors')
+  it('omits ordinary tool disclosure when no Router tool gateway is available', () => {
+    const prompt = composeRouterSystemPrompt({ tools: [] })
+    expect(prompt).not.toContain('connector_call')
+    expect(prompt).toContain('No ordinary business tools are available')
+    expect(prompt).toContain('Create a Task when the request needs tools')
   })
 
   it('gives the Worker execution rules without Router-only connector authority', () => {
