@@ -165,14 +165,16 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(function Input({
           }}
         />
         {trailing !== undefined && <span className="barn-input-trailing">{trailing}</span>}
-        <span className="barn-input-status" aria-hidden="true">
-          <span className="barn-input-ok">
-            <svg viewBox="0 0 24 24"><path d="m5.5 12.5 4 4 9-9.5" /></svg>
+        {(resolvedSuccess || hasError) && (
+          <span className="barn-input-status" aria-hidden="true">
+            <span className="barn-input-ok">
+              <svg viewBox="0 0 24 24"><path d="m5.5 12.5 4 4 9-9.5" /></svg>
+            </span>
+            <span className="barn-input-no">
+              <svg viewBox="0 0 24 24"><path d="M12 7v6M12 17h.01" /></svg>
+            </span>
           </span>
-          <span className="barn-input-no">
-            <svg viewBox="0 0 24 24"><path d="M12 7v6M12 17h.01" /></svg>
-          </span>
-        </span>
+        )}
       </div>
       {message !== undefined && message !== '' && (
         <p className={`barn-input-message${hasError ? ' error' : resolvedSuccess ? ' success' : ''}`} id={messageId} aria-live="polite">
