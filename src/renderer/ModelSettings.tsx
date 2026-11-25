@@ -30,10 +30,11 @@ import {
 interface ModelSettingsProps {
   snapshot: ModelConfigSnapshot | undefined
   onSnapshot(value: ModelConfigSnapshot): void
-  onClose(): void
+  onClose?: () => void
+  embedded?: boolean
 }
 
-export function ModelSettings({ snapshot, onSnapshot, onClose }: ModelSettingsProps) {
+export function ModelSettings({ snapshot, onSnapshot, onClose, embedded = false }: ModelSettingsProps) {
   const { t } = useTranslation()
   const [query, setQuery] = useState('')
   const [selectedProviderId, setSelectedProviderId] = useState<string>()
@@ -187,23 +188,28 @@ export function ModelSettings({ snapshot, onSnapshot, onClose }: ModelSettingsPr
   }
 
   return (
-    <div className="settings-backdrop" role="presentation" onMouseDown={onClose}>
+    <div
+      className={embedded ? 'model-settings-embedded' : 'settings-backdrop'}
+      role={embedded ? undefined : 'presentation'}
+      onMouseDown={embedded ? undefined : onClose}
+    >
       <section
-        className="settings-panel"
-        role="dialog"
-        aria-modal="true"
+        className={embedded ? 'model-settings-page' : 'settings-panel'}
+        {...(embedded ? {} : { role: 'dialog', 'aria-modal': true })}
         aria-label={t('settings.label')}
         onMouseDown={(event) => event.stopPropagation()}
       >
-        <header className="settings-header">
-          <div>
-            <span>{t('settings.desktopConfiguration')}</span>
-            <h2>{t('settings.title')}</h2>
-          </div>
-          <TooltipButton className="icon-button" label={t('settings.close')} onClick={onClose}>
-            <X size={18} />
-          </TooltipButton>
-        </header>
+        {!embedded && (
+          <header className="settings-header">
+            <div>
+              <span>{t('settings.desktopConfiguration')}</span>
+              <h2>{t('settings.title')}</h2>
+            </div>
+            <TooltipButton className="icon-button" label={t('settings.close')} onClick={onClose}>
+              <X size={18} />
+            </TooltipButton>
+          </header>
+        )}
 
         {creating || editingProviderId !== undefined ? (
           <CustomProviderForm
@@ -236,7 +242,7 @@ export function ModelSettings({ snapshot, onSnapshot, onClose }: ModelSettingsPr
             }}
           />
         ) : (
-          <div className="settings-grid">
+          <div className={embedded ? 'settings-grid embedded' : 'settings-grid'}>
             <div className="provider-column">
               <div className="provider-search">
                 <Search size={15} />

@@ -1,8 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import {
   Brain,
-  FolderSearch,
-  Plug,
   Search,
   SlidersHorizontal,
   Stethoscope,
@@ -12,16 +10,18 @@ import { useTranslation } from 'react-i18next'
 import { changeAppLanguage, currentLanguagePreference, type LanguagePreference } from './i18n'
 import { Input } from './components/Input'
 import { MemorySettingsPanel } from './MemorySettingsPanel'
+import { ModelSettings } from './ModelSettings'
+import { DiagnosticsSettings } from './DiagnosticsSettings'
+import type { ModelConfigSnapshot } from '../shared/models'
 import './settings-page.css'
 
 export interface SettingsPageProps {
-  onOpenModels: () => void
-  onOpenPlugins: () => void
-  onOpenSources: () => void
-  onOpenDiagnostics: () => void
+  snapshot: ModelConfigSnapshot | undefined
+  onSnapshot(value: ModelConfigSnapshot): void
+  initialSection?: SettingsSectionKey
 }
 
-type SettingsSectionKey = 'general' | 'memory' | 'models' | 'connectors' | 'sources' | 'diagnostics'
+export type SettingsSectionKey = 'general' | 'memory' | 'models' | 'diagnostics'
 type SettingsGroupKey = 'preferences' | 'work' | 'system'
 
 interface SettingsSectionDefinition {
@@ -31,7 +31,6 @@ interface SettingsSectionDefinition {
   label: string
   title: string
   description: string
-  action?: () => void
 }
 
 const LANGUAGE_OPTIONS: ReadonlyArray<{ value: LanguagePreference; labelKey: 'language.system' | 'language.english' | 'language.chinese' }> = [
@@ -40,9 +39,9 @@ const LANGUAGE_OPTIONS: ReadonlyArray<{ value: LanguagePreference; labelKey: 'la
   { value: 'zh-CN', labelKey: 'language.chinese' },
 ]
 
-export function SettingsPage({ onOpenModels, onOpenPlugins, onOpenSources, onOpenDiagnostics }: SettingsPageProps) {
+export function SettingsPage({ snapshot, onSnapshot, initialSection }: SettingsPageProps) {
   const { t } = useTranslation()
-  const [activeSection, setActiveSection] = useState<SettingsSectionKey>('general')
+  const [activeSection, setActiveSection] = useState<SettingsSectionKey>(initialSection ?? 'general')
   const [query, setQuery] = useState('')
   const [language, setLanguage] = useState<LanguagePreference>(currentLanguagePreference())
   const [edgeState, setEdgeState] = useState({ top: false, bottom: false })
@@ -72,25 +71,6 @@ export function SettingsPage({ onOpenModels, onOpenPlugins, onOpenSources, onOpe
       label: t('appSettings.modelsTitle'),
       title: t('appSettings.modelsTitle'),
       description: t('appSettings.modelsDescription'),
-      action: onOpenModels,
-    },
-    {
-      key: 'connectors',
-      group: 'work',
-      icon: <Plug size={15} aria-hidden="true" />,
-      label: t('appSettings.connectorsTitle'),
-      title: t('appSettings.connectorsTitle'),
-      description: t('appSettings.connectorsDescription'),
-      action: onOpenPlugins,
-    },
-    {
-      key: 'sources',
-      group: 'work',
-      icon: <FolderSearch size={15} aria-hidden="true" />,
-      label: t('appSettings.sourcesTitle'),
-      title: t('appSettings.sourcesTitle'),
-      description: t('appSettings.sourcesDescription'),
-      action: onOpenSources,
     },
     {
       key: 'diagnostics',
@@ -99,7 +79,6 @@ export function SettingsPage({ onOpenModels, onOpenPlugins, onOpenSources, onOpe
       label: t('appSettings.diagnosticsTitle'),
       title: t('appSettings.diagnosticsTitle'),
       description: t('appSettings.diagnosticsDescription'),
-      action: onOpenDiagnostics,
     },
   ]
 
@@ -117,6 +96,10 @@ export function SettingsPage({ onOpenModels, onOpenPlugins, onOpenSources, onOpe
     { key: 'system', label: t('appSettings.systemGroup') },
   ]
   const selected = sections.find((section) => section.key === activeSection) ?? sections[0]!
+
+  useEffect(() => {
+    if (initialSection !== undefined) setActiveSection(initialSection)
+  }, [initialSection])
 
   useEffect(() => {
     const scroll = scrollRef.current
@@ -202,8 +185,10 @@ export function SettingsPage({ onOpenModels, onOpenPlugins, onOpenSources, onOpe
             </header>
             {selected.key === 'memory' ? <MemorySettingsPanel /> : selected.key === 'general' ? (
               <GeneralSettings language={language} onLanguageChange={(next) => void updateLanguage(next)} />
+            ) : selected.key === 'models' ? (
+              <ModelSettings snapshot={snapshot} onSnapshot={onSnapshot} embedded />
             ) : (
-              <SettingsActionDetail section={selected} />
+              <DiagnosticsSettings embedded />
             )}
           </div>
         </div>
@@ -253,25 +238,6 @@ function GeneralSettings({
           title={t('appSettings.appearanceTitle')}
           description={t('appSettings.appearanceDescription')}
           control={<span className="settings-static-value">{t('appSettings.followSystem')}</span>}
-        />
-      </SettingsGroup>
-    </div>
-  )
-}
-
-function SettingsActionDetail({ section }: { section: SettingsSectionDefinition }) {
-  const { t } = useTranslation()
-  return (
-    <div className="settings-groups">
-      <SettingsGroup label={section.description}>
-        <SettingsRow
-          title={section.title}
-          description={section.description}
-          control={(
-            <button className="settings-action-button" type="button" onClick={section.action}>
-              {t('appSettings.open')}
-            </button>
-          )}
         />
       </SettingsGroup>
     </div>

@@ -52,6 +52,7 @@ export function LanguagePicker() {
         ref={triggerRef}
         className="account-menu-item"
         type="button"
+        role="menuitem"
         aria-haspopup="menu"
         aria-expanded={open}
         aria-controls={open ? menuId : undefined}

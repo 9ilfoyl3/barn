@@ -7,7 +7,7 @@ import { Input } from './components/Input'
 import { notifySuccess, useErrorToast } from './notifications'
 import './diagnostics-settings.css'
 
-export function DiagnosticsSettings({ onClose }: { onClose(): void }) {
+export function DiagnosticsSettings({ onClose, embedded = false }: { onClose?: () => void; embedded?: boolean }) {
   const { t } = useTranslation()
   const [snapshot, setSnapshot] = useState<DiagnosticsSnapshot>()
   const [retention, setRetention] = useState(365)
@@ -21,12 +21,13 @@ export function DiagnosticsSettings({ onClose }: { onClose(): void }) {
       setSnapshot(value)
       setRetention(value.retentionDays)
     }).catch((reason: unknown) => setError(errorMessage(reason)))
+    if (embedded) return
     const onKeyDown = (event: KeyboardEvent): void => {
-      if (event.key === 'Escape') onClose()
+      if (event.key === 'Escape') onClose?.()
     }
     document.addEventListener('keydown', onKeyDown)
     return () => document.removeEventListener('keydown', onKeyDown)
-  }, [])
+  }, [embedded, onClose])
 
   async function saveRetention(): Promise<void> {
     setBusy(true)
@@ -61,24 +62,29 @@ export function DiagnosticsSettings({ onClose }: { onClose(): void }) {
   }
 
   return (
-    <div className="settings-backdrop" role="presentation" onMouseDown={onClose}>
+    <div
+      className={embedded ? 'diagnostics-embedded' : 'settings-backdrop'}
+      role={embedded ? undefined : 'presentation'}
+      onMouseDown={embedded ? undefined : onClose}
+    >
       <section
-        className="settings-panel diagnostics-settings-panel"
-        role="dialog"
-        aria-modal="true"
+        className={embedded ? 'diagnostics-page' : 'settings-panel diagnostics-settings-panel'}
+        {...(embedded ? {} : { role: 'dialog', 'aria-modal': true })}
         aria-label={t('diagnostics.title')}
         onMouseDown={(event) => event.stopPropagation()}
       >
-        <header className="settings-header">
-          <div>
-            <span className="diagnostics-kicker">{t('diagnostics.kicker')}</span>
-            <h2>{t('diagnostics.title')}</h2>
-          </div>
-          <TooltipButton className="icon-button" label={t('diagnostics.close')} onClick={onClose}>
-            <X size={18} />
-          </TooltipButton>
-        </header>
-        <div className="diagnostics-body">
+        {!embedded && (
+          <header className="settings-header">
+            <div>
+              <span className="diagnostics-kicker">{t('diagnostics.kicker')}</span>
+              <h2>{t('diagnostics.title')}</h2>
+            </div>
+            <TooltipButton className="icon-button" label={t('diagnostics.close')} onClick={onClose}>
+              <X size={18} />
+            </TooltipButton>
+          </header>
+        )}
+        <div className={embedded ? 'diagnostics-body embedded' : 'diagnostics-body'}>
           {snapshot === undefined ? (
             <p className="diagnostics-muted">{error ?? t('common.loading')}</p>
           ) : (

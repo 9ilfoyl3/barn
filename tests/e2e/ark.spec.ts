@@ -28,7 +28,8 @@ test('configures Volcengine Ark and completes a Responses API call', async () =>
     const page = await app.firstWindow()
     await page.waitForLoadState('domcontentloaded')
     await page.locator('.account-row').click()
-    await page.getByRole('menuitem', { name: /Models/i }).click()
+    await page.getByRole('menuitem', { name: 'Settings' }).click()
+    await page.getByRole('button', { name: 'Models', exact: true }).click()
     await page.getByRole('button', { name: 'Add provider' }).click()
     await page.getByRole('button', { name: /Volcengine Ark/i }).click()
     const reasoningCheckbox = page.getByLabel('Reasoning model')
@@ -105,8 +106,8 @@ test('configures Volcengine Ark and completes a Responses API call', async () =>
       },
     ])
     await page.screenshot({ path: 'test-results/barn-ark-edit.png', fullPage: true })
+    await page.getByRole('button', { name: 'Home', exact: true }).click()
 
-    await page.getByRole('button', { name: 'Close settings' }).click()
     await expect(page.locator('.composer-model')).toContainText('DeepSeek V4.1 Flash Edited')
     await page.locator('.composer-model').click()
     await expect(page.locator('.model-picker-submenu')).toHaveCount(0)

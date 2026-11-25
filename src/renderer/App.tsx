@@ -6,7 +6,6 @@ import {
   ChevronDown,
   ChevronRight,
   Folder,
-  FolderSearch,
   Globe2,
   Inbox,
   Search,
@@ -17,9 +16,7 @@ import {
   Plug,
   Settings2,
   Paperclip,
-  Stethoscope,
   Trash2,
-  Wrench,
 } from 'lucide-react'
 import type {
   ApprovalRequest,
@@ -35,13 +32,10 @@ import type {
   VisibleMessage,
 } from '../shared/models'
 import { attachmentDisplayName } from '../shared/attachments'
-import { ModelSettings } from './ModelSettings'
 import { ModelPicker } from './ModelPicker'
 import { LanguagePicker } from './LanguagePicker'
-import { SourceSettings } from './SourceSettings'
 import { PluginsPage } from './PluginsPage'
-import { DiagnosticsSettings } from './DiagnosticsSettings'
-import { SettingsPage } from './SettingsPage'
+import { SettingsPage, type SettingsSectionKey } from './SettingsPage'
 import { AppToaster, useErrorToast } from './notifications'
 import { AttachmentStrip } from './AttachmentStrip'
 import { BrowserPanel, type BrowserQuickAction } from './BrowserPanel'
@@ -121,9 +115,7 @@ function clampPaneWidth(side: HomePane, width: number): number {
 export function App() {
   const { t } = useTranslation()
   const [snapshot, setSnapshot] = useState<ModelConfigSnapshot>()
-  const [settingsOpen, setSettingsOpen] = useState(false)
-  const [sourceSettingsOpen, setSourceSettingsOpen] = useState(false)
-  const [diagnosticsOpen, setDiagnosticsOpen] = useState(false)
+  const [settingsSection, setSettingsSection] = useState<SettingsSectionKey>()
   const [modelSelectionBusy, setModelSelectionBusy] = useState(false)
   const [sessions, setSessions] = useState<SessionSummary[]>([])
   const [activeSessionId, setActiveSessionId] = useState<string>()
@@ -1147,20 +1139,8 @@ export function App() {
               <strong>{t('sidebar.localWorkspace')}</strong>
               <small>{t('sidebar.localOnly')}</small>
             </div>
-            <button className="account-menu-item" type="button" role="menuitem" onClick={() => { setAccountOpen(false); setView('settings') }}>
+            <button className="account-menu-item" type="button" role="menuitem" onClick={() => { setAccountOpen(false); setSettingsSection(undefined); setView('settings') }}>
               <Settings2 size={14} /><span>{t('sidebar.settings')}</span><ChevronRight className="account-menu-chevron" size={13} />
-            </button>
-            <button className="account-menu-item" type="button" role="menuitem" onClick={() => { setAccountOpen(false); setView('plugins') }}>
-              <Plug size={14} /><span>{t('navigation.plugins')}</span><ChevronRight className="account-menu-chevron" size={13} />
-            </button>
-            <button className="account-menu-item" type="button" role="menuitem" onClick={() => { setAccountOpen(false); setSourceSettingsOpen(true) }}>
-              <FolderSearch size={14} /><span>{t('sidebar.localSources')}</span><ChevronRight className="account-menu-chevron" size={13} />
-            </button>
-            <button className="account-menu-item" type="button" role="menuitem" onClick={() => { setAccountOpen(false); setDiagnosticsOpen(true) }}>
-              <Stethoscope size={14} /><span>{t('sidebar.diagnostics')}</span><ChevronRight className="account-menu-chevron" size={13} />
-            </button>
-            <button className="account-menu-item" type="button" role="menuitem" onClick={() => { setAccountOpen(false); setSettingsOpen(true) }}>
-              <Wrench size={14} /><span>{t('sidebar.models')}</span><ChevronRight className="account-menu-chevron" size={13} />
             </button>
             <LanguagePicker />
           </div>
@@ -1174,10 +1154,9 @@ export function App() {
             <PluginsPage onTrySkill={trySkill} />
           ) : view === 'settings' ? (
             <SettingsPage
-              onOpenModels={() => setSettingsOpen(true)}
-              onOpenPlugins={() => setView('plugins')}
-              onOpenSources={() => setSourceSettingsOpen(true)}
-              onOpenDiagnostics={() => setDiagnosticsOpen(true)}
+              snapshot={snapshot}
+              onSnapshot={setSnapshot}
+              {...(settingsSection === undefined ? {} : { initialSection: settingsSection })}
             />
           ) : view === 'tasks' ? (
             <TaskCenter
@@ -1431,7 +1410,7 @@ export function App() {
                       <ModelPicker
                         snapshot={snapshot}
                         onSnapshot={setSnapshot}
-                        onConfigure={() => setSettingsOpen(true)}
+                        onConfigure={() => { setSettingsSection('models'); setView('settings') }}
                         onOpenChange={(open) => {
                           if (open) setAccountOpen(false)
                         }}
@@ -1563,15 +1542,6 @@ export function App() {
         }}
       />
 
-      {settingsOpen && (
-        <ModelSettings
-          snapshot={snapshot}
-          onSnapshot={setSnapshot}
-          onClose={() => setSettingsOpen(false)}
-        />
-      )}
-      {sourceSettingsOpen && <SourceSettings onClose={() => setSourceSettingsOpen(false)} />}
-      {diagnosticsOpen && <DiagnosticsSettings onClose={() => setDiagnosticsOpen(false)} />}
       <AppToaster />
     </div>
   )

@@ -40,11 +40,13 @@ test('opens the personal secretary workspace and model configuration', async () 
     await palette.getByRole('button', { name: 'Close' }).click()
 
     await window.locator('.account-row').click()
-    await expect(window.getByRole('menuitem', { name: /Models/i })).toBeVisible()
-    await window.getByRole('menuitem', { name: /Models/i }).click()
-    await expect(window.getByRole('dialog', { name: 'Model settings' })).toBeVisible()
+    await expect(window.getByRole('menuitem', { name: 'Settings' })).toBeVisible()
+    await expect(window.getByRole('menuitem', { name: 'Interface language' })).toBeVisible()
+    await expect(window.getByRole('menuitem', { name: /Models/i })).toHaveCount(0)
+    await window.getByRole('menuitem', { name: 'Settings' }).click()
+    await window.getByRole('button', { name: 'Models', exact: true }).click()
+    await expect(window.getByRole('heading', { name: 'Models', level: 1 })).toBeVisible()
     await expect(window.getByPlaceholder('Search providers')).toBeVisible()
-    await window.getByRole('button', { name: 'Close settings' }).click()
 
     await expect(window.locator('html')).toHaveAttribute('data-theme', /^(light|dark)$/)
     await app.evaluate(({ nativeTheme }) => { nativeTheme.themeSource = 'dark' })
@@ -87,8 +89,10 @@ test('does not persist a Session before the first message and exposes no Session
     await expect(page.getByRole('button', { name: 'General', exact: true })).toHaveAttribute('aria-current', 'page')
     await expect(page.getByRole('button', { name: 'Memory', exact: true })).toBeVisible()
     await expect(page.getByRole('button', { name: 'Models', exact: true })).toBeVisible()
-    await expect(page.getByRole('button', { name: 'Local sources', exact: true })).toBeVisible()
     await expect(page.getByRole('button', { name: 'Diagnostics', exact: true })).toBeVisible()
+    const settingsNav = page.locator('.settings-page-nav')
+    await expect(settingsNav.getByRole('button', { name: 'Plugins', exact: true })).toHaveCount(0)
+    await expect(settingsNav.getByRole('button', { name: 'Local sources', exact: true })).toHaveCount(0)
   } finally {
     await app.close()
   }
@@ -123,7 +127,7 @@ test('applies and persists a Simplified Chinese language preference', async () =
     await expect(page.getByRole('button', { name: '主页' })).toBeVisible()
 
     await page.locator('.account-row').click()
-    await page.getByRole('button', { name: '界面语言' }).click()
+    await page.getByRole('menuitem', { name: '界面语言' }).click()
     const submenu = page.locator('.language-submenu')
     await expect(submenu).toBeVisible()
     const languageSubmenuMotion = await submenu.evaluate((element) => {

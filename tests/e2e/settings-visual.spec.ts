@@ -22,6 +22,9 @@ test('renders the Comma-style Chinese settings layout with scroll edge blur', as
     const page = await app.firstWindow()
     await page.waitForLoadState('domcontentloaded')
     await page.locator('.account-row').click()
+    await expect(page.getByRole('menuitem')).toHaveCount(2)
+    await page.waitForTimeout(200)
+    await page.screenshot({ path: 'test-results/barn-account-menu-zh.png', fullPage: true })
     await page.getByRole('menuitem', { name: '设置' }).click()
     await expect(page.locator('#account-panel')).toHaveAttribute('aria-hidden', 'true')
     await expect(page.getByRole('button', { name: '通用', exact: true })).toHaveAttribute('aria-current', 'page')
@@ -29,6 +32,14 @@ test('renders the Comma-style Chinese settings layout with scroll edge blur', as
     await expect(page.getByRole('button', { name: '记忆', exact: true })).toBeVisible()
     await page.waitForTimeout(250)
     await page.screenshot({ path: 'test-results/barn-settings-general-zh.png', fullPage: true })
+
+    await page.getByRole('button', { name: '模型', exact: true }).click()
+    await expect(page.getByRole('heading', { name: '模型', level: 1 })).toBeVisible()
+    await page.screenshot({ path: 'test-results/barn-settings-models-zh.png', fullPage: true })
+
+    await page.getByRole('button', { name: '诊断', exact: true }).click()
+    await expect(page.getByRole('heading', { name: '诊断', level: 1 })).toBeVisible()
+    await page.screenshot({ path: 'test-results/barn-settings-diagnostics-zh.png', fullPage: true })
 
     await page.getByRole('button', { name: '记忆', exact: true }).click()
     await page.getByRole('tab', { name: '用户画像' }).click()
