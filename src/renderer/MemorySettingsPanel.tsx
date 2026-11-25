@@ -425,8 +425,8 @@ export function MemorySettingsPanel({ onChanged }: { onChanged?(): void }) {
             <p className="memory-document-limit-note">{t('memorySettings.defaultLimitNote')}</p>
           )}
 
-          <section className={`memory-document-editor${editing || document.content.length > 0 ? ' editing' : ''}`}>
-            {(editing || document.content.length > 0) && (
+          <section className="memory-document-editor">
+            {document.content.length > 0 && (
               <div className="memory-document-editor-heading">
                 <span>{fileName}</span>
                 <span className={`memory-save-state ${saveState}`} aria-live="polite">

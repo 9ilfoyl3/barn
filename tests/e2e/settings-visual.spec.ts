@@ -31,10 +31,14 @@ test('renders the Comma-style Chinese settings layout with scroll edge blur', as
     await page.screenshot({ path: 'test-results/barn-settings-general-zh.png', fullPage: true })
 
     await page.getByRole('button', { name: '记忆', exact: true }).click()
-    await page.getByText('记忆运行设置').click()
-    const scroll = page.locator('.settings-page-scroll')
-    await scroll.evaluate((element) => { element.scrollTop = element.scrollHeight })
-    await expect(page.locator('.settings-scroll-edge.top')).toHaveClass(/visible/)
+    await page.getByRole('tab', { name: '用户画像' }).click()
+    await page.getByRole('button', { name: 'USER.md 文件为空' }).click()
+    await expect(page.getByRole('textbox', { name: 'USER.md' })).toBeFocused()
+    await expect(page.locator('.memory-document-editor-heading')).toHaveCount(0)
+    expect(await page.locator('.memory-document-editor').evaluate((element) => getComputedStyle(element).boxShadow)).not.toContain('0px 0px 0px 3px')
+    expect(await page.getByRole('textbox', { name: 'USER.md' }).evaluate((element) => getComputedStyle(element).outlineStyle)).toBe('none')
+    await page.screenshot({ path: 'test-results/barn-settings-memory-focus-zh.png', fullPage: true })
+
     await page.screenshot({ path: 'test-results/barn-settings-memory-zh.png', fullPage: true })
   } finally {
     await app.close()

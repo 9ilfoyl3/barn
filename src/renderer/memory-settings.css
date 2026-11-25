@@ -211,11 +211,6 @@
   box-shadow: var(--card-shadow);
 }
 
-.memory-document-editor:focus-within {
-  border-color: color-mix(in srgb, var(--accent) 32%, var(--line-strong));
-  box-shadow: 0 0 0 3px var(--accent-soft), var(--card-shadow);
-}
-
 .memory-document-editor-heading {
   display: flex;
   align-items: center;
@@ -264,7 +259,15 @@
   font-size: 11px;
   line-height: 1.68;
   outline: 0;
+  box-shadow: none;
   tab-size: 2;
+}
+
+.memory-document-editor textarea:focus,
+.memory-document-editor textarea:focus-visible {
+  border-color: transparent;
+  outline: none;
+  box-shadow: none;
 }
 
 .memory-document-editor textarea::placeholder {
