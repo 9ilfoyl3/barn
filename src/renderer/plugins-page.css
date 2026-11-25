@@ -96,9 +96,18 @@
     box-shadow 140ms ease;
 }
 
+.plugins-search.barn-input {
+  align-items: stretch;
+  justify-content: flex-start;
+}
+
+.plugins-search .barn-input-field {
+  width: 100%;
+}
+
 .plugins-search:focus-within {
   border-color: color-mix(in srgb, var(--accent) 46%, var(--line-strong));
-  background: var(--panel-raised);
+  background: var(--panel);
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 8%, transparent);
 }
 

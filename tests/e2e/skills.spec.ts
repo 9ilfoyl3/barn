@@ -75,7 +75,7 @@ test('manages local skills from the Plugins page and exposes them to the Agent b
     const search = page.getByRole('searchbox', { name: 'Search skills' })
     await search.focus()
     await expect.poll(() => search.evaluate((input) => getComputedStyle(input).outlineStyle)).toBe('none')
-    await expect.poll(() => search.evaluate((input) => getComputedStyle(input.parentElement!).boxShadow)).not.toBe('none')
+    await expect.poll(() => search.evaluate((input) => getComputedStyle(input.closest('.plugins-search')!).boxShadow)).not.toBe('none')
     await page.screenshot({ path: 'test-results/barn-skills-search-focus.png', fullPage: true })
 
     await skills.getByRole('button', { name: 'New skill' }).click()
