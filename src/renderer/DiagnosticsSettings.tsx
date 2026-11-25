@@ -3,7 +3,6 @@ import { useTranslation } from 'react-i18next'
 import { Activity, X } from 'lucide-react'
 import type { DiagnosticsSnapshot } from '../shared/models'
 import { TooltipButton } from './components/TooltipButton'
-import { MemorySettingsPanel } from './MemorySettingsPanel'
 import { notifySuccess, useErrorToast } from './notifications'
 import './diagnostics-settings.css'
 
@@ -142,10 +141,6 @@ export function DiagnosticsSettings({ onClose }: { onClose(): void }) {
                   <small>{t('diagnostics.lastCleanup', { time: new Date(snapshot.lastMaintenanceAt).toLocaleString() })}</small>
                 )}
               </section>
-
-              <MemorySettingsPanel onChanged={() => {
-                void window.barn.diagnostics.get().then(setSnapshot).catch((reason: unknown) => setError(errorMessage(reason)))
-              }} />
 
               <p className="diagnostics-path">{snapshot.stateDirectory}</p>
             </>
