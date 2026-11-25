@@ -96,6 +96,7 @@ export class TaskConversationService {
         ...(task.workingDirectory === undefined ? {} : { workingDirectory: task.workingDirectory }),
         now: new Date(),
         timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        locale: /[\u3400-\u9fff]/u.test(normalized) ? 'zh-CN' : 'en',
       })
     } catch (error) {
       this.sessions.append(sessionId, [{

@@ -14,7 +14,7 @@
 - A connector discovery question can be answered by the Router directly with no Task.
 - A single connector read can be performed by the Router in the same user turn; external writes remain unavailable to the Router's direct connector surface.
 - Multi-step, background, file-producing, browser, shell, or external-write work still becomes a durable Task.
-- Router and Worker prompts share stable layered sections rather than duplicating role rules as separate prose blobs.
+- Router and Worker prompts share stable layered sections for identity, runtime rules, role rules, Task collaboration, delivery, tool disclosure, skill index, and channel/language constraints. User-authored custom instructions are out of scope.
 - `task.create` no longer requires the model to invent acceptance criteria, artifact lists, or risk analysis for trivial work.
 - Follow-ups on an active Task dispatch directly to its Worker without an extra Task Router model call.
 - Unit, integration, security, typecheck, lint, and focused Electron E2E tests pass.

@@ -21,7 +21,7 @@ import {
   type Task,
   type TaskContract,
 } from '../../shared/models'
-import { composeRouterSystemPrompt } from '../../shared/agent-prompts'
+import { composeRouterSystemPrompt, type AgentLocale } from '../../shared/agent-prompts'
 import type { ModelService } from '../models/model-service'
 import type { MemoryService } from '../memory/memory-service'
 import type { VisibleMessage } from '../../shared/models'
@@ -217,6 +217,7 @@ export interface RouterDecisionInput {
   workingDirectory?: string
   now: Date
   timezone: string
+  locale?: AgentLocale
 }
 
 export interface RouterConnectorSnapshot {
@@ -265,7 +266,10 @@ export class ModelRouterDecisionEngine implements RouterDecisionEngine {
       messages: [
         {
           role: 'system',
-          content: composeRouterSystemPrompt({ connectorToolsAvailable: this.connectors !== undefined }),
+          content: composeRouterSystemPrompt({
+            connectorToolsAvailable: this.connectors !== undefined,
+            ...(input.locale === undefined ? {} : { locale: input.locale }),
+          }),
           timestamp: input.now.getTime(),
         },
         {

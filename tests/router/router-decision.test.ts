@@ -293,6 +293,23 @@ describe('ModelRouterDecisionEngine', () => {
     )
   })
 
+  it('passes the UI locale into the Router channel and language layer', async () => {
+    const model = fakeModel(JSON.stringify({
+      tool: 'reply',
+      arguments: { text: '好的。' },
+      confidence: 0.99,
+      rationaleCodes: ['direct_reply'],
+    }))
+    const stream = vi.spyOn(model, 'streamSimple')
+    const engine = new ModelRouterDecisionEngine(model)
+
+    await engine.decide({ ...input(), locale: 'zh-CN' })
+
+    const system = stream.mock.calls[0]?.[1].messages[0]?.content
+    expect(system).toContain('## Channel and language')
+    expect(system).toContain('Preferred UI language: Simplified Chinese')
+  })
+
   it('accepts a minimal task contract and fills host-owned defaults', async () => {
     const response = JSON.stringify({
       tool: 'task.create',

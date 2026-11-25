@@ -42,8 +42,6 @@ interface ActiveModelStream {
   partial?: AssistantMessage
 }
 
-const SYSTEM_PROMPT = composeWorkerSystemPrompt()
-
 export class WorkerRuntime {
   private readonly sessions = new Map<string, WorkerSession>()
   private readonly pendingHostRequests = new Map<string, PendingHostRequest>()
@@ -342,20 +340,17 @@ class WorkerSession {
       contextWindow: seed.model.contextWindow,
       maxOutputTokens: seed.model.maxTokens,
     })
-    const skillContextMessage: AgentMessage[] = seed.skillContext === undefined
-      ? []
-      : [{
-          role: 'user',
-          content: `[User-installed skill discovery metadata]\n${seed.skillContext}`,
-          timestamp: Date.now(),
-        }]
+    const tools = createTools(executeTool, seed.model.input.includes('image'))
     this.agent = new Agent({
       initialState: {
-        systemPrompt: SYSTEM_PROMPT,
-        messages: [...skillContextMessage, ...seed.messages as AgentMessage[]],
+        systemPrompt: composeWorkerSystemPrompt({
+          availableTools: tools.map((entry) => entry.name),
+          ...(seed.skillContext === undefined ? {} : { skillIndex: seed.skillContext }),
+        }),
+        messages: seed.messages as AgentMessage[],
         model,
         thinkingLevel: seed.reasoningEffort ?? 'off',
-        tools: createTools(executeTool, seed.model.input.includes('image')),
+        tools,
       },
       convertToLlm: (messages) => messages.filter(isLlmMessage) as Message[],
       transformContext: async (messages) => {

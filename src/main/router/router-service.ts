@@ -219,6 +219,7 @@ export class RouterService {
         ...(workingDirectory === undefined ? {} : { workingDirectory }),
         now: this.now(),
         timezone: this.timezone,
+        locale,
       }, controller.signal)
       if (this.store.get(request.id).status === 'cancelled') return
       await this.applyDecision(request, userMessage, text, attachments, workingDirectory, locale, decision)

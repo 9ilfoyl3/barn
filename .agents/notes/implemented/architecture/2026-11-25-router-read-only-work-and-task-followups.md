@@ -15,7 +15,7 @@ The Router is a bounded tool loop, not only a one-shot classifier. It receives a
 
 A Router turn allows connector discovery and at most one read-only connector lookup. The model must finish with one validated `route_decision`; connector data can support a direct reply, or the final decision can create a durable Task when the work needs more execution. The Router never receives a write-capable connector path.
 
-Prompts are composed from stable role-first sections in `src/shared/agent-prompts.ts`: identity, shared runtime rules, role responsibilities, Task collaboration, delivery, and tool protocol. The Worker and Task Router use the same composition mechanism with role-specific rules. A Task is delivered as a readable brief rather than raw contract JSON.
+Prompts are composed from stable role-first sections in `src/shared/agent-prompts.ts`: identity, shared runtime rules, role responsibilities, Task collaboration, delivery, tool disclosure, skill index where applicable, and channel/language constraints. The Worker receives the names of its actually materialized tools, and its bounded Skill Index is included in the same system prompt with an explicit untrusted-metadata boundary. User-authored custom system instructions are intentionally out of scope. A Task is delivered as a readable brief rather than raw contract JSON.
 
 `task.create` now requires only a title and objective. The host supplies safe defaults for deliverable, constraints, acceptance criteria, risk, execution lane, and expected artifacts. The model no longer has to fabricate planning fields for ordinary work.
 

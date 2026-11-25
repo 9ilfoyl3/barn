@@ -124,7 +124,7 @@ const model = {
   input: ['text' as const],
 }
 
-async function initialize(host: FakeHost, runtime: WorkerRuntime): Promise<void> {
+async function initialize(host: FakeHost, runtime: WorkerRuntime, skillContext?: string): Promise<void> {
   runtime.start()
   await viWait(() => host.received.some((message) => message.type === 'worker.ready'))
   host.send({ type: 'worker.initialize', requestId: 'host:init' })
@@ -132,7 +132,12 @@ async function initialize(host: FakeHost, runtime: WorkerRuntime): Promise<void>
   host.send({
     type: 'session.open',
     requestId: 'host:open',
-    session: { sessionId: 'session-1', messages: [], model },
+    session: {
+      sessionId: 'session-1',
+      messages: [],
+      model,
+      ...(skillContext === undefined ? {} : { skillContext }),
+    },
   })
   await viWait(() => host.received.some((message) => message.type === 'request.ok' && message.requestId === 'host:open'))
 }
@@ -187,6 +192,33 @@ describe('WorkerRuntime', () => {
     expect(appended[0]).toMatchObject({ message: { role: 'assistant' } })
     expect(host.received.some((message) => message.type === 'session.event' && message.event.type === 'assistant.delta'))
       .toBe(true)
+  })
+
+  it('layers tool disclosure, skill index, and desktop language rules into the system prompt', async () => {
+    const host = new FakeHost()
+    const runtime = new WorkerRuntime(host)
+    await initialize(host, runtime, '<available_skills>\n- Release notes (local:release)\n</available_skills>')
+
+    const before = host.received.length
+    host.send({
+      type: 'session.prompt',
+      requestId: 'host:prompt-prompt-layers',
+      sessionId: 'session-1',
+      text: 'Draft release notes',
+    })
+    await viWait(() => host.received.slice(before).some(
+      (message) => message.type === 'run.status' && message.status === 'idle',
+    ))
+
+    const start = host.received.find((message) => message.type === 'model.start')
+    const serialized = JSON.stringify(start?.context)
+    expect(serialized).toContain('## Tool disclosure')
+    expect(serialized).toContain('read_file')
+    expect(serialized).toContain('## Skill index')
+    expect(serialized).toContain('Release notes')
+    expect(serialized).toContain('## Channel and language')
+    expect(serialized).toContain('Channel: Barn Desktop')
+    expect(serialized).not.toContain('User-installed skill discovery metadata')
   })
 
   it('exposes bounded search and discovery tools to the model', async () => {

@@ -11,7 +11,7 @@ import { resolveReasoningEffort, type AttachmentDescriptor, type ModelSelection,
 import type { ModelService } from '../models/model-service'
 import type { MemoryService } from '../memory/memory-service'
 import type { StoredSessionEvent } from '../session/session-store'
-import { composeTaskRouterSystemPrompt } from '../../shared/agent-prompts'
+import { composeTaskRouterSystemPrompt, type AgentLocale } from '../../shared/agent-prompts'
 
 export type TaskRouterDecision =
   | {
@@ -44,6 +44,7 @@ export interface TaskRouterDecisionInput {
   workingDirectory?: string
   now: Date
   timezone: string
+  locale?: AgentLocale
 }
 
 export interface TaskRouterDecisionEngine {
@@ -119,7 +120,11 @@ export class ModelTaskRouterDecisionEngine implements TaskRouterDecisionEngine {
 
     const baseContext: Context = {
       messages: [
-        { role: 'system', content: composeTaskRouterSystemPrompt(), timestamp: input.now.getTime() },
+        {
+          role: 'system',
+          content: composeTaskRouterSystemPrompt(input.locale === undefined ? {} : { locale: input.locale }),
+          timestamp: input.now.getTime(),
+        },
         {
           role: 'user',
           content: JSON.stringify({
