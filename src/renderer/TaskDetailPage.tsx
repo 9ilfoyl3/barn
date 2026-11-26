@@ -581,7 +581,9 @@ export function TaskDetailPage({
                 <div className="task-detail-tag-control">
                   <Button
                     className={`task-detail-add-tag${tags.length === 0 ? ' is-labeled' : ''}`}
+                    size="icon"
                     type="button"
+                    variant="ghost"
                     aria-label={t('tasks.addTag')}
                     aria-expanded={tagMenuOpen}
                     onClick={() => setTagMenuOpen((open) => !open)}
@@ -596,7 +598,9 @@ export function TaskDetailPage({
                         return (
                           <Button
                             className="task-detail-tag-option"
+                            size="sm"
                             type="button"
+                            variant="ghost"
                             role="menuitemcheckbox"
                             aria-checked={checked}
                             key={tag}

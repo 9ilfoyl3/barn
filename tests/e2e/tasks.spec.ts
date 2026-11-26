@@ -333,7 +333,43 @@ test('opens a task agent conversation with properties and accepts a follow-up me
     await expect(detail.locator('.assistant-reply-run[data-guide="straight"]')).toHaveCount(1)
     await expect(detail.getByRole('complementary', { name: 'Properties' })).toContainText('Completed')
     await expect(detail.getByRole('complementary', { name: 'Properties' })).toContainText('Created from')
-    await expect(detail.getByRole('button', { name: 'Add tag' })).toBeVisible()
+    const addTag = detail.getByRole('button', { name: 'Add tag' })
+    await expect(addTag).toBeVisible()
+    await expect(addTag).toHaveAttribute('data-beui-variant', 'ghost')
+    await addTag.click()
+    let tagMenu = detail.getByRole('menu', { name: 'Tags' })
+    await expect(tagMenu).toBeVisible()
+    for (const name of ['Work', 'Reminder', 'Important']) {
+      await tagMenu.getByRole('menuitemcheckbox', { name }).click()
+    }
+    await addTag.click()
+    await expect(tagMenu).toHaveCount(0)
+    await addTag.click()
+    tagMenu = detail.getByRole('menu', { name: 'Tags' })
+    await expect(tagMenu).toBeVisible()
+    const tagLayout = await detail.evaluate(() => {
+      const properties = document.querySelector('.task-detail-properties-scroll')!.getBoundingClientRect()
+      const menu = document.querySelector('.task-detail-tag-menu')!.getBoundingClientRect()
+      const options = Array.from(document.querySelectorAll<HTMLElement>('.task-detail-tag-option')).map((option) => {
+        const style = getComputedStyle(option)
+        return {
+          height: option.getBoundingClientRect().height,
+          whiteSpace: style.whiteSpace,
+          variant: option.dataset.beuiVariant,
+        }
+      })
+      return { properties, menu, options }
+    })
+    expect(tagLayout.menu.left).toBeGreaterThanOrEqual(tagLayout.properties.left)
+    expect(tagLayout.menu.right).toBeLessThanOrEqual(tagLayout.properties.right)
+    for (const option of tagLayout.options) {
+      expect(option.height).toBeLessThanOrEqual(31)
+      expect(option.whiteSpace).toBe('nowrap')
+      expect(option.variant).toBe('ghost')
+    }
+    await page.screenshot({ path: 'test-results/barn-task-detail-tags.png', fullPage: true })
+    await addTag.click()
+    await expect(tagMenu).toHaveCount(0)
     await page.screenshot({ path: 'test-results/barn-task-detail-agent-chat.png', fullPage: true })
 
     const composer = detail.getByRole('textbox', { name: 'Message task agent' })
