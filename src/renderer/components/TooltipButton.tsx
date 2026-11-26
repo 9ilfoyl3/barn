@@ -1,6 +1,7 @@
 import type { ComponentPropsWithoutRef, ReactNode } from 'react'
 import { forwardRef } from 'react'
 import { Tooltip, TooltipContent, TooltipTrigger } from './ui/tooltip'
+import { Button } from './Button'
 
 type TooltipContentProps = ComponentPropsWithoutRef<typeof TooltipContent>
 
@@ -14,9 +15,9 @@ export const TooltipButton = forwardRef<HTMLButtonElement, TooltipButtonProps>(
   ({ label, tooltipSide = 'bottom', children, ...props }, ref) => (
     <Tooltip>
       <TooltipTrigger asChild>
-        <button ref={ref} type="button" aria-label={label} {...props}>
+        <Button ref={ref} type="button" aria-label={label} {...props}>
           {children}
-        </button>
+        </Button>
       </TooltipTrigger>
       <TooltipContent side={tooltipSide}>{label}</TooltipContent>
     </Tooltip>

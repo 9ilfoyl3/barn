@@ -14,6 +14,7 @@ import {
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import * as React from 'react'
 import './agent-screen.css'
+import { Button } from '../Button'
 
 export type AgentScreenVariant = 'working' | 'loading'
 
@@ -56,14 +57,14 @@ interface ScreenButtonProps {
 
 function ScreenButton({ children, leadingIcon: Icon, variant = 'secondary', onClick }: ScreenButtonProps) {
   return (
-    <button
+    <Button
       className={cx('agent-screen-kit-button', `is-${variant}`)}
       type="button"
       onClick={onClick}
     >
       <Icon size={14} />
       <span>{children}</span>
-    </button>
+    </Button>
   )
 }
 

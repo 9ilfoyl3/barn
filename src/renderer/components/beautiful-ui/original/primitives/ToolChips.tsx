@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
+import { Button } from '../../../Button'
 
 /* ─────────────────────────────────────────────────────────
  * TOOL CHIPS
@@ -161,7 +162,7 @@ export default function ToolChips({
   return (
     <div data-slot="beautiful-tool-chips" className={`beautiful-ui-scope min-h-[220px] w-full max-w-80 pb-1${className ? ` ${className}` : ""}`}>
       {/* collapsed run header */}
-      <button
+      <Button
         type="button"
         aria-expanded={resolvedOpen}
         onClick={() => {
@@ -175,7 +176,7 @@ export default function ToolChips({
           <path d="M6 9l6 6 6-6" />
         </svg>
         <span className="tabular-nums">{copy.header}</span>
-      </button>
+      </Button>
 
       {/* tool call rows */}
       <div className="grid transition-[grid-template-rows,opacity] duration-300" style={{ gridTemplateRows: resolvedOpen ? "1fr" : "0fr", opacity: resolvedOpen ? 1 : 0 }}>
@@ -188,7 +189,7 @@ export default function ToolChips({
             const rowOpen = expandedRowIds === undefined ? openRows.has(rowId) : expandedRowIds.includes(rowId);
             return (
             <div key={rowId} style={{ animation: "beautiful-fade-up 300ms cubic-bezier(0.23,1,0.32,1) both" }}>
-              <button
+              <Button
                 type="button"
                 aria-expanded={rowOpen}
                 onClick={() => toggleRow(rowId)}
@@ -223,7 +224,7 @@ export default function ToolChips({
                 {row.status === "error" && (
                   <span aria-label="Failed" className="size-1.5 shrink-0 rounded-full bg-red" />
                 )}
-              </button>
+              </Button>
 
               {/* expanded detail */}
               <div
@@ -259,7 +260,7 @@ export default function ToolChips({
               onMouseEnter={openPreview(d.file)}
               onMouseLeave={closePreview(d.file)}
             >
-              <button
+              <Button
                 type="button"
                 aria-expanded={preview?.file === d.file}
                 aria-label={`Show diff for ${d.file}`}
@@ -273,11 +274,11 @@ export default function ToolChips({
                 <span className="min-w-0 truncate">{d.file}</span>
                 <span className="shrink-0 text-green tabular-nums">+{d.add}</span>
                 {d.del > 0 && <span className="shrink-0 text-red tabular-nums">−{d.del}</span>}
-              </button>
+              </Button>
 
             </span>
           ))}
-          <button
+          <Button
             type="button"
             className="inline-flex h-7 items-center rounded-chip px-1.5 font-mono text-[11.5px] text-ink-3
               underline decoration-transparent underline-offset-2 transition-colors duration-100
@@ -285,7 +286,7 @@ export default function ToolChips({
             style={{ animation: `beautiful-fade-in 300ms ease-out ${diffs.length * 80}ms both` }}
           >
             {copy.more}
-          </button>
+          </Button>
         </div>
       )}
         </div>

@@ -15,6 +15,7 @@ import { ModelSettings } from './ModelSettings'
 import { DiagnosticsSettings } from './DiagnosticsSettings'
 import type { ModelConfigSnapshot } from '../shared/models'
 import './settings-page.css'
+import { Button } from './components/Button'
 
 export interface SettingsPageProps {
   snapshot: ModelConfigSnapshot | undefined
@@ -145,7 +146,7 @@ export function SettingsPage({ snapshot, onSnapshot, initialSection }: SettingsP
                 <h2>{group.label}</h2>
                 <div>
                   {items.map((section) => (
-                    <button
+                    <Button
                       key={section.key}
                       className={section.key === activeSection ? 'active' : ''}
                       type="button"
@@ -154,7 +155,7 @@ export function SettingsPage({ snapshot, onSnapshot, initialSection }: SettingsP
                     >
                       {section.icon}
                       <span>{section.label}</span>
-                    </button>
+                    </Button>
                   ))}
                 </div>
               </section>

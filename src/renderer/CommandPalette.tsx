@@ -3,6 +3,7 @@ import { ArrowRight, Inbox, Search, X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import type { Task } from '../shared/models'
 import { Input as BeuiInput } from './components/beui/components/motion/input'
+import { Button } from './components/Button'
 
 export interface CommandPaletteProps {
   open: boolean
@@ -47,30 +48,30 @@ export function CommandPalette({ open, tasks, onClose, onOpenTask, onOpenTasks }
           ref={inputRef}
           className="command-search"
           leftIcon={<Search size={17} aria-hidden="true" />}
-          rightIcon={<button type="button" aria-label={t('common.close')} onClick={onClose}><X size={15} /></button>}
+          rightIcon={<Button type="button" aria-label={t('common.close')} onClick={onClose}><X size={15} /></Button>}
           type="search"
           value={query}
           placeholder={t('secretary.searchPlaceholder')}
           onChange={setQuery}
         />
         <div className="command-results">
-          <button className="command-command" type="button" onClick={onOpenTasks}>
+          <Button className="command-command" type="button" onClick={onOpenTasks}>
             <span className="command-icon"><Inbox size={15} /></span>
             <span>
               <strong>{t('secretary.openNeedsYou')}</strong>
               <small>{t('secretary.openNeedsYouDetail')}</small>
             </span>
             <ArrowRight size={14} aria-hidden="true" />
-          </button>
+          </Button>
           {results.map((task) => (
-            <button className="command-command" type="button" key={task.id} onClick={() => onOpenTask(task)}>
+            <Button className="command-command" type="button" key={task.id} onClick={() => onOpenTask(task)}>
               <span className="command-icon"><Inbox size={15} /></span>
               <span>
                 <strong>{task.title}</strong>
                 <small>{task.detail ?? t(`tasks.status.${task.status}`)}</small>
               </span>
               <ArrowRight size={14} aria-hidden="true" />
-            </button>
+            </Button>
           ))}
           {results.length === 0 && normalized !== '' && (
             <p className="command-empty">{t('secretary.noMatches')}</p>

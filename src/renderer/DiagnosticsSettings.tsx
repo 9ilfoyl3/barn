@@ -6,12 +6,13 @@ import { TooltipButton } from './components/TooltipButton'
 import { Input } from './components/Input'
 import { notifySuccess, useErrorToast } from './notifications'
 import './diagnostics-settings.css'
+import { Button } from './components/Button'
 
 export function DiagnosticsSettings({ onClose, embedded = false }: { onClose?: () => void; embedded?: boolean }) {
   const { t } = useTranslation()
   const [snapshot, setSnapshot] = useState<DiagnosticsSnapshot>()
   const [retention, setRetention] = useState(365)
-  const [busy, setBusy] = useState(false)
+  const [busyAction, setBusyAction] = useState<'retention' | 'cleanup'>()
   const [error, setError] = useState<string>()
 
   useErrorToast(error)
@@ -30,7 +31,7 @@ export function DiagnosticsSettings({ onClose, embedded = false }: { onClose?: (
   }, [embedded, onClose])
 
   async function saveRetention(): Promise<void> {
-    setBusy(true)
+    setBusyAction('retention')
     setError(undefined)
     try {
       await window.barn.diagnostics.setRetentionDays(retention)
@@ -39,12 +40,12 @@ export function DiagnosticsSettings({ onClose, embedded = false }: { onClose?: (
     } catch (reason) {
       setError(errorMessage(reason))
     } finally {
-      setBusy(false)
+      setBusyAction(undefined)
     }
   }
 
   async function runMaintenance(): Promise<void> {
-    setBusy(true)
+    setBusyAction('cleanup')
     setError(undefined)
     try {
       const result = await window.barn.diagnostics.runMaintenance()
@@ -57,7 +58,7 @@ export function DiagnosticsSettings({ onClose, embedded = false }: { onClose?: (
     } catch (reason) {
       setError(errorMessage(reason))
     } finally {
-      setBusy(false)
+      setBusyAction(undefined)
     }
   }
 
@@ -141,8 +142,26 @@ export function DiagnosticsSettings({ onClose, embedded = false }: { onClose?: (
                     <span>{t('diagnostics.retentionDays')}</span>
                     <Input type="number" min={30} max={3650} value={retention} onChange={(event) => setRetention(Number(event.target.value))} density="compact" />
                   </label>
-                  <button className="secondary-button" type="button" disabled={busy} onClick={() => void saveRetention()}>{t('common.save')}</button>
-                  <button className="secondary-button" type="button" disabled={busy} onClick={() => void runMaintenance()}>{t('diagnostics.runCleanup')}</button>
+                  <Button
+                    className="secondary-button"
+                    type="button"
+                    disabled={busyAction !== undefined}
+                    state={busyAction === 'retention' ? 'loading' : 'idle'}
+                    loadingText={t('common.saving')}
+                    onClick={() => void saveRetention()}
+                  >
+                    {t('common.save')}
+                  </Button>
+                  <Button
+                    className="secondary-button"
+                    type="button"
+                    disabled={busyAction !== undefined}
+                    state={busyAction === 'cleanup' ? 'loading' : 'idle'}
+                    loadingText={t('diagnostics.runCleanup')}
+                    onClick={() => void runMaintenance()}
+                  >
+                    {t('diagnostics.runCleanup')}
+                  </Button>
                 </div>
                 {snapshot.lastMaintenanceAt !== undefined && (
                   <small>{t('diagnostics.lastCleanup', { time: new Date(snapshot.lastMaintenanceAt).toLocaleString() })}</small>

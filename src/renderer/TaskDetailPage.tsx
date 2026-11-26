@@ -36,6 +36,7 @@ import {
   type ConversationPart,
 } from './conversation'
 import './task-detail.css'
+import { Button } from './components/Button'
 
 const TASK_TAG_VALUES = ['work', 'reminder', 'important', 'followUp'] as const
 type TaskTagValue = typeof TASK_TAG_VALUES[number]
@@ -401,7 +402,7 @@ export function TaskDetailPage({
   return (
     <section className="task-detail-page" aria-label={task.title}>
       <header className="task-detail-header">
-        <button
+        <Button
           className="task-detail-back"
           type="button"
           aria-label={t('tasks.back')}
@@ -409,10 +410,10 @@ export function TaskDetailPage({
           onClick={onBack}
         >
           <ArrowLeft size={16} aria-hidden="true" />
-        </button>
+        </Button>
         <div className="task-detail-title-row">
           <h1>{task.title}</h1>
-          <button
+          <Button
             className="task-detail-link"
             type="button"
             aria-label={copied ? t('tasks.linkCopied') : t('tasks.copyTaskLink')}
@@ -420,7 +421,7 @@ export function TaskDetailPage({
             onClick={() => void copyTaskLink()}
           >
             {copied ? <Check size={13} aria-hidden="true" /> : <Link2 size={13} aria-hidden="true" />}
-          </button>
+          </Button>
         </div>
       </header>
 
@@ -473,7 +474,7 @@ export function TaskDetailPage({
               </div>
             )}
             <div className="task-detail-quick-actions" aria-label={t('tasks.taskActions')}>
-              <button
+              <Button
                 className="task-detail-quick-action"
                 type="button"
                 disabled={statusBusy}
@@ -481,8 +482,8 @@ export function TaskDetailPage({
               >
                 <CircleCheck size={14} aria-hidden="true" />
                 <span>{t('tasks.markComplete')}</span>
-              </button>
-              <button
+              </Button>
+              <Button
                 className="task-detail-quick-action"
                 type="button"
                 disabled={statusBusy}
@@ -490,7 +491,7 @@ export function TaskDetailPage({
               >
                 <Clock3 size={14} aria-hidden="true" />
                 <span>{t('tasks.markWaiting')}</span>
-              </button>
+              </Button>
             </div>
           </div>
 
@@ -578,7 +579,7 @@ export function TaskDetailPage({
                   </span>
                 ))}
                 <div className="task-detail-tag-control">
-                  <button
+                  <Button
                     className={`task-detail-add-tag${tags.length === 0 ? ' is-labeled' : ''}`}
                     type="button"
                     aria-label={t('tasks.addTag')}
@@ -587,13 +588,13 @@ export function TaskDetailPage({
                   >
                     <Plus size={13} aria-hidden="true" />
                     {tags.length === 0 && <span>{t('tasks.addTag')}</span>}
-                  </button>
+                  </Button>
                   {tagMenuOpen && (
                     <div className="task-detail-tag-menu" role="menu" aria-label={t('tasks.tags')}>
                       {TASK_TAG_VALUES.map((tag) => {
                         const checked = tags.includes(tag)
                         return (
-                          <button
+                          <Button
                             className="task-detail-tag-option"
                             type="button"
                             role="menuitemcheckbox"
@@ -604,7 +605,7 @@ export function TaskDetailPage({
                             <span className={`task-detail-tag-dot task-detail-tag-dot-${tag}`} aria-hidden="true" />
                             <span>{t(`tasks.tagPreset.${tag}`)}</span>
                             {checked && <Check size={13} aria-hidden="true" />}
-                          </button>
+                          </Button>
                         )
                       })}
                     </div>

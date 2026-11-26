@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { Folder, Globe2, Search, Terminal } from 'lucide-react'
 import type { BrowserHistoryEntry } from '../shared/models'
 import { Input as BeuiInput } from './components/beui/components/motion/input'
+import { Button } from './components/Button'
 
 export type BrowserQuickAction = 'terminal' | 'files'
 
@@ -56,14 +57,14 @@ export function BrowserNewTab({ history, onNavigate, onQuickAction }: BrowserNew
         {searchFocused && (
           <div className="browser-newtab-suggestions" onMouseDown={(event) => event.preventDefault()}>
             {address.trim().length > 0 && (
-              <button className="browser-suggestion search" type="button" onClick={() => void submit()}>
+              <Button className="browser-suggestion search" type="button" onClick={() => void submit()}>
                 <Search size={15} />
                 <span>{address.trim()}</span>
                 <small>{t('browser.searchWeb')}</small>
-              </button>
+              </Button>
             )}
             {browserHistorySuggestions(address, history).map((entry) => (
-              <button
+              <Button
                 className="browser-suggestion"
                 type="button"
                 key={entry.url}
@@ -72,7 +73,7 @@ export function BrowserNewTab({ history, onNavigate, onQuickAction }: BrowserNew
                 <Globe2 size={15} />
                 <span>{entry.title}</span>
                 <small>{hostname(entry.url)}</small>
-              </button>
+              </Button>
             ))}
             {address.trim().length === 0 && history.length === 0 && (
               <div className="browser-suggestion-empty">{t('browser.noSuggestions')}</div>
@@ -85,14 +86,14 @@ export function BrowserNewTab({ history, onNavigate, onQuickAction }: BrowserNew
           <span>{t('browser.newTabSection')}</span>
         </div>
         <div className="browser-newtab-grid">
-          <button type="button" onClick={() => onQuickAction('terminal')}>
+          <Button type="button" onClick={() => onQuickAction('terminal')}>
             <span className="browser-newtab-card-icon"><Terminal size={18} /></span>
             <span>{t('browser.terminal')}</span>
-          </button>
-          <button type="button" onClick={() => onQuickAction('files')}>
+          </Button>
+          <Button type="button" onClick={() => onQuickAction('files')}>
             <span className="browser-newtab-card-icon"><Folder size={18} /></span>
             <span>{t('browser.files')}</span>
-          </button>
+          </Button>
         </div>
       </div>
     </div>

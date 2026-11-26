@@ -4,7 +4,6 @@ import {
   Check,
   ChevronLeft,
   KeyRound,
-  LoaderCircle,
   Plus,
   Sparkles,
   Trash2,
@@ -26,6 +25,7 @@ import {
   type ModelTestResult,
   type ReasoningEffort,
 } from '../shared/models'
+import { Button } from './components/Button'
 
 interface ModelSettingsProps {
   snapshot: ModelConfigSnapshot | undefined
@@ -42,7 +42,8 @@ export function ModelSettings({ snapshot, onSnapshot }: ModelSettingsProps) {
   const [configuredModels, setConfiguredModels] = useState<ModelDescriptor[]>([])
   const [selectedProviderId, setSelectedProviderId] = useState<string>()
   const [apiKey, setApiKey] = useState('')
-  const [busy, setBusy] = useState(false)
+  const [busyAction, setBusyAction] = useState<'connect' | 'remove' | 'default' | 'effort'>()
+  const busy = busyAction !== undefined
   const [error, setError] = useState<string>()
   const [reasoningEffort, setReasoningEffort] = useState<ReasoningEffort | undefined>(snapshot?.defaultReasoningEffort)
 
@@ -67,7 +68,7 @@ export function ModelSettings({ snapshot, onSnapshot }: ModelSettingsProps) {
   const providerGroups = useMemo(() => groupProviders(providers), [providers])
 
   async function chooseDefault(model: ModelDescriptor): Promise<void> {
-    setBusy(true)
+    setBusyAction('default')
     setError(undefined)
     try {
       const effort = model.providerId === snapshot?.defaultModel?.providerId && model.id === snapshot?.defaultModel?.modelId
@@ -84,27 +85,27 @@ export function ModelSettings({ snapshot, onSnapshot }: ModelSettingsProps) {
     } catch (reason) {
       setError(errorMessage(reason, t))
     } finally {
-      setBusy(false)
+      setBusyAction(undefined)
     }
   }
 
   async function saveEffort(effort: ReasoningEffort): Promise<void> {
     if (snapshot?.defaultModel === undefined) return
     setReasoningEffort(effort)
-    setBusy(true)
+    setBusyAction('effort')
     setError(undefined)
     try {
       onSnapshot(await window.barn.models.setDefault({ ...snapshot.defaultModel, reasoningEffort: effort }))
     } catch (reason) {
       setError(errorMessage(reason, t))
     } finally {
-      setBusy(false)
+      setBusyAction(undefined)
     }
   }
 
   async function connectProvider(): Promise<void> {
     if (selectedProvider === undefined || apiKey.trim().length === 0) return
-    setBusy(true)
+    setBusyAction('connect')
     setError(undefined)
     try {
       onSnapshot(await window.barn.models.saveCredential({ providerId: selectedProvider.id, apiKey }))
@@ -115,12 +116,12 @@ export function ModelSettings({ snapshot, onSnapshot }: ModelSettingsProps) {
     } catch (reason) {
       setError(errorMessage(reason, t))
     } finally {
-      setBusy(false)
+      setBusyAction(undefined)
     }
   }
 
   async function removeCredential(provider: ModelProviderSummary): Promise<void> {
-    setBusy(true)
+    setBusyAction('remove')
     setError(undefined)
     try {
       onSnapshot(await window.barn.models.deleteCredential(provider.id))
@@ -128,7 +129,7 @@ export function ModelSettings({ snapshot, onSnapshot }: ModelSettingsProps) {
     } catch (reason) {
       setError(errorMessage(reason, t))
     } finally {
-      setBusy(false)
+      setBusyAction(undefined)
     }
   }
 
@@ -177,9 +178,9 @@ export function ModelSettings({ snapshot, onSnapshot }: ModelSettingsProps) {
   if (step === 'connect' && selectedProvider !== undefined) {
     return (
       <div className="model-settings-page model-settings-wizard">
-        <button className="model-wizard-back" type="button" onClick={() => setStep('providers')}>
+        <Button className="model-wizard-back" type="button" onClick={() => setStep('providers')}>
           <ChevronLeft size={15} aria-hidden="true" />{t('settings.chooseProvider')}
-        </button>
+        </Button>
         <header className="model-wizard-heading">
           <h1>{t('settings.connectProvider', { name: selectedProvider.name })}</h1>
           <p>{t('settings.connectProviderDescription')}</p>
@@ -201,22 +202,30 @@ export function ModelSettings({ snapshot, onSnapshot }: ModelSettingsProps) {
           {selectedProvider.configured && (
             <div className="model-connect-existing">
               <span>{selectedProvider.authSource ?? t('settings.configured')}</span>
-              <button type="button" disabled={busy} onClick={() => void removeCredential(selectedProvider)}>
+              <Button
+                type="button"
+                disabled={busy}
+                state={busyAction === 'remove' ? 'loading' : 'idle'}
+                loadingText={t('common.saving')}
+                onClick={() => void removeCredential(selectedProvider)}
+              >
                 <Trash2 size={13} aria-hidden="true" />{t('settings.removeKey')}
-              </button>
+              </Button>
             </div>
           )}
         </section>
         <div className="model-wizard-actions">
-          <button
+          <Button
             className="primary-button"
             type="button"
             disabled={apiKey.trim().length === 0 || busy}
+            state={busyAction === 'connect' ? 'loading' : 'idle'}
+            loadingText={t('settings.connecting')}
+            icon={<KeyRound size={14} aria-hidden="true" />}
             onClick={() => void connectProvider()}
           >
-            {busy ? <LoaderCircle className="spin" size={14} aria-hidden="true" /> : <KeyRound size={14} aria-hidden="true" />}
-            {busy ? t('settings.connecting') : t('settings.connect')}
-          </button>
+            {t('settings.connect')}
+          </Button>
         </div>
       </div>
     )
@@ -225,9 +234,9 @@ export function ModelSettings({ snapshot, onSnapshot }: ModelSettingsProps) {
   if (step === 'providers') {
     return (
       <div className="model-settings-page model-settings-wizard">
-        <button className="model-wizard-back" type="button" onClick={() => setStep('overview')}>
+        <Button className="model-wizard-back" type="button" onClick={() => setStep('overview')}>
           <ChevronLeft size={15} aria-hidden="true" />{t('settings.modelsAndApi')}
-        </button>
+        </Button>
         <header className="model-wizard-heading">
           <h1>{t('settings.chooseProvider')}</h1>
           <p>{t('settings.chooseProviderDescription')}</p>
@@ -238,17 +247,17 @@ export function ModelSettings({ snapshot, onSnapshot }: ModelSettingsProps) {
               <h3>{t(group.labelKey)}</h3>
               <div className="provider-choice-grid">
                 {group.providers.map((provider) => (
-                  <button type="button" key={provider.id} aria-label={provider.name} onClick={() => openProvider(provider)}>
+                  <Button type="button" key={provider.id} aria-label={provider.name} onClick={() => openProvider(provider)}>
                     <span className="provider-choice-mark">{providerInitial(provider.name)}</span>
                     <span>{provider.name}</span>
                     {provider.configured && <Check size={14} aria-label={t('settings.configured')} />}
-                  </button>
+                  </Button>
                 ))}
                 {group.id === 'local' && (
-                  <button type="button" onClick={() => setStep('custom')}>
+                  <Button type="button" onClick={() => setStep('custom')}>
                     <span className="provider-choice-mark"><Plus size={14} aria-hidden="true" /></span>
                     <span>{t('settings.customProvider')}</span>
-                  </button>
+                  </Button>
                 )}
               </div>
             </section>
@@ -334,9 +343,9 @@ export function ModelSettings({ snapshot, onSnapshot }: ModelSettingsProps) {
           <div className="model-library-heading">
             <h2>{t('settings.configuredModels')}</h2>
             {configuredModels.length > 0 && (
-              <button className="settings-action-button" type="button" onClick={() => setStep('providers')}>
+              <Button className="settings-action-button" type="button" onClick={() => setStep('providers')}>
                 <Plus size={14} aria-hidden="true" />{t('settings.addProvider')}
-              </button>
+              </Button>
             )}
           </div>
           <div className="settings-card model-library-card">
@@ -347,9 +356,9 @@ export function ModelSettings({ snapshot, onSnapshot }: ModelSettingsProps) {
                   <strong>{t('settings.noConfiguredModels')}</strong>
                   <p>{t('settings.noConfiguredModelsDescription')}</p>
                 </div>
-                <button className="settings-action-button" type="button" onClick={() => setStep('providers')}>
+                <Button className="settings-action-button" type="button" onClick={() => setStep('providers')}>
                   <Plus size={14} aria-hidden="true" />{t('settings.addProvider')}
-                </button>
+                </Button>
               </div>
             ) : configuredModels.map((model) => {
               const active = model.providerId === snapshot?.defaultModel?.providerId && model.id === snapshot?.defaultModel?.modelId
@@ -363,7 +372,18 @@ export function ModelSettings({ snapshot, onSnapshot }: ModelSettingsProps) {
                   <span className="model-library-facts">{formatContext(model.contextWindow)}</span>
                   {active
                     ? <span className="model-default-badge"><Check size={13} aria-hidden="true" />{t('settings.defaultModel')}</span>
-                    : <button className="settings-action-button" type="button" disabled={busy} onClick={() => void chooseDefault(model)}>{t('settings.useModel')}</button>}
+                    : (
+                      <Button
+                        className="settings-action-button"
+                        type="button"
+                        disabled={busy}
+                        state={busyAction === 'default' ? 'loading' : 'idle'}
+                        loadingText={t('settings.useModel')}
+                        onClick={() => void chooseDefault(model)}
+                      >
+                        {t('settings.useModel')}
+                      </Button>
+                    )}
                 </div>
               )
             })}
@@ -616,20 +636,20 @@ function CustomProviderForm({
   return (
     <div className="custom-provider-form">
       <div className="custom-provider-scroll">
-        <button className="back-button" type="button" onClick={onCancel}>
+        <Button className="back-button" type="button" onClick={onCancel}>
           <ChevronLeft size={15} />
           {t('settings.providers')}
-        </button>
+        </Button>
         <div className="form-heading">
           <span>{mode === 'edit' ? t('settings.providerConfiguration') : t('settings.providerSetup')}</span>
           <h3>{mode === 'edit' ? t('settings.editProviderTitle', { name: initialProvider?.name ?? t('settings.customProvider') }) : t('settings.addProviderTitle')}</h3>
         </div>
         {mode === 'create' && (
-          <button className="preset-card ark" type="button" onClick={applyArkPreset}>
+          <Button className="preset-card ark" type="button" onClick={applyArkPreset}>
             <span>{t('settings.quickSetup')}</span>
             <strong>Volcengine Ark</strong>
             <small>Responses API · DeepSeek V4.1 Flash</small>
-          </button>
+          </Button>
         )}
         <div className="form-grid">
           <label>
@@ -681,10 +701,10 @@ function CustomProviderForm({
             <span>{t('settings.modelConfiguration')}</span>
             <strong>{t('common.models', { count: draftModels.length })}</strong>
           </div>
-          <button className="secondary-button compact" type="button" onClick={addModel}>
+          <Button className="secondary-button compact" type="button" onClick={addModel}>
             <Plus size={13} />
             {t('settings.addModel')}
-          </button>
+          </Button>
         </div>
 
         <div className="model-editor-list">
@@ -746,7 +766,7 @@ function CustomProviderForm({
                       {REASONING_EFFORTS.map((effort) => {
                         const active = model.reasoningEfforts.includes(effort)
                         return (
-                          <button
+                          <Button
                             className={active ? 'effort-config-option active' : 'effort-config-option'}
                             type="button"
                             key={effort}
@@ -755,7 +775,7 @@ function CustomProviderForm({
                           >
                             <span />
                             {t(`settings.efforts.${effort}`)}
-                          </button>
+                          </Button>
                         )
                       })}
                     </div>
@@ -795,16 +815,17 @@ function CustomProviderForm({
         </div>
       </div>
       <div className="form-actions">
-        <button className="secondary-button" type="button" onClick={onCancel}>{t('common.cancel')}</button>
-        <button
+        <Button className="secondary-button" type="button" onClick={onCancel}>{t('common.cancel')}</Button>
+        <Button
           className="primary-button"
           type="button"
           disabled={!canSave}
+          state={busy ? 'loading' : 'idle'}
+          loadingText={t('settings.configuring')}
           onClick={() => void save()}
         >
-          {busy && <LoaderCircle className="spin" size={14} />}
-          {busy ? t('settings.configuring') : mode === 'edit' ? t('settings.saveChanges') : t('settings.saveAndTest')}
-        </button>
+          {mode === 'edit' ? t('settings.saveChanges') : t('settings.saveAndTest')}
+        </Button>
       </div>
     </div>
   )

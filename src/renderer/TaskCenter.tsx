@@ -17,6 +17,7 @@ import type { ApprovalRequest, ConnectorActionSummary, Task, TaskStatus } from '
 import { Input } from './components/Input'
 import { useErrorToast } from './notifications'
 import { TaskApprovalCard } from './TaskApprovalCard'
+import { Button } from './components/Button'
 
 export type TaskGroupKey = 'needsYou' | 'inProgress' | 'recent'
 
@@ -304,7 +305,7 @@ export function TaskCenter({ tasks, approvals, loading, error, onOpenTask, onRef
         <h1>{filterLabel(filter)}</h1>
         <div className="task-center-toolbar">
           <div className="task-filter-wrap" ref={filterRef}>
-            <button
+            <Button
               aria-expanded={filterOpen}
               aria-haspopup="menu"
               aria-label={t('tasks.filterTasks')}
@@ -313,11 +314,11 @@ export function TaskCenter({ tasks, approvals, loading, error, onOpenTask, onRef
               type="button"
             >
               <SlidersHorizontal size={16} aria-hidden="true" />
-            </button>
+            </Button>
             {filterOpen && (
               <div className="task-filter-menu" role="menu" aria-label={t('tasks.filterTasks')}>
                 {filterOptions.map((option) => (
-                  <button
+                  <Button
                     aria-checked={filter === option.value}
                     className="task-filter-option"
                     key={option.value}
@@ -330,24 +331,26 @@ export function TaskCenter({ tasks, approvals, loading, error, onOpenTask, onRef
                   >
                     <span>{filterLabel(option.value)}</span>
                     <span>{option.count}</span>
-                  </button>
+                  </Button>
                 ))}
               </div>
             )}
           </div>
-          <button
+          <Button
             aria-label={t('tasks.refreshTasks')}
             className="task-toolbar-button"
             disabled={loading}
+            state={loading ? 'loading' : 'idle'}
+            loadingText=""
             onClick={onRefresh}
             type="button"
           >
-            <RefreshCw className={loading ? 'task-toolbar-spin' : undefined} size={16} aria-hidden="true" />
-          </button>
-          <button className="task-create-button" type="button" onClick={() => setCreateOpen(true)}>
+            <RefreshCw size={16} aria-hidden="true" />
+          </Button>
+          <Button className="task-create-button" type="button" onClick={() => setCreateOpen(true)}>
             <Plus size={15} aria-hidden="true" />
             {t('tasks.newTask')}
-          </button>
+          </Button>
         </div>
       </header>
 
@@ -368,10 +371,10 @@ export function TaskCenter({ tasks, approvals, loading, error, onOpenTask, onRef
             <div className="task-empty-mark" aria-hidden="true"><Inbox size={22} /></div>
             <h2>{t('tasks.emptyTitle')}</h2>
             <p>{t('tasks.emptyBody')}</p>
-            <button className="task-create-button" type="button" onClick={() => setCreateOpen(true)}>
+            <Button className="task-create-button" type="button" onClick={() => setCreateOpen(true)}>
               <Plus size={15} aria-hidden="true" />
               {t('tasks.newTask')}
-            </button>
+            </Button>
           </div>
         ) : (
           <div className="task-board">
@@ -451,9 +454,9 @@ export function TaskCenter({ tasks, approvals, loading, error, onOpenTask, onRef
                 <span>{t('tasks.newTaskKicker')}</span>
                 <h2>{t('tasks.newTask')}</h2>
               </div>
-              <button className="task-dialog-close" type="button" aria-label={t('common.close')} onClick={() => setCreateOpen(false)}>
+              <Button className="task-dialog-close" type="button" aria-label={t('common.close')} onClick={() => setCreateOpen(false)}>
                 <X size={16} aria-hidden="true" />
-              </button>
+              </Button>
             </header>
             <label>
               <span>{t('tasks.newTaskTitle')}</span>
@@ -478,11 +481,17 @@ export function TaskCenter({ tasks, approvals, loading, error, onOpenTask, onRef
               />
             </label>
             <div className="task-dialog-actions">
-              <button className="task-action quiet" type="button" onClick={() => setCreateOpen(false)}>{t('common.cancel')}</button>
-              <button className="task-action primary" type="submit" disabled={creating || createPrompt.trim().length === 0}>
-                {creating ? <LoaderCircle className="task-toolbar-spin" size={14} aria-hidden="true" /> : <Plus size={14} aria-hidden="true" />}
+              <Button className="task-action quiet" type="button" onClick={() => setCreateOpen(false)}>{t('common.cancel')}</Button>
+              <Button
+                className="task-action primary"
+                type="submit"
+                disabled={creating || createPrompt.trim().length === 0}
+                state={creating ? 'loading' : 'idle'}
+                loadingText={t('tasks.createTask')}
+              >
+                <Plus size={14} aria-hidden="true" />
                 {t('tasks.createTask')}
-              </button>
+              </Button>
             </div>
           </form>
         </div>
@@ -545,12 +554,12 @@ function ConnectorActionSection({
           <time dateTime={action.updatedAt}>{updatedLabel(action.updatedAt, dateLocale, t)}</time>
           {action.status === 'unknown_effect' && (
             <div className="task-card-actions">
-              <button className="task-action quiet" type="button" disabled={busyActionId === action.id} onClick={() => void onCancelAction(action)}>
+              <Button className="task-action quiet" type="button" disabled={busyActionId === action.id} onClick={() => void onCancelAction(action)}>
                 {t('tasks.dismiss')}
-              </button>
-              <button className="task-action primary" type="button" disabled={busyActionId === action.id} onClick={() => void onRetryAction(action)}>
+              </Button>
+              <Button className="task-action primary" type="button" disabled={busyActionId === action.id} onClick={() => void onRetryAction(action)}>
                 {t('tasks.retry')}
-              </button>
+              </Button>
             </div>
           )}
         </article>
@@ -604,7 +613,7 @@ function TaskCard({
 
   return (
     <article className={`task-row task-card-card task-card-${task.status}`} aria-busy={busy} data-task-id={task.id}>
-      <button
+      <Button
         aria-label={`${t('tasks.openDetails')}: ${task.title}`}
         className="task-card-main"
         onClick={() => onOpenTask(task)}
@@ -625,44 +634,44 @@ function TaskCard({
         <time className="task-card-updated" dateTime={task.updatedAt}>
           {updatedLabel(task.updatedAt, dateLocale, t)}
         </time>
-      </button>
+      </Button>
 
       {!editing && hasActions && (
         <div className="task-card-actions">
           {task.status === 'proposed' && task.prompt !== undefined && (
-            <button className="task-action primary" type="button" disabled={busy} onClick={() => void onStatus(task, 'queued')}>
+            <Button className="task-action primary" type="button" disabled={busy} onClick={() => void onStatus(task, 'queued')}>
               {t('tasks.run')}
-            </button>
+            </Button>
           )}
           {task.status === 'waiting' && task.waitingReason === 'approval' && (
-            <button className="task-action primary" type="button" disabled={busy} onClick={() => void onResolveApproval(task, 'approved')}>
+            <Button className="task-action primary" type="button" disabled={busy} onClick={() => void onResolveApproval(task, 'approved')}>
               {t('tasks.approve')}
-            </button>
+            </Button>
           )}
           {task.status === 'waiting' && task.waitingReason === 'review' && (
-            <button className="task-action primary" type="button" disabled={busy} onClick={() => void onStatus(task, 'completed')}>
+            <Button className="task-action primary" type="button" disabled={busy} onClick={() => void onStatus(task, 'completed')}>
               {t('tasks.markComplete')}
-            </button>
+            </Button>
           )}
           {task.status === 'failed' && task.prompt !== undefined && (
-            <button className="task-action primary" type="button" disabled={busy} onClick={() => void onStatus(task, 'queued')}>
+            <Button className="task-action primary" type="button" disabled={busy} onClick={() => void onStatus(task, 'queued')}>
               {t('tasks.retry')}
-            </button>
+            </Button>
           )}
           {needsInstructions && (
-            <button className="task-action primary" type="button" disabled={busy} onClick={() => onEdit(task)}>
+            <Button className="task-action primary" type="button" disabled={busy} onClick={() => onEdit(task)}>
               {t('tasks.addInstructions')}
-            </button>
+            </Button>
           )}
           {(task.status === 'proposed' || task.status === 'waiting' || task.status === 'failed') && (
-            <button className="task-action quiet" type="button" disabled={busy} onClick={() => void (task.approvalId === undefined ? onStatus(task, 'cancelled') : onResolveApproval(task, 'denied'))}>
+            <Button className="task-action quiet" type="button" disabled={busy} onClick={() => void (task.approvalId === undefined ? onStatus(task, 'cancelled') : onResolveApproval(task, 'denied'))}>
               {t('tasks.dismiss')}
-            </button>
+            </Button>
           )}
           {(task.status === 'queued' || task.status === 'running') && (
-            <button className="task-action quiet" type="button" disabled={busy} onClick={() => void onStatus(task, 'cancelled')}>
+            <Button className="task-action quiet" type="button" disabled={busy} onClick={() => void onStatus(task, 'cancelled')}>
               {t('tasks.cancel')}
-            </button>
+            </Button>
           )}
         </div>
       )}
@@ -694,10 +703,16 @@ function TaskCard({
             rows={3}
           />
           <div className="task-instructions-actions">
-            <button type="button" className="task-action quiet" onClick={onCancelEdit}>{t('common.cancel')}</button>
-            <button type="submit" className="task-action primary" disabled={busy || draftPrompt.trim().length === 0}>
+            <Button type="button" className="task-action quiet" onClick={onCancelEdit}>{t('common.cancel')}</Button>
+            <Button
+              type="submit"
+              className="task-action primary"
+              disabled={busy || draftPrompt.trim().length === 0}
+              state={busy ? 'loading' : 'idle'}
+              loadingText={t('common.saving')}
+            >
               {t('tasks.saveAndRun')}
-            </button>
+            </Button>
           </div>
         </form>
       )}

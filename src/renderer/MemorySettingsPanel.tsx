@@ -5,6 +5,7 @@ import type { MemoryDocument, MemoryDocumentName, MemoryDocumentRevision, Memory
 import { Input } from './components/Input'
 import { notifySuccess, useErrorToast } from './notifications'
 import './memory-settings.css'
+import { Button } from './components/Button'
 
 const DEFAULT_SETTINGS: MemorySettings = {
   enabled: false,
@@ -271,8 +272,16 @@ export function MemorySettingsPanel({ onChanged }: { onChanged?(): void }) {
               />
             </label>
             <div className="memory-entry-editor-actions">
-              <button type="button" disabled={busy} onClick={() => void saveEntryEdit()}>{t('common.save')}</button>
-              <button type="button" disabled={busy} onClick={() => setEditingEntry(undefined)}>{t('common.cancel')}</button>
+              <Button
+                type="button"
+                disabled={busy}
+                state={busy ? 'loading' : 'idle'}
+                loadingText={t('common.saving')}
+                onClick={() => void saveEntryEdit()}
+              >
+                {t('common.save')}
+              </Button>
+              <Button type="button" disabled={busy} onClick={() => setEditingEntry(undefined)}>{t('common.cancel')}</Button>
             </div>
           </div>
         ) : (
@@ -292,34 +301,34 @@ export function MemorySettingsPanel({ onChanged }: { onChanged?(): void }) {
               {entry.sourceRefs.length > 0 && <span>{t('memorySettings.sourceCount', { count: entry.sourceRefs.length })}</span>}
             </div>
             <div className="memory-entry-actions">
-              <button
+              <Button
                 type="button"
                 disabled={busy}
                 onClick={() => setEditingEntry({ id: entry.id, title: entry.title, content: entry.content })}
               >
                 <Pencil size={13} aria-hidden="true" />{t('memorySettings.edit')}
-              </button>
+              </Button>
               {candidate ? (
                 <>
-                  <button
+                  <Button
                     type="button"
                     className="confirm"
                     disabled={busy}
                     onClick={() => void runEntryAction(entry.id, () => window.barn.memory.confirm(entry.id))}
                   >
                     <Check size={13} aria-hidden="true" />{t('memorySettings.confirm')}
-                  </button>
-                  <button
+                  </Button>
+                  <Button
                     type="button"
                     disabled={busy}
                     onClick={() => void runEntryAction(entry.id, () => window.barn.memory.reject(entry.id))}
                   >
                     <X size={13} aria-hidden="true" />{t('memorySettings.reject')}
-                  </button>
+                  </Button>
                 </>
               ) : (
                 <>
-                  <button
+                  <Button
                     type="button"
                     disabled={busy}
                     onClick={() => void runEntryAction(entry.id, () => window.barn.memory.setPinned(entry.id, !entry.pinned))}
@@ -327,15 +336,15 @@ export function MemorySettingsPanel({ onChanged }: { onChanged?(): void }) {
                     {entry.pinned
                       ? <><PinOff size={13} aria-hidden="true" />{t('memorySettings.unpin')}</>
                       : <><Pin size={13} aria-hidden="true" />{t('memorySettings.pin')}</>}
-                  </button>
-                  <button
+                  </Button>
+                  <Button
                     type="button"
                     className="danger"
                     disabled={busy}
                     onClick={() => void runEntryAction(entry.id, () => window.barn.memory.delete(entry.id))}
                   >
                     <Trash2 size={13} aria-hidden="true" />{t('memorySettings.deleteEntry')}
-                  </button>
+                  </Button>
                 </>
               )}
             </div>
@@ -348,7 +357,7 @@ export function MemorySettingsPanel({ onChanged }: { onChanged?(): void }) {
   return (
     <div className="memory-document-page">
       <div className="memory-document-tabs" role="tablist" aria-label={t('memorySettings.documentTabsLabel')}>
-        <button
+        <Button
           className={activeDocument === 'memory' ? 'active' : ''}
           type="button"
           role="tab"
@@ -356,8 +365,8 @@ export function MemorySettingsPanel({ onChanged }: { onChanged?(): void }) {
           onClick={() => void switchDocument('memory')}
         >
           {t('memorySettings.memoryTab')}
-        </button>
-        <button
+        </Button>
+        <Button
           className={activeDocument === 'user' ? 'active' : ''}
           type="button"
           role="tab"
@@ -365,7 +374,7 @@ export function MemorySettingsPanel({ onChanged }: { onChanged?(): void }) {
           onClick={() => void switchDocument('user')}
         >
           {t('memorySettings.userTab')}
-        </button>
+        </Button>
       </div>
 
       {loading ? <p className="memory-document-loading">{t('common.loading')}</p> : (
@@ -388,9 +397,9 @@ export function MemorySettingsPanel({ onChanged }: { onChanged?(): void }) {
               <span>/</span>
               <span>{t('memorySettings.charLimit')}</span>
               {!adjustingLimit ? (
-                <button type="button" className="memory-limit-button" onClick={beginLimitAdjustment}>
+                <Button type="button" className="memory-limit-button" onClick={beginLimitAdjustment}>
                   {t('memorySettings.adjustLimit')}
-                </button>
+                </Button>
               ) : (
                 <span className="memory-limit-editor">
                   <Input
@@ -406,8 +415,8 @@ export function MemorySettingsPanel({ onChanged }: { onChanged?(): void }) {
                     }}
                     density="compact"
                   />
-                  <button type="button" onClick={() => void applyLimit()}>{t('memorySettings.applyLimit')}</button>
-                  <button type="button" onClick={() => setAdjustingLimit(false)}>{t('memorySettings.cancelLimit')}</button>
+                  <Button type="button" onClick={() => void applyLimit()}>{t('memorySettings.applyLimit')}</Button>
+                  <Button type="button" onClick={() => setAdjustingLimit(false)}>{t('memorySettings.cancelLimit')}</Button>
                 </span>
               )}
             </div>
@@ -462,7 +471,7 @@ export function MemorySettingsPanel({ onChanged }: { onChanged?(): void }) {
                 spellCheck={false}
               />
             ) : (
-              <button
+              <Button
                 className="memory-document-empty"
                 type="button"
                 onClick={() => {
@@ -471,7 +480,7 @@ export function MemorySettingsPanel({ onChanged }: { onChanged?(): void }) {
                 }}
               >
                 {t('memorySettings.emptyFile', { file: fileName })}
-              </button>
+              </Button>
             )}
 
             {overLimit && (
@@ -495,9 +504,9 @@ export function MemorySettingsPanel({ onChanged }: { onChanged?(): void }) {
                       <strong>v{revision.version}</strong>
                       <span>{new Date(revision.archivedAt).toLocaleString()}</span>
                     </div>
-                    <button type="button" onClick={() => void restoreRevision(revision)}>
+                    <Button type="button" onClick={() => void restoreRevision(revision)}>
                       {t('memorySettings.restoreRevision')}
-                    </button>
+                    </Button>
                   </li>
                 ))}
               </ul>
@@ -605,9 +614,16 @@ export function MemorySettingsPanel({ onChanged }: { onChanged?(): void }) {
               </label>
             </div>
             <div className="memory-settings-actions">
-              <button className="secondary-button" type="button" disabled={settingsBusy} onClick={() => void saveRuntimeSettings()}>
+              <Button
+                className="secondary-button"
+                type="button"
+                disabled={settingsBusy}
+                state={settingsBusy ? 'loading' : 'idle'}
+                loadingText={t('memorySettings.saving')}
+                onClick={() => void saveRuntimeSettings()}
+              >
                 {t('memorySettings.save')}
-              </button>
+              </Button>
               <span>{t('memorySettings.privacyNote')}</span>
             </div>
           </details>

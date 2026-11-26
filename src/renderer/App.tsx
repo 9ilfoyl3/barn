@@ -69,6 +69,7 @@ import {
   messagesFromEvents,
   type ConversationPart,
 } from './conversation'
+import { Button } from './components/Button'
 
 function railButtonClassName(active: boolean): string {
   return active ? 'app-rail-button active' : 'app-rail-button'
@@ -1030,11 +1031,11 @@ export function App() {
     <div className={appShellClassName}>
       <header className="app-topbar workspace-header">
         <div className="app-topbar-leading" aria-hidden="true" />
-        <button className="secretary-search" type="button" onClick={() => setCommandOpen(true)}>
+        <Button className="secretary-search" type="button" onClick={() => setCommandOpen(true)}>
           <Search size={15} aria-hidden="true" />
           <span>{t('secretary.search')}</span>
           <kbd>{commandKey} K</kbd>
-        </button>
+        </Button>
         <div className="app-topbar-actions">
           {!rightPanelOpen && (
             <TooltipButton
@@ -1058,7 +1059,7 @@ export function App() {
 
       <aside id="app-sidebar" className="app-rail" aria-label={t('navigation.label')}>
         <nav className="app-rail-nav" aria-label={t('navigation.label')}>
-          <button
+          <Button
             className={railButtonClassName(view === 'conversation')}
             type="button"
             aria-current={view === 'conversation' ? 'page' : undefined}
@@ -1066,8 +1067,8 @@ export function App() {
           >
             <Home size={19} aria-hidden="true" />
             <span>{t('navigation.home')}</span>
-          </button>
-          <button
+          </Button>
+          <Button
             className={`${railButtonClassName(false)} task-nav-button`}
             type="button"
             onClick={() => setView('tasks')}
@@ -1075,8 +1076,8 @@ export function App() {
             <Inbox size={19} aria-hidden="true" />
             <span>{t('navigation.inbox')}</span>
             {needsYouCount > 0 && <span className="app-rail-count task-nav-count">{needsYouCount}</span>}
-          </button>
-          <button
+          </Button>
+          <Button
             className={railButtonClassName(view === 'tasks' || view === 'task-detail')}
             type="button"
             aria-current={view === 'tasks' || view === 'task-detail' ? 'page' : undefined}
@@ -1084,16 +1085,16 @@ export function App() {
           >
             <ListTodo size={19} aria-hidden="true" />
             <span>{t('navigation.tasks')}</span>
-          </button>
-          <button
+          </Button>
+          <Button
             className={railButtonClassName(false)}
             type="button"
             onClick={() => void chooseWorkingDirectory()}
           >
             <Folder size={19} aria-hidden="true" />
             <span>{t('navigation.files')}</span>
-          </button>
-          <button
+          </Button>
+          <Button
             className={railButtonClassName(view === 'settings')}
             type="button"
             aria-current={view === 'settings' ? 'page' : undefined}
@@ -1101,8 +1102,8 @@ export function App() {
           >
             <LayoutGrid size={19} aria-hidden="true" />
             <span>{t('navigation.apps')}</span>
-          </button>
-          <button
+          </Button>
+          <Button
             className={railButtonClassName(view === 'plugins')}
             type="button"
             aria-current={view === 'plugins' ? 'page' : undefined}
@@ -1110,11 +1111,11 @@ export function App() {
           >
             <Plug size={19} aria-hidden="true" />
             <span>{t('navigation.plugins')}</span>
-          </button>
+          </Button>
         </nav>
 
         <div ref={accountAreaRef} className="account-area app-rail-account">
-          <button
+          <Button
             ref={accountTriggerRef}
             className="account-row"
             type="button"
@@ -1125,7 +1126,7 @@ export function App() {
             onClick={() => setAccountOpen(!accountOpen)}
           >
             <span className="account-avatar">BA</span>
-          </button>
+          </Button>
           <div
             id="account-panel"
             className={accountOpen ? 'account-popover open' : 'account-popover'}
@@ -1139,9 +1140,9 @@ export function App() {
               <strong>{t('sidebar.localWorkspace')}</strong>
               <small>{t('sidebar.localOnly')}</small>
             </div>
-            <button className="account-menu-item" type="button" role="menuitem" onClick={() => { setAccountOpen(false); setSettingsSection(undefined); setView('settings') }}>
+            <Button className="account-menu-item" type="button" role="menuitem" onClick={() => { setAccountOpen(false); setSettingsSection(undefined); setView('settings') }}>
               <Settings2 size={14} /><span>{t('sidebar.settings')}</span><ChevronRight className="account-menu-chevron" size={13} />
-            </button>
+            </Button>
             <LanguagePicker />
           </div>
         </div>
@@ -1174,9 +1175,9 @@ export function App() {
               return selectedTask === undefined ? (
                 <div className="task-detail-page task-detail-empty">
                   <strong>{t('tasks.emptyTitle')}</strong>
-                  <button type="button" className="task-detail-back" onClick={() => setView('tasks')}>
+                  <Button type="button" className="task-detail-back" onClick={() => setView('tasks')}>
                     {t('tasks.back')}
-                  </button>
+                  </Button>
                 </div>
               ) : (
                 <TaskDetailPage
@@ -1360,7 +1361,7 @@ export function App() {
                       <Folder size={13} />
                     </span>
                   ) : (
-                    <button
+                    <Button
                       className="composer-project-icon composer-project-delete"
                       type="button"
                       disabled={activeSessionIsArchived}
@@ -1370,9 +1371,9 @@ export function App() {
                     >
                       <Folder className="folder-icon" size={13} />
                       <Trash2 className="delete-icon" size={13} />
-                    </button>
+                    </Button>
                   )}
-                  <button
+                  <Button
                     className="composer-project-picker"
                     type="button"
                     disabled={activeSessionIsArchived}
@@ -1382,7 +1383,7 @@ export function App() {
                   >
                     <span>{workingDirectoryLabel}</span>
                     <ChevronDown size={12} />
-                  </button>
+                  </Button>
                 </div>
                 <div className="composer composer-agents">
                   {attachments.length > 0 && (

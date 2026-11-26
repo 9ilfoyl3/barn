@@ -4,6 +4,7 @@ import { FitAddon } from '@xterm/addon-fit'
 import { WebLinksAddon } from '@xterm/addon-web-links'
 import { Terminal } from '@xterm/xterm'
 import '@xterm/xterm/css/xterm.css'
+import { Button } from './components/Button'
 
 export interface TerminalViewProps {
   terminalId: string
@@ -99,7 +100,7 @@ export function TerminalView({ terminalId, workingDirectory, onError }: Terminal
       {exited && (
         <div className="terminal-exit">
           <span>{t('terminal.exited')}</span>
-          <button type="button" onClick={() => setGeneration((current) => current + 1)}>{t('terminal.restart')}</button>
+          <Button type="button" onClick={() => setGeneration((current) => current + 1)}>{t('terminal.restart')}</Button>
         </div>
       )}
     </div>

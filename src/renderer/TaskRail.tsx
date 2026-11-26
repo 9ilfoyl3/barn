@@ -2,6 +2,7 @@ import { Bookmark, CircleCheck, CircleX, ListTodo, LoaderCircle } from 'lucide-r
 import { useTranslation } from 'react-i18next'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { Task, TaskStatus } from '../shared/models'
+import { Button } from './components/Button'
 
 export type TaskRailFilter = 'active' | 'review' | 'completed' | 'cancelled'
 
@@ -78,7 +79,7 @@ export function TaskRail({ tasks, onOpenTask, onOpenTasks }: TaskRailProps) {
     <aside className="task-rail" aria-label={t('tasks.title')}>
       <div className="task-rail-heading">
         <h2>{t('secretary.tasksTitle')}</h2>
-        <button type="button" onClick={onOpenTasks}>{t('secretary.viewAll')}</button>
+        <Button type="button" onClick={onOpenTasks}>{t('secretary.viewAll')}</Button>
       </div>
 
       <div className="task-rail-scroll-shell">
@@ -98,7 +99,7 @@ export function TaskRail({ tasks, onOpenTask, onOpenTasks }: TaskRailProps) {
               {visibleTasks.map((task) => {
                 const statusLabel = taskStatusLabel(task, t)
                 return (
-                  <button
+                  <Button
                     className={`task-rail-card task-rail-card-${task.status}`}
                     type="button"
                     key={task.id}
@@ -126,7 +127,7 @@ export function TaskRail({ tasks, onOpenTask, onOpenTasks }: TaskRailProps) {
                       </span>
                       <span className="visually-hidden">{statusLabel}</span>
                     </span>
-                  </button>
+                  </Button>
                 )
               })}
             </div>
@@ -149,7 +150,7 @@ export function TaskRail({ tasks, onOpenTask, onOpenTasks }: TaskRailProps) {
           const active = candidate === filter
           const label = t(`secretary.taskFilter.${candidate}`)
           return (
-            <button
+            <Button
               className={`task-rail-filter-button task-rail-filter-button-${candidate}${active ? ' active' : ''}`}
               type="button"
               key={candidate}
@@ -163,7 +164,7 @@ export function TaskRail({ tasks, onOpenTask, onOpenTasks }: TaskRailProps) {
                 <TaskFilterIcon filter={candidate} />
                 <span>{label}</span>
               </span>
-            </button>
+            </Button>
           )
         })}
       </div>
