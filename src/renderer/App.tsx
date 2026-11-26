@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import 'streamdown/styles.css'
 import {
@@ -73,6 +73,37 @@ import { Button } from './components/Button'
 
 function railButtonClassName(active: boolean): string {
   return active ? 'app-rail-button active' : 'app-rail-button'
+}
+
+function AppDockItem({
+  active = false,
+  badge,
+  children,
+  className,
+  label,
+  onClick,
+}: {
+  active?: boolean
+  badge?: ReactNode
+  children: ReactNode
+  className?: string
+  label: string
+  onClick(): void
+}) {
+  return (
+    <div className="app-dock-item" data-active={active || undefined}>
+      <Button
+        aria-current={active ? 'page' : undefined}
+        className={className === undefined ? railButtonClassName(active) : `${railButtonClassName(active)} ${className}`}
+        type="button"
+        onClick={onClick}
+      >
+        {children}
+        <span>{label}</span>
+        {badge}
+      </Button>
+    </div>
+  )
 }
 
 type HomePane = 'routines' | 'tasks'
@@ -1059,59 +1090,48 @@ export function App() {
 
       <aside id="app-sidebar" className="app-rail" aria-label={t('navigation.label')}>
         <nav className="app-rail-nav" aria-label={t('navigation.label')}>
-          <Button
-            className={railButtonClassName(view === 'conversation')}
-            type="button"
-            aria-current={view === 'conversation' ? 'page' : undefined}
+          <AppDockItem
+            active={view === 'conversation'}
+            label={t('navigation.home')}
             onClick={() => setView('conversation')}
           >
             <Home size={19} aria-hidden="true" />
-            <span>{t('navigation.home')}</span>
-          </Button>
-          <Button
-            className={`${railButtonClassName(false)} task-nav-button`}
-            type="button"
+          </AppDockItem>
+          <AppDockItem
+            badge={needsYouCount > 0 ? <span className="app-rail-count task-nav-count">{needsYouCount}</span> : undefined}
+            className="task-nav-button"
+            label={t('navigation.inbox')}
             onClick={() => setView('tasks')}
           >
             <Inbox size={19} aria-hidden="true" />
-            <span>{t('navigation.inbox')}</span>
-            {needsYouCount > 0 && <span className="app-rail-count task-nav-count">{needsYouCount}</span>}
-          </Button>
-          <Button
-            className={railButtonClassName(view === 'tasks' || view === 'task-detail')}
-            type="button"
-            aria-current={view === 'tasks' || view === 'task-detail' ? 'page' : undefined}
+          </AppDockItem>
+          <AppDockItem
+            active={view === 'tasks' || view === 'task-detail'}
+            label={t('navigation.tasks')}
             onClick={() => setView('tasks')}
           >
             <ListTodo size={19} aria-hidden="true" />
-            <span>{t('navigation.tasks')}</span>
-          </Button>
-          <Button
-            className={railButtonClassName(false)}
-            type="button"
+          </AppDockItem>
+          <AppDockItem
+            label={t('navigation.files')}
             onClick={() => void chooseWorkingDirectory()}
           >
             <Folder size={19} aria-hidden="true" />
-            <span>{t('navigation.files')}</span>
-          </Button>
-          <Button
-            className={railButtonClassName(view === 'settings')}
-            type="button"
-            aria-current={view === 'settings' ? 'page' : undefined}
+          </AppDockItem>
+          <AppDockItem
+            active={view === 'settings'}
+            label={t('navigation.apps')}
             onClick={() => setView('settings')}
           >
             <LayoutGrid size={19} aria-hidden="true" />
-            <span>{t('navigation.apps')}</span>
-          </Button>
-          <Button
-            className={railButtonClassName(view === 'plugins')}
-            type="button"
-            aria-current={view === 'plugins' ? 'page' : undefined}
+          </AppDockItem>
+          <AppDockItem
+            active={view === 'plugins'}
+            label={t('navigation.plugins')}
             onClick={() => setView('plugins')}
           >
             <Plug size={19} aria-hidden="true" />
-            <span>{t('navigation.plugins')}</span>
-          </Button>
+          </AppDockItem>
         </nav>
 
         <div ref={accountAreaRef} className="account-area app-rail-account">

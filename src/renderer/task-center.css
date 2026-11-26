@@ -295,6 +295,7 @@
   display: grid;
   gap: 0;
   overflow: hidden;
+  padding: 0;
   border: 1px solid color-mix(in srgb, var(--line) 78%, transparent);
   border-radius: 12px;
   background: var(--panel);

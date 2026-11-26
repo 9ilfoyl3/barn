@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { Task, TaskStatus } from '../shared/models'
 import { Button } from './components/Button'
+import { Card } from './components/beui/components/motion/card'
 
 export type TaskRailFilter = 'active' | 'review' | 'completed' | 'cancelled'
 
@@ -99,12 +100,23 @@ export function TaskRail({ tasks, onOpenTask, onOpenTasks }: TaskRailProps) {
               {visibleTasks.map((task) => {
                 const statusLabel = taskStatusLabel(task, t)
                 return (
-                  <Button
+                  <Card
                     className={`task-rail-card task-rail-card-${task.status}`}
-                    type="button"
+                    interactive
                     key={task.id}
-                    onClick={() => onOpenTask(task)}
+                    role="article"
+                    size="compact"
+                    onClick={(event) => {
+                      if (event.target === event.currentTarget) onOpenTask(task)
+                    }}
                   >
+                    <Button
+                      aria-label={`${t('tasks.openDetails')}: ${task.title}`}
+                      className="task-rail-card-open"
+                      type="button"
+                      variant="ghost"
+                      onClick={() => onOpenTask(task)}
+                    />
                     <span className={`task-rail-state task-rail-state-${task.status}`} aria-hidden="true">
                       <TaskStatusIcon status={task.status} />
                     </span>
@@ -127,7 +139,7 @@ export function TaskRail({ tasks, onOpenTask, onOpenTasks }: TaskRailProps) {
                       </span>
                       <span className="visually-hidden">{statusLabel}</span>
                     </span>
-                  </Button>
+                  </Card>
                 )
               })}
             </div>

@@ -15,7 +15,7 @@ import { ModelSettings } from './ModelSettings'
 import { DiagnosticsSettings } from './DiagnosticsSettings'
 import type { ModelConfigSnapshot } from '../shared/models'
 import './settings-page.css'
-import { Button } from './components/Button'
+import { SettingsSidebar } from './components/SettingsSidebar'
 
 export interface SettingsPageProps {
   snapshot: ModelConfigSnapshot | undefined
@@ -123,51 +123,33 @@ export function SettingsPage({ snapshot, onSnapshot, initialSection }: SettingsP
     await changeAppLanguage(next)
   }
 
+  const sidebarGroups = groups.map((group) => ({
+    ...group,
+    items: filteredSections.filter((section) => section.group === group.key),
+  }))
+
   return (
-    <div className="settings-page">
+    <>
       <h1 className="settings-page-sr-title">{t('appSettings.title')}</h1>
-      <aside className="settings-page-nav" aria-label={t('appSettings.navLabel')}>
-        <BeuiInput
-          className="settings-page-search"
-          leftIcon={<Search size={14} aria-hidden="true" />}
-          type="search"
-          value={query}
-          placeholder={t('appSettings.searchSettings')}
-          aria-label={t('appSettings.searchSettings')}
-          onChange={setQuery}
-        />
-
-        <nav className="settings-page-nav-groups" aria-label={t('appSettings.navLabel')}>
-          {groups.map((group) => {
-            const items = filteredSections.filter((section) => section.group === group.key)
-            if (items.length === 0) return null
-            return (
-              <section className="settings-page-nav-group" key={group.key}>
-                <h2>{group.label}</h2>
-                <div>
-                  {items.map((section) => (
-                    <Button
-                      key={section.key}
-                      className={section.key === activeSection ? 'active' : ''}
-                      type="button"
-                      aria-current={section.key === activeSection ? 'page' : undefined}
-                      onClick={() => setActiveSection(section.key)}
-                    >
-                      {section.icon}
-                      <span>{section.label}</span>
-                    </Button>
-                  ))}
-                </div>
-              </section>
-            )
-          })}
-          {filteredSections.length === 0 && (
-            <p className="settings-page-nav-empty">{t('appSettings.noMatchingSettings')}</p>
-          )}
-        </nav>
-      </aside>
-
-      <section className="settings-page-content" aria-label={t('appSettings.contentLabel')} data-section={selected.key}>
+      <SettingsSidebar<SettingsSectionKey>
+        activeKey={activeSection}
+        ariaLabel={t('appSettings.navLabel')}
+        empty={<p className="settings-page-nav-empty">{t('appSettings.noMatchingSettings')}</p>}
+        groups={sidebarGroups}
+        onSelect={setActiveSection}
+        search={(
+          <BeuiInput
+            className="settings-page-search"
+            leftIcon={<Search size={14} aria-hidden="true" />}
+            type="search"
+            value={query}
+            placeholder={t('appSettings.searchSettings')}
+            aria-label={t('appSettings.searchSettings')}
+            onChange={setQuery}
+          />
+        )}
+      >
+        <section className="settings-page-content" aria-label={t('appSettings.contentLabel')} data-section={selected.key}>
         <div
           className="settings-page-scroll"
           ref={scrollRef}
@@ -195,9 +177,10 @@ export function SettingsPage({ snapshot, onSnapshot, initialSection }: SettingsP
           </div>
         </div>
         <div className={`settings-scroll-edge top${edgeState.top ? ' visible' : ''}`} aria-hidden="true" />
-        <div className={`settings-scroll-edge bottom${edgeState.bottom ? ' visible' : ''}`} aria-hidden="true" />
-      </section>
-    </div>
+          <div className={`settings-scroll-edge bottom${edgeState.bottom ? ' visible' : ''}`} aria-hidden="true" />
+        </section>
+      </SettingsSidebar>
+    </>
   )
 }
 

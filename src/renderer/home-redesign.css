@@ -717,6 +717,10 @@
   cursor: pointer;
 }
 
+.routine-card-open:hover {
+  background: transparent;
+}
+
 .routine-card-open:focus-visible {
   outline: 2px solid color-mix(in srgb, var(--accent) 72%, transparent);
   outline-offset: 2px;

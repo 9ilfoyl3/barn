@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { RoutineRecurrence } from '../shared/models'
 import { Button } from './components/Button'
+import { Card } from './components/beui/components/motion/card'
 
 export interface RoutineFeedItem {
   id: string
@@ -102,10 +103,11 @@ export function TodayPanel({
               const tone = routineCardTones[index % routineCardTones.length]
               const confirming = confirmingRoutineIds.has(routine.id)
               return (
-                <article className="routine-card" key={routine.id}>
+                <Card className="routine-card" interactive key={routine.id} role="article" size="compact">
                   <Button
                     className="routine-card-open"
                     type="button"
+                    variant="ghost"
                     aria-label={t('secretary.openRoutine', { title: routine.title })}
                     onClick={() => onOpenRoutine(routine.id)}
                   />
@@ -136,7 +138,7 @@ export function TodayPanel({
                   >
                     <Check size={13} strokeWidth={2.6} aria-hidden="true" />
                   </Button>
-                </article>
+                </Card>
               )
             })}
           </div>

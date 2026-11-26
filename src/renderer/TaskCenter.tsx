@@ -18,6 +18,7 @@ import { Input } from './components/Input'
 import { useErrorToast } from './notifications'
 import { TaskApprovalCard } from './TaskApprovalCard'
 import { Button } from './components/Button'
+import { Card } from './components/beui/components/motion/card'
 
 export type TaskGroupKey = 'needsYou' | 'inProgress' | 'recent'
 
@@ -612,10 +613,18 @@ function TaskCard({
   const detail = task.detail ?? t(`tasks.statusDetail.${task.status}`)
 
   return (
-    <article className={`task-row task-card-card task-card-${task.status}`} aria-busy={busy} data-task-id={task.id}>
+    <Card
+      aria-busy={busy}
+      className={`task-row task-card-card task-card-${task.status}`}
+      data-task-id={task.id}
+      interactive
+      role="article"
+      size="compact"
+    >
       <Button
         aria-label={`${t('tasks.openDetails')}: ${task.title}`}
         className="task-card-main"
+        variant="ghost"
         onClick={() => onOpenTask(task)}
         type="button"
       >
@@ -716,7 +725,7 @@ function TaskCard({
           </div>
         </form>
       )}
-    </article>
+    </Card>
   )
 }
 
