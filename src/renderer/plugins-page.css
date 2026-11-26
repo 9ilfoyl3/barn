@@ -80,7 +80,6 @@
 .plugin-row-action:focus-visible,
 .plugins-section-link:focus-visible,
 .plugins-back:focus-visible,
-.plugins-outline-button:focus-visible,
 .plugin-icon-button:focus-visible {
   outline: 2px solid color-mix(in srgb, var(--accent) 68%, transparent);
   outline-offset: 2px;
@@ -477,39 +476,6 @@
   color: var(--text-faint);
   font-size: 10.5px;
   line-height: 1.5;
-}
-
-.plugins-outline-button {
-  display: inline-flex;
-  min-height: 32px;
-  flex: 0 0 auto;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  border: 1px solid var(--line-strong);
-  border-radius: 8px;
-  background: var(--panel);
-  padding: 0 12px;
-  color: var(--text);
-  cursor: pointer;
-  font: inherit;
-  font-size: 10px;
-  font-weight: 520;
-}
-
-.plugins-outline-button:hover:not(:disabled) {
-  border-color: color-mix(in srgb, var(--text-faint) 50%, var(--line-strong));
-  background: var(--panel-raised);
-}
-
-.plugins-outline-button.compact {
-  min-height: 29px;
-  padding: 0 9px;
-}
-
-.plugins-outline-button:disabled {
-  cursor: default;
-  opacity: 0.48;
 }
 
 .plugins-detail-empty {

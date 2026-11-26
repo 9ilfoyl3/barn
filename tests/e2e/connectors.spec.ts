@@ -65,6 +65,23 @@ test('configures and removes an email connector from the plugins page', async ()
     await expect(emailPlugin).toContainText('1 connection')
     await emailPlugin.getByRole('button', { name: 'Manage Email' }).click()
     await expect(plugins.locator('.plugin-instance-row')).toContainText('Work mail')
+    const addConnection = plugins.getByRole('button', { name: 'Add connection' })
+    const testConnection = plugins.getByRole('button', { name: 'Test', exact: true })
+    const configureConnection = plugins.getByRole('button', { name: 'Configure', exact: true })
+    await expect(addConnection).toHaveAttribute('data-beui-variant', 'primary')
+    await expect(testConnection).toHaveAttribute('data-beui-variant', 'secondary')
+    await expect(configureConnection).toHaveAttribute('data-beui-variant', 'secondary')
+    const connectorButtonStyles = await testConnection.evaluate((button) => {
+      const style = getComputedStyle(button)
+      return {
+        height: button.getBoundingClientRect().height,
+        borderWidth: style.borderTopWidth,
+        borderRadius: style.borderTopLeftRadius,
+      }
+    })
+    expect(connectorButtonStyles.height).toBe(32)
+    expect(connectorButtonStyles.borderWidth).toBe('1px')
+    expect(Number.parseFloat(connectorButtonStyles.borderRadius)).toBeGreaterThanOrEqual(6)
     await expect.poll(async () => page.evaluate(async () => {
       const instances = await window.barn.connectors.list()
       return instances.map((instance) => ({

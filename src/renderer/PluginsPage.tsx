@@ -397,8 +397,9 @@ export function PluginsPage({ onTrySkill }: { onTrySkill?: (skill: SkillSummary)
           </div>
           {editor === undefined && (
             <Button
-              className="plugins-outline-button"
+              size="sm"
               type="button"
+              variant="primary"
               onClick={() => setEditor({ definition: selectedDefinition })}
             >
               <Plus size={14} aria-hidden="true" />
@@ -587,17 +588,24 @@ function ConnectorInstanceRow({
       </div>
       <div className="plugin-instance-actions">
         <Button
-          className="plugins-outline-button compact"
+          size="sm"
           type="button"
           disabled={busy}
           state={busy ? 'loading' : 'idle'}
           loadingText={t('connectorSettings.test')}
+          variant="secondary"
           onClick={onTest}
         >
           <RefreshCw size={13} aria-hidden="true" />
           {t('connectorSettings.test')}
         </Button>
-        <Button className="plugins-outline-button compact" type="button" disabled={busy} onClick={onEdit}>
+        <Button
+          size="sm"
+          type="button"
+          disabled={busy}
+          variant="secondary"
+          onClick={onEdit}
+        >
           {t('connectorSettings.configure')}
         </Button>
         <label className="plugin-switch" title={t('connectorSettings.enabled')}>
