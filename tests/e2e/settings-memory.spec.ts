@@ -39,6 +39,34 @@ test('refactored settings manages MEMORY.md and USER.md from the memory section'
     await page.waitForTimeout(250)
     await page.screenshot({ path: 'test-results/barn-settings-memory-empty.png', fullPage: true })
 
+    await page.getByRole('button', { name: 'Adjust limit' }).click()
+    const limitButtons = page.locator('.memory-limit-editor button')
+    await expect(limitButtons).toHaveCount(2)
+    const limitButtonLayout = await limitButtons.evaluateAll((buttons) => buttons.map((button) => {
+      const style = getComputedStyle(button)
+      const rect = button.getBoundingClientRect()
+      return {
+        width: rect.width,
+        height: rect.height,
+        radius: style.borderTopLeftRadius,
+        whiteSpace: style.whiteSpace,
+        flexShrink: style.flexShrink,
+        scrollHeight: button.scrollHeight,
+        clientHeight: button.clientHeight,
+      }
+    }))
+    expect(new Set(limitButtonLayout.map((button) => button.radius)).size).toBe(1)
+    expect(limitButtonLayout[0]?.radius).toBe('7px')
+    for (const button of limitButtonLayout) {
+      expect(button.whiteSpace).toBe('nowrap')
+      expect(button.flexShrink).toBe('0')
+      expect(button.width).toBeGreaterThan(32)
+      expect(button.height).toBeLessThanOrEqual(28)
+      expect(button.scrollHeight).toBeLessThanOrEqual(button.clientHeight + 1)
+    }
+    await page.screenshot({ path: 'test-results/barn-settings-memory-limit.png', fullPage: true })
+    await page.getByRole('button', { name: 'Cancel', exact: true }).click()
+
     const memoryEditor = page.getByRole('textbox', { name: 'MEMORY.md' })
     await memoryEditor.click()
     await memoryEditor.fill('# Memory\n\n- Use pnpm for Barn.')
