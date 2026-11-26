@@ -8,6 +8,7 @@ import { TaskStore } from '../tasks/task-store'
 import { PermissionStore } from '../permissions/permission-store'
 import { ActionStore } from '../actions/action-store'
 import { LocalSourceStore } from '../sources/local-source-store'
+import { ConnectorSourceStore } from '../sources/connector-source-store'
 import { MemoryStore } from '../memory/memory-store'
 import { ThreadStore } from '../threads/thread-store'
 import { RouterStore } from '../router/router-store'
@@ -16,9 +17,9 @@ import { SkillStore } from '../skills/skill-store'
 
 export type SessionStatus = SessionSummary['status']
 
-// Schema 12 adds persisted enablement for host-discovered skills. Older schema
-// versions are upgraded in place by idempotent store initialization.
-export const CURRENT_SCHEMA_VERSION = 12
+// Schema 13 adds durable connector-backed event sources. Older schema versions
+// are upgraded in place by idempotent store initialization.
+export const CURRENT_SCHEMA_VERSION = 13
 
 export interface NewSessionEvent {
   type: string
@@ -40,6 +41,7 @@ export class SessionStore {
   readonly permissions: PermissionStore
   readonly actions: ActionStore
   readonly localSources: LocalSourceStore
+  readonly connectorSources: ConnectorSourceStore
   readonly memories: MemoryStore
   readonly threads: ThreadStore
   readonly router: RouterStore
@@ -56,6 +58,7 @@ export class SessionStore {
     this.permissions = new PermissionStore(this.database, cipher)
     this.actions = new ActionStore(this.database, cipher)
     this.localSources = new LocalSourceStore(this.database, cipher)
+    this.connectorSources = new ConnectorSourceStore(this.database, cipher)
     this.memories = new MemoryStore(this.database, cipher)
     this.threads = new ThreadStore(this.database, cipher)
     this.router = new RouterStore(this.database)
@@ -117,6 +120,7 @@ export class SessionStore {
     this.permissions.initialize()
     this.actions.initialize()
     this.localSources.initialize()
+    this.connectorSources.initialize()
     this.memories.initialize()
     this.threads.initialize()
     this.router.initialize()
@@ -185,6 +189,8 @@ export class SessionStore {
       `).run(cutoff).changes)
       const sourceEvents = Number(this.database.prepare(`
         DELETE FROM local_source_events WHERE created_at < ? AND task_id IS NULL
+      `).run(cutoff).changes) + Number(this.database.prepare(`
+        DELETE FROM connector_source_events WHERE created_at < ? AND task_id IS NULL
       `).run(cutoff).changes)
       const approvals = Number(this.database.prepare(`
         DELETE FROM approvals

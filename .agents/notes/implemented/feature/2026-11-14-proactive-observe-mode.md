@@ -35,3 +35,5 @@ Suppressed events remain in the source event log, so replay does not create dupl
 - The pending limit and cooldown bound attention cost.
 - Active mode still passes through the Task, permission, approval, and outbox boundaries.
 - Ranking is currently deterministic by source and arrival; semantic prioritisation remains future work.
+
+Connected app sources extend the same observe-first path in [Connected app sources turn connector changes into durable suggestions](2026-11-26-proactive-connector-sources.md).

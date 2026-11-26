@@ -20,6 +20,8 @@ import { registerMemoryIpc } from './memory/memory-ipc'
 import { registerPermissionIpc } from './permissions/permission-ipc'
 import { registerLocalSourceIpc } from './sources/local-source-ipc'
 import { LocalSourceService } from './sources/local-source-service'
+import { ConnectorSourceService } from './sources/connector-source-service'
+import { registerConnectorSourceIpc } from './sources/connector-source-ipc'
 import { PermissionService } from './permissions/permission-service'
 import { TaskConversationService } from './tasks/task-conversation-service'
 import { ModelTaskRouterDecisionEngine } from './tasks/task-router-coordinator'
@@ -78,6 +80,7 @@ let permissionService: PermissionService | undefined
 let actionService: ActionService | undefined
 let taskActionCoordinator: TaskActionCoordinator | undefined
 let localSourceService: LocalSourceService | undefined
+let connectorSourceService: ConnectorSourceService | undefined
 let lifecycle: AlwaysOnLifecycle | undefined
 let diagnosticsService: DiagnosticsService | undefined
 let memoryExtractionService: MemoryExtractionService | undefined
@@ -335,6 +338,13 @@ void app.whenReady().then(async () => {
   taskActionCoordinator.start()
   localSourceService = new LocalSourceService(sessionStore.localSources, taskService)
   localSourceService.start()
+  connectorSourceService = new ConnectorSourceService(
+    sessionStore.connectorSources,
+    taskService,
+    connectorService,
+    { getAutomationSettings: () => localSourceService!.getAutomationSettings() },
+  )
+  connectorSourceService.start()
   registerModelIpc(modelService, trustedSender)
   registerMemoryIpc(memoryService, trustedSender)
   registerConnectorIpc(connectorService, trustedSender)
@@ -347,6 +357,7 @@ void app.whenReady().then(async () => {
   registerRouterIpc(routerService, trustedSender)
   registerPermissionIpc(permissionService, trustedSender)
   registerLocalSourceIpc(localSourceService, trustedSender)
+  registerConnectorSourceIpc(connectorSourceService, trustedSender)
   diagnosticsService = new DiagnosticsService(
     sessionStore,
     localSourceService,
@@ -415,6 +426,8 @@ app.on('before-quit', () => {
   taskActionCoordinator = undefined
   actionService?.stop()
   actionService = undefined
+  connectorSourceService?.stop()
+  connectorSourceService = undefined
   localSourceService?.stop()
   localSourceService = undefined
   skillService?.stop()

@@ -30,6 +30,8 @@ import type {
   PermissionPolicy,
   PermissionRequestInput,
   LocalSourceBridge,
+  ConnectorSourceBridge,
+  CreateConnectorSourceInput,
   LifecycleBridge,
   DiagnosticsBridge,
   CreateLocalSourceInput,
@@ -236,6 +238,15 @@ const localSources: LocalSourceBridge = {
   pollNow: () => ipcRenderer.invoke('local-sources:poll-now'),
 }
 
+const connectorSources: ConnectorSourceBridge = {
+  list: () => ipcRenderer.invoke('connector-sources:list'),
+  listEvents: (sourceId?: string, limit?: number) => ipcRenderer.invoke('connector-sources:list-events', sourceId, limit),
+  create: (input: CreateConnectorSourceInput) => ipcRenderer.invoke('connector-sources:create', input),
+  setEnabled: (sourceId: string, enabled: boolean) => ipcRenderer.invoke('connector-sources:set-enabled', { sourceId, enabled }),
+  remove: (sourceId: string) => ipcRenderer.invoke('connector-sources:remove', sourceId),
+  pollNow: () => ipcRenderer.invoke('connector-sources:poll-now'),
+}
+
 const lifecycle: LifecycleBridge = {
   onShowTasks: (listener: () => void) => {
     const handler = (): void => listener()
@@ -297,6 +308,7 @@ const api: BarnBridge = {
   permissions,
   approvals,
   localSources,
+  connectorSources,
   lifecycle,
   diagnostics,
   memory,

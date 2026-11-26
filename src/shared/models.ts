@@ -690,6 +690,73 @@ export interface LocalSourceBridge {
   pollNow(): Promise<void>
 }
 
+export type ConnectorSourceKind = 'github' | 'dingtalk'
+export type ConnectorSourceEventKind =
+  | 'github_issue'
+  | 'github_pull_request'
+  | 'dingtalk_message'
+  | 'dingtalk_todo'
+
+export interface GithubConnectorSourceConfig {
+  kind: 'github'
+  connectorId: string
+  owner: string
+  repo: string
+  events: Array<'issues' | 'pullRequests'>
+  pollSeconds: number
+}
+
+export interface DingtalkConnectorSourceConfig {
+  kind: 'dingtalk'
+  connectorId: string
+  conversationId?: string
+  userId?: string
+  keywords: string[]
+  events: Array<'messages' | 'todos'>
+  pollSeconds: number
+}
+
+export type ConnectorSourceConfig = GithubConnectorSourceConfig | DingtalkConnectorSourceConfig
+
+export interface ConnectorSource {
+  id: string
+  name: string
+  enabled: boolean
+  config: ConnectorSourceConfig
+  lastError?: string
+  lastCheckedAt?: string
+  lastEventAt?: string
+  createdAt: string
+  updatedAt: string
+}
+
+export interface CreateConnectorSourceInput {
+  name: string
+  config: ConnectorSourceConfig
+}
+
+export interface ConnectorSourceEvent {
+  id: string
+  sourceId: string
+  kind: ConnectorSourceEventKind
+  title: string
+  summary: string
+  url?: string
+  matterKey: string
+  taskId?: string
+  occurredAt: string
+  createdAt: string
+}
+
+export interface ConnectorSourceBridge {
+  list(): Promise<ConnectorSource[]>
+  listEvents(sourceId?: string, limit?: number): Promise<ConnectorSourceEvent[]>
+  create(input: CreateConnectorSourceInput): Promise<ConnectorSource>
+  setEnabled(sourceId: string, enabled: boolean): Promise<ConnectorSource>
+  remove(sourceId: string): Promise<void>
+  pollNow(): Promise<void>
+}
+
 export type MemoryScope = 'global' | 'workspace'
 export type MemoryKind = 'preference' | 'fact' | 'procedure' | 'decision' | 'project'
 export type MemoryStatus = 'candidate' | 'active' | 'archived' | 'superseded' | 'rejected'
@@ -1176,6 +1243,7 @@ export interface BarnBridge {
   permissions: PermissionBridge
   approvals: ApprovalBridge
   localSources: LocalSourceBridge
+  connectorSources: ConnectorSourceBridge
   lifecycle: LifecycleBridge
   diagnostics: DiagnosticsBridge
   memory: MemoryBridge
