@@ -1,82 +1,87 @@
 .barn-input {
   display: flex;
+  width: 100%;
   min-width: 0;
   flex-direction: column;
-  gap: 7px;
-  color: var(--text);
-  font-family: inherit;
+  gap: 6px;
 }
 
-.barn-input-label {
-  padding: 0 2px;
-  color: var(--text-dim);
-  font-size: 11px;
-  font-weight: 600;
-  line-height: 1.35;
+.barn-input > .beui-motion-input {
+  width: 100%;
+  gap: 0;
 }
 
-.barn-input-field {
-  position: relative;
-  display: flex;
-  min-width: 0;
+.barn-input .barn-input-field {
   height: 52px;
-  align-items: center;
-  gap: 8px;
-  border: 0;
-  border-radius: 14px;
-  background: color-mix(in srgb, var(--panel) 92%, var(--panel-raised));
-  padding: 0 12px;
+  overflow: hidden !important;
+  border-color: var(--line-strong) !important;
+  border-radius: 14px !important;
+  background: color-mix(in srgb, var(--panel) 92%, var(--panel-raised)) !important;
   box-shadow: 0 0 0 1px var(--line-strong), 0 8px 20px -14px color-mix(in srgb, var(--text) 30%, transparent);
-  transition: box-shadow 300ms cubic-bezier(.2, .8, .2, 1);
 }
 
 .barn-input[data-density="compact"] .barn-input-field {
   height: 38px;
-  gap: 7px;
-  border-radius: 10px;
-  padding: 0 10px;
+  border-radius: 10px !important;
 }
 
-.barn-input-field.is-focus {
+.barn-input .barn-input-field[data-state="focused"] {
+  border-color: transparent !important;
   box-shadow: 0 0 0 1.5px var(--accent), 0 0 0 6px var(--accent-soft), 0 8px 20px -14px color-mix(in srgb, var(--text) 30%, transparent);
 }
 
-.barn-input-field.is-err {
+.barn-input .barn-input-field[data-state="error"] {
+  border-color: transparent !important;
   box-shadow: 0 0 0 1.5px var(--danger), 0 0 0 6px color-mix(in srgb, var(--danger) 14%, transparent);
 }
 
-.barn-input-field.is-ok {
+.barn-input .barn-input-field[data-state="success"] {
+  border-color: transparent !important;
   box-shadow: 0 0 0 1.5px var(--green), 0 0 0 6px color-mix(in srgb, var(--green) 14%, transparent);
 }
 
-.barn-input-field.is-shaking {
-  animation: barn-input-shake 450ms cubic-bezier(.36, .07, .19, .97);
+.barn-input .barn-input-control {
+  width: 100% !important;
+  height: 100% !important;
+  min-height: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  padding: 0 14px !important;
+  color: var(--text) !important;
+  box-shadow: none !important;
+  font: inherit !important;
+  font-size: 15.5px !important;
+  font-weight: 500 !important;
+  outline: none !important;
 }
 
-.barn-input-field.is-disabled {
-  cursor: not-allowed;
-  opacity: .58;
+.barn-input[data-density="compact"] .barn-input-control {
+  font-size: 12px !important;
 }
 
-.barn-input-leading,
-.barn-input-trailing {
-  display: inline-flex;
-  flex: 0 0 auto;
-  align-items: center;
-  justify-content: center;
+.barn-input .barn-input-control::placeholder {
+  color: var(--text-faint) !important;
+}
+
+.barn-input .barn-input-leading {
+  left: 12px !important;
   color: var(--text-faint);
 }
 
-.barn-input-leading svg,
-.barn-input-trailing svg {
-  width: 16px;
-  height: 16px;
+.barn-input .barn-input-leading + .barn-input-control {
+  padding-left: 40px !important;
 }
 
-.barn-input-trailing button {
+.barn-input .barn-input-trailing {
+  right: 0;
+  color: var(--text-faint);
+}
+
+.barn-input .barn-input-trailing button {
   display: grid;
-  min-width: 24px;
-  min-height: 24px;
+  min-width: 32px;
+  min-height: 32px;
   place-items: center;
   border: 0;
   border-radius: 6px;
@@ -86,143 +91,6 @@
   cursor: pointer;
 }
 
-.barn-input-control {
-  min-width: 0;
-  height: 100%;
-  flex: 1;
-  border: 0;
-  background: transparent;
-  padding: 0;
-  color: var(--text);
-  caret-color: var(--accent);
-  font: inherit;
-  font-size: 15.5px;
-  font-weight: 500;
-  outline: none;
-  outline-offset: 0;
-  appearance: none;
-  -webkit-appearance: none;
-}
-
-.barn-input[data-density="compact"] .barn-input-control {
-  font-size: 12px;
-}
-
-.barn-input-control::placeholder {
-  color: var(--text-faint);
-}
-
-.barn-input-control:focus,
-.barn-input-control:focus-visible {
-  border: 0 !important;
-  outline: none !important;
-  outline-offset: 0 !important;
-  box-shadow: none !important;
-}
-
-.barn-input-field.is-disabled .barn-input-control {
-  cursor: not-allowed;
-}
-
-.barn-input-status {
-  position: relative;
-  display: inline-flex;
-  width: 26px;
-  height: 26px;
-  flex: 0 0 auto;
-}
-
-.barn-input-status > span {
-  position: absolute;
-  inset: 0;
-  display: grid;
-  place-items: center;
-  border-radius: 999px;
-  opacity: 0;
-  transform: scale(.2) rotate(-40deg);
-  transition: opacity 150ms, transform 250ms cubic-bezier(.2, .8, .2, 1);
-}
-
-.barn-input-status svg {
-  width: 14px;
-  height: 14px;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 3;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-
-.barn-input-ok {
-  background: var(--green);
-  color: var(--panel);
-}
-
-.barn-input-no {
-  background: var(--danger);
-  color: var(--panel);
-}
-
-.barn-input-field.is-ok .barn-input-ok,
-.barn-input-field.is-err .barn-input-no {
-  opacity: 1;
-  transform: none;
-  transition: opacity 150ms, transform 600ms cubic-bezier(.3, 1.9, .5, 1);
-}
-
-.barn-input-ok path {
-  stroke-dasharray: 20;
-  stroke-dashoffset: 20;
-  transition: none;
-}
-
-.barn-input-field.is-ok .barn-input-ok path {
-  stroke-dashoffset: 0;
-  transition: stroke-dashoffset 350ms cubic-bezier(.2, .8, .2, 1) 120ms;
-}
-
-.barn-input-message {
-  margin: 0 0 0 2px;
-  color: var(--text-faint);
-  font-size: 11px;
-  line-height: 1.4;
-}
-
-.barn-input-message.error {
-  color: var(--danger);
-}
-
-.barn-input-message.success {
-  color: var(--green);
-}
-
-.barn-input-sr-only {
-  position: absolute;
-  overflow: hidden;
-  width: 1px;
-  height: 1px;
-  clip: rect(0 0 0 0);
-  clip-path: inset(50%);
-  white-space: nowrap;
-}
-
-@keyframes barn-input-shake {
-  15%, 85% { transform: translateX(-2px); }
-  30%, 70% { transform: translateX(5px); }
-  45%, 55% { transform: translateX(-7px); }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .barn-input,
-  .barn-input *,
-  .barn-input *::before,
-  .barn-input *::after {
-    animation-duration: .001ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: .001ms !important;
-  }
-}
-
 .barn-input[data-appearance="flush"] {
   flex: 1;
   gap: 0;
@@ -230,20 +98,24 @@
 
 .barn-input[data-appearance="flush"] .barn-input-field {
   height: 100%;
-  border-radius: 0;
-  background: transparent;
-  padding: 0;
-  box-shadow: none;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
 }
 
-.barn-input[data-appearance="flush"] .barn-input-field.is-focus,
-.barn-input[data-appearance="flush"] .barn-input-field.is-err,
-.barn-input[data-appearance="flush"] .barn-input-field.is-ok {
-  box-shadow: none;
+.barn-input[data-appearance="flush"] .barn-input-control {
+  padding: 0 !important;
 }
 
-.barn-input[data-appearance="flush"] .barn-input-message {
-  display: none;
+.barn-input[data-appearance="flush"] .barn-input-leading + .barn-input-control {
+  padding-left: 40px !important;
+}
+
+.barn-input-helper {
+  margin: 0 2px;
+  color: var(--text-faint);
+  font-size: 11px;
+  line-height: 1.4;
 }
 
 .barn-input,
@@ -261,8 +133,9 @@ label > .barn-input,
   flex: 1;
 }
 
-/* Existing form layouts styled native inputs directly. The shared control now
-   owns the border/background, so neutralize those legacy inner-input shells. */
+/* Protect the beui control from legacy selectors that target page-level
+   input elements directly. Layout wrappers may size the root, never the
+   rendered control. */
 .secret-row input.barn-input-control,
 .form-grid input.barn-input-control,
 .model-editor-grid input.barn-input-control,
@@ -272,37 +145,31 @@ label > .barn-input,
 .plugins-search input.barn-input-control,
 .command-search input.barn-input-control,
 .browser-address input.barn-input-control,
-.browser-newtab-search input.barn-input-control {
-  width: 100% !important;
-  height: 100% !important;
-  min-height: 0 !important;
+.browser-newtab-search input.barn-input-control,
+.settings-page-search input.barn-input-control {
   border: 0 !important;
-  border-radius: 0 !important;
   background: transparent !important;
-  padding: 0 !important;
-  color: var(--text) !important;
   box-shadow: none !important;
-  font: inherit !important;
-}
-
-.form-grid label > .barn-input,
-.model-editor-grid label > .barn-input,
-.source-settings-form label > .barn-input,
-.skill-editor-fields label > .barn-input {
-  margin-top: 0;
-}
-
-.secret-row .barn-input-field,
-.source-path-row .barn-input-field {
-  flex: 1;
 }
 
 .provider-search .barn-input,
 .plugins-search .barn-input,
 .command-search .barn-input,
 .browser-address .barn-input,
-.browser-newtab-search .barn-input {
+.browser-newtab-search .barn-input,
+.settings-page-search .barn-input {
   min-width: 0;
   height: 100%;
   flex: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .barn-input,
+  .barn-input *,
+  .barn-input *::before,
+  .barn-input *::after {
+    animation-duration: .001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .001ms !important;
+  }
 }

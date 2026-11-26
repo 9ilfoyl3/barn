@@ -1,14 +1,17 @@
-// Lucian UX/UI Prompt #434 · MIT License (c) 2026 Seokwoooo · https://lucianlabs.dev/uxui-prompt/#434
-import { useTranslation } from 'react-i18next'
+// Beui Motion Input adapter. Keeps Barn's native input event surface while
+// rendering the beui component for all pure text and search fields.
 import {
   forwardRef,
   useEffect,
   useId,
   useRef,
   useState,
+  type ChangeEvent,
   type InputHTMLAttributes,
   type ReactNode,
 } from 'react'
+import { useTranslation } from 'react-i18next'
+import { Input as BeuiInput } from './beui/components/motion/input'
 import './input.css'
 
 export type InputValidation = (value: string) => string | boolean | undefined
@@ -49,8 +52,6 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(function Input({
   value,
   defaultValue,
   onChange,
-  onFocus,
-  onBlur,
   'aria-describedby': describedBy,
   'aria-invalid': ariaInvalid,
   ...rest
@@ -58,32 +59,19 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(function Input({
   const { t } = useTranslation()
   const generatedId = useId()
   const id = providedId ?? generatedId
-  const messageId = `${id}-message`
-  const fieldRef = useRef<HTMLDivElement | null>(null)
   const timerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
-  const [focused, setFocused] = useState(false)
   const [localError, setLocalError] = useState<string>()
   const [localSuccess, setLocalSuccess] = useState(false)
-  const [shake, setShake] = useState(false)
 
   const externalError = typeof error === 'string' ? error : error === true ? '' : undefined
   const resolvedError = externalError ?? localError
-  const hasError = resolvedError !== undefined
-  const resolvedSuccess = !hasError && (success === true || localSuccess)
-  const message = hasError ? resolvedError : resolvedSuccess ? '' : helperText
+  const resolvedSuccess = resolvedError === undefined && (success === true || localSuccess)
   const reducedMotion = typeof window !== 'undefined'
     && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
 
   useEffect(() => () => {
     if (timerRef.current !== undefined) clearTimeout(timerRef.current)
   }, [])
-
-  useEffect(() => {
-    if (!hasError || reducedMotion) return
-    setShake(true)
-    const timer = setTimeout(() => setShake(false), 460)
-    return () => clearTimeout(timer)
-  }, [hasError, reducedMotion, resolvedError])
 
   function validateValue(next: string): void {
     if (validate !== undefined) {
@@ -92,7 +80,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(function Input({
         setLocalError(result)
         setLocalSuccess(false)
       } else if (result === true) {
-        setLocalError('Invalid value')
+        setLocalError(t('input.invalidValue'))
         setLocalSuccess(false)
       } else {
         setLocalError(undefined)
@@ -101,13 +89,8 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(function Input({
       return
     }
     if (type === 'email' && next.trim().length > 0) {
-      if (EMAIL_PATTERN.test(next.trim())) {
-        setLocalError(undefined)
-        setLocalSuccess(true)
-      } else {
-        setLocalError(t('input.invalidEmail'))
-        setLocalSuccess(false)
-      }
+      setLocalError(EMAIL_PATTERN.test(next.trim()) ? undefined : t('input.invalidEmail'))
+      setLocalSuccess(EMAIL_PATTERN.test(next.trim()))
       return
     }
     if (type === 'url' && next.trim().length > 0) {
@@ -127,64 +110,56 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(function Input({
   }
 
   return (
-    <div className={`barn-input ${containerClassName ?? ''}`.trim()} data-density={density} data-appearance={appearance}>
-      {label !== undefined && <label className="barn-input-label" htmlFor={id}>{label}</label>}
-      <div
-        ref={fieldRef}
-        className={`barn-input-field${focused ? ' is-focus' : ''}${hasError ? ' is-err' : ''}${resolvedSuccess ? ' is-ok' : ''}${shake ? ' is-shaking' : ''}${disabled ? ' is-disabled' : ''} ${fieldClassName ?? ''}`.trim()}
-      >
-        {leadingIcon !== undefined && <span className="barn-input-leading" aria-hidden="true">{leadingIcon}</span>}
-        <input
-          {...rest}
-          ref={forwardedRef}
-          id={id}
-          type={type}
-          value={value}
-          defaultValue={defaultValue}
-          disabled={disabled}
-          aria-invalid={hasError ? true : ariaInvalid}
-          aria-describedby={message !== undefined && message !== '' ? [describedBy, messageId].filter(Boolean).join(' ') : describedBy}
-          className={`barn-input-control ${inputClassName ?? ''}`.trim()}
-          onChange={(event) => {
-            setLocalError(undefined)
-            setLocalSuccess(false)
-            onChange?.(event)
-            if (timerRef.current !== undefined) clearTimeout(timerRef.current)
-            const next = event.target.value
-            timerRef.current = setTimeout(() => validateValue(next), reducedMotion ? 300 : 800)
-          }}
-          onFocus={(event) => {
-            setFocused(true)
-            onFocus?.(event)
-          }}
-          onBlur={(event) => {
-            setFocused(false)
-            if (timerRef.current !== undefined) clearTimeout(timerRef.current)
-            validateValue(event.target.value)
-            onBlur?.(event)
-          }}
-        />
-        {trailing !== undefined && <span className="barn-input-trailing">{trailing}</span>}
-        {(resolvedSuccess || hasError) && (
-          <span className="barn-input-status" aria-hidden="true">
-            <span className="barn-input-ok">
-              <svg viewBox="0 0 24 24"><path d="m5.5 12.5 4 4 9-9.5" /></svg>
-            </span>
-            <span className="barn-input-no">
-              <svg viewBox="0 0 24 24"><path d="M12 7v6M12 17h.01" /></svg>
-            </span>
-          </span>
-        )}
-      </div>
-      {message !== undefined && message !== '' && (
-        <p className={`barn-input-message${hasError ? ' error' : resolvedSuccess ? ' success' : ''}`} id={messageId} aria-live="polite">
-          {message}
-        </p>
-      )}
-      {(resolvedSuccess || hasError) && message === '' && (
-        <span className="barn-input-sr-only" id={messageId}>
-          {hasError ? t('input.invalidValue') : t('input.validValue')}
-        </span>
+    <div
+      className={`barn-input ${containerClassName ?? ''}`.trim()}
+      data-density={density}
+      data-appearance={appearance}
+    >
+      <BeuiInput
+        {...rest}
+        ref={forwardedRef}
+        id={id}
+        type={type}
+        {...(typeof label === 'string' ? { label } : {})}
+        {...(value === undefined ? {} : { value: String(value) })}
+        {...(defaultValue === undefined ? {} : { defaultValue: String(defaultValue) })}
+        disabled={disabled}
+        {...(resolvedError === undefined ? {} : { error: resolvedError === '' ? true : resolvedError })}
+        {...(resolvedSuccess ? { success: true } : {})}
+        leftIcon={leadingIcon}
+        rightIcon={trailing}
+        {...(resolvedError !== undefined || ariaInvalid !== undefined
+          ? { 'aria-invalid': resolvedError !== undefined ? true : ariaInvalid }
+          : {})}
+        {...(() => {
+          const description = [describedBy, resolvedError !== undefined ? `${id}-error` : undefined].filter(Boolean).join(' ')
+          return description === '' ? {} : { 'aria-describedby': description }
+        })()}
+        className="beui-motion-input"
+        classNames={{
+          field: `barn-input-field ${fieldClassName ?? ''}`.trim(),
+          input: `barn-input-control ${inputClassName ?? ''}`.trim(),
+          ...(leadingIcon === undefined ? {} : { leftIcon: 'barn-input-leading' }),
+          ...(trailing === undefined ? {} : { rightIcon: 'barn-input-trailing' }),
+        }}
+        onChange={(next) => {
+          setLocalError(undefined)
+          setLocalSuccess(false)
+          onChange?.({
+            target: { value: next },
+            currentTarget: { value: next },
+          } as ChangeEvent<HTMLInputElement>)
+          if (timerRef.current !== undefined) clearTimeout(timerRef.current)
+          timerRef.current = setTimeout(() => validateValue(next), reducedMotion ? 300 : 800)
+        }}
+        onBlur={(event) => {
+          if (timerRef.current !== undefined) clearTimeout(timerRef.current)
+          validateValue(event.target.value)
+          rest.onBlur?.(event)
+        }}
+      />
+      {helperText !== undefined && resolvedError === undefined && (
+        <span className="barn-input-helper">{helperText}</span>
       )}
     </div>
   )
