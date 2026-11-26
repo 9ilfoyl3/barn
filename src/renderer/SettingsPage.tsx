@@ -8,7 +8,7 @@ import {
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { changeAppLanguage, currentLanguagePreference, type LanguagePreference } from './i18n'
-import { Input } from './components/Input'
+import { Input as BeuiInput } from './components/beui/components/motion/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './components/beui/components/motion/select'
 import { MemorySettingsPanel } from './MemorySettingsPanel'
 import { ModelSettings } from './ModelSettings'
@@ -126,16 +126,14 @@ export function SettingsPage({ snapshot, onSnapshot, initialSection }: SettingsP
     <div className="settings-page">
       <h1 className="settings-page-sr-title">{t('appSettings.title')}</h1>
       <aside className="settings-page-nav" aria-label={t('appSettings.navLabel')}>
-        <Input
-          containerClassName="settings-page-search"
-          leadingIcon={<Search size={14} aria-hidden="true" />}
-          density="compact"
-          appearance="flush"
-            type="search"
-            value={query}
-            placeholder={t('appSettings.searchSettings')}
-            aria-label={t('appSettings.searchSettings')}
-            onChange={(event) => setQuery(event.target.value)}
+        <BeuiInput
+          className="settings-page-search"
+          leftIcon={<Search size={14} aria-hidden="true" />}
+          type="search"
+          value={query}
+          placeholder={t('appSettings.searchSettings')}
+          aria-label={t('appSettings.searchSettings')}
+          onChange={setQuery}
         />
 
         <nav className="settings-page-nav-groups" aria-label={t('appSettings.navLabel')}>

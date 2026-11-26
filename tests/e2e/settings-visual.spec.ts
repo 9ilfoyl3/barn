@@ -32,7 +32,9 @@ test('renders the Comma-style Chinese settings layout with scroll edge blur', as
     await expect(page.getByRole('button', { name: '记忆', exact: true })).toBeVisible()
     const settingsSearch = page.getByRole('searchbox', { name: '搜索设置' })
     await expect(settingsSearch).toHaveAttribute('type', 'search')
-    expect(await settingsSearch.evaluate((input) => getComputedStyle(input.closest('.barn-input-field')!).borderTopWidth)).toBe('0px')
+    expect(await settingsSearch.evaluate((input) => getComputedStyle(input.closest('[data-state]')!).borderTopWidth)).toBe('1px')
+    expect(await page.locator('.settings-page-search').evaluate((element) => getComputedStyle(element).borderTopWidth)).toBe('0px')
+    await expect(page.locator('.settings-page-search .barn-input-field')).toHaveCount(0)
     expect(await page.evaluate(() => {
       const nav = getComputedStyle(document.querySelector('.settings-page-nav')!)
       const content = getComputedStyle(document.querySelector('.settings-page-content')!)
