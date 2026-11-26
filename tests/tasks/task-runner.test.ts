@@ -123,6 +123,11 @@ describe('TaskRunner', () => {
       && isRecord(event.data.result)
       && event.data.result.outcome === 'completed'
     ))).toBe(true)
+    expect(h.sessions.taskRuns.latest(task.id)).toMatchObject({
+      status: 'completed',
+      attempt: 1,
+      guardState: 'watching',
+    })
     h.runner.stop()
     h.sessions.close()
   })
@@ -474,6 +479,22 @@ describe('TaskRunner', () => {
 
     await vi.waitFor(() => expect(h.agent.cancel).toHaveBeenCalledWith(running.sessionId))
     expect(h.tasks.get(task.id).status).toBe('cancelled')
+    h.runner.stop()
+    h.sessions.close()
+  })
+
+  it('starts a waiting person task before older automation work when a slot frees', async () => {
+    const h = await harness(1)
+    h.runner.start()
+    const first = h.tasks.create({ title: 'Automation one', origin: 'automation', prompt: 'Run automation one.' })
+    const firstRun = await waitForTask(h.tasks, first.id, (current) => current.status === 'running')
+    const second = h.tasks.create({ title: 'Automation two', origin: 'automation', prompt: 'Run automation two.' })
+    const person = h.tasks.create({ title: 'Person request', origin: 'user', prompt: 'Run the person request.' })
+
+    finishWorker(h, firstRun.sessionId!)
+    const personRun = await waitForTask(h.tasks, person.id, (current) => current.status === 'running')
+    expect(h.tasks.get(second.id).status).toBe('queued')
+    expect(personRun.title).toBe('Person request')
     h.runner.stop()
     h.sessions.close()
   })

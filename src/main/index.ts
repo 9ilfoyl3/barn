@@ -30,6 +30,7 @@ import { registerRouterIpc } from './router/router-ipc'
 import { RouterService } from './router/router-service'
 import { ModelRouterDecisionEngine } from './router/router-decision'
 import { TaskRunner } from './tasks/task-runner'
+import { TaskGuardService } from './tasks/task-guard'
 import { TaskService } from './tasks/task-service'
 import { TaskActionCoordinator } from './tasks/task-action-coordinator'
 import { SessionStore } from './session/session-store'
@@ -75,6 +76,7 @@ let agentService: AgentService | undefined
 let taskService: TaskService | undefined
 let taskConversationService: TaskConversationService | undefined
 let taskRunner: TaskRunner | undefined
+let taskGuardService: TaskGuardService | undefined
 let routerService: RouterService | undefined
 let permissionService: PermissionService | undefined
 let actionService: ActionService | undefined
@@ -218,6 +220,7 @@ void app.whenReady().then(async () => {
   )
   await sessionStore.initialize()
   sessionStore.recoverInterruptedSessions()
+  sessionStore.taskRuns.recoverInterruptedRuns()
   sessionStore.tasks.recoverInterruptedTasks()
   const workspaceRoot = join(userData, 'workspace')
   const outputRoot = join(userData, 'output')
@@ -331,6 +334,17 @@ void app.whenReady().then(async () => {
       })) ?? [],
   }, threadService)
   taskRunner.start()
+  taskGuardService = new TaskGuardService(
+    taskService,
+    sessionStore.taskRuns,
+    taskRunner,
+    {
+      ...(positiveNumber(process.env.BARN_TASK_GUARD_INTERVAL_MS) === undefined ? {} : { intervalMs: positiveNumber(process.env.BARN_TASK_GUARD_INTERVAL_MS)! }),
+      ...(positiveNumber(process.env.BARN_TASK_GUARD_SILENT_MS) === undefined ? {} : { silentMs: positiveNumber(process.env.BARN_TASK_GUARD_SILENT_MS)! }),
+      ...(positiveNumber(process.env.BARN_TASK_GUARD_GRACE_MS) === undefined ? {} : { graceMs: positiveNumber(process.env.BARN_TASK_GUARD_GRACE_MS)! }),
+    },
+  )
+  taskGuardService.start()
   routerService.start()
   connectorService.registerActionHandler(actionService)
   actionService.start()
@@ -402,6 +416,12 @@ void app.whenReady().then(async () => {
   app.quit()
 })
 
+function positiveNumber(value: string | undefined): number | undefined {
+  if (value === undefined) return undefined
+  const parsed = Number(value)
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined
+}
+
 async function clearDingTalkLegacyCredentials(connectors: ConnectorService): Promise<void> {
   for (const connector of await connectors.list()) {
     if (connector.kind !== 'dingtalk') continue
@@ -416,6 +436,8 @@ app.on('before-quit', () => {
   isQuitting = true
   lifecycle?.dispose()
   lifecycle = undefined
+  taskGuardService?.stop()
+  taskGuardService = undefined
   taskRunner?.stop()
   taskRunner = undefined
   routerService?.stop()
