@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type ReactNode, type RefObject } from 'rea
 import { useTranslation } from 'react-i18next'
 import {
   Bot,
+  ChevronRight,
   CircleAlert,
   CircleCheck,
   CircleX,
@@ -617,17 +618,10 @@ function TaskCard({
       aria-busy={busy}
       className={`task-row task-card-card task-card-${task.status}`}
       data-task-id={task.id}
-      interactive
       role="article"
       size="compact"
     >
-      <Button
-        aria-label={`${t('tasks.openDetails')}: ${task.title}`}
-        className="task-card-main"
-        variant="ghost"
-        onClick={() => onOpenTask(task)}
-        type="button"
-      >
+      <div className="task-card-main">
         <span className="task-card-title-line">
           <TaskStatusGlyph status={task.status} />
           <span className="task-card-title">{task.title}</span>
@@ -643,6 +637,16 @@ function TaskCard({
         <time className="task-card-updated" dateTime={task.updatedAt}>
           {updatedLabel(task.updatedAt, dateLocale, t)}
         </time>
+      </div>
+      <Button
+        aria-label={`${t('tasks.openDetails')}: ${task.title}`}
+        className="task-card-open"
+        size="icon"
+        type="button"
+        variant="ghost"
+        onClick={() => onOpenTask(task)}
+      >
+        <ChevronRight size={14} aria-hidden="true" />
       </Button>
 
       {!editing && hasActions && (

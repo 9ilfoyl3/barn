@@ -64,7 +64,7 @@ test('renders the Comma-style Chinese settings layout with scroll edge blur', as
 
     await page.getByRole('button', { name: '记忆', exact: true }).click()
     await page.getByRole('tab', { name: '用户画像' }).click()
-    await page.getByRole('button', { name: 'USER.md 文件为空' }).click()
+    await page.getByRole('textbox', { name: 'USER.md' }).click()
     await expect(page.getByRole('textbox', { name: 'USER.md' })).toBeFocused()
     await expect(page.locator('.memory-document-editor-heading')).toHaveCount(0)
     expect(await page.locator('.memory-document-editor').evaluate((element) => getComputedStyle(element).boxShadow)).not.toContain('0px 0px 0px 3px')

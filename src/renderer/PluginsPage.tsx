@@ -31,6 +31,7 @@ import type {
 import { SkillsPanel } from './SkillsPanel'
 import { Input } from './components/Input'
 import { Input as BeuiInput } from './components/beui/components/motion/input'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from './components/beui/components/motion/tabs'
 import { notifyError, notifySuccess, useErrorToast } from './notifications'
 import './plugins-page.css'
 import { Button } from './components/Button'
@@ -270,92 +271,90 @@ export function PluginsPage({ onTrySkill }: { onTrySkill?: (skill: SkillSummary)
   const catalog = (
     <div className="plugins-catalog">
       <h1 className="visually-hidden">{t('plugins.title')}</h1>
-      <header className="plugins-heading">
-        <div className="plugins-tabs" role="tablist" aria-label={t('plugins.title')}>
-          {(['plugins', 'skills'] as const).map((tabId) => (
-            <Button
-              aria-selected={tab === tabId}
-              className={tab === tabId ? 'plugins-tab active' : 'plugins-tab'}
-              key={tabId}
-              onClick={() => {
-                setTab(tabId)
-                setQuery('')
-              }}
-              role="tab"
-              type="button"
-            >
-              {tabId === 'plugins' ? t('plugins.title') : t('plugins.skills')}
+      <Tabs
+        value={tab}
+        onValueChange={(value) => {
+          setTab(value as typeof tab)
+          setQuery('')
+        }}
+        variant="underline"
+      >
+        <header className="plugins-heading">
+          <TabsList className="plugins-tabs" aria-label={t('plugins.title')}>
+            <TabsTrigger className="plugins-tab" value="plugins">{t('plugins.title')}</TabsTrigger>
+            <TabsTrigger className="plugins-tab" value="skills">{t('plugins.skills')}</TabsTrigger>
+          </TabsList>
+        </header>
+
+        <BeuiInput
+          className="plugins-search"
+          leftIcon={<Search size={17} aria-hidden="true" />}
+          aria-label={tab === 'skills' ? t('plugins.searchSkills') : t('plugins.search')}
+          onChange={setQuery}
+          placeholder={tab === 'skills' ? t('plugins.searchSkillsPlaceholder') : t('plugins.searchPlaceholder')}
+          type="search"
+          value={query}
+          rightIcon={query.length > 0 ? (
+            <Button type="button" aria-label={t('plugins.clearSearch')} onClick={() => setQuery('')}>
+              <X size={14} />
             </Button>
-          ))}
-        </div>
-      </header>
+          ) : undefined}
+        />
 
-      <BeuiInput
-        className="plugins-search"
-        leftIcon={<Search size={17} aria-hidden="true" />}
-        aria-label={tab === 'skills' ? t('plugins.searchSkills') : t('plugins.search')}
-        onChange={setQuery}
-        placeholder={tab === 'skills' ? t('plugins.searchSkillsPlaceholder') : t('plugins.searchPlaceholder')}
-        type="search"
-        value={query}
-        rightIcon={query.length > 0 ? (
-          <Button type="button" aria-label={t('plugins.clearSearch')} onClick={() => setQuery('')}>
-            <X size={14} />
-          </Button>
-        ) : undefined}
-      />
-
-      {tab === 'skills' ? (
-        <section role="tabpanel" aria-label={t('plugins.skills')}>
+        <TabsContent className="plugins-tab-panel" value="skills">
           <SkillsPanel query={query} {...(onTrySkill === undefined ? {} : { onTrySkill })} />
-        </section>
-      ) : loading ? (
-        <div className="plugins-loading" role="status">
-          <LoaderCircle className="spin" size={18} aria-hidden="true" />
-          <span>{t('common.loading')}</span>
-        </div>
-      ) : (
-        <div className="plugins-sections" role="tabpanel" aria-label={t('plugins.title')}>
-          {normalizedQuery.length === 0 && (
-            <section className="plugins-section" aria-labelledby="plugins-mcp-title">
-              <div className="plugins-section-header">
-                <h2 id="plugins-mcp-title">{t('plugins.mcpServers')}</h2>
-                <Button
-                  className="plugins-section-link"
-                  disabled
-                  title={t('plugins.comingSoon')}
-                  type="button"
-                >
-                  {t('plugins.addMcp')}
-                </Button>
-              </div>
-            </section>
-          )}
+        </TabsContent>
 
-          {CATEGORY_ORDER.map((category) => {
-            const categoryDefinitions = groupedDefinitions[category]
-            if (categoryDefinitions.length === 0) return null
-            return (
-              <PluginSection
-                definitions={categoryDefinitions}
-                instances={instances}
-                key={category}
-                onOpen={openDefinition}
-                title={t(`plugins.categories.${category}`)}
-              />
-            )
-          })}
+        <TabsContent className="plugins-tab-panel" value="plugins">
+          {loading ? (
+            <div className="plugins-loading" role="status">
+              <LoaderCircle className="spin" size={18} aria-hidden="true" />
+              <span>{t('common.loading')}</span>
+            </div>
+          ) : (
+            <div className="plugins-sections">
+              {normalizedQuery.length === 0 && (
+                <section className="plugins-section" aria-labelledby="plugins-mcp-title">
+                  <div className="plugins-section-header">
+                    <h2 id="plugins-mcp-title">{t('plugins.mcpServers')}</h2>
+                    <Button
+                      className="plugins-section-link"
+                      disabled
+                      title={t('plugins.comingSoon')}
+                      type="button"
+                    >
+                      {t('plugins.addMcp')}
+                    </Button>
+                  </div>
+                </section>
+              )}
 
-          {filteredDefinitions.length === 0 && (
-            <div className="plugins-no-results" role="status">
-              <Search size={20} aria-hidden="true" />
-              <span>{t('plugins.noResults')}</span>
+              {CATEGORY_ORDER.map((category) => {
+                const categoryDefinitions = groupedDefinitions[category]
+                if (categoryDefinitions.length === 0) return null
+                return (
+                  <PluginSection
+                    definitions={categoryDefinitions}
+                    instances={instances}
+                    key={category}
+                    onOpen={openDefinition}
+                    title={t(`plugins.categories.${category}`)}
+                  />
+                )
+              })}
+
+              {filteredDefinitions.length === 0 && (
+                <div className="plugins-no-results" role="status">
+                  <Search size={20} aria-hidden="true" />
+                  <span>{t('plugins.noResults')}</span>
+                </div>
+              )}
+
+              <p className="plugins-safety-note">{t('plugins.safetyNote')}</p>
             </div>
           )}
-
-          <p className="plugins-safety-note">{t('plugins.safetyNote')}</p>
-        </div>
-      )}
+        </TabsContent>
+      </Tabs>
     </div>
   )
 
@@ -510,11 +509,7 @@ function PluginSection({
           const status = aggregateStatus(connectors)
           return (
             <article className="plugin-row" data-plugin-kind={definition.kind} key={definition.kind}>
-              <Button
-                className="plugin-row-main"
-                onClick={() => onOpen(definition)}
-                type="button"
-              >
+              <div className="plugin-row-main">
                 <ConnectorIcon definition={definition} size="large" />
                 <span className="plugin-row-copy">
                   <span className="plugin-row-title">
@@ -531,7 +526,7 @@ function PluginSection({
                         })}
                   </small>
                 </span>
-              </Button>
+              </div>
               <Button
                 aria-label={connectors.length > 0
                   ? t('plugins.manageNamed', { name: translatedDefinitionName(definition, t) })

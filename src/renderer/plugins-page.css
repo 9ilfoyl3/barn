@@ -45,12 +45,14 @@
   display: flex;
   align-items: center;
   gap: 18px;
+  border-bottom: 0;
 }
 
 .plugins-tab {
+  min-height: 32px;
   border: 0;
   background: transparent;
-  padding: 0;
+  padding: 0 0 3px;
   color: var(--text-faint);
   cursor: pointer;
   font: inherit;
@@ -62,12 +64,19 @@
 }
 
 .plugins-tab:hover,
-.plugins-tab.active {
+.plugins-tab[aria-selected="true"] {
   color: var(--text);
 }
 
+.plugins-tab-panel {
+  margin-top: 0;
+}
+
+.plugins-tab-panel:focus-visible {
+  outline: 0;
+}
+
 .plugins-tab:focus-visible,
-.plugin-row-main:focus-visible,
 .plugin-row-action:focus-visible,
 .plugins-section-link:focus-visible,
 .plugins-back:focus-visible,
@@ -175,7 +184,6 @@
   background: transparent;
   padding: 0;
   color: inherit;
-  cursor: pointer;
   text-align: left;
 }
 

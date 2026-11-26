@@ -296,7 +296,7 @@ export function SkillsPanel({ query, onTrySkill }: { query: string; onTrySkill?:
         <ul className="skills-list">
           {visible.map((skill) => (
             <li className={skill.enabled ? 'skill-row' : 'skill-row disabled'} key={skill.id}>
-              <Button className="skill-row-main" type="button" onClick={() => void openSkill(skill)}>
+              <div className="skill-row-main">
                 <span className="skill-row-icon" aria-hidden="true">
                   {skill.source === 'system'
                     ? <Sparkles size={18} />
@@ -317,7 +317,7 @@ export function SkillsPanel({ query, onTrySkill }: { query: string; onTrySkill?:
                   </span>
                   <small>{skill.description}</small>
                 </span>
-              </Button>
+              </div>
               {skill.source !== 'system' ? (
                 <label className="skill-switch" title={skill.enabled ? t('plugins.skillUi.enabled') : t('plugins.skillUi.disabled')}>
                   <input

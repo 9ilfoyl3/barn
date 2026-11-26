@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { AlertCircle, Check, LoaderCircle, Pencil, Pin, PinOff, Settings2, Trash2, X } from 'lucide-react'
 import type { MemoryDocument, MemoryDocumentName, MemoryDocumentRevision, MemoryEntry, MemorySettings } from '../shared/models'
 import { Input } from './components/Input'
+import { Tabs, TabsList, TabsTrigger } from './components/beui/components/motion/tabs'
 import { notifySuccess, useErrorToast } from './notifications'
 import './memory-settings.css'
 import { Button } from './components/Button'
@@ -40,7 +41,6 @@ export function MemorySettingsPanel({ onChanged }: { onChanged?(): void }) {
   const [loading, setLoading] = useState(true)
   const [settingsBusy, setSettingsBusy] = useState(false)
   const [saveState, setSaveState] = useState<SaveState>('idle')
-  const [editing, setEditing] = useState(false)
   const [adjustingLimit, setAdjustingLimit] = useState(false)
   const [limitDraft, setLimitDraft] = useState('2200')
   const [entryBusyId, setEntryBusyId] = useState<string>()
@@ -142,7 +142,6 @@ export function MemorySettingsPanel({ onChanged }: { onChanged?(): void }) {
     if (name === activeDocument) return
     const saved = await saveCurrentDocument()
     if (!saved) return
-    setEditing(false)
     setAdjustingLimit(false)
     setError(undefined)
     setSaveState('idle')
@@ -356,29 +355,45 @@ export function MemorySettingsPanel({ onChanged }: { onChanged?(): void }) {
 
   return (
     <div className="memory-document-page">
-      <div className="memory-document-tabs" role="tablist" aria-label={t('memorySettings.documentTabsLabel')}>
-        <Button
-          className={activeDocument === 'memory' ? 'active' : ''}
-          type="button"
-          role="tab"
-          aria-selected={activeDocument === 'memory'}
-          onClick={() => void switchDocument('memory')}
+      <Tabs
+        value={activeDocument}
+        onValueChange={(value) => void switchDocument(value as MemoryDocumentName)}
+        variant="pill"
+      >
+        <TabsList
+          aria-label={t('memorySettings.documentTabsLabel')}
+          className="memory-document-tabs"
+          wrapperClassName="memory-document-tabs-root"
         >
-          {t('memorySettings.memoryTab')}
-        </Button>
-        <Button
-          className={activeDocument === 'user' ? 'active' : ''}
-          type="button"
-          role="tab"
-          aria-selected={activeDocument === 'user'}
-          onClick={() => void switchDocument('user')}
-        >
-          {t('memorySettings.userTab')}
-        </Button>
-      </div>
+          <TabsTrigger
+            aria-controls="memory-document-panel"
+            className="memory-document-tab"
+            id="memory-tab-memory"
+            indicatorClassName="memory-document-tab-indicator"
+            value="memory"
+          >
+            {t('memorySettings.memoryTab')}
+          </TabsTrigger>
+          <TabsTrigger
+            aria-controls="memory-document-panel"
+            className="memory-document-tab"
+            id="memory-tab-user"
+            indicatorClassName="memory-document-tab-indicator"
+            value="user"
+          >
+            {t('memorySettings.userTab')}
+          </TabsTrigger>
+        </TabsList>
 
-      {loading ? <p className="memory-document-loading">{t('common.loading')}</p> : (
-        <>
+        <div
+          aria-labelledby={`memory-tab-${activeDocument}`}
+          className="memory-document-panel"
+          id="memory-document-panel"
+          role="tabpanel"
+          tabIndex={0}
+        >
+          {loading ? <p className="memory-document-loading">{t('common.loading')}</p> : (
+            <>
           <section className="memory-document-stats" aria-labelledby="memory-document-stats-title">
             <div className="memory-document-stats-heading">
               <div>
@@ -458,30 +473,17 @@ export function MemorySettingsPanel({ onChanged }: { onChanged?(): void }) {
               </div>
             )}
 
-            {(editing || document.content.length > 0) ? (
-              <textarea
-                ref={editorRef}
-                aria-label={fileName}
-                value={document.content}
-                onChange={(event) => updateContent(event.target.value)}
-                onFocus={() => setEditing(true)}
-                onBlur={() => { setEditing(false); void saveCurrentDocument() }}
-                onKeyDown={(event) => void handleEditorKeyDown(event)}
-                placeholder={t('memorySettings.documentPlaceholder', { file: fileName })}
-                spellCheck={false}
-              />
-            ) : (
-              <Button
-                className="memory-document-empty"
-                type="button"
-                onClick={() => {
-                  setEditing(true)
-                  window.requestAnimationFrame(() => editorRef.current?.focus())
-                }}
-              >
-                {t('memorySettings.emptyFile', { file: fileName })}
-              </Button>
-            )}
+            <textarea
+              ref={editorRef}
+              aria-label={fileName}
+              className={document.content.length === 0 ? 'memory-document-empty-editor' : undefined}
+              value={document.content}
+              onChange={(event) => updateContent(event.target.value)}
+              onBlur={() => { void saveCurrentDocument() }}
+              onKeyDown={(event) => void handleEditorKeyDown(event)}
+              placeholder={t('memorySettings.documentPlaceholder', { file: fileName })}
+              spellCheck={false}
+            />
 
             {overLimit && (
               <p className="memory-document-error">
@@ -626,9 +628,11 @@ export function MemorySettingsPanel({ onChanged }: { onChanged?(): void }) {
               </Button>
               <span>{t('memorySettings.privacyNote')}</span>
             </div>
-          </details>
-        </>
-      )}
+              </details>
+            </>
+          )}
+        </div>
+      </Tabs>
     </div>
   )
 }

@@ -47,6 +47,7 @@ test('manages local skills from the Plugins page and exposes them to the Agent b
 
     const skills = page.locator('.skills-panel')
     await expect(skills.getByText('Meeting notes to actions')).toBeVisible()
+    expect(await skills.locator('.skill-row-main').first().evaluate((element) => element.tagName)).toBe('DIV')
     await expect(skills.getByText('System', { exact: true }).first()).toBeVisible()
     await expect(skills.getByText('Launch checklist')).toBeVisible()
 
