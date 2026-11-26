@@ -24,21 +24,28 @@
 /* beUI owns the rail's width and entrance motion. Barn only supplies the
    settings surface tokens and reading-column geometry. */
 .settings-page-nav {
+  align-self: stretch;
   flex: 0 0 auto;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
   border: 0;
   background: var(--panel);
   padding: 0;
 }
 
 .settings-page-nav-panel {
+  position: relative !important;
+  top: auto !important;
   height: 100% !important;
+  min-height: 100% !important;
   border: 0 !important;
   border-right: 1px solid color-mix(in srgb, var(--line) 62%, transparent) !important;
   background: var(--panel) !important;
 }
 
 .settings-page-nav-header {
-  padding: 16px 12px 8px;
+  padding: 12px 12px 6px;
 }
 
 .settings-page-search {
