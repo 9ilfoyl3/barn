@@ -1272,28 +1272,30 @@ select:focus-visible {
 }
 
 .composer-model {
-  min-width: 0;
-  max-width: 220px;
+  width: max-content;
+  min-width: max-content;
+  max-width: none;
+  flex: 0 0 auto;
   justify-content: flex-end;
-  gap: 5px;
-  border: 1px solid transparent;
-  border-radius: 8px;
+  gap: 6px;
+  border: 0;
+  border-radius: 999px;
   background: transparent;
-  padding: 6px 7px;
+  padding: 5px 10px;
   color: var(--text-faint);
   cursor: pointer;
-  font-size: 9px;
+  font-size: 10px;
   white-space: nowrap;
 }
 
 .composer-model:hover {
-  border-color: var(--line);
-  background: color-mix(in srgb, var(--panel-raised) 65%, transparent);
+  border: 0;
+  background: color-mix(in srgb, var(--panel-raised) 46%, transparent);
 }
 
 .composer-model.active {
-  border-color: var(--line);
-  background: color-mix(in srgb, var(--panel-raised) 78%, transparent);
+  border: 0;
+  background: color-mix(in srgb, var(--panel-raised) 54%, transparent);
   color: var(--text-dim);
 }
 
@@ -1307,10 +1309,11 @@ select:focus-visible {
   transform: rotate(180deg);
 }
 
-.composer-model span,
 .composer-model strong {
-  overflow: hidden;
-  text-overflow: ellipsis;
+  overflow: visible;
+  flex: 0 0 auto;
+  text-overflow: clip;
+  white-space: nowrap;
 }
 
 .composer-model span {
@@ -1325,15 +1328,15 @@ select:focus-visible {
 
 .composer-model em {
   flex: 0 0 auto;
-  border: 1px solid color-mix(in srgb, var(--accent) 20%, transparent);
-  border-radius: 999px;
-  background: var(--accent-soft);
-  padding: 1px 5px;
-  color: color-mix(in srgb, var(--accent) 80%, var(--text));
-  font-family: "JetBrains Mono Variable", monospace;
-  font-size: 8px;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  color: var(--text-faint);
+  font-family: inherit;
+  font-size: 10px;
   font-style: normal;
-  letter-spacing: 0.02em;
+  font-weight: 450;
+  letter-spacing: 0;
 }
 
 .model-picker {

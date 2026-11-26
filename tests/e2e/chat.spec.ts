@@ -321,7 +321,37 @@ test('selects a configured model and reasoning effort from the composer', async 
     await page.reload()
     await page.waitForLoadState('domcontentloaded')
 
-    await page.locator('.composer-model').click()
+    const modelTrigger = page.locator('.composer-model')
+    await expect(modelTrigger).toContainText('Reasoning Model')
+    await expect(modelTrigger).toContainText('High')
+    await modelTrigger.hover()
+    await page.waitForTimeout(220)
+    const modelTriggerStyle = await modelTrigger.evaluate((button) => {
+      const trigger = getComputedStyle(button)
+      const name = getComputedStyle(button.querySelector('strong')!)
+      const effort = getComputedStyle(button.querySelector('em')!)
+      return {
+        borderTopWidth: trigger.borderTopWidth,
+        backgroundColor: trigger.backgroundColor,
+        borderRadius: trigger.borderRadius,
+        nameOverflow: name.overflow,
+        nameTextOverflow: name.textOverflow,
+        effortBorderWidth: effort.borderTopWidth,
+        effortBackground: effort.backgroundColor,
+        effortPaddingLeft: effort.paddingLeft,
+      }
+    })
+    expect(modelTriggerStyle.borderTopWidth).toBe('0px')
+    expect(modelTriggerStyle.backgroundColor).not.toBe('rgba(0, 0, 0, 0)')
+    expect(Number.parseFloat(modelTriggerStyle.borderRadius)).toBeGreaterThanOrEqual(999)
+    expect(modelTriggerStyle.nameOverflow).toBe('visible')
+    expect(modelTriggerStyle.nameTextOverflow).toBe('clip')
+    expect(modelTriggerStyle.effortBorderWidth).toBe('0px')
+    expect(modelTriggerStyle.effortBackground).toBe('rgba(0, 0, 0, 0)')
+    expect(modelTriggerStyle.effortPaddingLeft).toBe('0px')
+    await page.screenshot({ path: 'test-results/barn-model-trigger.png', fullPage: true })
+
+    await modelTrigger.click()
     await expect(page.locator('#composer-model-picker')).toHaveClass(/open/)
     await expect(page.locator('.model-picker-menu-row')).toHaveCount(2)
     await expect(page.locator('.model-picker-menu-row.active')).toHaveCount(0)
