@@ -116,6 +116,7 @@ function AttachmentCard({ file, onRemove }: { file: AttachmentDescriptor; onRemo
       <Button
         className="attachment-remove"
         type="button"
+        variant="ghost"
         aria-label={t('conversation.removeAttachment', { name })}
         onClick={onRemove}
       >
