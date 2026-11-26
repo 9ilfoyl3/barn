@@ -37,6 +37,12 @@ test('renders the Comma-style Chinese settings layout with scroll edge blur', as
     })).toBe(true)
     await page.waitForTimeout(250)
     await page.screenshot({ path: 'test-results/barn-settings-general-zh.png', fullPage: true })
+    await page.getByRole('button', { name: '语言' }).click()
+    await expect(page.getByRole('listbox')).toBeVisible()
+    await expect(page.getByRole('option', { name: '系统默认' })).toBeVisible()
+    await page.waitForTimeout(400)
+    await page.screenshot({ path: 'test-results/barn-settings-select-open-zh.png', fullPage: true })
+    await page.keyboard.press('Escape')
 
     await page.getByRole('button', { name: '模型', exact: true }).click()
     await expect(page.getByRole('heading', { name: '模型与 API', level: 1 })).toBeVisible()

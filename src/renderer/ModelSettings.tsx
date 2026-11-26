@@ -11,6 +11,7 @@ import {
 } from 'lucide-react'
 import { TooltipButton } from './components/TooltipButton'
 import { Input } from './components/Input'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './components/beui/components/motion/select'
 import { notifyError, notifySuccess, useErrorToast } from './notifications'
 import {
   REASONING_EFFORTS,
@@ -272,22 +273,27 @@ export function ModelSettings({ snapshot, onSnapshot }: ModelSettingsProps) {
                 <p>{t('settings.defaultModelDescription')}</p>
               </div>
               <div className="settings-row-control">
-                <select
-                  className="settings-select model-default-select"
-                  aria-label={t('settings.defaultModel')}
+                <Select
                   value={snapshot?.defaultModel === undefined ? '' : `${snapshot.defaultModel.providerId}:${snapshot.defaultModel.modelId}`}
-                  onChange={(event) => {
-                    const model = configuredModels.find((entry) => `${entry.providerId}:${entry.id}` === event.target.value)
+                  onValueChange={(value) => {
+                    const model = configuredModels.find((entry) => `${entry.providerId}:${entry.id}` === value)
                     if (model !== undefined) void chooseDefault(model)
                   }}
+                  disabled={configuredModels.length === 0}
+                  className="model-select-root model-default-select"
                 >
-                  {snapshot?.defaultModel === undefined && <option value="">{t('settings.notSelected')}</option>}
-                  {configuredModels.map((model) => (
-                    <option key={`${model.providerId}:${model.id}`} value={`${model.providerId}:${model.id}`}>
-                      {model.name}
-                    </option>
-                  ))}
-                </select>
+                  <SelectTrigger className="settings-select beui-select-trigger" ariaLabel={t('settings.defaultModel')}>
+                    <SelectValue placeholder={t('settings.notSelected')} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {snapshot?.defaultModel === undefined && <SelectItem value="" disabled>{t('settings.notSelected')}</SelectItem>}
+                    {configuredModels.map((model) => (
+                      <SelectItem key={`${model.providerId}:${model.id}`} value={`${model.providerId}:${model.id}`}>
+                        {model.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
             </div>
             <div className="settings-row">
@@ -296,18 +302,22 @@ export function ModelSettings({ snapshot, onSnapshot }: ModelSettingsProps) {
                 <p>{t('settings.reasoningEffortDescription')}</p>
               </div>
               <div className="settings-row-control">
-                <select
-                  className="settings-select"
-                  aria-label={t('settings.reasoningEffort')}
+                <Select
                   value={reasoningEffort ?? ''}
+                  onValueChange={(value) => void saveEffort(value as ReasoningEffort)}
                   disabled={selectedModel?.reasoning !== true}
-                  onChange={(event) => void saveEffort(event.target.value as ReasoningEffort)}
+                  className="model-select-root"
                 >
-                  {selectedModel?.reasoning !== true && <option value="">{t('settings.notSupported')}</option>}
-                  {selectedModel?.reasoningEfforts.map((effort) => (
-                    <option key={effort} value={effort}>{t(`settings.efforts.${effort}`)}</option>
-                  ))}
-                </select>
+                  <SelectTrigger className="settings-select beui-select-trigger" ariaLabel={t('settings.reasoningEffort')}>
+                    <SelectValue placeholder={t('settings.notSupported')} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {selectedModel?.reasoning !== true && <SelectItem value="" disabled>{t('settings.notSupported')}</SelectItem>}
+                    {selectedModel?.reasoningEfforts.map((effort) => (
+                      <SelectItem key={effort} value={effort}>{t(`settings.efforts.${effort}`)}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
             </div>
             <div className="settings-row">
@@ -642,11 +652,16 @@ function CustomProviderForm({
           </label>
           <label className="span-two">
             <span>{t('settings.protocol')}</span>
-            <select value={api} onChange={(event) => setApi(event.target.value as CustomProviderApi)}>
-              <option value="openai-completions">OpenAI Chat Completions</option>
-              <option value="openai-responses">OpenAI Responses</option>
-              <option value="anthropic-messages">Anthropic Messages</option>
-            </select>
+            <Select value={api} className="model-select-root" onValueChange={(value) => setApi(value as CustomProviderApi)}>
+              <SelectTrigger className="settings-select beui-select-trigger" ariaLabel={t('settings.protocol')}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="openai-completions">OpenAI Chat Completions</SelectItem>
+                <SelectItem value="openai-responses">OpenAI Responses</SelectItem>
+                <SelectItem value="anthropic-messages">Anthropic Messages</SelectItem>
+              </SelectContent>
+            </Select>
           </label>
           <label className="span-two">
             <span>{t('settings.apiKey')}</span>
@@ -754,13 +769,18 @@ function CustomProviderForm({
         <div className="form-grid">
           <label className="span-two">
             <span>{t('settings.defaultModel')}</span>
-            <select value={defaultModelId} onChange={(event) => setDefaultModelId(event.target.value)}>
-              {draftModels.map((model) => (
-                <option value={model.id} key={model.key} disabled={model.id.trim().length === 0}>
-                  {model.name || model.id || t('settings.unnamedModel')}
-                </option>
-              ))}
-            </select>
+            <Select value={defaultModelId} className="model-select-root" onValueChange={setDefaultModelId}>
+              <SelectTrigger className="settings-select beui-select-trigger" ariaLabel={t('settings.defaultModel')}>
+                <SelectValue placeholder={t('settings.chooseModel')} />
+              </SelectTrigger>
+              <SelectContent>
+                {draftModels.map((model) => (
+                  <SelectItem value={model.id} key={model.key} disabled={model.id.trim().length === 0}>
+                    {model.name || model.id || t('settings.unnamedModel')}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </label>
           <div className="span-two option-row">
             <label className="check-row">

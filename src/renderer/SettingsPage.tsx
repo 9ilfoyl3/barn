@@ -9,6 +9,7 @@ import {
 import { useTranslation } from 'react-i18next'
 import { changeAppLanguage, currentLanguagePreference, type LanguagePreference } from './i18n'
 import { Input } from './components/Input'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './components/beui/components/motion/select'
 import { MemorySettingsPanel } from './MemorySettingsPanel'
 import { ModelSettings } from './ModelSettings'
 import { DiagnosticsSettings } from './DiagnosticsSettings'
@@ -224,16 +225,20 @@ function GeneralSettings({
           title={t('appSettings.languageTitle')}
           description={t('appSettings.languageDescription')}
           control={(
-            <select
-              className="settings-select"
-              aria-label={t('appSettings.languageTitle')}
+            <Select
               value={language}
-              onChange={(event) => onLanguageChange(event.target.value as LanguagePreference)}
+              className="settings-select-root"
+              onValueChange={(value) => onLanguageChange(value as LanguagePreference)}
             >
-              {LANGUAGE_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>{t(option.labelKey)}</option>
-              ))}
-            </select>
+              <SelectTrigger className="settings-select beui-select-trigger" ariaLabel={t('appSettings.languageTitle')}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {LANGUAGE_OPTIONS.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>{t(option.labelKey)}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           )}
         />
         <SettingsRow

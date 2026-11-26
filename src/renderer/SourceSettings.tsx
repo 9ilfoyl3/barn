@@ -4,6 +4,7 @@ import { CalendarClock, FolderSearch, Plus, Trash2, X } from 'lucide-react'
 import type { AutomationSettings, LocalSource } from '../shared/models'
 import { TooltipButton } from './components/TooltipButton'
 import { Input } from './components/Input'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './components/beui/components/motion/select'
 import { notifySuccess, useErrorToast } from './notifications'
 import './source-settings.css'
 
@@ -180,12 +181,19 @@ export function SourceSettings({ onClose }: { onClose(): void }) {
               <div className="source-form-grid">
                 <label>
                   <span>{t('sourceSettings.mode')}</span>
-                  <select value={automation.mode} onChange={(event) => {
-                    setAutomation({ ...automation, mode: event.target.value as AutomationSettings['mode'] })
-                  }}>
-                    <option value="observe">{t('sourceSettings.observe')}</option>
-                    <option value="active">{t('sourceSettings.active')}</option>
-                  </select>
+                  <Select
+                    value={automation.mode}
+                    className="source-select-root"
+                    onValueChange={(value) => setAutomation({ ...automation, mode: value as AutomationSettings['mode'] })}
+                  >
+                    <SelectTrigger className="source-select-trigger" ariaLabel={t('sourceSettings.mode')}>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="observe">{t('sourceSettings.observe')}</SelectItem>
+                      <SelectItem value="active">{t('sourceSettings.active')}</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </label>
                 <label>
                   <span>{t('sourceSettings.pendingLimit')}</span>
@@ -275,9 +283,16 @@ export function SourceSettings({ onClose }: { onClose(): void }) {
                     </label>
                     <label>
                       <span>{t('sourceSettings.depth')}</span>
-                      <select value={maxDepth} onChange={(event) => setMaxDepth(Number(event.target.value))}>
-                        {[0, 1, 2, 3, 4].map((depth) => <option value={depth} key={depth}>{depth}</option>)}
-                      </select>
+                      <Select value={String(maxDepth)} className="source-select-root" onValueChange={(value) => setMaxDepth(Number(value))}>
+                        <SelectTrigger className="source-select-trigger" ariaLabel={t('sourceSettings.depth')}>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {[0, 1, 2, 3, 4].map((depth) => (
+                            <SelectItem value={String(depth)} key={depth}>{depth}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </label>
                   </div>
                 </>

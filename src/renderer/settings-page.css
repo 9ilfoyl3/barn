@@ -878,3 +878,45 @@
 .model-wizard-back:active {
   background: color-mix(in srgb, var(--text) 7%, transparent);
 }
+
+/* beui motion Select triggers inherit the settings surface and control scale. */
+.settings-page .settings-select-root,
+.settings-page .model-select-root {
+  width: 100%;
+}
+
+.settings-page .beui-select-trigger {
+  min-height: 34px;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  background: var(--panel);
+  padding: 0 12px;
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.settings-page .beui-select-trigger:hover {
+  border-color: color-mix(in srgb, var(--accent) 28%, var(--line-strong));
+  background: var(--panel);
+}
+
+.settings-page .beui-select-trigger:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent) 58%, transparent);
+  outline-offset: 2px;
+}
+
+.settings-page .model-default-select {
+  width: 220px;
+}
+
+.settings-card:has(.beui-select-trigger),
+.settings-row:has(.beui-select-trigger),
+.settings-row-control:has(.beui-select-trigger) {
+  overflow: visible;
+}
+
+.settings-row-control:has(.beui-select-trigger) {
+  position: relative;
+  z-index: 20;
+}
