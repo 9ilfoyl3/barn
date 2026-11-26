@@ -10,7 +10,7 @@
   white-space: normal;
 }
 
-:where(.beui-button[data-beui-variant="primary"]) {
+.beui-button[data-beui-variant="primary"] {
   border-color: color-mix(in srgb, var(--accent) 72%, var(--line-strong));
   background: var(--accent);
   color: var(--primary-foreground);
@@ -39,7 +39,7 @@
   color: var(--danger);
 }
 
-:where(.beui-button[data-tone="danger"])[data-beui-variant="primary"] {
+.beui-button[data-tone="danger"][data-beui-variant="primary"] {
   background: var(--danger);
   color: var(--primary-foreground);
 }

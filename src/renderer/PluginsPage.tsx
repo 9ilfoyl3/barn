@@ -591,8 +591,7 @@ function ConnectorInstanceRow({
           size="sm"
           type="button"
           disabled={busy}
-          state={busy ? 'loading' : 'idle'}
-          loadingText={t('connectorSettings.test')}
+          {...(busy ? { state: 'loading' as const, loadingText: t('connectorSettings.test') } : {})}
           variant="secondary"
           onClick={onTest}
         >

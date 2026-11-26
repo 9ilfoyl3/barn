@@ -583,6 +583,11 @@
   gap: 6px;
 }
 
+.plugin-instance-actions > .beui-button {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
 .plugin-icon-button {
   display: grid;
   width: 30px;

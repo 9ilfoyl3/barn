@@ -71,17 +71,41 @@ test('configures and removes an email connector from the plugins page', async ()
     await expect(addConnection).toHaveAttribute('data-beui-variant', 'primary')
     await expect(testConnection).toHaveAttribute('data-beui-variant', 'secondary')
     await expect(configureConnection).toHaveAttribute('data-beui-variant', 'secondary')
+    const addConnectionColors = await addConnection.evaluate((button) => {
+      const probe = document.createElement('span')
+      probe.style.color = 'var(--primary-foreground)'
+      document.body.append(probe)
+      const expected = getComputedStyle(probe).color
+      const actual = getComputedStyle(button).color
+      probe.remove()
+      return { actual, expected }
+    })
+    expect(addConnectionColors.actual).toBe(addConnectionColors.expected)
     const connectorButtonStyles = await testConnection.evaluate((button) => {
       const style = getComputedStyle(button)
+      const svg = button.querySelector('svg')!
+      const textNode = Array.from(button.childNodes).find((node) => node.nodeType === Node.TEXT_NODE && node.textContent?.trim())
+      if (textNode === undefined) throw new Error('Test button text node is missing')
+      const range = document.createRange()
+      range.selectNodeContents(textNode)
+      const svgRect = svg.getBoundingClientRect()
+      const textRect = range.getBoundingClientRect()
       return {
         height: button.getBoundingClientRect().height,
         borderWidth: style.borderTopWidth,
         borderRadius: style.borderTopLeftRadius,
+        whiteSpace: style.whiteSpace,
+        statefulWrapperCount: button.querySelectorAll('[aria-live="polite"]').length,
+        svgCenter: svgRect.top + svgRect.height / 2,
+        textCenter: textRect.top + textRect.height / 2,
       }
     })
     expect(connectorButtonStyles.height).toBe(32)
     expect(connectorButtonStyles.borderWidth).toBe('1px')
     expect(Number.parseFloat(connectorButtonStyles.borderRadius)).toBeGreaterThanOrEqual(6)
+    expect(connectorButtonStyles.whiteSpace).toBe('nowrap')
+    expect(connectorButtonStyles.statefulWrapperCount).toBe(0)
+    expect(Math.abs(connectorButtonStyles.svgCenter - connectorButtonStyles.textCenter)).toBeLessThanOrEqual(1)
     await expect.poll(async () => page.evaluate(async () => {
       const instances = await window.barn.connectors.list()
       return instances.map((instance) => ({
