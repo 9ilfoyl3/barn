@@ -98,6 +98,7 @@
 
 .barn-input[data-appearance="flush"] .barn-input-field {
   height: 100%;
+  border-width: 0 !important;
   border-radius: 0 !important;
   background: transparent !important;
   box-shadow: none !important;
@@ -109,6 +110,12 @@
 
 .barn-input[data-appearance="flush"] .barn-input-leading + .barn-input-control {
   padding-left: 40px !important;
+}
+
+.settings-page-search input.barn-input-control:focus,
+.settings-page-search input.barn-input-control:focus-visible {
+  outline: none !important;
+  box-shadow: none !important;
 }
 
 .barn-input-helper {
