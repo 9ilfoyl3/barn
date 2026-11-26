@@ -30,6 +30,11 @@ test('renders the Comma-style Chinese settings layout with scroll edge blur', as
     await expect(page.getByRole('button', { name: '通用', exact: true })).toHaveAttribute('aria-current', 'page')
     await expect(page.getByRole('heading', { name: '通用', level: 1 })).toBeVisible()
     await expect(page.getByRole('button', { name: '记忆', exact: true })).toBeVisible()
+    expect(await page.evaluate(() => {
+      const nav = getComputedStyle(document.querySelector('.settings-page-nav')!)
+      const content = getComputedStyle(document.querySelector('.settings-page-content')!)
+      return nav.backgroundColor === content.backgroundColor
+    })).toBe(true)
     await page.waitForTimeout(250)
     await page.screenshot({ path: 'test-results/barn-settings-general-zh.png', fullPage: true })
 

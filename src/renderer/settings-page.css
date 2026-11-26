@@ -31,6 +31,13 @@
   padding: 8px;
 }
 
+/* The app-level settings stylesheet loads after this page in the production
+   bundle; this descendant selector keeps the sidebar on the same white surface
+   as the settings content. */
+.settings-page > .settings-page-nav {
+  background: var(--panel);
+}
+
 .settings-page-nav > .settings-page-search {
   display: flex;
   width: 100%;
