@@ -27,7 +27,7 @@
   min-height: 0;
   flex-direction: column;
   border-right: 1px solid color-mix(in srgb, var(--line) 62%, transparent);
-  background: color-mix(in srgb, var(--panel-raised) 56%, var(--canvas));
+  background: var(--panel);
   padding: 8px;
 }
 
@@ -37,12 +37,12 @@
   min-height: 34px;
   flex: 0 0 auto;
   align-items: center;
-  gap: 7px;
+  gap: 8px;
   margin: 0;
   border: 1px solid color-mix(in srgb, var(--line) 85%, transparent);
   border-radius: 6px;
-  background: color-mix(in srgb, var(--panel) 72%, transparent);
-  padding: 0 9px;
+  background: color-mix(in srgb, var(--panel-raised) 42%, var(--panel));
+  padding: 0 8px;
   color: var(--text-faint);
 }
 
@@ -60,7 +60,7 @@
   padding: 0;
   color: var(--text);
   font: inherit;
-  font-size: 11px;
+  font-size: 13px;
   outline: 0;
 }
 
@@ -73,7 +73,7 @@
   min-height: 0;
   flex: 1;
   flex-direction: column;
-  gap: 18px;
+  gap: 16px;
   overflow-y: auto;
   padding: 16px 0 20px;
 }
@@ -85,9 +85,10 @@
 
 .settings-page-nav-group h2 {
   margin: 0;
-  padding: 0 8px 5px;
+  text-wrap: balance;
+  padding: 0 8px 4px;
   color: var(--text-faint);
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 500;
   letter-spacing: -0.005em;
 }
@@ -110,7 +111,7 @@
   color: var(--text-dim);
   cursor: pointer;
   font: inherit;
-  font-size: 11px;
+  font-size: 13px;
   text-align: left;
   transition: background 80ms ease, color 80ms ease;
 }
@@ -171,7 +172,7 @@
 .settings-page-inner {
   display: grid;
   width: min(680px, 100%);
-  gap: 22px;
+  gap: 24px;
   margin: 0 auto;
 }
 
@@ -200,9 +201,10 @@
 
 .settings-group > h2 {
   margin: 0;
+  text-wrap: balance;
   padding: 0 4px;
   color: var(--text-dim);
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 520;
   letter-spacing: -0.005em;
 }
@@ -212,7 +214,7 @@
   border: 1px solid color-mix(in srgb, var(--line) 82%, transparent);
   border-radius: 12px;
   background: var(--panel);
-  box-shadow: 0 1px 2px light-dark(rgba(20, 20, 18, 0.018), rgba(0, 0, 0, 0.08));
+  box-shadow: var(--card-shadow);
 }
 
 .settings-row {
@@ -235,7 +237,7 @@
 .settings-row-copy h3 {
   margin: 0;
   color: var(--text);
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 540;
   letter-spacing: -0.01em;
 }
@@ -243,7 +245,7 @@
 .settings-row-copy p {
   margin: 4px 0 0;
   color: var(--text-dim);
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1.45;
 }
 
@@ -256,7 +258,7 @@
 
 .settings-static-value {
   color: var(--text-dim);
-  font-size: 10px;
+  font-size: 12px;
   white-space: nowrap;
 }
 
@@ -266,11 +268,11 @@
   border: 1px solid var(--line-strong);
   border-radius: 8px;
   background: var(--panel);
-  padding: 0 28px 0 10px;
+  padding: 0 24px 0 12px;
   color: var(--text);
   cursor: pointer;
   font: inherit;
-  font-size: 10px;
+  font-size: 12px;
   outline: none;
 }
 
@@ -285,11 +287,11 @@
   border: 1px solid var(--line-strong);
   border-radius: 8px;
   background: var(--panel);
-  padding: 0 11px;
+  padding: 0 12px;
   color: var(--text);
   cursor: pointer;
   font: inherit;
-  font-size: 10px;
+  font-size: 12px;
 }
 
 .settings-action-button:hover {
@@ -341,7 +343,7 @@
   .settings-page-nav > .settings-page-nav-groups {
     display: flex;
     flex-direction: row;
-    gap: 10px;
+    gap: 8px;
     overflow-x: auto;
     overflow-y: hidden;
     padding: 8px 0 0;
@@ -365,7 +367,7 @@
   }
 
   .settings-page-scroll {
-    padding: 18px 16px 56px;
+    padding: 16px 16px 56px;
   }
 
   .settings-row {
@@ -404,11 +406,11 @@
 }
 
 .model-settings-page .provider-column {
-  padding: 14px 12px;
+  padding: 16px 12px;
 }
 
 .model-settings-page .provider-detail {
-  padding: 24px 26px 30px;
+  padding: 24px 24px 32px;
 }
 
 .model-settings-page .custom-provider-form {
@@ -417,12 +419,12 @@
 
 .diagnostics-page {
   display: grid;
-  gap: 14px;
+  gap: 16px;
 }
 
 .diagnostics-page .diagnostics-body.embedded {
   display: grid;
-  gap: 14px;
+  gap: 16px;
   overflow: visible;
   padding: 0;
 }
@@ -499,12 +501,13 @@
 
 .model-wizard-heading {
   display: grid;
-  gap: 6px;
-  margin: 14px 0 22px;
+  gap: 8px;
+  margin: 16px 0 24px;
 }
 
 .model-wizard-heading h1 {
   margin: 0;
+  text-wrap: balance;
   color: var(--text);
   font-size: 22px;
   font-weight: 590;
@@ -524,7 +527,7 @@
 }
 
 .model-overview-groups {
-  gap: 26px;
+  gap: 24px;
 }
 
 .model-default-select {
@@ -556,7 +559,7 @@
   grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
   gap: 12px;
-  padding: 18px 16px;
+  padding: 16px;
 }
 
 .model-library-empty > svg {
@@ -572,7 +575,7 @@
 
 .model-library-empty p,
 .model-library-row p {
-  margin: 3px 0 0;
+  margin: 4px 0 0;
   color: var(--text-faint);
   font-size: 10px;
   line-height: 1.45;
@@ -640,7 +643,7 @@
   border: 1px solid transparent;
   border-radius: 9px;
   background: transparent;
-  padding: 6px 8px;
+  padding: 8px;
   color: var(--text-dim);
   cursor: pointer;
   font: inherit;
@@ -766,4 +769,105 @@
   .model-library-empty > svg {
     display: none;
   }
+}
+
+/* Hallmark · finish: settings readability pass. Inputs, labels, cards, and
+   embedded memory/model pages share a 12–14px reading scale. */
+.settings-page .memory-document-tabs button {
+  font-size: 13px;
+}
+
+.settings-page .memory-document-stats-heading h2 {
+  font-size: 14px;
+}
+
+.settings-page .memory-document-stats-heading p,
+.settings-page .memory-document-usage,
+.settings-page .memory-review-description,
+.settings-page .memory-review-empty,
+.settings-page .memory-document-empty {
+  font-size: 12px;
+}
+
+.settings-page .memory-document-limit-note,
+.settings-page .memory-entry-meta,
+.settings-page .memory-entry-version,
+.settings-page .memory-review-count,
+.settings-page .memory-save-state {
+  font-size: 10px;
+}
+
+.settings-page .memory-document-editor textarea {
+  font-size: 13px;
+}
+
+.settings-page .memory-entry-heading strong,
+.settings-page .memory-entry-card > p,
+.settings-page .memory-runtime-settings summary {
+  font-size: 12px;
+}
+
+.settings-page .memory-switch-row strong,
+.settings-page .memory-number-grid span {
+  font-size: 12px;
+}
+
+.settings-page .memory-switch-row small,
+.settings-page .memory-number-grid small,
+.settings-page .memory-settings-actions span {
+  font-size: 11px;
+}
+
+.settings-page .model-wizard-back,
+.settings-page .model-wizard-heading p,
+.settings-page .provider-choice-group h3,
+.settings-page .provider-choice-grid button,
+.settings-page .model-library-row p,
+.settings-page .model-library-empty p,
+.settings-page .model-connect-copy span,
+.settings-page .model-connect-existing {
+  font-size: 12px;
+}
+
+.settings-page .model-library-row strong,
+.settings-page .model-library-empty strong,
+.settings-page .model-connect-copy strong {
+  font-size: 14px;
+}
+
+.settings-page .model-library-facts,
+.settings-page .model-default-badge {
+  font-size: 10px;
+}
+
+.settings-page .diagnostics-summary h3,
+.settings-page .diagnostics-retention h3 {
+  font-size: 16px;
+}
+
+.settings-page .diagnostics-summary p,
+.settings-page .diagnostics-retention p {
+  font-size: 13px;
+}
+
+.settings-page .diagnostics-grid dt {
+  font-size: 11px;
+}
+
+.settings-page .diagnostics-grid dd {
+  font-size: 15px;
+}
+
+.settings-page .diagnostics-retention small,
+.settings-page .diagnostics-path,
+.settings-page .diagnostics-muted {
+  font-size: 11px;
+}
+
+
+.settings-page-nav-group button:active,
+.settings-action-button:active,
+.provider-choice-grid button:active,
+.model-wizard-back:active {
+  background: color-mix(in srgb, var(--text) 7%, transparent);
 }
