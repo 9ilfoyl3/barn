@@ -40,6 +40,11 @@ test('renders the Comma-style Chinese settings layout with scroll edge blur', as
     await page.getByRole('button', { name: '语言' }).click()
     await expect(page.getByRole('listbox')).toBeVisible()
     await expect(page.getByRole('option', { name: '系统默认' })).toBeVisible()
+    const triggerRadii = await page.getByRole('button', { name: '语言' }).evaluate((element) => {
+      const style = getComputedStyle(element)
+      return [style.borderTopLeftRadius, style.borderTopRightRadius, style.borderBottomLeftRadius, style.borderBottomRightRadius]
+    })
+    expect(new Set(triggerRadii).size).toBe(1)
     await page.waitForTimeout(400)
     await page.screenshot({ path: 'test-results/barn-settings-select-open-zh.png', fullPage: true })
     await page.keyboard.press('Escape')
