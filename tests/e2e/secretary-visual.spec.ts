@@ -91,6 +91,18 @@ test('renders the sessionless personal-secretary workspace and structured result
     await expect(page.getByText('No completed tasks yet', { exact: true })).toBeVisible()
     await page.getByRole('button', { name: 'Review', exact: true }).click()
     await expect(page.locator('.task-rail-card')).toHaveCount(2)
+    const taskRailCardLayout = await page.locator('.task-rail-card').first().evaluate((card) => {
+      const state = card.querySelector('.task-rail-state')!.getBoundingClientRect()
+      const main = card.querySelector('.task-rail-card-main')!.getBoundingClientRect()
+      const tags = card.querySelector('.task-rail-tags')!.getBoundingClientRect()
+      const open = card.querySelector('.task-rail-card-open')!.getBoundingClientRect()
+      const root = card.getBoundingClientRect()
+      return { state, main, tags, open, root }
+    })
+    expect(taskRailCardLayout.main.left).toBeGreaterThan(taskRailCardLayout.state.right)
+    expect(taskRailCardLayout.tags.height).toBeLessThan(32)
+    expect(Math.abs(taskRailCardLayout.open.width - taskRailCardLayout.root.width)).toBeLessThanOrEqual(2)
+    expect(Math.abs(taskRailCardLayout.open.height - taskRailCardLayout.root.height)).toBeLessThanOrEqual(2)
     await page.mouse.move(700, 40)
     await expect.poll(async () => dividerLine.evaluate((node) => getComputedStyle(node).opacity)).toBe('0')
 
