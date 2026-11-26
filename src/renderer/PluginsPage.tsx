@@ -30,6 +30,7 @@ import type {
 } from '../shared/models'
 import { SkillsPanel } from './SkillsPanel'
 import { Input } from './components/Input'
+import { Input as BeuiInput } from './components/beui/components/motion/input'
 import { notifyError, notifySuccess, useErrorToast } from './notifications'
 import './plugins-page.css'
 
@@ -288,17 +289,15 @@ export function PluginsPage({ onTrySkill }: { onTrySkill?: (skill: SkillSummary)
         </div>
       </header>
 
-      <Input
-        containerClassName="plugins-search"
-        leadingIcon={<Search size={17} aria-hidden="true" />}
+      <BeuiInput
+        className="plugins-search"
+        leftIcon={<Search size={17} aria-hidden="true" />}
         aria-label={tab === 'skills' ? t('plugins.searchSkills') : t('plugins.search')}
-        onChange={(event) => setQuery(event.target.value)}
+        onChange={setQuery}
         placeholder={tab === 'skills' ? t('plugins.searchSkillsPlaceholder') : t('plugins.searchPlaceholder')}
         type="search"
         value={query}
-        appearance="flush"
-        density="compact"
-        trailing={query.length > 0 ? (
+        rightIcon={query.length > 0 ? (
           <button type="button" aria-label={t('plugins.clearSearch')} onClick={() => setQuery('')}>
             <X size={14} />
           </button>

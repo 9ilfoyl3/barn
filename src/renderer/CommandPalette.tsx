@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { ArrowRight, Inbox, Search, X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import type { Task } from '../shared/models'
-import { Input } from './components/Input'
+import { Input as BeuiInput } from './components/beui/components/motion/input'
 
 export interface CommandPaletteProps {
   open: boolean
@@ -43,19 +43,16 @@ export function CommandPalette({ open, tasks, onClose, onOpenTask, onOpenTasks }
       if (event.target === event.currentTarget) onClose()
     }}>
       <section className="command-palette" role="dialog" aria-modal="true" aria-label={t('secretary.search')}>
-        <header className="command-search">
-          <Search size={17} aria-hidden="true" />
-          <Input
-            ref={inputRef}
-            type="search"
-            value={query}
-            placeholder={t('secretary.searchPlaceholder')}
-            onChange={(event) => setQuery(event.target.value)}
-            appearance="flush"
-            density="compact"
-          />
-          <button type="button" aria-label={t('common.close')} onClick={onClose}><X size={15} /></button>
-        </header>
+        <BeuiInput
+          ref={inputRef}
+          className="command-search"
+          leftIcon={<Search size={17} aria-hidden="true" />}
+          rightIcon={<button type="button" aria-label={t('common.close')} onClick={onClose}><X size={15} /></button>}
+          type="search"
+          value={query}
+          placeholder={t('secretary.searchPlaceholder')}
+          onChange={setQuery}
+        />
         <div className="command-results">
           <button className="command-command" type="button" onClick={onOpenTasks}>
             <span className="command-icon"><Inbox size={15} /></span>

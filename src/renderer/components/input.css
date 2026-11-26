@@ -180,3 +180,11 @@ label > .barn-input,
     transition-duration: .001ms !important;
   }
 }
+
+/* Theme isolation: focus styling belongs to the beui field, never to the
+   browser's native input outline. */
+.beui-motion-input input:focus,
+.beui-motion-input input:focus-visible {
+  outline: none !important;
+  box-shadow: none !important;
+}

@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Folder, Globe2, Search, Terminal } from 'lucide-react'
 import type { BrowserHistoryEntry } from '../shared/models'
-import { Input } from './components/Input'
+import { Input as BeuiInput } from './components/beui/components/motion/input'
 
 export type BrowserQuickAction = 'terminal' | 'files'
 
@@ -38,9 +38,10 @@ export function BrowserNewTab({ history, onNavigate, onQuickAction }: BrowserNew
           if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setSearchFocused(false)
         }}
       >
-        <form className="browser-newtab-search" onSubmit={(event) => { event.preventDefault(); void submit() }}>
-          <Search size={18} aria-hidden="true" />
-          <Input
+        <form className="browser-newtab-search-form" onSubmit={(event) => { event.preventDefault(); void submit() }}>
+          <BeuiInput
+            className="browser-newtab-search"
+            leftIcon={<Search size={18} aria-hidden="true" />}
             aria-label={t('browser.address')}
             type="text"
             inputMode="url"
@@ -49,9 +50,7 @@ export function BrowserNewTab({ history, onNavigate, onQuickAction }: BrowserNew
             spellCheck={false}
             placeholder={t('browser.searchPlaceholder')}
             value={address}
-            onChange={(event) => setAddress(event.target.value)}
-            appearance="flush"
-            density="compact"
+            onChange={setAddress}
           />
         </form>
         {searchFocused && (

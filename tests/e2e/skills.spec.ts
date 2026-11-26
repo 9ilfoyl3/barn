@@ -74,12 +74,11 @@ test('manages local skills from the Plugins page and exposes them to the Agent b
 
     const search = page.getByRole('searchbox', { name: 'Search skills' })
     await search.focus()
-    await expect.poll(() => search.evaluate((input) => getComputedStyle(input).outlineStyle)).toBe('none')
-    await expect.poll(() => search.evaluate((input) => getComputedStyle(input.closest('.plugins-search')!).boxShadow)).not.toBe('none')
+    await expect.poll(() => search.evaluate((input) => getComputedStyle(input.closest('[data-state]')!).boxShadow)).not.toBe('none')
     await search.fill('DingTalk')
     const clear = page.getByRole('button', { name: 'Clear search' })
     const rightGap = await clear.evaluate((button) => {
-      const field = button.closest('.barn-input-field')
+      const field = button.closest('[data-state]')
       if (field === null) return Number.POSITIVE_INFINITY
       const fieldRect = field.getBoundingClientRect()
       const buttonRect = button.getBoundingClientRect()

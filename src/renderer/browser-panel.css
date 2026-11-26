@@ -185,7 +185,6 @@
 .browser-download-button:focus-visible,
 .browser-panel-close:focus-visible,
 .browser-toolbar button:focus-visible,
-.browser-address:focus-within,
 .browser-approval-actions button:focus-visible,
 .browser-newtab-grid button:focus-visible,
 .browser-more-menu button:focus-visible {
@@ -350,44 +349,16 @@
   cursor: default;
 }
 
-.browser-address {
+.browser-address-form {
   display: flex;
   min-width: 0;
-  height: 32px;
   flex: 1 1 auto;
-  align-items: center;
-  gap: 8px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: var(--panel);
-  padding: 0 12px;
-  color: var(--text-faint);
-  box-shadow: var(--card-shadow);
 }
 
-.browser-address:focus-within {
-  border-color: color-mix(in srgb, var(--accent) 42%, var(--line));
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 8%, transparent);
-}
-
-.browser-address input {
+.browser-address {
   width: 100%;
   min-width: 0;
-  border: 0;
-  outline: 0;
-  background: transparent;
-  color: var(--text);
-  font-size: 11px;
-}
-
-.browser-address input:focus-visible,
-.browser-newtab-search input:focus-visible {
-  outline: 0;
-}
-
-.browser-address input::placeholder,
-.browser-newtab-search input::placeholder {
-  color: var(--text-faint);
+  flex: 1 1 auto;
 }
 
 .browser-spinner {
@@ -506,33 +477,12 @@
   font-size: 11px;
 }
 
-.browser-newtab-search {
-  display: flex;
+.browser-newtab-search-form {
   width: min(660px, 100%);
-  min-height: 56px;
-  align-items: center;
-  gap: 12px;
-  border: 1px solid transparent;
-  border-radius: 999px;
-  background: var(--panel);
-  padding: 0 20px;
-  color: var(--text-faint);
-  box-shadow: var(--browser-newtab-shadow);
 }
 
-.browser-newtab-search:focus-within {
-  border-color: color-mix(in srgb, var(--accent) 28%, var(--line));
-  box-shadow: var(--browser-newtab-shadow);
-}
-
-.browser-newtab-search input {
+.browser-newtab-search {
   width: 100%;
-  min-width: 0;
-  border: 0;
-  outline: 0;
-  background: transparent;
-  color: var(--text);
-  font-size: 14px;
 }
 
 .browser-newtab-section {

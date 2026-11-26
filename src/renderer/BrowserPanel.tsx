@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Input } from './components/Input'
+import { Input as BeuiInput } from './components/beui/components/motion/input'
 import {
   ArrowLeft,
   ArrowRight,
@@ -186,8 +186,9 @@ export function BrowserPanel({
           <button type="button" className="browser-site-info" aria-label="Site information" title={state.url}>
             <ShieldCheck size={15} />
           </button>
-          <form className="browser-address" onSubmit={(event) => { event.preventDefault(); void submit() }}>
-            <Input
+          <form className="browser-address-form" onSubmit={(event) => { event.preventDefault(); void submit() }}>
+            <BeuiInput
+              className="browser-address"
               aria-label="Browser address"
               type="text"
               inputMode="url"
@@ -196,9 +197,7 @@ export function BrowserPanel({
               spellCheck={false}
               placeholder={t('browser.searchPlaceholder')}
               value={address}
-              onChange={(event) => setAddress(event.target.value)}
-              appearance="flush"
-              density="compact"
+              onChange={setAddress}
             />
           </form>
           <button
