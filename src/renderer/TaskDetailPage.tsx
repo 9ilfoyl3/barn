@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react'
 import {
   ArrowLeft,
   Bot,
@@ -36,6 +36,7 @@ import {
   type ConversationPart,
 } from './conversation'
 import './task-detail.css'
+import { Button } from './components/Button'
 
 const TASK_TAG_VALUES = ['work', 'reminder', 'important', 'followUp'] as const
 type TaskTagValue = typeof TASK_TAG_VALUES[number]
@@ -65,6 +66,7 @@ export function TaskDetailPage({
   const [statusBusy, setStatusBusy] = useState(false)
   const [copied, setCopied] = useState(false)
   const [tagMenuOpen, setTagMenuOpen] = useState(false)
+  const [tagMenuSide, setTagMenuSide] = useState<'left' | 'right'>('left')
   const [tags, setTags] = useState<TaskTagValue[]>(() => readTaskTags(task.id))
   useErrorToast(error)
   const threadRef = useRef<HTMLDivElement>(null)
@@ -90,6 +92,7 @@ export function TaskDetailPage({
     setError(undefined)
     setStatusBusy(false)
     setTagMenuOpen(false)
+    setTagMenuSide('left')
     setTags(readTaskTags(task.id))
     sessionPromiseRef.current = null
   }, [task.id, task.sessionId])
@@ -188,6 +191,23 @@ export function TaskDetailPage({
   useEffect(() => () => {
     if (copiedTimerRef.current !== undefined) clearTimeout(copiedTimerRef.current)
   }, [])
+
+  function toggleTagMenu(event: ReactMouseEvent<HTMLButtonElement>): void {
+    if (tagMenuOpen) {
+      setTagMenuOpen(false)
+      return
+    }
+    const menuWidth = 158
+    const gutter = 8
+    const boundary = event.currentTarget.closest('.task-detail-properties-scroll')?.getBoundingClientRect()
+    const control = event.currentTarget.getBoundingClientRect()
+    if (boundary !== undefined && boundary.right - control.left < menuWidth + gutter) {
+      setTagMenuSide('right')
+    } else {
+      setTagMenuSide('left')
+    }
+    setTagMenuOpen(true)
+  }
 
   const initialMessages = messages.length > 0 ? messages : messagesFromTask(task)
   const displayMessages = [...initialMessages, ...optimisticMessages]
@@ -401,7 +421,7 @@ export function TaskDetailPage({
   return (
     <section className="task-detail-page" aria-label={task.title}>
       <header className="task-detail-header">
-        <button
+        <Button
           className="task-detail-back"
           type="button"
           aria-label={t('tasks.back')}
@@ -409,10 +429,10 @@ export function TaskDetailPage({
           onClick={onBack}
         >
           <ArrowLeft size={16} aria-hidden="true" />
-        </button>
+        </Button>
         <div className="task-detail-title-row">
           <h1>{task.title}</h1>
-          <button
+          <Button
             className="task-detail-link"
             type="button"
             aria-label={copied ? t('tasks.linkCopied') : t('tasks.copyTaskLink')}
@@ -420,7 +440,7 @@ export function TaskDetailPage({
             onClick={() => void copyTaskLink()}
           >
             {copied ? <Check size={13} aria-hidden="true" /> : <Link2 size={13} aria-hidden="true" />}
-          </button>
+          </Button>
         </div>
       </header>
 
@@ -473,7 +493,7 @@ export function TaskDetailPage({
               </div>
             )}
             <div className="task-detail-quick-actions" aria-label={t('tasks.taskActions')}>
-              <button
+              <Button
                 className="task-detail-quick-action"
                 type="button"
                 disabled={statusBusy}
@@ -481,8 +501,8 @@ export function TaskDetailPage({
               >
                 <CircleCheck size={14} aria-hidden="true" />
                 <span>{t('tasks.markComplete')}</span>
-              </button>
-              <button
+              </Button>
+              <Button
                 className="task-detail-quick-action"
                 type="button"
                 disabled={statusBusy}
@@ -490,7 +510,7 @@ export function TaskDetailPage({
               >
                 <Clock3 size={14} aria-hidden="true" />
                 <span>{t('tasks.markWaiting')}</span>
-              </button>
+              </Button>
             </div>
           </div>
 
@@ -578,24 +598,33 @@ export function TaskDetailPage({
                   </span>
                 ))}
                 <div className="task-detail-tag-control">
-                  <button
+                  <Button
                     className={`task-detail-add-tag${tags.length === 0 ? ' is-labeled' : ''}`}
+                    size="icon"
                     type="button"
+                    variant="ghost"
                     aria-label={t('tasks.addTag')}
                     aria-expanded={tagMenuOpen}
-                    onClick={() => setTagMenuOpen((open) => !open)}
+                    onClick={toggleTagMenu}
                   >
                     <Plus size={13} aria-hidden="true" />
                     {tags.length === 0 && <span>{t('tasks.addTag')}</span>}
-                  </button>
+                  </Button>
                   {tagMenuOpen && (
-                    <div className="task-detail-tag-menu" role="menu" aria-label={t('tasks.tags')}>
+                    <div
+                      className="task-detail-tag-menu"
+                      data-side={tagMenuSide}
+                      role="menu"
+                      aria-label={t('tasks.tags')}
+                    >
                       {TASK_TAG_VALUES.map((tag) => {
                         const checked = tags.includes(tag)
                         return (
-                          <button
+                          <Button
                             className="task-detail-tag-option"
+                            size="sm"
                             type="button"
+                            variant="ghost"
                             role="menuitemcheckbox"
                             aria-checked={checked}
                             key={tag}
@@ -604,7 +633,7 @@ export function TaskDetailPage({
                             <span className={`task-detail-tag-dot task-detail-tag-dot-${tag}`} aria-hidden="true" />
                             <span>{t(`tasks.tagPreset.${tag}`)}</span>
                             {checked && <Check size={13} aria-hidden="true" />}
-                          </button>
+                          </Button>
                         )
                       })}
                     </div>

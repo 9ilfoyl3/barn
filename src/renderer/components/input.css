@@ -1,0 +1,190 @@
+.barn-input {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.barn-input > .beui-motion-input {
+  width: 100%;
+  gap: 0;
+}
+
+.barn-input .barn-input-field {
+  height: 52px;
+  overflow: hidden !important;
+  border-color: var(--line-strong) !important;
+  border-radius: 14px !important;
+  background: color-mix(in srgb, var(--panel) 92%, var(--panel-raised)) !important;
+  box-shadow: 0 0 0 1px var(--line-strong), 0 8px 20px -14px color-mix(in srgb, var(--text) 30%, transparent);
+}
+
+.barn-input[data-density="compact"] .barn-input-field {
+  height: 38px;
+  border-radius: 10px !important;
+}
+
+.barn-input .barn-input-field[data-state="focused"] {
+  border-color: transparent !important;
+  box-shadow: 0 0 0 1.5px var(--accent), 0 0 0 6px var(--accent-soft), 0 8px 20px -14px color-mix(in srgb, var(--text) 30%, transparent);
+}
+
+.barn-input .barn-input-field[data-state="error"] {
+  border-color: transparent !important;
+  box-shadow: 0 0 0 1.5px var(--danger), 0 0 0 6px color-mix(in srgb, var(--danger) 14%, transparent);
+}
+
+.barn-input .barn-input-field[data-state="success"] {
+  border-color: transparent !important;
+  box-shadow: 0 0 0 1.5px var(--green), 0 0 0 6px color-mix(in srgb, var(--green) 14%, transparent);
+}
+
+.barn-input .barn-input-control {
+  width: 100% !important;
+  height: 100% !important;
+  min-height: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  padding: 0 14px !important;
+  color: var(--text) !important;
+  box-shadow: none !important;
+  font: inherit !important;
+  font-size: 15.5px !important;
+  font-weight: 500 !important;
+  outline: none !important;
+}
+
+.barn-input[data-density="compact"] .barn-input-control {
+  font-size: 12px !important;
+}
+
+.barn-input .barn-input-control::placeholder {
+  color: var(--text-faint) !important;
+}
+
+.barn-input .barn-input-leading {
+  left: 12px !important;
+  color: var(--text-faint);
+}
+
+.barn-input .barn-input-leading + .barn-input-control {
+  padding-left: 40px !important;
+}
+
+.barn-input .barn-input-trailing {
+  right: 0;
+  color: var(--text-faint);
+}
+
+.barn-input .barn-input-trailing button {
+  display: grid;
+  min-width: 32px;
+  min-height: 32px;
+  place-items: center;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  padding: 0;
+  color: var(--text-faint);
+  cursor: pointer;
+}
+
+.barn-input[data-appearance="flush"] {
+  flex: 1;
+  gap: 0;
+}
+
+.barn-input[data-appearance="flush"] .barn-input-field {
+  height: 100%;
+  border-width: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.barn-input[data-appearance="flush"] .barn-input-control {
+  padding: 0 !important;
+}
+
+.barn-input[data-appearance="flush"] .barn-input-leading + .barn-input-control {
+  padding-left: 40px !important;
+}
+
+.settings-page-search input.barn-input-control:focus,
+.settings-page-search input.barn-input-control:focus-visible {
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+.barn-input-helper {
+  margin: 0 2px;
+  color: var(--text-faint);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.barn-input,
+label > .barn-input,
+.form-grid .barn-input,
+.model-editor-grid .barn-input,
+.source-settings-form .barn-input,
+.skill-editor-fields .barn-input {
+  width: 100%;
+}
+
+.secret-row > .barn-input,
+.source-path-row > .barn-input {
+  min-width: 0;
+  flex: 1;
+}
+
+/* Protect the beui control from legacy selectors that target page-level
+   input elements directly. Layout wrappers may size the root, never the
+   rendered control. */
+.secret-row input.barn-input-control,
+.form-grid input.barn-input-control,
+.model-editor-grid input.barn-input-control,
+.source-settings-form input.barn-input-control,
+.skill-editor-fields input.barn-input-control,
+.provider-search input.barn-input-control,
+.plugins-search input.barn-input-control,
+.command-search input.barn-input-control,
+.browser-address input.barn-input-control,
+.browser-newtab-search input.barn-input-control,
+.settings-page-search input.barn-input-control {
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.provider-search .barn-input,
+.plugins-search .barn-input,
+.command-search .barn-input,
+.browser-address .barn-input,
+.browser-newtab-search .barn-input,
+.settings-page-search .barn-input {
+  min-width: 0;
+  height: 100%;
+  flex: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .barn-input,
+  .barn-input *,
+  .barn-input *::before,
+  .barn-input *::after {
+    animation-duration: .001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .001ms !important;
+  }
+}
+
+/* Theme isolation: focus styling belongs to the beui field, never to the
+   browser's native input outline. */
+.beui-motion-input input:focus,
+.beui-motion-input input:focus-visible {
+  outline: none !important;
+  box-shadow: none !important;
+}

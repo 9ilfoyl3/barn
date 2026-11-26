@@ -2,6 +2,8 @@ import { Bookmark, CircleCheck, CircleX, ListTodo, LoaderCircle } from 'lucide-r
 import { useTranslation } from 'react-i18next'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { Task, TaskStatus } from '../shared/models'
+import { Button } from './components/Button'
+import { Card } from './components/beui/components/motion/card'
 
 export type TaskRailFilter = 'active' | 'review' | 'completed' | 'cancelled'
 
@@ -78,7 +80,7 @@ export function TaskRail({ tasks, onOpenTask, onOpenTasks }: TaskRailProps) {
     <aside className="task-rail" aria-label={t('tasks.title')}>
       <div className="task-rail-heading">
         <h2>{t('secretary.tasksTitle')}</h2>
-        <button type="button" onClick={onOpenTasks}>{t('secretary.viewAll')}</button>
+        <Button type="button" onClick={onOpenTasks}>{t('secretary.viewAll')}</Button>
       </div>
 
       <div className="task-rail-scroll-shell">
@@ -98,12 +100,23 @@ export function TaskRail({ tasks, onOpenTask, onOpenTasks }: TaskRailProps) {
               {visibleTasks.map((task) => {
                 const statusLabel = taskStatusLabel(task, t)
                 return (
-                  <button
+                  <Card
                     className={`task-rail-card task-rail-card-${task.status}`}
-                    type="button"
+                    interactive
                     key={task.id}
-                    onClick={() => onOpenTask(task)}
+                    role="article"
+                    size="compact"
+                    onClick={(event) => {
+                      if (event.target === event.currentTarget) onOpenTask(task)
+                    }}
                   >
+                    <Button
+                      aria-label={`${t('tasks.openDetails')}: ${task.title}`}
+                      className="task-rail-card-open"
+                      type="button"
+                      variant="ghost"
+                      onClick={() => onOpenTask(task)}
+                    />
                     <span className={`task-rail-state task-rail-state-${task.status}`} aria-hidden="true">
                       <TaskStatusIcon status={task.status} />
                     </span>
@@ -126,7 +139,7 @@ export function TaskRail({ tasks, onOpenTask, onOpenTasks }: TaskRailProps) {
                       </span>
                       <span className="visually-hidden">{statusLabel}</span>
                     </span>
-                  </button>
+                  </Card>
                 )
               })}
             </div>
@@ -149,7 +162,7 @@ export function TaskRail({ tasks, onOpenTask, onOpenTasks }: TaskRailProps) {
           const active = candidate === filter
           const label = t(`secretary.taskFilter.${candidate}`)
           return (
-            <button
+            <Button
               className={`task-rail-filter-button task-rail-filter-button-${candidate}${active ? ' active' : ''}`}
               type="button"
               key={candidate}
@@ -163,7 +176,7 @@ export function TaskRail({ tasks, onOpenTask, onOpenTasks }: TaskRailProps) {
                 <TaskFilterIcon filter={candidate} />
                 <span>{label}</span>
               </span>
-            </button>
+            </Button>
           )
         })}
       </div>

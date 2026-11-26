@@ -4,6 +4,7 @@ import type { BrowserHistoryEntry } from '../shared/models'
 import { BrowserNewTab, type BrowserQuickAction } from './BrowserNewTab'
 import { TerminalView } from './TerminalView'
 import './utility-panel.css'
+import { Button } from './components/Button'
 
 export type UtilityTabType = 'empty' | 'terminal'
 export interface UtilityTab {
@@ -46,7 +47,7 @@ export function UtilityPanel({
         <div className="utility-tab-list" role="tablist" aria-label={t('browser.sideChat')}>
           {tabs.map((tab) => (
             <div className={tab.id === activeTabId ? 'utility-tab active' : 'utility-tab'} key={tab.id}>
-              <button
+              <Button
                 type="button"
                 role="tab"
                 aria-selected={tab.id === activeTabId}
@@ -54,19 +55,19 @@ export function UtilityPanel({
               >
                 {tab.type === 'terminal' ? <Terminal size={14} /> : <Globe2 size={14} />}
                 <span>{tab.title}</span>
-              </button>
-              <button type="button" aria-label={t('browser.closeTab', { name: tab.title })} onClick={() => onCloseTab(tab.id)}>
+              </Button>
+              <Button type="button" aria-label={t('browser.closeTab', { name: tab.title })} onClick={() => onCloseTab(tab.id)}>
                 <X size={11} />
-              </button>
+              </Button>
             </div>
           ))}
         </div>
-        <button className="utility-action" type="button" aria-label={t('browser.newTab')} onClick={onAddTab}>
+        <Button className="utility-action" type="button" aria-label={t('browser.newTab')} onClick={onAddTab}>
           <Plus size={15} />
-        </button>
-        <button className="utility-action utility-close" type="button" aria-label={t('browser.closeSidePanel')} onClick={onClose}>
+        </Button>
+        <Button className="utility-action utility-close" type="button" aria-label={t('browser.closeSidePanel')} onClick={onClose}>
           <Globe2 size={16} />
-        </button>
+        </Button>
       </header>
       <div className="utility-content">
         {tabs.map((tab) => (

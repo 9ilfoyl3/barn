@@ -1,6 +1,7 @@
 import { ExternalLink, FileText, ListChecks, MapPin } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import type { VisibleResultCard } from '../shared/models'
+import { Button } from './components/Button'
 
 export function AssistantResult({
   card,
@@ -36,16 +37,16 @@ export function AssistantResult({
           {card.meta !== undefined && <span>{card.meta}</span>}
           <span className="assistant-result-actions">
             {onOpenTask !== undefined && (
-              <button type="button" onClick={onOpenTask}>
+              <Button type="button" onClick={onOpenTask}>
                 {t('tasks.openDetails')}
                 <ListChecks size={12} aria-hidden="true" />
-              </button>
+              </Button>
             )}
             {card.href !== undefined && (
-              <button type="button" onClick={() => onOpenLink(card.href!)}>
+              <Button type="button" onClick={() => onOpenLink(card.href!)}>
                 {t('secretary.openResult')}
                 <ExternalLink size={12} aria-hidden="true" />
-              </button>
+              </Button>
             )}
           </span>
         </footer>

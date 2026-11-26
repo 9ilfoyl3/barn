@@ -120,7 +120,7 @@ describe('MemoryExtractionService', () => {
       sourceAuthority: 'inferred',
       status: 'candidate',
     }])
-    expect(candidates[0]?.sourceRefs).toEqual(expect.arrayContaining([`session:${sessionId}:seq:2`]))
+    expect(candidates[0]?.sourceRefs).toEqual(expect.arrayContaining([`session:${sessionId}:seq:1`]))
     const confirmed = store.memories.confirm(candidates[0]!.id)
     expect(confirmed).toMatchObject({ status: 'active', sourceAuthority: 'inferred' })
     expect(confirmed.lastConfirmedAt).toEqual(expect.any(String))
@@ -131,7 +131,7 @@ describe('MemoryExtractionService', () => {
     store.close()
   })
 
-  it('records extraction failure and backs off before retrying', async () => {
+  it('records extraction failure without advancing the cursor and retries the same window', async () => {
     const { store, sessionId, model, service } = await setup('{"memories": [')
     const spy = vi.spyOn(model, 'streamSimple')
     const now = new Date(Date.now() + 60 * 60 * 1_000)
@@ -139,12 +139,16 @@ describe('MemoryExtractionService', () => {
     await service.runOnce(now)
     expect(spy).toHaveBeenCalledTimes(1)
     expect(store.memories.extractionState(sessionId)).toMatchObject({
+      lastProcessedSeq: 0,
       attempts: 1,
       lastError: expect.stringContaining('valid JSON'),
     })
 
     await service.runOnce(new Date(now.getTime() + 60 * 60 * 1_000))
     expect(spy).toHaveBeenCalledTimes(1)
+    await service.runOnce(new Date(now.getTime() + 7 * 60 * 60 * 1_000))
+    expect(spy).toHaveBeenCalledTimes(2)
+    expect(store.memories.extractionState(sessionId)).toMatchObject({ lastProcessedSeq: 0, attempts: 2 })
     store.close()
   })
 
@@ -187,6 +191,7 @@ describe('MemoryExtractionService', () => {
         tags: ['workflow'],
         key: 'project-workflow',
         confidence: 0.95,
+        sourceRefs: ['thread:primary:message:not-real', `thread:primary:message:${user.id}`],
       }],
     }))
     const service = new MemoryExtractionService(store, model, {
@@ -208,6 +213,7 @@ describe('MemoryExtractionService', () => {
     expect(candidates[0]?.sourceRefs).toEqual(expect.arrayContaining([
       `thread:primary:message:${user.id}`,
     ]))
+    expect(candidates[0]?.sourceRefs).not.toContain('thread:primary:message:not-real')
     expect(store.memories.getPrincipalThreadExtractionState().lastProcessedSeq).toBe(assistantMessage.seq)
     expect(store.memories.list()).toEqual([])
     store.close()

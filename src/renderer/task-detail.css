@@ -628,9 +628,17 @@
   box-shadow: var(--menu-shadow);
 }
 
+.task-detail-tag-menu[data-side="right"] {
+  right: 0;
+  left: auto;
+}
+
 .task-detail-tag-option {
   display: grid;
+  width: 100%;
+  height: 30px;
   min-height: 30px;
+  max-height: 30px;
   grid-template-columns: 9px minmax(0, 1fr) 14px;
   align-items: center;
   gap: 7px;
@@ -642,6 +650,7 @@
   cursor: pointer;
   font-size: 10px;
   text-align: left;
+  white-space: nowrap;
 }
 
 .task-detail-tag-option:hover {

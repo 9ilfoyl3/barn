@@ -26,6 +26,7 @@ import {
 import { SecondaryMenu } from './components/SecondaryMenu'
 import type { FloatingMenuSide } from './floating-menu'
 import { useErrorToast } from './notifications'
+import { Button } from './components/Button'
 
 interface ModelPickerProps {
   snapshot: ModelConfigSnapshot | undefined
@@ -253,7 +254,7 @@ export function ModelPicker({
 
   return (
     <div className="model-picker" ref={rootRef}>
-      <button
+      <Button
         className={open ? 'composer-model active' : 'composer-model'}
         type="button"
         aria-haspopup="dialog"
@@ -265,7 +266,7 @@ export function ModelPicker({
         <strong>{modelLabel}</strong>
         {activeEffort !== undefined && <em>{t(`settings.efforts.${activeEffort}`)}</em>}
         <ChevronDown className="composer-model-chevron" size={12} />
-      </button>
+      </Button>
 
       <div
         id="composer-model-picker"
@@ -276,7 +277,7 @@ export function ModelPicker({
         inert={!open}
       >
         <div ref={menuRef} className="model-picker-menu" role="menu" aria-label={t('modelPicker.title')}>
-          <button
+          <Button
             className={section === 'model' ? 'model-picker-menu-row active' : 'model-picker-menu-row'}
             type="button"
             role="menuitem"
@@ -288,8 +289,8 @@ export function ModelPicker({
             <span>{t('modelPicker.model')}</span>
             <strong>{modelLabel}</strong>
             {submenuSide === 'right' ? <ChevronRight size={15} /> : <ChevronLeft size={15} />}
-          </button>
-          <button
+          </Button>
+          <Button
             className={section === 'effort' ? 'model-picker-menu-row active' : 'model-picker-menu-row'}
             type="button"
             role="menuitem"
@@ -302,7 +303,7 @@ export function ModelPicker({
             <span>{t('modelPicker.effort')}</span>
             <strong>{effortLabel}</strong>
             {submenuSide === 'right' ? <ChevronRight size={15} /> : <ChevronLeft size={15} />}
-          </button>
+          </Button>
         </div>
 
         <SecondaryMenu
@@ -328,10 +329,10 @@ export function ModelPicker({
                 ) : models.length === 0 ? (
                   <div className="model-picker-empty">
                     <strong>{t('modelPicker.noConfiguredModels')}</strong>
-                    <button type="button" onClick={onConfigure}>
+                    <Button type="button" onClick={onConfigure}>
                       <Settings2 size={13} />
                       {t('modelPicker.configure')}
-                    </button>
+                    </Button>
                   </div>
                 ) : (
                   models.map((model) => {
@@ -339,22 +340,19 @@ export function ModelPicker({
                       && snapshot.defaultModel.modelId === model.id
                     const busy = busyKey === modelKey(model)
                     return (
-                      <button
+                      <Button
                         className={active ? 'model-option active' : 'model-option'}
                         type="button"
                         role="option"
                         aria-selected={active}
                         key={modelKey(model)}
                         disabled={busyKey !== undefined}
+                        {...(busy ? { state: 'loading' as const, loadingText: model.name } : {})}
                         onClick={() => void selectModel(model)}
                       >
                         <span>{model.name}</span>
-                        {busy
-                          ? <LoaderCircle className="spin" size={14} />
-                          : active
-                            ? <Check size={15} />
-                            : null}
-                      </button>
+                        {active ? <Check size={15} /> : null}
+                      </Button>
                     )
                   })
                 )}
@@ -370,16 +368,18 @@ export function ModelPicker({
                     {busyKey?.startsWith('effort:') === true && <LoaderCircle className="spin" size={13} />}
                   </strong>
                 </div>
-                <button
+                <Button
                   className="effort-reset"
                   type="button"
                   aria-label={t('modelPicker.resetEffort')}
                   title={t('modelPicker.resetEffort')}
                   disabled={busyKey !== undefined || defaultEffort === undefined || defaultEffort === activeEffort}
+                  state={busyKey?.startsWith('effort:') === true ? 'loading' : 'idle'}
+                  loadingText=""
                   onClick={() => defaultEffort !== undefined && void selectEffort(defaultEffort)}
                 >
                   <RotateCcw size={17} />
-                </button>
+                </Button>
               </div>
               <p className="effort-card-model" title={modelLabel}>{modelLabel}</p>
 

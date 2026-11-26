@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { Input as BeuiInput } from './components/beui/components/motion/input'
 import {
   ArrowLeft,
   ArrowRight,
@@ -17,6 +18,7 @@ import {
 import type { ApprovalRequest, BrowserState } from '../shared/models'
 import { BrowserNewTab, browserTarget, type BrowserQuickAction } from './BrowserNewTab'
 import { TaskApprovalCard } from './TaskApprovalCard'
+import { Button } from './components/Button'
 
 export type { BrowserQuickAction } from './BrowserNewTab'
 
@@ -134,7 +136,7 @@ export function BrowserPanel({
             const label = tab.title || (tab.url === 'about:blank' ? t('browser.newTab') : tab.url)
             return (
               <div className={tab.active ? 'browser-tab active' : 'browser-tab'} key={tab.id}>
-                <button
+                <Button
                   className="browser-tab-select"
                   type="button"
                   role="tab"
@@ -144,25 +146,25 @@ export function BrowserPanel({
                 >
                   {tab.loading ? <LoaderCircle className="browser-spinner" size={12} /> : <Globe2 size={12} />}
                   <span>{label}</span>
-                </button>
-                <button
+                </Button>
+                <Button
                   className="browser-tab-close"
                   type="button"
                   aria-label={`Close ${label}`}
                   onClick={() => void onCloseTab(tab.id)}
                 >
                   <X size={11} />
-                </button>
+                </Button>
               </div>
             )
           })}
         </div>
-        <button className="browser-new-tab" type="button" aria-label="New tab" onClick={() => void onNewTab()}>
+        <Button className="browser-new-tab" type="button" aria-label="New tab" onClick={() => void onNewTab()}>
           <Plus size={14} />
-        </button>
-        <button className="browser-panel-close active" type="button" aria-label="Close browser" onClick={() => void onClose()}>
+        </Button>
+        <Button className="browser-panel-close active" type="button" aria-label="Close browser" onClick={() => void onClose()}>
           <Globe2 size={16} />
-        </button>
+        </Button>
       </header>
 
       {approval !== undefined && (
@@ -173,20 +175,21 @@ export function BrowserPanel({
 
       {!isNewTab && (
         <div className="browser-toolbar">
-          <button type="button" aria-label="Back" disabled={!state.canGoBack} onClick={() => void onBack()}>
+          <Button type="button" aria-label="Back" disabled={!state.canGoBack} onClick={() => void onBack()}>
             <ArrowLeft size={15} />
-          </button>
-          <button type="button" aria-label="Forward" disabled={!state.canGoForward} onClick={() => void onForward()}>
+          </Button>
+          <Button type="button" aria-label="Forward" disabled={!state.canGoForward} onClick={() => void onForward()}>
             <ArrowRight size={15} />
-          </button>
-          <button type="button" aria-label="Reload" onClick={() => void onReload()}>
+          </Button>
+          <Button type="button" aria-label="Reload" onClick={() => void onReload()}>
             <RotateCw size={14} />
-          </button>
-          <button type="button" className="browser-site-info" aria-label="Site information" title={state.url}>
+          </Button>
+          <Button type="button" className="browser-site-info" aria-label="Site information" title={state.url}>
             <ShieldCheck size={15} />
-          </button>
-          <form className="browser-address" onSubmit={(event) => { event.preventDefault(); void submit() }}>
-            <input
+          </Button>
+          <form className="browser-address-form" onSubmit={(event) => { event.preventDefault(); void submit() }}>
+            <BeuiInput
+              className="browser-address"
               aria-label="Browser address"
               type="text"
               inputMode="url"
@@ -195,10 +198,10 @@ export function BrowserPanel({
               spellCheck={false}
               placeholder={t('browser.searchPlaceholder')}
               value={address}
-              onChange={(event) => setAddress(event.target.value)}
+              onChange={setAddress}
             />
           </form>
-          <button
+          <Button
             type="button"
             aria-label="Bookmark page"
             aria-pressed={bookmarked}
@@ -206,8 +209,8 @@ export function BrowserPanel({
             onClick={() => setBookmarked((current) => !current)}
           >
             <Bookmark size={15} fill={bookmarked ? 'currentColor' : 'none'} />
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
             aria-label="Show latest download"
             disabled={state.downloads[0] === undefined}
@@ -220,18 +223,18 @@ export function BrowserPanel({
             {state.downloads.filter((download) => download.state === 'completed').length > 0 && (
               <span className="browser-toolbar-count">{state.downloads.filter((download) => download.state === 'completed').length}</span>
             )}
-          </button>
+          </Button>
           <div className="browser-more-wrap">
-            <button type="button" aria-label="More browser actions" aria-expanded={moreOpen} onClick={() => setMoreOpen((current) => !current)}>
+            <Button type="button" aria-label="More browser actions" aria-expanded={moreOpen} onClick={() => setMoreOpen((current) => !current)}>
               <MoreHorizontal size={16} />
-            </button>
+            </Button>
             {moreOpen && (
               <div className="browser-more-menu" role="menu">
-                <button type="button" role="menuitem" onClick={() => { void navigator.clipboard.writeText(state.url).catch(() => undefined); setMoreOpen(false) }}>
+                <Button type="button" role="menuitem" onClick={() => { void navigator.clipboard.writeText(state.url).catch(() => undefined); setMoreOpen(false) }}>
                   <Copy size={14} />
                   <span>{t('browser.copyAddress')}</span>
-                </button>
-                <button
+                </Button>
+                <Button
                   type="button"
                   role="menuitem"
                   disabled={state.downloads[0] === undefined}
@@ -243,7 +246,7 @@ export function BrowserPanel({
                 >
                   <Download size={14} />
                   <span>{t('browser.showDownloads')}</span>
-                </button>
+                </Button>
               </div>
             )}
           </div>

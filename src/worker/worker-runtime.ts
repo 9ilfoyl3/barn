@@ -526,6 +526,16 @@ function createTools(
       key: Type.Optional(Type.String({ minLength: 1, maxLength: 100 })),
       pinned: Type.Optional(Type.Boolean()),
     }), executeTool),
+    tool('memory_update', 'Update Memory', 'Correct one existing durable memory after searching it. Pass the id and current version to avoid overwriting a newer change.', Type.Object({
+      id: Type.String({ format: 'uuid' }),
+      expectedVersion: Type.Integer({ minimum: 1 }),
+      title: Type.Optional(Type.String({ minLength: 1, maxLength: 120 })),
+      content: Type.Optional(Type.String({ minLength: 1, maxLength: 2_000 })),
+      tags: Type.Optional(Type.Array(Type.String({ minLength: 1, maxLength: 40 }), { maxItems: 20 })),
+      pinned: Type.Optional(Type.Boolean()),
+      confidence: Type.Optional(Type.Number({ minimum: 0, maximum: 1 })),
+      validUntil: Type.Optional(Type.Union([Type.String(), Type.Null()])),
+    }), executeTool),
     tool('memory_forget', 'Forget Memory', 'Archive a specific memory entry by id.', Type.Object({
       id: Type.String({ format: 'uuid' }),
     }), executeTool),

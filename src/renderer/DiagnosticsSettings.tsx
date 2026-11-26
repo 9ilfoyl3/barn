@@ -3,15 +3,16 @@ import { useTranslation } from 'react-i18next'
 import { Activity, X } from 'lucide-react'
 import type { DiagnosticsSnapshot } from '../shared/models'
 import { TooltipButton } from './components/TooltipButton'
-import { MemorySettingsPanel } from './MemorySettingsPanel'
+import { Input } from './components/Input'
 import { notifySuccess, useErrorToast } from './notifications'
 import './diagnostics-settings.css'
+import { Button } from './components/Button'
 
-export function DiagnosticsSettings({ onClose }: { onClose(): void }) {
+export function DiagnosticsSettings({ onClose, embedded = false }: { onClose?: () => void; embedded?: boolean }) {
   const { t } = useTranslation()
   const [snapshot, setSnapshot] = useState<DiagnosticsSnapshot>()
   const [retention, setRetention] = useState(365)
-  const [busy, setBusy] = useState(false)
+  const [busyAction, setBusyAction] = useState<'retention' | 'cleanup'>()
   const [error, setError] = useState<string>()
 
   useErrorToast(error)
@@ -21,15 +22,16 @@ export function DiagnosticsSettings({ onClose }: { onClose(): void }) {
       setSnapshot(value)
       setRetention(value.retentionDays)
     }).catch((reason: unknown) => setError(errorMessage(reason)))
+    if (embedded) return
     const onKeyDown = (event: KeyboardEvent): void => {
-      if (event.key === 'Escape') onClose()
+      if (event.key === 'Escape') onClose?.()
     }
     document.addEventListener('keydown', onKeyDown)
     return () => document.removeEventListener('keydown', onKeyDown)
-  }, [])
+  }, [embedded, onClose])
 
   async function saveRetention(): Promise<void> {
-    setBusy(true)
+    setBusyAction('retention')
     setError(undefined)
     try {
       await window.barn.diagnostics.setRetentionDays(retention)
@@ -38,12 +40,12 @@ export function DiagnosticsSettings({ onClose }: { onClose(): void }) {
     } catch (reason) {
       setError(errorMessage(reason))
     } finally {
-      setBusy(false)
+      setBusyAction(undefined)
     }
   }
 
   async function runMaintenance(): Promise<void> {
-    setBusy(true)
+    setBusyAction('cleanup')
     setError(undefined)
     try {
       const result = await window.barn.diagnostics.runMaintenance()
@@ -56,29 +58,34 @@ export function DiagnosticsSettings({ onClose }: { onClose(): void }) {
     } catch (reason) {
       setError(errorMessage(reason))
     } finally {
-      setBusy(false)
+      setBusyAction(undefined)
     }
   }
 
   return (
-    <div className="settings-backdrop" role="presentation" onMouseDown={onClose}>
+    <div
+      className={embedded ? 'diagnostics-embedded' : 'settings-backdrop'}
+      role={embedded ? undefined : 'presentation'}
+      onMouseDown={embedded ? undefined : onClose}
+    >
       <section
-        className="settings-panel diagnostics-settings-panel"
-        role="dialog"
-        aria-modal="true"
+        className={embedded ? 'diagnostics-page' : 'settings-panel diagnostics-settings-panel'}
+        {...(embedded ? {} : { role: 'dialog', 'aria-modal': true })}
         aria-label={t('diagnostics.title')}
         onMouseDown={(event) => event.stopPropagation()}
       >
-        <header className="settings-header">
-          <div>
-            <span className="diagnostics-kicker">{t('diagnostics.kicker')}</span>
-            <h2>{t('diagnostics.title')}</h2>
-          </div>
-          <TooltipButton className="icon-button" label={t('diagnostics.close')} onClick={onClose}>
-            <X size={18} />
-          </TooltipButton>
-        </header>
-        <div className="diagnostics-body">
+        {!embedded && (
+          <header className="settings-header">
+            <div>
+              <span className="diagnostics-kicker">{t('diagnostics.kicker')}</span>
+              <h2>{t('diagnostics.title')}</h2>
+            </div>
+            <TooltipButton className="icon-button" label={t('diagnostics.close')} onClick={onClose}>
+              <X size={18} />
+            </TooltipButton>
+          </header>
+        )}
+        <div className={embedded ? 'diagnostics-body embedded' : 'diagnostics-body'}>
           {snapshot === undefined ? (
             <p className="diagnostics-muted">{error ?? t('common.loading')}</p>
           ) : (
@@ -133,19 +140,33 @@ export function DiagnosticsSettings({ onClose }: { onClose(): void }) {
                 <div className="diagnostics-retention-actions">
                   <label>
                     <span>{t('diagnostics.retentionDays')}</span>
-                    <input type="number" min={30} max={3650} value={retention} onChange={(event) => setRetention(Number(event.target.value))} />
+                    <Input type="number" min={30} max={3650} value={retention} onChange={(event) => setRetention(Number(event.target.value))} density="compact" />
                   </label>
-                  <button className="secondary-button" type="button" disabled={busy} onClick={() => void saveRetention()}>{t('common.save')}</button>
-                  <button className="secondary-button" type="button" disabled={busy} onClick={() => void runMaintenance()}>{t('diagnostics.runCleanup')}</button>
+                  <Button
+                    className="secondary-button"
+                    type="button"
+                    disabled={busyAction !== undefined}
+                    state={busyAction === 'retention' ? 'loading' : 'idle'}
+                    loadingText={t('common.saving')}
+                    onClick={() => void saveRetention()}
+                  >
+                    {t('common.save')}
+                  </Button>
+                  <Button
+                    className="secondary-button"
+                    type="button"
+                    disabled={busyAction !== undefined}
+                    state={busyAction === 'cleanup' ? 'loading' : 'idle'}
+                    loadingText={t('diagnostics.runCleanup')}
+                    onClick={() => void runMaintenance()}
+                  >
+                    {t('diagnostics.runCleanup')}
+                  </Button>
                 </div>
                 {snapshot.lastMaintenanceAt !== undefined && (
                   <small>{t('diagnostics.lastCleanup', { time: new Date(snapshot.lastMaintenanceAt).toLocaleString() })}</small>
                 )}
               </section>
-
-              <MemorySettingsPanel onChanged={() => {
-                void window.barn.diagnostics.get().then(setSnapshot).catch((reason: unknown) => setError(errorMessage(reason)))
-              }} />
 
               <p className="diagnostics-path">{snapshot.stateDirectory}</p>
             </>

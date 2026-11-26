@@ -99,7 +99,7 @@
 .task-toolbar-button:focus-visible,
 .task-create-button:focus-visible,
 .task-filter-option:focus-visible,
-.task-card-main:focus-visible,
+.task-card-open:focus-visible,
 .task-action:focus-visible,
 .task-dialog-close:focus-visible,
 .task-instructions textarea:focus-visible {
@@ -295,6 +295,7 @@
   display: grid;
   gap: 0;
   overflow: hidden;
+  padding: 0;
   border: 1px solid color-mix(in srgb, var(--line) 78%, transparent);
   border-radius: 12px;
   background: var(--panel);
@@ -334,11 +335,29 @@
   gap: 7px;
   border: 0;
   background: transparent;
-  padding: 13px 16px 14px;
+  padding: 13px 42px 14px 16px;
   color: inherit;
-  cursor: pointer;
   font: inherit;
   text-align: left;
+}
+
+.task-card-open {
+  position: absolute;
+  z-index: 2;
+  top: 9px;
+  right: 9px;
+  width: 24px;
+  height: 24px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  padding: 0;
+  color: var(--text-faint);
+}
+
+.task-card-open:hover {
+  background: var(--panel-raised);
+  color: var(--text);
 }
 
 .task-card-title-line {

@@ -105,7 +105,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
 
   return (
     <div
-      className={cn("flex flex-col gap-1.5", className, classNames?.root)}
+      className={cn("beui-motion-input flex flex-col gap-1.5", className, classNames?.root)}
     >
       {label ? (
         <label

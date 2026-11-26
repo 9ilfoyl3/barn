@@ -3,8 +3,11 @@ import { useTranslation } from 'react-i18next'
 import { CalendarClock, FolderSearch, Plus, Trash2, X } from 'lucide-react'
 import type { AutomationSettings, LocalSource } from '../shared/models'
 import { TooltipButton } from './components/TooltipButton'
+import { Input } from './components/Input'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './components/beui/components/motion/select'
 import { notifySuccess, useErrorToast } from './notifications'
 import './source-settings.css'
+import { Button } from './components/Button'
 
 type AddMode = 'file-watch' | 'schedule'
 
@@ -13,7 +16,8 @@ export function SourceSettings({ onClose }: { onClose(): void }) {
   const [sources, setSources] = useState<LocalSource[]>([])
   const [automation, setAutomation] = useState<AutomationSettings>()
   const [loading, setLoading] = useState(true)
-  const [busy, setBusy] = useState(false)
+  const [busyAction, setBusyAction] = useState<'automation' | 'check' | 'source' | 'create'>()
+  const busy = busyAction !== undefined
   const [error, setError] = useState<string>()
   const [mode, setMode] = useState<AddMode>()
   const [name, setName] = useState('')
@@ -64,7 +68,7 @@ export function SourceSettings({ onClose }: { onClose(): void }) {
   }
 
   async function createSource(): Promise<void> {
-    setBusy(true)
+    setBusyAction('create')
     setError(undefined)
     try {
       if (mode === 'file-watch') {
@@ -83,37 +87,37 @@ export function SourceSettings({ onClose }: { onClose(): void }) {
     } catch (reason) {
       setError(errorMessage(reason))
     } finally {
-      setBusy(false)
+      setBusyAction(undefined)
     }
   }
 
   async function toggle(source: LocalSource): Promise<void> {
-    setBusy(true)
+    setBusyAction('source')
     try {
       await window.barn.localSources.setEnabled(source.id, !source.enabled)
       await reload()
     } catch (reason) {
       setError(errorMessage(reason))
     } finally {
-      setBusy(false)
+      setBusyAction(undefined)
     }
   }
 
   async function remove(source: LocalSource): Promise<void> {
-    setBusy(true)
+    setBusyAction('source')
     try {
       await window.barn.localSources.remove(source.id)
       await reload()
     } catch (reason) {
       setError(errorMessage(reason))
     } finally {
-      setBusy(false)
+      setBusyAction(undefined)
     }
   }
 
   async function saveAutomation(): Promise<void> {
     if (automation === undefined) return
-    setBusy(true)
+    setBusyAction('automation')
     setError(undefined)
     try {
       setAutomation(await window.barn.localSources.setAutomationSettings(automation))
@@ -121,19 +125,19 @@ export function SourceSettings({ onClose }: { onClose(): void }) {
     } catch (reason) {
       setError(errorMessage(reason))
     } finally {
-      setBusy(false)
+      setBusyAction(undefined)
     }
   }
 
   async function checkNow(): Promise<void> {
-    setBusy(true)
+    setBusyAction('check')
     try {
       await window.barn.localSources.pollNow()
       await reload()
     } catch (reason) {
       setError(errorMessage(reason))
     } finally {
-      setBusy(false)
+      setBusyAction(undefined)
     }
   }
 
@@ -179,29 +183,43 @@ export function SourceSettings({ onClose }: { onClose(): void }) {
               <div className="source-form-grid">
                 <label>
                   <span>{t('sourceSettings.mode')}</span>
-                  <select value={automation.mode} onChange={(event) => {
-                    setAutomation({ ...automation, mode: event.target.value as AutomationSettings['mode'] })
-                  }}>
-                    <option value="observe">{t('sourceSettings.observe')}</option>
-                    <option value="active">{t('sourceSettings.active')}</option>
-                  </select>
+                  <Select
+                    value={automation.mode}
+                    className="source-select-root"
+                    onValueChange={(value) => setAutomation({ ...automation, mode: value as AutomationSettings['mode'] })}
+                  >
+                    <SelectTrigger className="source-select-trigger" ariaLabel={t('sourceSettings.mode')}>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="observe">{t('sourceSettings.observe')}</SelectItem>
+                      <SelectItem value="active">{t('sourceSettings.active')}</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </label>
                 <label>
                   <span>{t('sourceSettings.pendingLimit')}</span>
-                  <input type="number" min={1} max={200} value={automation.maxPendingSuggestions} onChange={(event) => {
+                  <Input type="number" min={1} max={200} value={automation.maxPendingSuggestions} onChange={(event) => {
                     setAutomation({ ...automation, maxPendingSuggestions: Number(event.target.value) })
-                  }} />
+                  }} density="compact" />
                 </label>
                 <label>
                   <span>{t('sourceSettings.cooldown')}</span>
-                  <input type="number" min={0} max={10080} value={automation.suggestionCooldownMinutes} onChange={(event) => {
+                  <Input type="number" min={0} max={10080} value={automation.suggestionCooldownMinutes} onChange={(event) => {
                     setAutomation({ ...automation, suggestionCooldownMinutes: Number(event.target.value) })
-                  }} />
+                  }} density="compact" />
                 </label>
               </div>
-              <button className="secondary-button" type="button" disabled={busy} onClick={() => void saveAutomation()}>
+              <Button
+                className="secondary-button"
+                type="button"
+                disabled={busy}
+                state={busyAction === 'automation' ? 'loading' : 'idle'}
+                loadingText={t('common.saving')}
+                onClick={() => void saveAutomation()}
+              >
                 {t('common.save')}
-              </button>
+              </Button>
             </section>
           )}
 
@@ -228,9 +246,9 @@ export function SourceSettings({ onClose }: { onClose(): void }) {
                       <input type="checkbox" checked={source.enabled} disabled={busy} onChange={() => void toggle(source)} />
                       <span>{source.enabled ? t('sourceSettings.enabled') : t('sourceSettings.paused')}</span>
                     </label>
-                    <button className="source-icon-button" type="button" aria-label={t('sourceSettings.remove', { name: source.name })} disabled={busy} onClick={() => void remove(source)}>
+                    <Button className="source-icon-button" type="button" aria-label={t('sourceSettings.remove', { name: source.name })} disabled={busy} onClick={() => void remove(source)}>
                       <Trash2 size={14} />
-                    </button>
+                    </Button>
                   </div>
                 </article>
               ))}
@@ -238,17 +256,24 @@ export function SourceSettings({ onClose }: { onClose(): void }) {
           )}
 
           <div className="source-settings-footer-actions">
-            <button className="secondary-button" type="button" disabled={busy} onClick={() => void checkNow()}>
+            <Button
+              className="secondary-button"
+              type="button"
+              disabled={busy}
+              state={busyAction === 'check' ? 'loading' : 'idle'}
+              loadingText={t('sourceSettings.checkNow')}
+              onClick={() => void checkNow()}
+            >
               {t('sourceSettings.checkNow')}
-            </button>
-            <button className="secondary-button" type="button" disabled={busy} onClick={() => setMode('file-watch')}>
+            </Button>
+            <Button className="secondary-button" type="button" disabled={busy} onClick={() => setMode('file-watch')}>
               <FolderSearch size={15} />
               {t('sourceSettings.watchFolder')}
-            </button>
-            <button className="secondary-button" type="button" disabled={busy} onClick={() => setMode('schedule')}>
+            </Button>
+            <Button className="secondary-button" type="button" disabled={busy} onClick={() => setMode('schedule')}>
               <CalendarClock size={15} />
               {t('sourceSettings.addSchedule')}
-            </button>
+            </Button>
           </div>
 
           {mode !== undefined && (
@@ -256,15 +281,15 @@ export function SourceSettings({ onClose }: { onClose(): void }) {
               <h3>{mode === 'file-watch' ? t('sourceSettings.newWatchTitle') : t('sourceSettings.newScheduleTitle')}</h3>
               <label>
                 <span>{t('sourceSettings.name')}</span>
-                <input value={name} required onChange={(event) => setName(event.target.value)} />
+                <Input value={name} required onChange={(event) => setName(event.target.value)} density="compact" />
               </label>
               {mode === 'file-watch' ? (
                 <>
                   <label>
                     <span>{t('sourceSettings.folder')}</span>
                     <div className="source-path-row">
-                      <input value={watchPath} required readOnly placeholder={t('sourceSettings.noFolder')} />
-                      <button className="secondary-button" type="button" onClick={() => void chooseFolder()}>{t('sourceSettings.chooseFolder')}</button>
+                      <Input value={watchPath} required readOnly placeholder={t('sourceSettings.noFolder')} density="compact" />
+                      <Button className="secondary-button" type="button" onClick={() => void chooseFolder()}>{t('sourceSettings.chooseFolder')}</Button>
                     </div>
                   </label>
                   <div className="source-form-grid">
@@ -274,9 +299,16 @@ export function SourceSettings({ onClose }: { onClose(): void }) {
                     </label>
                     <label>
                       <span>{t('sourceSettings.depth')}</span>
-                      <select value={maxDepth} onChange={(event) => setMaxDepth(Number(event.target.value))}>
-                        {[0, 1, 2, 3, 4].map((depth) => <option value={depth} key={depth}>{depth}</option>)}
-                      </select>
+                      <Select value={String(maxDepth)} className="source-select-root" onValueChange={(value) => setMaxDepth(Number(value))}>
+                        <SelectTrigger className="source-select-trigger" ariaLabel={t('sourceSettings.depth')}>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {[0, 1, 2, 3, 4].map((depth) => (
+                            <SelectItem value={String(depth)} key={depth}>{depth}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </label>
                   </div>
                 </>
@@ -284,7 +316,7 @@ export function SourceSettings({ onClose }: { onClose(): void }) {
                 <>
                   <label>
                     <span>{t('sourceSettings.taskTitle')}</span>
-                    <input value={scheduleTitle} required onChange={(event) => setScheduleTitle(event.target.value)} />
+                    <Input value={scheduleTitle} required onChange={(event) => setScheduleTitle(event.target.value)} density="compact" />
                   </label>
                   <label>
                     <span>{t('sourceSettings.instructions')}</span>
@@ -292,16 +324,22 @@ export function SourceSettings({ onClose }: { onClose(): void }) {
                   </label>
                   <label>
                     <span>{t('sourceSettings.intervalMinutes')}</span>
-                    <input type="number" min={1} max={10080} value={intervalMinutes} required onChange={(event) => setIntervalMinutes(Number(event.target.value))} />
+                    <Input type="number" min={1} max={10080} value={intervalMinutes} required onChange={(event) => setIntervalMinutes(Number(event.target.value))} density="compact" />
                   </label>
                 </>
               )}
               <div className="source-form-actions">
-                <button className="secondary-button" type="button" onClick={resetForm}>{t('common.cancel')}</button>
-                <button className="primary-button" type="submit" disabled={busy || (mode === 'file-watch' ? watchPath.length === 0 : scheduleTitle.trim().length === 0)}>
+                <Button className="secondary-button" type="button" onClick={resetForm}>{t('common.cancel')}</Button>
+                <Button
+                  className="primary-button"
+                  type="submit"
+                  disabled={busy || (mode === 'file-watch' ? watchPath.length === 0 : scheduleTitle.trim().length === 0)}
+                  state={busyAction === 'create' ? 'loading' : 'idle'}
+                  loadingText={t('common.saving')}
+                >
                   <Plus size={15} />
                   {t('sourceSettings.addSource')}
-                </button>
+                </Button>
               </div>
             </form>
           )}

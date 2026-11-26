@@ -29,8 +29,12 @@ import type {
   SkillSummary,
 } from '../shared/models'
 import { SkillsPanel } from './SkillsPanel'
+import { Input } from './components/Input'
+import { Input as BeuiInput } from './components/beui/components/motion/input'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from './components/beui/components/motion/tabs'
 import { notifyError, notifySuccess, useErrorToast } from './notifications'
 import './plugins-page.css'
+import { Button } from './components/Button'
 
 type PluginsTab = 'plugins' | 'skills'
 type ConnectorCategory = 'integrations' | 'china'
@@ -267,100 +271,97 @@ export function PluginsPage({ onTrySkill }: { onTrySkill?: (skill: SkillSummary)
   const catalog = (
     <div className="plugins-catalog">
       <h1 className="visually-hidden">{t('plugins.title')}</h1>
-      <header className="plugins-heading">
-        <div className="plugins-tabs" role="tablist" aria-label={t('plugins.title')}>
-          {(['plugins', 'skills'] as const).map((tabId) => (
-            <button
-              aria-selected={tab === tabId}
-              className={tab === tabId ? 'plugins-tab active' : 'plugins-tab'}
-              key={tabId}
-              onClick={() => {
-                setTab(tabId)
-                setQuery('')
-              }}
-              role="tab"
-              type="button"
-            >
-              {tabId === 'plugins' ? t('plugins.title') : t('plugins.skills')}
-            </button>
-          ))}
-        </div>
-      </header>
+      <Tabs
+        value={tab}
+        onValueChange={(value) => {
+          setTab(value as typeof tab)
+          setQuery('')
+        }}
+        variant="underline"
+      >
+        <header className="plugins-heading">
+          <TabsList className="plugins-tabs" aria-label={t('plugins.title')}>
+            <TabsTrigger className="plugins-tab" value="plugins">{t('plugins.title')}</TabsTrigger>
+            <TabsTrigger className="plugins-tab" value="skills">{t('plugins.skills')}</TabsTrigger>
+          </TabsList>
+        </header>
 
-      <label className="plugins-search">
-        <Search size={17} aria-hidden="true" />
-        <input
+        <BeuiInput
+          className="plugins-search"
+          leftIcon={<Search size={17} aria-hidden="true" />}
           aria-label={tab === 'skills' ? t('plugins.searchSkills') : t('plugins.search')}
-          onChange={(event) => setQuery(event.target.value)}
+          onChange={setQuery}
           placeholder={tab === 'skills' ? t('plugins.searchSkillsPlaceholder') : t('plugins.searchPlaceholder')}
           type="search"
           value={query}
+          rightIcon={query.length > 0 ? (
+            <Button type="button" aria-label={t('plugins.clearSearch')} onClick={() => setQuery('')}>
+              <X size={14} />
+            </Button>
+          ) : undefined}
         />
-        {query.length > 0 && (
-          <button type="button" aria-label={t('plugins.clearSearch')} onClick={() => setQuery('')}>
-            <X size={14} />
-          </button>
-        )}
-      </label>
 
-      {tab === 'skills' ? (
-        <section role="tabpanel" aria-label={t('plugins.skills')}>
+        <TabsContent className="plugins-tab-panel" value="skills">
           <SkillsPanel query={query} {...(onTrySkill === undefined ? {} : { onTrySkill })} />
-        </section>
-      ) : loading ? (
-        <div className="plugins-loading" role="status">
-          <LoaderCircle className="spin" size={18} aria-hidden="true" />
-          <span>{t('common.loading')}</span>
-        </div>
-      ) : (
-        <div className="plugins-sections" role="tabpanel" aria-label={t('plugins.title')}>
-          {normalizedQuery.length === 0 && (
-            <section className="plugins-section" aria-labelledby="plugins-mcp-title">
-              <div className="plugins-section-header">
-                <h2 id="plugins-mcp-title">{t('plugins.mcpServers')}</h2>
-                <button
-                  className="plugins-section-link"
-                  disabled
-                  title={t('plugins.comingSoon')}
-                  type="button"
-                >
-                  {t('plugins.addMcp')}
-                </button>
-              </div>
-            </section>
-          )}
+        </TabsContent>
 
-          {CATEGORY_ORDER.map((category) => {
-            const categoryDefinitions = groupedDefinitions[category]
-            if (categoryDefinitions.length === 0) return null
-            return (
-              <PluginSection
-                definitions={categoryDefinitions}
-                instances={instances}
-                key={category}
-                onOpen={openDefinition}
-                title={t(`plugins.categories.${category}`)}
-              />
-            )
-          })}
+        <TabsContent className="plugins-tab-panel" value="plugins">
+          {loading ? (
+            <div className="plugins-loading" role="status">
+              <LoaderCircle className="spin" size={18} aria-hidden="true" />
+              <span>{t('common.loading')}</span>
+            </div>
+          ) : (
+            <div className="plugins-sections">
+              {normalizedQuery.length === 0 && (
+                <section className="plugins-section" aria-labelledby="plugins-mcp-title">
+                  <div className="plugins-section-header">
+                    <h2 id="plugins-mcp-title">{t('plugins.mcpServers')}</h2>
+                    <Button
+                      className="plugins-section-link"
+                      disabled
+                      title={t('plugins.comingSoon')}
+                      type="button"
+                    >
+                      {t('plugins.addMcp')}
+                    </Button>
+                  </div>
+                </section>
+              )}
 
-          {filteredDefinitions.length === 0 && (
-            <div className="plugins-no-results" role="status">
-              <Search size={20} aria-hidden="true" />
-              <span>{t('plugins.noResults')}</span>
+              {CATEGORY_ORDER.map((category) => {
+                const categoryDefinitions = groupedDefinitions[category]
+                if (categoryDefinitions.length === 0) return null
+                return (
+                  <PluginSection
+                    definitions={categoryDefinitions}
+                    instances={instances}
+                    key={category}
+                    onOpen={openDefinition}
+                    title={t(`plugins.categories.${category}`)}
+                  />
+                )
+              })}
+
+              {filteredDefinitions.length === 0 && (
+                <div className="plugins-no-results" role="status">
+                  <Search size={20} aria-hidden="true" />
+                  <span>{t('plugins.noResults')}</span>
+                </div>
+              )}
+
+              <p className="plugins-safety-note">{t('plugins.safetyNote')}</p>
             </div>
           )}
-
-          <p className="plugins-safety-note">{t('plugins.safetyNote')}</p>
-        </div>
-      )}
+        </TabsContent>
+      </Tabs>
     </div>
   )
 
   const detail = selectedDefinition === undefined ? undefined : (
     <div className="plugins-detail">
       <header className="plugins-detail-header">
-        <button
+        <Button
           aria-label={t('plugins.back')}
           className="plugins-back"
           onClick={() => {
@@ -372,7 +373,7 @@ export function PluginsPage({ onTrySkill }: { onTrySkill?: (skill: SkillSummary)
           type="button"
         >
           <ArrowLeft size={16} aria-hidden="true" />
-        </button>
+        </Button>
         <div className="plugins-detail-title">
           <ConnectorIcon definition={selectedDefinition} size="large" />
           <div>
@@ -395,14 +396,15 @@ export function PluginsPage({ onTrySkill }: { onTrySkill?: (skill: SkillSummary)
             <p>{t('plugins.connectionsDescription')}</p>
           </div>
           {editor === undefined && (
-            <button
-              className="plugins-outline-button"
+            <Button
+              size="sm"
               type="button"
+              variant="primary"
               onClick={() => setEditor({ definition: selectedDefinition })}
             >
               <Plus size={14} aria-hidden="true" />
               {t('plugins.addConnection')}
-            </button>
+            </Button>
           )}
         </div>
 
@@ -508,11 +510,7 @@ function PluginSection({
           const status = aggregateStatus(connectors)
           return (
             <article className="plugin-row" data-plugin-kind={definition.kind} key={definition.kind}>
-              <button
-                className="plugin-row-main"
-                onClick={() => onOpen(definition)}
-                type="button"
-              >
+              <div className="plugin-row-main">
                 <ConnectorIcon definition={definition} size="large" />
                 <span className="plugin-row-copy">
                   <span className="plugin-row-title">
@@ -529,8 +527,8 @@ function PluginSection({
                         })}
                   </small>
                 </span>
-              </button>
-              <button
+              </div>
+              <Button
                 aria-label={connectors.length > 0
                   ? t('plugins.manageNamed', { name: translatedDefinitionName(definition, t) })
                   : t('plugins.addNamed', { name: translatedDefinitionName(definition, t) })}
@@ -539,7 +537,7 @@ function PluginSection({
                 type="button"
               >
                 {connectors.length > 0 ? t('plugins.manage') : t('plugins.add')}
-              </button>
+              </Button>
             </article>
           )
         })}
@@ -589,18 +587,31 @@ function ConnectorInstanceRow({
         )}
       </div>
       <div className="plugin-instance-actions">
-        <button className="plugins-outline-button compact" type="button" disabled={busy} onClick={onTest}>
-          {busy ? <LoaderCircle className="spin" size={13} aria-hidden="true" /> : <RefreshCw size={13} aria-hidden="true" />}
+        <Button
+          size="sm"
+          type="button"
+          disabled={busy}
+          {...(busy ? { state: 'loading' as const, loadingText: t('connectorSettings.test') } : {})}
+          variant="secondary"
+          onClick={onTest}
+        >
+          <RefreshCw size={13} aria-hidden="true" />
           {t('connectorSettings.test')}
-        </button>
-        <button className="plugins-outline-button compact" type="button" disabled={busy} onClick={onEdit}>
+        </Button>
+        <Button
+          size="sm"
+          type="button"
+          disabled={busy}
+          variant="secondary"
+          onClick={onEdit}
+        >
           {t('connectorSettings.configure')}
-        </button>
+        </Button>
         <label className="plugin-switch" title={t('connectorSettings.enabled')}>
           <input type="checkbox" checked={connector.enabled} disabled={busy} onChange={onToggle} />
           <span />
         </label>
-        <button
+        <Button
           className="plugin-icon-button danger"
           type="button"
           aria-label={t('connectorSettings.remove')}
@@ -608,7 +619,7 @@ function ConnectorInstanceRow({
           onClick={onRemove}
         >
           <Trash2 size={14} aria-hidden="true" />
-        </button>
+        </Button>
       </div>
     </article>
   )
@@ -719,7 +730,7 @@ function ConnectorEditor({
       {!definition.hideConnectionName && (
         <label>
           <span>{t('connectorSettings.name')}</span>
-          <input value={name} required maxLength={200} onChange={(event) => setName(event.target.value)} />
+          <Input value={name} required maxLength={200} onChange={(event) => setName(event.target.value)} density="compact" />
         </label>
       )}
 
@@ -738,7 +749,7 @@ function ConnectorEditor({
             ) : (
               <>
                 <span>{fieldLabel(field, t)}{field.required ? ' *' : ''}</span>
-                <input
+                <Input
                   type={field.type === 'number' ? 'number' : field.type === 'url' ? 'url' : 'text'}
                   required={field.required}
                   value={String(config[field.key] ?? '')}
@@ -747,6 +758,7 @@ function ConnectorEditor({
                     field,
                     field.type === 'number' ? Number(event.target.value) : event.target.value,
                   )}
+                  density="compact"
                 />
               </>
             )}
@@ -763,7 +775,7 @@ function ConnectorEditor({
           {definition.credentialFields.map((field) => (
             <label key={field.key}>
               <span>{fieldLabel(field, t)}{field.required && instance === undefined ? ' *' : ''}</span>
-              <input
+              <Input
                 type={field.type === 'password' ? 'password' : 'text'}
                 required={field.required && instance === undefined}
                 value={credentials[field.key] ?? ''}
@@ -772,6 +784,7 @@ function ConnectorEditor({
                   : t('connectorSettings.leaveBlank')}
                 autoComplete="off"
                 onChange={(event) => setCredential(field, event.target.value)}
+                density="compact"
               />
             </label>
           ))}
@@ -784,11 +797,16 @@ function ConnectorEditor({
       </div>
 
       <div className="plugin-editor-actions">
-        <button className="secondary-button" type="button" onClick={onCancel}>{t('common.cancel')}</button>
-        <button className="primary-button" type="submit" disabled={busy}>
-          {busy && <LoaderCircle className="spin" size={14} aria-hidden="true" />}
+        <Button className="secondary-button" type="button" onClick={onCancel}>{t('common.cancel')}</Button>
+        <Button
+          className="primary-button"
+          type="submit"
+          disabled={busy}
+          state={busy ? 'loading' : 'idle'}
+          loadingText={t('common.saving')}
+        >
           {t('common.save')}
-        </button>
+        </Button>
       </div>
     </form>
   )
@@ -885,25 +903,43 @@ function DingTalkSetup({
       )}
 
       <footer className="plugin-editor-actions">
-        <button className="secondary-button" type="button" onClick={onCancel}>{tCancel(language)}</button>
+        <Button className="secondary-button" type="button" onClick={onCancel}>{tCancel(language)}</Button>
         {status?.authenticated ? (
           <>
-            <button className="secondary-button" type="button" disabled={busy !== undefined} onClick={() => void login()}>
-              {busy === 'login' && <LoaderCircle className="spin" size={14} aria-hidden="true" />}
-              {busy === 'login' ? copy.signingIn : copy.reconnect}
-            </button>
-            <button className="primary-button" type="button" onClick={onComplete}>{copy.done}</button>
+            <Button
+              className="secondary-button"
+              type="button"
+              disabled={busy !== undefined}
+              state={busy === 'login' ? 'loading' : 'idle'}
+              loadingText={copy.signingIn}
+              onClick={() => void login()}
+            >
+              {copy.reconnect}
+            </Button>
+            <Button className="primary-button" type="button" onClick={onComplete}>{copy.done}</Button>
           </>
         ) : status?.installed ? (
-          <button className="primary-button" type="button" disabled={busy !== undefined} onClick={() => void login()}>
-            {busy === 'login' && <LoaderCircle className="spin" size={14} aria-hidden="true" />}
-            {busy === 'login' ? copy.signingIn : copy.signIn}
-          </button>
+          <Button
+            className="primary-button"
+            type="button"
+            disabled={busy !== undefined}
+            state={busy === 'login' ? 'loading' : 'idle'}
+            loadingText={copy.signingIn}
+            onClick={() => void login()}
+          >
+            {copy.signIn}
+          </Button>
         ) : (
-          <button className="primary-button" type="button" disabled={busy !== undefined || status === undefined} onClick={() => void install()}>
-            {busy === 'install' && <LoaderCircle className="spin" size={14} aria-hidden="true" />}
-            {busy === 'install' ? copy.installing : copy.install}
-          </button>
+          <Button
+            className="primary-button"
+            type="button"
+            disabled={busy !== undefined || status === undefined}
+            state={busy === 'install' ? 'loading' : 'idle'}
+            loadingText={copy.installing}
+            onClick={() => void install()}
+          >
+            {copy.install}
+          </Button>
         )}
       </footer>
     </section>

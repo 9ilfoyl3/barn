@@ -44,6 +44,21 @@ test('renders loading placeholders and office document previews', async () => {
     await expect(sheet.locator('.attachment-text-preview-spreadsheet')).toContainText('Name')
     await expect.poll(() => page.locator('.attachment-text-preview').evaluateAll((previews) => previews.map((preview) => getComputedStyle(preview).borderTopWidth))).toEqual(['0px', '0px', '0px', '0px'])
     await expect(page.locator('.attachment-preview-loading')).toHaveCount(0)
+    const removeGeometry = await pdf.locator('.attachment-remove').evaluate((button) => {
+      const style = getComputedStyle(button)
+      const rect = button.getBoundingClientRect()
+      return {
+        width: rect.width,
+        height: rect.height,
+        paddingLeft: style.paddingLeft,
+        paddingRight: style.paddingRight,
+        borderRadius: style.borderRadius,
+      }
+    })
+    expect(Math.abs(removeGeometry.width - removeGeometry.height)).toBeLessThanOrEqual(1)
+    expect(removeGeometry.paddingLeft).toBe('0px')
+    expect(removeGeometry.paddingRight).toBe('0px')
+    expect(Number.parseFloat(removeGeometry.borderRadius)).toBeGreaterThanOrEqual(removeGeometry.width / 2)
     await page.screenshot({ path: 'test-results/barn-office-attachment-previews.png', fullPage: true })
   } finally {
     await app.close()

@@ -1,0 +1,55 @@
+.beui-button {
+  font-family: inherit;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+:where(.beui-button[data-beui-layout="content"]) {
+  height: auto;
+  padding: 0;
+  white-space: normal;
+}
+
+.beui-button[data-beui-variant="primary"] {
+  border-color: color-mix(in srgb, var(--accent) 72%, var(--line-strong));
+  background: var(--accent);
+  color: var(--primary-foreground);
+}
+
+:where(.beui-button[data-beui-variant="secondary"]) {
+  border-color: var(--line);
+  background: var(--panel);
+  color: var(--text);
+}
+
+:where(.beui-button[data-beui-variant="ghost"]) {
+  border-color: transparent;
+  background: transparent;
+  color: var(--text-dim);
+}
+
+:where(.beui-button[data-beui-variant="outline"]) {
+  border-color: var(--line-strong);
+  background: transparent;
+  color: var(--text);
+}
+
+:where(.beui-button[data-tone="danger"]) {
+  border-color: color-mix(in srgb, var(--danger) 32%, var(--line));
+  color: var(--danger);
+}
+
+.beui-button[data-tone="danger"][data-beui-variant="primary"] {
+  background: var(--danger);
+  color: var(--primary-foreground);
+}
+
+.beui-button:disabled {
+  cursor: default;
+  opacity: .5;
+}
+
+.beui-button:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent) 62%, transparent);
+  outline-offset: 2px;
+}

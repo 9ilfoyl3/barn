@@ -18,6 +18,7 @@ import {
 } from './workspace-search'
 import { isDeniedPath } from './workspace-path-policy'
 import type { MemoryService } from '../memory/memory-service'
+import type { MemoryUpdateInput } from '../../shared/models'
 import type { ConnectorService } from '../connectors/connector-service'
 import type { SkillService } from '../skills/skill-service'
 import type { SessionStore } from '../session/session-store'
@@ -25,6 +26,7 @@ import {
   memoryForgetInput,
   memorySaveInput,
   memorySearchInput,
+  memoryUpdateInput,
 } from '../memory/memory-tool-inputs'
 import {
   editFileInput,
@@ -85,6 +87,7 @@ const TOOL_INPUTS = {
   shell: shellInput,
   memory_search: memorySearchInput,
   memory_save: memorySaveInput,
+  memory_update: memoryUpdateInput,
   memory_forget: memoryForgetInput,
   connector_list: connectorListInput,
   connector_call: connectorCallInput,
@@ -104,6 +107,7 @@ const ROUTER_DIRECT_TOOLS = [
   'view_image',
   'memory_search',
   'memory_save',
+  'memory_update',
   'memory_forget',
   'connector_list',
   'connector_call',
@@ -122,6 +126,7 @@ const ROUTER_TOOL_DESCRIPTIONS: Record<(typeof ROUTER_DIRECT_TOOLS)[number], str
   view_image: 'Attach a local PNG, JPEG, WebP, or GIF image from the managed workspace.',
   memory_search: 'Search durable cross-session memory for relevant preferences, facts, decisions, or procedures.',
   memory_save: 'Save a stable reusable preference, fact, procedure, or decision. Never save credentials.',
+  memory_update: 'Correct one existing memory by id and expected version. Read memory_search results first.',
   memory_forget: 'Archive one durable memory entry by id.',
   connector_list: 'List configured connectors, their status, and every capability input schema. Call this before using a connector.',
   connector_call: 'Invoke one connector capability with arguments matching its declared inputSchema. Reads return immediately; approval-backed writes queue an Action.',
@@ -352,6 +357,8 @@ export class ToolService {
           return this.memorySearch(args as z.infer<typeof memorySearchInput>, workingRoot, context.sessionId)
         case 'memory_save':
           return this.memorySave(args as z.infer<typeof memorySaveInput>, workingRoot)
+        case 'memory_update':
+          return this.memoryUpdate(args as z.infer<typeof memoryUpdateInput>)
         case 'memory_forget':
           return this.memoryForget(args as z.infer<typeof memoryForgetInput>)
         default:
@@ -499,7 +506,10 @@ export class ToolService {
       content: input.content,
       tags: input.tags,
       pinned: input.pinned,
+      sourceAuthority: 'inferred',
+      status: 'candidate',
       ...(input.key === undefined ? {} : { key: input.key }),
+      ...(input.expectedVersion === undefined ? {} : { expectedVersion: input.expectedVersion }),
       ...(input.scope === 'workspace' ? { workspacePath: workingRoot } : {}),
     })
     return {
@@ -515,6 +525,24 @@ export class ToolService {
     return {
       content: [{ type: 'text', text: `Forgot memory ${input.id}` }],
       details: { id: input.id },
+    }
+  }
+
+  private memoryUpdate(input: z.infer<typeof memoryUpdateInput>): ToolExecutionResult {
+    const change: MemoryUpdateInput = {
+      id: input.id,
+      expectedVersion: input.expectedVersion,
+      ...(input.title === undefined ? {} : { title: input.title }),
+      ...(input.content === undefined ? {} : { content: input.content }),
+      ...(input.tags === undefined ? {} : { tags: input.tags }),
+      ...(input.pinned === undefined ? {} : { pinned: input.pinned }),
+      ...(input.confidence === undefined ? {} : { confidence: input.confidence }),
+      ...(input.validUntil === undefined ? {} : { validUntil: input.validUntil }),
+    }
+    const entry = this.requireMemory().update(change)
+    return {
+      content: [{ type: 'text', text: `Updated memory: ${entry.title}` }],
+      details: { id: entry.id, version: entry.version },
     }
   }
 

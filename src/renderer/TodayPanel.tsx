@@ -3,6 +3,8 @@ import { Blocks, CalendarDays, Check, Cloud, Mail, RefreshCw } from 'lucide-reac
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { RoutineRecurrence } from '../shared/models'
+import { Button } from './components/Button'
+import { Card } from './components/beui/components/motion/card'
 
 export interface RoutineFeedItem {
   id: string
@@ -76,9 +78,9 @@ export function TodayPanel({
           <h1 id="today-routines-title">{greeting}</h1>
           <p>{t('secretary.routineCount', { count: orderedRoutines.length })}</p>
         </div>
-        <button type="button" aria-label={t('secretary.refreshRoutines')} title={t('secretary.refreshRoutines')} onClick={onRefresh}>
+        <Button type="button" aria-label={t('secretary.refreshRoutines')} title={t('secretary.refreshRoutines')} onClick={onRefresh}>
           <RefreshCw size={15} aria-hidden="true" />
-        </button>
+        </Button>
       </header>
 
       <div className="today-panel-body routine-home-body">
@@ -93,7 +95,7 @@ export function TodayPanel({
             </div>
             <strong>{t('secretary.routinesEmptyTitle')}</strong>
             <p>{t('secretary.routinesEmptyDescription')}</p>
-            <button type="button" onClick={onConnectSources}>{t('secretary.connectApps')}</button>
+            <Button type="button" onClick={onConnectSources}>{t('secretary.connectApps')}</Button>
           </div>
         ) : (
           <div className="routine-card-list">
@@ -101,10 +103,11 @@ export function TodayPanel({
               const tone = routineCardTones[index % routineCardTones.length]
               const confirming = confirmingRoutineIds.has(routine.id)
               return (
-                <article className="routine-card" key={routine.id}>
-                  <button
+                <Card className="routine-card" interactive key={routine.id} role="article" size="compact">
+                  <Button
                     className="routine-card-open"
                     type="button"
+                    variant="ghost"
                     aria-label={t('secretary.openRoutine', { title: routine.title })}
                     onClick={() => onOpenRoutine(routine.id)}
                   />
@@ -124,7 +127,7 @@ export function TodayPanel({
                       {t('secretary.routineProvider')}
                     </span>
                   </span>
-                  <button
+                  <Button
                     className={`routine-card-acknowledge${confirming ? ' is-confirming' : ''}`}
                     type="button"
                     aria-label={t('secretary.acknowledgeRoutine', { title: routine.title })}
@@ -134,8 +137,8 @@ export function TodayPanel({
                     onClick={() => confirmRoutine(routine.id)}
                   >
                     <Check size={13} strokeWidth={2.6} aria-hidden="true" />
-                  </button>
-                </article>
+                  </Button>
+                </Card>
               )
             })}
           </div>

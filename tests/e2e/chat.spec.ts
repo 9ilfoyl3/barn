@@ -321,7 +321,37 @@ test('selects a configured model and reasoning effort from the composer', async 
     await page.reload()
     await page.waitForLoadState('domcontentloaded')
 
-    await page.locator('.composer-model').click()
+    const modelTrigger = page.locator('.composer-model')
+    await expect(modelTrigger).toContainText('Reasoning Model')
+    await expect(modelTrigger).toContainText('High')
+    await modelTrigger.hover()
+    await page.waitForTimeout(220)
+    const modelTriggerStyle = await modelTrigger.evaluate((button) => {
+      const trigger = getComputedStyle(button)
+      const name = getComputedStyle(button.querySelector('strong')!)
+      const effort = getComputedStyle(button.querySelector('em')!)
+      return {
+        borderTopWidth: trigger.borderTopWidth,
+        backgroundColor: trigger.backgroundColor,
+        borderRadius: trigger.borderRadius,
+        nameOverflow: name.overflow,
+        nameTextOverflow: name.textOverflow,
+        effortBorderWidth: effort.borderTopWidth,
+        effortBackground: effort.backgroundColor,
+        effortPaddingLeft: effort.paddingLeft,
+      }
+    })
+    expect(modelTriggerStyle.borderTopWidth).toBe('0px')
+    expect(modelTriggerStyle.backgroundColor).not.toBe('rgba(0, 0, 0, 0)')
+    expect(Number.parseFloat(modelTriggerStyle.borderRadius)).toBeGreaterThanOrEqual(999)
+    expect(modelTriggerStyle.nameOverflow).toBe('visible')
+    expect(modelTriggerStyle.nameTextOverflow).toBe('clip')
+    expect(modelTriggerStyle.effortBorderWidth).toBe('0px')
+    expect(modelTriggerStyle.effortBackground).toBe('rgba(0, 0, 0, 0)')
+    expect(modelTriggerStyle.effortPaddingLeft).toBe('0px')
+    await page.screenshot({ path: 'test-results/barn-model-trigger.png', fullPage: true })
+
+    await modelTrigger.click()
     await expect(page.locator('#composer-model-picker')).toHaveClass(/open/)
     await expect(page.locator('.model-picker-menu-row')).toHaveCount(2)
     await expect(page.locator('.model-picker-menu-row.active')).toHaveCount(0)
@@ -349,6 +379,24 @@ test('selects a configured model and reasoning effort from the composer', async 
     await expect(page.locator('.model-option')).toHaveCount(2)
     await expect(page.getByRole('option', { name: /Reasoning Model/ })).toBeVisible()
     await expect(page.getByRole('option', { name: /Fast Model/ })).toBeVisible()
+    const menuRowBorder = await page.locator('.model-picker-menu-row').first().evaluate((row) => (
+      getComputedStyle(row).borderTopWidth
+    ))
+    expect(menuRowBorder).toBe('0px')
+    const selectedModelLayout = await page.locator('.model-option.active').evaluate((option) => {
+      const name = option.querySelector('span')!.getBoundingClientRect()
+      const check = option.querySelector('svg')!.getBoundingClientRect()
+      return {
+        nameCenter: name.top + name.height / 2,
+        checkCenter: check.top + check.height / 2,
+        nameRight: name.right,
+        checkLeft: check.left,
+        optionHeight: option.getBoundingClientRect().height,
+      }
+    })
+    expect(Math.abs(selectedModelLayout.nameCenter - selectedModelLayout.checkCenter)).toBeLessThanOrEqual(1)
+    expect(selectedModelLayout.checkLeft).toBeGreaterThan(selectedModelLayout.nameRight)
+    expect(selectedModelLayout.optionHeight).toBeLessThanOrEqual(40)
     await page.screenshot({ path: 'test-results/barn-model-list.png', fullPage: true })
     expect(await menu.boundingBox()).toEqual(initialMenuBox)
     const pickerClipping = await page.evaluate(() => ({

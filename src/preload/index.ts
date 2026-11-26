@@ -247,7 +247,11 @@ const lifecycle: LifecycleBridge = {
 const memory: MemoryBridge = {
   getSettings: () => ipcRenderer.invoke('memory:get-settings'),
   setSettings: (settings) => ipcRenderer.invoke('memory:set-settings', settings),
+  getDocument: (name) => ipcRenderer.invoke('memory:get-document', name),
+  saveDocument: (name, content, expectedVersion) => ipcRenderer.invoke('memory:save-document', { name, content, ...(expectedVersion === undefined ? {} : { expectedVersion }) }),
+  listDocumentRevisions: (name) => ipcRenderer.invoke('memory:list-document-revisions', name),
   list: () => ipcRenderer.invoke('memory:list'),
+  update: (input) => ipcRenderer.invoke('memory:update', input),
   listCandidates: () => ipcRenderer.invoke('memory:list-candidates'),
   confirm: (id: string) => ipcRenderer.invoke('memory:confirm', id),
   reject: (id: string) => ipcRenderer.invoke('memory:reject', id),

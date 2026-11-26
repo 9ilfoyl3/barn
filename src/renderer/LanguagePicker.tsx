@@ -8,6 +8,7 @@ import {
 } from './i18n'
 import type { FloatingMenuSide } from './floating-menu'
 import { SecondaryMenu } from './components/SecondaryMenu'
+import { Button } from './components/Button'
 
 const LANGUAGE_CHOICES: ReadonlyArray<{ value: LanguagePreference; labelKey: 'language.system' | 'language.english' | 'language.chinese' }> = [
   { value: 'system', labelKey: 'language.system' },
@@ -48,10 +49,11 @@ export function LanguagePicker() {
 
   return (
     <>
-      <button
+      <Button
         ref={triggerRef}
         className="account-menu-item"
         type="button"
+        role="menuitem"
         aria-haspopup="menu"
         aria-expanded={open}
         aria-controls={open ? menuId : undefined}
@@ -62,7 +64,7 @@ export function LanguagePicker() {
         {open && submenuSide === 'left'
           ? <ChevronLeft className="account-menu-chevron" size={14} aria-hidden="true" />
           : <ChevronRight className="account-menu-chevron" size={14} aria-hidden="true" />}
-      </button>
+      </Button>
       <SecondaryMenu
         ref={menuRef}
         open={open}
@@ -76,7 +78,7 @@ export function LanguagePicker() {
         {LANGUAGE_CHOICES.map((choice) => {
           const selected = choice.value === preference
           return (
-            <button
+            <Button
               key={choice.value}
               type="button"
               role="menuitemradio"
@@ -88,7 +90,7 @@ export function LanguagePicker() {
             >
               <span>{t(choice.labelKey)}</span>
               {selected && <Check size={15} aria-hidden="true" />}
-            </button>
+            </Button>
           )
         })}
       </SecondaryMenu>

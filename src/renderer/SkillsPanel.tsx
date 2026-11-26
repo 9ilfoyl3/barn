@@ -19,6 +19,7 @@ import {
   X,
 } from 'lucide-react'
 import { Streamdown } from 'streamdown'
+import { Input } from './components/Input'
 import type {
   SkillDetail,
   SkillFileContent,
@@ -27,6 +28,7 @@ import type {
 } from '../shared/models'
 import { notifySuccess, useErrorToast } from './notifications'
 import './skills-panel.css'
+import { Button } from './components/Button'
 
 type SkillCategory = 'all' | 'system' | 'local' | 'custom'
 type SkillEditorState =
@@ -225,7 +227,7 @@ export function SkillsPanel({ query, onTrySkill }: { query: string; onTrySkill?:
       <div className="skills-toolbar">
         <div className="skill-category-pills" role="group" aria-label={t('plugins.skillUi.categories')}>
           {categories.map((entry) => (
-            <button
+            <Button
               aria-pressed={category === entry.id}
               className={category === entry.id ? 'skill-category-pill active' : 'skill-category-pill'}
               key={entry.id}
@@ -234,19 +236,21 @@ export function SkillsPanel({ query, onTrySkill }: { query: string; onTrySkill?:
             >
               <span>{entry.label}</span>
               <small>{entry.count}</small>
-            </button>
+            </Button>
           ))}
         </div>
         <div className="skills-toolbar-actions">
-          <button
+          <Button
             className="skills-outline-button"
             type="button"
             disabled={refreshing}
+            state={refreshing ? 'loading' : 'idle'}
+            loadingText={t('plugins.skillUi.rescan')}
             onClick={() => void refreshSkills()}
           >
-            <RefreshCw className={refreshing ? 'spin' : undefined} size={14} aria-hidden="true" />
+            <RefreshCw size={14} aria-hidden="true" />
             {t('plugins.skillUi.rescan')}
-          </button>
+          </Button>
           <input
             ref={importRef}
             accept=".md,.markdown,text/markdown,text/plain"
@@ -259,14 +263,21 @@ export function SkillsPanel({ query, onTrySkill }: { query: string; onTrySkill?:
             tabIndex={-1}
             type="file"
           />
-          <button className="skills-outline-button" type="button" disabled={saving} onClick={() => importRef.current?.click()}>
+          <Button
+            className="skills-outline-button"
+            type="button"
+            disabled={saving}
+            state={saving ? 'loading' : 'idle'}
+            loadingText={t('plugins.skillUi.importMarkdown')}
+            onClick={() => importRef.current?.click()}
+          >
             <Upload size={14} aria-hidden="true" />
             {t('plugins.skillUi.importMarkdown')}
-          </button>
-          <button className="skills-primary-button" type="button" onClick={() => setEditor({ mode: 'create' })}>
+          </Button>
+          <Button className="skills-primary-button" type="button" onClick={() => setEditor({ mode: 'create' })}>
             <Plus size={14} aria-hidden="true" />
             {t('plugins.skillUi.newSkill')}
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -285,7 +296,7 @@ export function SkillsPanel({ query, onTrySkill }: { query: string; onTrySkill?:
         <ul className="skills-list">
           {visible.map((skill) => (
             <li className={skill.enabled ? 'skill-row' : 'skill-row disabled'} key={skill.id}>
-              <button className="skill-row-main" type="button" onClick={() => void openSkill(skill)}>
+              <div className="skill-row-main">
                 <span className="skill-row-icon" aria-hidden="true">
                   {skill.source === 'system'
                     ? <Sparkles size={18} />
@@ -306,7 +317,7 @@ export function SkillsPanel({ query, onTrySkill }: { query: string; onTrySkill?:
                   </span>
                   <small>{skill.description}</small>
                 </span>
-              </button>
+              </div>
               {skill.source !== 'system' ? (
                 <label className="skill-switch" title={skill.enabled ? t('plugins.skillUi.enabled') : t('plugins.skillUi.disabled')}>
                   <input
@@ -322,11 +333,16 @@ export function SkillsPanel({ query, onTrySkill }: { query: string; onTrySkill?:
                   <LockKeyhole size={13} aria-hidden="true" />
                 </span>
               )}
-              <button className="skill-row-open" type="button" aria-label={t('plugins.skillUi.openNamed', { name: skill.name })} onClick={() => void openSkill(skill)}>
-                {detailLoadingId === skill.id
-                  ? <LoaderCircle className="spin" size={14} aria-hidden="true" />
-                  : <ChevronRight size={15} aria-hidden="true" />}
-              </button>
+              <Button
+                className="skill-row-open"
+                type="button"
+                aria-label={t('plugins.skillUi.openNamed', { name: skill.name })}
+                state={detailLoadingId === skill.id ? 'loading' : 'idle'}
+                loadingText=""
+                onClick={() => void openSkill(skill)}
+              >
+                <ChevronRight size={15} aria-hidden="true" />
+              </Button>
             </li>
           ))}
         </ul>
@@ -367,7 +383,7 @@ export function SkillsPanel({ query, onTrySkill }: { query: string; onTrySkill?:
                   </label>
                 )}
                 <div className="skill-detail-menu-wrap">
-                  <button
+                  <Button
                     aria-expanded={menuOpen}
                     aria-haspopup="menu"
                     aria-label={t('plugins.skillUi.moreActions')}
@@ -376,11 +392,11 @@ export function SkillsPanel({ query, onTrySkill }: { query: string; onTrySkill?:
                     onClick={() => setMenuOpen((open) => !open)}
                   >
                     <MoreHorizontal size={18} aria-hidden="true" />
-                  </button>
+                  </Button>
                   {menuOpen && (
                     <div className="skill-detail-menu" role="menu">
                       {selected.source === 'custom' && (
-                        <button
+                        <Button
                           role="menuitem"
                           type="button"
                           onClick={() => {
@@ -390,10 +406,10 @@ export function SkillsPanel({ query, onTrySkill }: { query: string; onTrySkill?:
                         >
                           <Pencil size={14} aria-hidden="true" />
                           {t('plugins.skillUi.edit')}
-                        </button>
+                        </Button>
                       )}
                       {selected.files.length > 0 && (
-                        <button
+                        <Button
                           role="menuitem"
                           type="button"
                           onClick={() => {
@@ -403,18 +419,18 @@ export function SkillsPanel({ query, onTrySkill }: { query: string; onTrySkill?:
                         >
                           <FileText size={14} aria-hidden="true" />
                           {t('plugins.skillUi.resources')}
-                        </button>
+                        </Button>
                       )}
-                      <button role="menuitem" type="button" onClick={() => void copyMarkdown(selected)}>
+                      <Button role="menuitem" type="button" onClick={() => void copyMarkdown(selected)}>
                         {copied ? <Check size={14} aria-hidden="true" /> : <Copy size={14} aria-hidden="true" />}
                         {copied ? t('plugins.skillUi.copied') : t('plugins.skillUi.copyMarkdown')}
-                      </button>
+                      </Button>
                     </div>
                   )}
                 </div>
-                <button className="skill-detail-icon-button" type="button" aria-label={t('common.close')} onClick={() => setSelected(undefined)}>
+                <Button className="skill-detail-icon-button" type="button" aria-label={t('common.close')} onClick={() => setSelected(undefined)}>
                   <X size={18} aria-hidden="true" />
-                </button>
+                </Button>
               </div>
             </header>
 
@@ -430,16 +446,16 @@ export function SkillsPanel({ query, onTrySkill }: { query: string; onTrySkill?:
               <section className="skill-detail-resources" aria-label={t('plugins.skillUi.resources')}>
                 <header className="skill-detail-resources-heading">
                   <strong>{t('plugins.skillUi.resources')}</strong>
-                  <button className="skill-detail-icon-button" type="button" aria-label={t('plugins.skillUi.closeResources')} onClick={() => {
+                  <Button className="skill-detail-icon-button" type="button" aria-label={t('plugins.skillUi.closeResources')} onClick={() => {
                     setResourcesOpen(false)
                     setResource(undefined)
                   }}>
                     <X size={15} aria-hidden="true" />
-                  </button>
+                  </Button>
                 </header>
                 <div className="skill-detail-resource-list">
                   {selected.files.map((file) => (
-                    <button
+                    <Button
                       className={resource?.path === file.path ? 'skill-detail-resource active' : 'skill-detail-resource'}
                       key={file.path}
                       type="button"
@@ -450,7 +466,7 @@ export function SkillsPanel({ query, onTrySkill }: { query: string; onTrySkill?:
                         : <FileText size={12} aria-hidden="true" />}
                       <span>{file.path}</span>
                       <small>{formatBytes(file.size)}</small>
-                    </button>
+                    </Button>
                   ))}
                 </div>
                 {resource !== undefined && (
@@ -472,20 +488,20 @@ export function SkillsPanel({ query, onTrySkill }: { query: string; onTrySkill?:
             <footer className="skill-detail-footer">
               <div>
                 {selected.source === 'custom' && (
-                  <button className="skill-detail-secondary danger" type="button" disabled={busyId === selected.id} onClick={() => void removeSkill(selected)}>
+                  <Button className="skill-detail-secondary danger" type="button" disabled={busyId === selected.id} onClick={() => void removeSkill(selected)}>
                     {t('plugins.skillUi.uninstall')}
-                  </button>
+                  </Button>
                 )}
                 {selected.source === 'local' && (
-                  <button className="skill-detail-secondary" type="button" disabled={busyId === selected.id} onClick={() => void toggle(selected)}>
+                  <Button className="skill-detail-secondary" type="button" disabled={busyId === selected.id} onClick={() => void toggle(selected)}>
                     {selected.enabled ? t('plugins.skillUi.disable') : t('plugins.skillUi.enable')}
-                  </button>
+                  </Button>
                 )}
               </div>
-              <button className="skill-detail-primary" type="button" onClick={() => trySkill(selected)}>
+              <Button className="skill-detail-primary" type="button" onClick={() => trySkill(selected)}>
                 <MousePointerClick size={14} aria-hidden="true" />
                 {t('plugins.skillUi.tryNow')}
-              </button>
+              </Button>
             </footer>
           </section>
         </div>
@@ -537,18 +553,18 @@ function SkillEditor({
           <span className="skill-dialog-kicker">{t('plugins.skillUi.kicker')}</span>
           <h2>{initial === undefined ? t('plugins.skillUi.createTitle') : t('plugins.skillUi.editTitle')}</h2>
         </div>
-        <button className="skill-dialog-close" type="button" aria-label={t('common.close')} onClick={onCancel}>
+        <Button className="skill-dialog-close" type="button" aria-label={t('common.close')} onClick={onCancel}>
           <X size={16} aria-hidden="true" />
-        </button>
+        </Button>
       </header>
       <div className="skill-editor-fields">
         <label>
           <span>{t('plugins.skillUi.name')}</span>
-          <input maxLength={120} required value={name} onChange={(event) => setName(event.target.value)} />
+          <Input maxLength={120} required value={name} onChange={(event) => setName(event.target.value)} density="compact" />
         </label>
         <label>
           <span>{t('plugins.skillUi.description')}</span>
-          <input maxLength={500} value={description} onChange={(event) => setDescription(event.target.value)} />
+          <Input maxLength={500} value={description} onChange={(event) => setDescription(event.target.value)} density="compact" />
         </label>
         <label>
           <span>{t('plugins.skillUi.instructions')}</span>
@@ -556,11 +572,16 @@ function SkillEditor({
         </label>
       </div>
       <footer className="skill-editor-actions">
-        <button className="secondary-button" type="button" onClick={onCancel}>{t('common.cancel')}</button>
-        <button className="primary-button" type="submit" disabled={busy || name.trim().length === 0 || instructions.trim().length === 0}>
-          {busy && <LoaderCircle className="spin" size={14} aria-hidden="true" />}
+        <Button className="secondary-button" type="button" onClick={onCancel}>{t('common.cancel')}</Button>
+        <Button
+          className="primary-button"
+          type="submit"
+          disabled={busy || name.trim().length === 0 || instructions.trim().length === 0}
+          state={busy ? 'loading' : 'idle'}
+          loadingText={t('common.saving')}
+        >
           {t('common.save')}
-        </button>
+        </Button>
       </footer>
     </form>
   )

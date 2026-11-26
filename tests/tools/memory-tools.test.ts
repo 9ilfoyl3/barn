@@ -49,6 +49,9 @@ describe('memory tools', () => {
     })
     expect(saved).toMatchObject({ details: { version: 1 } })
     const id = (saved.details as { id: string }).id
+    expect(store.memories.list()).toEqual([])
+    expect(store.memories.listCandidates()).toMatchObject([{ id, status: 'candidate' }])
+    store.memories.confirm(id)
 
     const search = await service.execute('memory_search', {
       query: 'release packaging',
@@ -80,6 +83,44 @@ describe('memory tools', () => {
     })
     expect(result).toMatchObject({ isError: true })
     expect(result.content[0]).toMatchObject({ text: expect.stringContaining('sensitive') })
+    store.close()
+  })
+
+  it('corrects an existing memory with its current version', async () => {
+    const { service, store, memory } = await createMemoryTools()
+    memory.setSettings({ enabled: true })
+    const saved = await service.execute('memory_save', {
+      kind: 'preference',
+      scope: 'global',
+      title: 'Report format',
+      content: 'Use long reports.',
+      tags: ['style'],
+      pinned: true,
+    })
+    const { id } = saved.details as { id: string }
+    const confirmed = store.memories.confirm(id)
+
+    const updated = await service.execute('memory_update', {
+      id,
+      expectedVersion: confirmed.version,
+      content: 'Use concise reports.',
+    })
+    expect(updated).toMatchObject({ details: { id, version: confirmed.version + 1 } })
+    expect(store.memories.list()).toMatchObject([{
+      id,
+      title: 'Report format',
+      content: 'Use concise reports.',
+      tags: ['style'],
+      pinned: true,
+      version: confirmed.version + 1,
+    }])
+
+    const conflict = await service.execute('memory_update', {
+      id,
+      expectedVersion: confirmed.version,
+      content: 'Stale overwrite.',
+    })
+    expect(conflict).toMatchObject({ isError: true })
     store.close()
   })
 })

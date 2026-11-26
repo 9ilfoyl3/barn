@@ -31,6 +31,9 @@ test('configures and removes an email connector from the plugins page', async ()
     await expect(plugins.getByRole('tab', { name: 'Plugins' })).toBeVisible()
     await expect(plugins.getByText('MCP servers')).toBeVisible()
     await expect(plugins.locator('[data-plugin-kind="email"]')).toContainText('Email')
+    expect(await plugins.locator('[data-plugin-kind="email"] .plugin-row-main').evaluate((element) => element.tagName)).toBe('DIV')
+    await expect(plugins.locator('.plugins-tabs')).toHaveAttribute('role', 'tablist')
+    await expect(plugins.getByRole('tab', { name: 'Plugins' })).toHaveAttribute('aria-selected', 'true')
     await expect(plugins.locator('[data-plugin-kind="email"] [data-brand-icon="email"] svg')).toBeVisible()
     await expect(plugins.locator('[data-plugin-kind="dingtalk"] [data-brand-icon="dingtalk"] svg'))
       .toHaveAttribute('viewBox', '0 0 1024 1024')
@@ -62,6 +65,47 @@ test('configures and removes an email connector from the plugins page', async ()
     await expect(emailPlugin).toContainText('1 connection')
     await emailPlugin.getByRole('button', { name: 'Manage Email' }).click()
     await expect(plugins.locator('.plugin-instance-row')).toContainText('Work mail')
+    const addConnection = plugins.getByRole('button', { name: 'Add connection' })
+    const testConnection = plugins.getByRole('button', { name: 'Test', exact: true })
+    const configureConnection = plugins.getByRole('button', { name: 'Configure', exact: true })
+    await expect(addConnection).toHaveAttribute('data-beui-variant', 'primary')
+    await expect(testConnection).toHaveAttribute('data-beui-variant', 'secondary')
+    await expect(configureConnection).toHaveAttribute('data-beui-variant', 'secondary')
+    const addConnectionColors = await addConnection.evaluate((button) => {
+      const probe = document.createElement('span')
+      probe.style.color = 'var(--primary-foreground)'
+      document.body.append(probe)
+      const expected = getComputedStyle(probe).color
+      const actual = getComputedStyle(button).color
+      probe.remove()
+      return { actual, expected }
+    })
+    expect(addConnectionColors.actual).toBe(addConnectionColors.expected)
+    const connectorButtonStyles = await testConnection.evaluate((button) => {
+      const style = getComputedStyle(button)
+      const svg = button.querySelector('svg')!
+      const textNode = Array.from(button.childNodes).find((node) => node.nodeType === Node.TEXT_NODE && node.textContent?.trim())
+      if (textNode === undefined) throw new Error('Test button text node is missing')
+      const range = document.createRange()
+      range.selectNodeContents(textNode)
+      const svgRect = svg.getBoundingClientRect()
+      const textRect = range.getBoundingClientRect()
+      return {
+        height: button.getBoundingClientRect().height,
+        borderWidth: style.borderTopWidth,
+        borderRadius: style.borderTopLeftRadius,
+        whiteSpace: style.whiteSpace,
+        statefulWrapperCount: button.querySelectorAll('[aria-live="polite"]').length,
+        svgCenter: svgRect.top + svgRect.height / 2,
+        textCenter: textRect.top + textRect.height / 2,
+      }
+    })
+    expect(connectorButtonStyles.height).toBe(32)
+    expect(connectorButtonStyles.borderWidth).toBe('1px')
+    expect(Number.parseFloat(connectorButtonStyles.borderRadius)).toBeGreaterThanOrEqual(6)
+    expect(connectorButtonStyles.whiteSpace).toBe('nowrap')
+    expect(connectorButtonStyles.statefulWrapperCount).toBe(0)
+    expect(Math.abs(connectorButtonStyles.svgCenter - connectorButtonStyles.textCenter)).toBeLessThanOrEqual(1)
     await expect.poll(async () => page.evaluate(async () => {
       const instances = await window.barn.connectors.list()
       return instances.map((instance) => ({

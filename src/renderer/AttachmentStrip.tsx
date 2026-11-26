@@ -14,6 +14,7 @@ import {
 import type { AttachmentDescriptor, AttachmentPreview } from '../shared/models'
 import { attachmentDisplayName } from '../shared/attachments'
 import './attachment-strip.css'
+import { Button } from './components/Button'
 
 export type AttachmentVisualKind =
   | 'folder'
@@ -112,14 +113,15 @@ function AttachmentCard({ file, onRemove }: { file: AttachmentDescriptor; onRemo
         <strong>{name}</strong>
         <small>{t(`attachments.kind.${kind}`)}</small>
       </div>
-      <button
+      <Button
         className="attachment-remove"
         type="button"
+        variant="ghost"
         aria-label={t('conversation.removeAttachment', { name })}
         onClick={onRemove}
       >
         <X size={12} />
-      </button>
+      </Button>
     </article>
   )
 }

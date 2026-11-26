@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import 'streamdown/styles.css'
 import {
@@ -6,7 +6,6 @@ import {
   ChevronDown,
   ChevronRight,
   Folder,
-  FolderSearch,
   Globe2,
   Inbox,
   Search,
@@ -17,9 +16,7 @@ import {
   Plug,
   Settings2,
   Paperclip,
-  Stethoscope,
   Trash2,
-  Wrench,
 } from 'lucide-react'
 import type {
   ApprovalRequest,
@@ -35,13 +32,10 @@ import type {
   VisibleMessage,
 } from '../shared/models'
 import { attachmentDisplayName } from '../shared/attachments'
-import { ModelSettings } from './ModelSettings'
 import { ModelPicker } from './ModelPicker'
 import { LanguagePicker } from './LanguagePicker'
-import { SourceSettings } from './SourceSettings'
 import { PluginsPage } from './PluginsPage'
-import { DiagnosticsSettings } from './DiagnosticsSettings'
-import { SettingsPage } from './SettingsPage'
+import { SettingsPage, type SettingsSectionKey } from './SettingsPage'
 import { AppToaster, useErrorToast } from './notifications'
 import { AttachmentStrip } from './AttachmentStrip'
 import { BrowserPanel, type BrowserQuickAction } from './BrowserPanel'
@@ -75,9 +69,41 @@ import {
   messagesFromEvents,
   type ConversationPart,
 } from './conversation'
+import { Button } from './components/Button'
 
 function railButtonClassName(active: boolean): string {
   return active ? 'app-rail-button active' : 'app-rail-button'
+}
+
+function AppDockItem({
+  active = false,
+  badge,
+  children,
+  className,
+  label,
+  onClick,
+}: {
+  active?: boolean
+  badge?: ReactNode
+  children: ReactNode
+  className?: string
+  label: string
+  onClick(): void
+}) {
+  return (
+    <div className="app-dock-item" data-active={active || undefined}>
+      <Button
+        aria-current={active ? 'page' : undefined}
+        className={className === undefined ? railButtonClassName(active) : `${railButtonClassName(active)} ${className}`}
+        type="button"
+        onClick={onClick}
+      >
+        {children}
+        <span>{label}</span>
+        {badge}
+      </Button>
+    </div>
+  )
 }
 
 type HomePane = 'routines' | 'tasks'
@@ -121,9 +147,7 @@ function clampPaneWidth(side: HomePane, width: number): number {
 export function App() {
   const { t } = useTranslation()
   const [snapshot, setSnapshot] = useState<ModelConfigSnapshot>()
-  const [settingsOpen, setSettingsOpen] = useState(false)
-  const [sourceSettingsOpen, setSourceSettingsOpen] = useState(false)
-  const [diagnosticsOpen, setDiagnosticsOpen] = useState(false)
+  const [settingsSection, setSettingsSection] = useState<SettingsSectionKey>()
   const [modelSelectionBusy, setModelSelectionBusy] = useState(false)
   const [sessions, setSessions] = useState<SessionSummary[]>([])
   const [activeSessionId, setActiveSessionId] = useState<string>()
@@ -1038,11 +1062,11 @@ export function App() {
     <div className={appShellClassName}>
       <header className="app-topbar workspace-header">
         <div className="app-topbar-leading" aria-hidden="true" />
-        <button className="secretary-search" type="button" onClick={() => setCommandOpen(true)}>
+        <Button className="secretary-search" type="button" onClick={() => setCommandOpen(true)}>
           <Search size={15} aria-hidden="true" />
           <span>{t('secretary.search')}</span>
           <kbd>{commandKey} K</kbd>
-        </button>
+        </Button>
         <div className="app-topbar-actions">
           {!rightPanelOpen && (
             <TooltipButton
@@ -1066,63 +1090,52 @@ export function App() {
 
       <aside id="app-sidebar" className="app-rail" aria-label={t('navigation.label')}>
         <nav className="app-rail-nav" aria-label={t('navigation.label')}>
-          <button
-            className={railButtonClassName(view === 'conversation')}
-            type="button"
-            aria-current={view === 'conversation' ? 'page' : undefined}
+          <AppDockItem
+            active={view === 'conversation'}
+            label={t('navigation.home')}
             onClick={() => setView('conversation')}
           >
             <Home size={19} aria-hidden="true" />
-            <span>{t('navigation.home')}</span>
-          </button>
-          <button
-            className={`${railButtonClassName(false)} task-nav-button`}
-            type="button"
+          </AppDockItem>
+          <AppDockItem
+            badge={needsYouCount > 0 ? <span className="app-rail-count task-nav-count">{needsYouCount}</span> : undefined}
+            className="task-nav-button"
+            label={t('navigation.inbox')}
             onClick={() => setView('tasks')}
           >
             <Inbox size={19} aria-hidden="true" />
-            <span>{t('navigation.inbox')}</span>
-            {needsYouCount > 0 && <span className="app-rail-count task-nav-count">{needsYouCount}</span>}
-          </button>
-          <button
-            className={railButtonClassName(view === 'tasks' || view === 'task-detail')}
-            type="button"
-            aria-current={view === 'tasks' || view === 'task-detail' ? 'page' : undefined}
+          </AppDockItem>
+          <AppDockItem
+            active={view === 'tasks' || view === 'task-detail'}
+            label={t('navigation.tasks')}
             onClick={() => setView('tasks')}
           >
             <ListTodo size={19} aria-hidden="true" />
-            <span>{t('navigation.tasks')}</span>
-          </button>
-          <button
-            className={railButtonClassName(false)}
-            type="button"
+          </AppDockItem>
+          <AppDockItem
+            label={t('navigation.files')}
             onClick={() => void chooseWorkingDirectory()}
           >
             <Folder size={19} aria-hidden="true" />
-            <span>{t('navigation.files')}</span>
-          </button>
-          <button
-            className={railButtonClassName(view === 'settings')}
-            type="button"
-            aria-current={view === 'settings' ? 'page' : undefined}
+          </AppDockItem>
+          <AppDockItem
+            active={view === 'settings'}
+            label={t('navigation.apps')}
             onClick={() => setView('settings')}
           >
             <LayoutGrid size={19} aria-hidden="true" />
-            <span>{t('navigation.apps')}</span>
-          </button>
-          <button
-            className={railButtonClassName(view === 'plugins')}
-            type="button"
-            aria-current={view === 'plugins' ? 'page' : undefined}
+          </AppDockItem>
+          <AppDockItem
+            active={view === 'plugins'}
+            label={t('navigation.plugins')}
             onClick={() => setView('plugins')}
           >
             <Plug size={19} aria-hidden="true" />
-            <span>{t('navigation.plugins')}</span>
-          </button>
+          </AppDockItem>
         </nav>
 
         <div ref={accountAreaRef} className="account-area app-rail-account">
-          <button
+          <Button
             ref={accountTriggerRef}
             className="account-row"
             type="button"
@@ -1133,7 +1146,7 @@ export function App() {
             onClick={() => setAccountOpen(!accountOpen)}
           >
             <span className="account-avatar">BA</span>
-          </button>
+          </Button>
           <div
             id="account-panel"
             className={accountOpen ? 'account-popover open' : 'account-popover'}
@@ -1147,21 +1160,9 @@ export function App() {
               <strong>{t('sidebar.localWorkspace')}</strong>
               <small>{t('sidebar.localOnly')}</small>
             </div>
-            <button className="account-menu-item" type="button" role="menuitem" onClick={() => { setAccountOpen(false); setView('settings') }}>
+            <Button className="account-menu-item" type="button" role="menuitem" onClick={() => { setAccountOpen(false); setSettingsSection(undefined); setView('settings') }}>
               <Settings2 size={14} /><span>{t('sidebar.settings')}</span><ChevronRight className="account-menu-chevron" size={13} />
-            </button>
-            <button className="account-menu-item" type="button" role="menuitem" onClick={() => { setAccountOpen(false); setView('plugins') }}>
-              <Plug size={14} /><span>{t('navigation.plugins')}</span><ChevronRight className="account-menu-chevron" size={13} />
-            </button>
-            <button className="account-menu-item" type="button" role="menuitem" onClick={() => { setAccountOpen(false); setSourceSettingsOpen(true) }}>
-              <FolderSearch size={14} /><span>{t('sidebar.localSources')}</span><ChevronRight className="account-menu-chevron" size={13} />
-            </button>
-            <button className="account-menu-item" type="button" role="menuitem" onClick={() => { setAccountOpen(false); setDiagnosticsOpen(true) }}>
-              <Stethoscope size={14} /><span>{t('sidebar.diagnostics')}</span><ChevronRight className="account-menu-chevron" size={13} />
-            </button>
-            <button className="account-menu-item" type="button" role="menuitem" onClick={() => { setAccountOpen(false); setSettingsOpen(true) }}>
-              <Wrench size={14} /><span>{t('sidebar.models')}</span><ChevronRight className="account-menu-chevron" size={13} />
-            </button>
+            </Button>
             <LanguagePicker />
           </div>
         </div>
@@ -1174,10 +1175,9 @@ export function App() {
             <PluginsPage onTrySkill={trySkill} />
           ) : view === 'settings' ? (
             <SettingsPage
-              onOpenModels={() => setSettingsOpen(true)}
-              onOpenPlugins={() => setView('plugins')}
-              onOpenSources={() => setSourceSettingsOpen(true)}
-              onOpenDiagnostics={() => setDiagnosticsOpen(true)}
+              snapshot={snapshot}
+              onSnapshot={setSnapshot}
+              {...(settingsSection === undefined ? {} : { initialSection: settingsSection })}
             />
           ) : view === 'tasks' ? (
             <TaskCenter
@@ -1195,9 +1195,9 @@ export function App() {
               return selectedTask === undefined ? (
                 <div className="task-detail-page task-detail-empty">
                   <strong>{t('tasks.emptyTitle')}</strong>
-                  <button type="button" className="task-detail-back" onClick={() => setView('tasks')}>
+                  <Button type="button" className="task-detail-back" onClick={() => setView('tasks')}>
                     {t('tasks.back')}
-                  </button>
+                  </Button>
                 </div>
               ) : (
                 <TaskDetailPage
@@ -1381,7 +1381,7 @@ export function App() {
                       <Folder size={13} />
                     </span>
                   ) : (
-                    <button
+                    <Button
                       className="composer-project-icon composer-project-delete"
                       type="button"
                       disabled={activeSessionIsArchived}
@@ -1391,9 +1391,9 @@ export function App() {
                     >
                       <Folder className="folder-icon" size={13} />
                       <Trash2 className="delete-icon" size={13} />
-                    </button>
+                    </Button>
                   )}
-                  <button
+                  <Button
                     className="composer-project-picker"
                     type="button"
                     disabled={activeSessionIsArchived}
@@ -1403,7 +1403,7 @@ export function App() {
                   >
                     <span>{workingDirectoryLabel}</span>
                     <ChevronDown size={12} />
-                  </button>
+                  </Button>
                 </div>
                 <div className="composer composer-agents">
                   {attachments.length > 0 && (
@@ -1431,7 +1431,7 @@ export function App() {
                       <ModelPicker
                         snapshot={snapshot}
                         onSnapshot={setSnapshot}
-                        onConfigure={() => setSettingsOpen(true)}
+                        onConfigure={() => { setSettingsSection('models'); setView('settings') }}
                         onOpenChange={(open) => {
                           if (open) setAccountOpen(false)
                         }}
@@ -1563,15 +1563,6 @@ export function App() {
         }}
       />
 
-      {settingsOpen && (
-        <ModelSettings
-          snapshot={snapshot}
-          onSnapshot={setSnapshot}
-          onClose={() => setSettingsOpen(false)}
-        />
-      )}
-      {sourceSettingsOpen && <SourceSettings onClose={() => setSourceSettingsOpen(false)} />}
-      {diagnosticsOpen && <DiagnosticsSettings onClose={() => setDiagnosticsOpen(false)} />}
       <AppToaster />
     </div>
   )

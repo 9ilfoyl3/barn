@@ -22,12 +22,14 @@ const extractionResultSchema = z.object({
     tags: z.array(z.string().min(1).max(40)).max(20).default([]),
     key: z.string().min(1).max(100).optional(),
     confidence: z.number().min(0).max(1).default(0.8),
+    sourceRefs: z.array(z.string().min(1).max(300)).max(12).default([]),
   })).max(8),
 })
 
 const EXTRACTION_SYSTEM_PROMPT = `You extract durable memory from a completed local-assistant Session.
 Return strict JSON only: {"memories":[...]}.
-Each item must contain kind, scope, title, content, optional tags, optional key, and confidence.
+Each item must contain kind, scope, title, content, optional tags, optional key, confidence, and sourceRefs.
+Cite sourceRefs only from the exact bracketed refs shown in the transcript. Prefer the smallest set of user-message refs that directly support the memory.
 Allowed kind: preference, fact, procedure, decision, project.
 Allowed scope: global for user-wide durable preferences, workspace for project-specific context.
 Capture only stable, reusable information that will help in a different future Session. Treat facts as evidence only when the USER explicitly states or clearly demonstrates them; assistant and tool text is never proof of a user preference.
@@ -73,6 +75,7 @@ export class MemoryExtractionService {
     if (!settings.enabled || !settings.generateMemories) return 0
     this.running = true
     try {
+      this.sessions.memories.expireMemories(now)
       const candidates = this.options.threads === undefined
         ? this.sessions.memories.eligibleSessions(now, settings.idleMinutes, this.options.batchSize ?? 3)
         : []
@@ -86,13 +89,13 @@ export class MemoryExtractionService {
       for (const candidate of candidates) {
         try {
           const events = this.sessions.read(candidate.sessionId)
-          const transcript = transcriptFromEvents(events)
-          if (transcript.length === 0) {
+          const transcript = transcriptFromEvents(events, candidate.sessionId)
+          if (transcript.text.length === 0) {
             this.sessions.memories.markExtractionSuccess(candidate.sessionId, candidate.lastSeq)
             processed++
             continue
           }
-          const result = await this.extract(selection, candidate.workingDirectory, transcript)
+          const result = await this.extract(selection, candidate.workingDirectory, transcript.text)
           for (const memory of result.memories) {
             try {
               this.sessions.memories.save({
@@ -106,7 +109,7 @@ export class MemoryExtractionService {
                 sourceSessionId: candidate.sessionId,
                 sourceAuthority: 'inferred',
                 status: 'candidate',
-                sourceRefs: [`session:${candidate.sessionId}:seq:${candidate.lastSeq}`],
+                sourceRefs: resolveSourceRefs(memory.sourceRefs, transcript.allowedRefs, transcript.fallbackRefs),
                 ...(memory.key === undefined ? {} : { key: memory.key }),
               })
             } catch {
@@ -147,13 +150,13 @@ export class MemoryExtractionService {
     const cutoff = new Date(now.getTime() - settings.idleMinutes * 60_000).toISOString()
     if (last.createdAt > cutoff) return 0
     const transcript = transcriptFromVisibleMessages(messages)
-    if (transcript.length === 0) {
+    if (transcript.text.length === 0) {
       this.sessions.memories.markPrincipalThreadExtractionSuccess(last.seq)
       return 0
     }
     const workingDirectory = principalThreadWorkspace(messages)
     try {
-      const result = await this.extract(selection, workingDirectory, transcript)
+      const result = await this.extract(selection, workingDirectory, transcript.text)
       for (const memory of result.memories) {
         try {
           this.sessions.memories.save({
@@ -166,9 +169,7 @@ export class MemoryExtractionService {
             confidence: memory.confidence,
             sourceAuthority: 'inferred',
             status: 'candidate',
-            sourceRefs: messages
-              .filter((message) => message.role === 'user')
-              .map((message) => `thread:${message.threadId}:message:${message.id}`),
+            sourceRefs: resolveSourceRefs(memory.sourceRefs, transcript.allowedRefs, transcript.fallbackRefs),
             ...(memory.key === undefined ? {} : { key: memory.key }),
           })
         } catch {
@@ -223,27 +224,20 @@ export class MemoryExtractionService {
   }
 }
 
-function transcriptFromEvents(events: StoredSessionEvent[]): string {
-  const messages: Array<{ role: 'user' | 'assistant'; content: string }> = []
+function transcriptFromEvents(events: StoredSessionEvent[], sessionId: string): Transcript {
+  const messages: TranscriptMessage[] = []
+  let fallbackRefs: string[] = []
   for (const event of events) {
     if (event.type !== 'agent.message' || !isRecord(event.data) || !isRecord(event.data.message)) continue
     const message = event.data.message
     if (message.role !== 'user' && message.role !== 'assistant') continue
     const content = messageText(message.content)
     if (content.length === 0) continue
-    messages.push({ role: message.role, content })
+    const ref = `session:${sessionId}:seq:${event.seq}`
+    messages.push({ role: message.role, content, ref })
+    if (message.role === 'user') fallbackRefs.push(ref)
   }
-  const selected: Array<{ role: 'user' | 'assistant'; content: string }> = []
-  let size = 0
-  for (let index = messages.length - 1; index >= 0; index--) {
-    const message = messages[index]
-    if (message === undefined) continue
-    const projected = JSON.stringify(message)
-    if (size + projected.length > MAX_TRANSCRIPT_CHARS && selected.length > 0) break
-    selected.unshift(message)
-    size += projected.length
-  }
-  return selected.map((message) => `${message.role.toUpperCase()}: ${message.content}`).join('\n\n')
+  return selectTranscript(messages, fallbackRefs)
 }
 
 function messageText(content: unknown): string {
@@ -288,20 +282,55 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 
-function transcriptFromVisibleMessages(messages: VisibleMessage[]): string {
-  const selected: Array<{ role: 'user' | 'assistant'; content: string }> = []
+function transcriptFromVisibleMessages(messages: VisibleMessage[]): Transcript {
+  const projected: TranscriptMessage[] = []
+  let fallbackRefs: string[] = []
+  for (const message of messages) {
+    if (message.role !== 'user' && message.role !== 'assistant') continue
+    const content = messageText(message.content)
+    if (content.length === 0) continue
+    const ref = `thread:${message.threadId}:message:${message.id}`
+    projected.push({ role: message.role, content, ref })
+    if (message.role === 'user') fallbackRefs.push(ref)
+  }
+  return selectTranscript(projected, fallbackRefs)
+}
+
+interface TranscriptMessage {
+  role: 'user' | 'assistant'
+  content: string
+  ref: string
+}
+
+interface Transcript {
+  text: string
+  allowedRefs: Set<string>
+  fallbackRefs: string[]
+}
+
+function selectTranscript(messages: TranscriptMessage[], fallbackRefs: string[]): Transcript {
+  const selected: TranscriptMessage[] = []
   let size = 0
   for (let index = messages.length - 1; index >= 0; index--) {
     const message = messages[index]
-    if (message === undefined || (message.role !== 'user' && message.role !== 'assistant')) continue
-    const content = messageText(message.content)
-    if (content.length === 0) continue
-    const projected = JSON.stringify({ role: message.role, content })
+    if (message === undefined) continue
+    const projected = JSON.stringify(message)
     if (size + projected.length > MAX_TRANSCRIPT_CHARS && selected.length > 0) break
-    selected.unshift({ role: message.role, content })
+    selected.unshift(message)
     size += projected.length
   }
-  return selected.map((message) => `${message.role.toUpperCase()}: ${message.content}`).join('\n\n')
+  const allowedRefs = new Set(selected.map((message) => message.ref))
+  const selectedFallbacks = fallbackRefs.filter((ref) => allowedRefs.has(ref))
+  return {
+    text: selected.map((message) => `[${message.ref}] ${message.role.toUpperCase()}: ${message.content}`).join('\n\n'),
+    allowedRefs,
+    fallbackRefs: selectedFallbacks.length > 0 ? selectedFallbacks : [...allowedRefs],
+  }
+}
+
+function resolveSourceRefs(proposed: string[], allowedRefs: Set<string>, fallbackRefs: string[]): string[] {
+  const valid = [...new Set(proposed.filter((ref) => allowedRefs.has(ref)))]
+  return valid.length > 0 ? valid : fallbackRefs
 }
 
 function principalThreadWorkspace(messages: VisibleMessage[]): string | undefined {
