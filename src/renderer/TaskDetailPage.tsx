@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react'
 import {
   ArrowLeft,
   Bot,
@@ -66,6 +66,7 @@ export function TaskDetailPage({
   const [statusBusy, setStatusBusy] = useState(false)
   const [copied, setCopied] = useState(false)
   const [tagMenuOpen, setTagMenuOpen] = useState(false)
+  const [tagMenuSide, setTagMenuSide] = useState<'left' | 'right'>('left')
   const [tags, setTags] = useState<TaskTagValue[]>(() => readTaskTags(task.id))
   useErrorToast(error)
   const threadRef = useRef<HTMLDivElement>(null)
@@ -91,6 +92,7 @@ export function TaskDetailPage({
     setError(undefined)
     setStatusBusy(false)
     setTagMenuOpen(false)
+    setTagMenuSide('left')
     setTags(readTaskTags(task.id))
     sessionPromiseRef.current = null
   }, [task.id, task.sessionId])
@@ -189,6 +191,23 @@ export function TaskDetailPage({
   useEffect(() => () => {
     if (copiedTimerRef.current !== undefined) clearTimeout(copiedTimerRef.current)
   }, [])
+
+  function toggleTagMenu(event: ReactMouseEvent<HTMLButtonElement>): void {
+    if (tagMenuOpen) {
+      setTagMenuOpen(false)
+      return
+    }
+    const menuWidth = 158
+    const gutter = 8
+    const boundary = event.currentTarget.closest('.task-detail-properties-scroll')?.getBoundingClientRect()
+    const control = event.currentTarget.getBoundingClientRect()
+    if (boundary !== undefined && boundary.right - control.left < menuWidth + gutter) {
+      setTagMenuSide('right')
+    } else {
+      setTagMenuSide('left')
+    }
+    setTagMenuOpen(true)
+  }
 
   const initialMessages = messages.length > 0 ? messages : messagesFromTask(task)
   const displayMessages = [...initialMessages, ...optimisticMessages]
@@ -586,13 +605,18 @@ export function TaskDetailPage({
                     variant="ghost"
                     aria-label={t('tasks.addTag')}
                     aria-expanded={tagMenuOpen}
-                    onClick={() => setTagMenuOpen((open) => !open)}
+                    onClick={toggleTagMenu}
                   >
                     <Plus size={13} aria-hidden="true" />
                     {tags.length === 0 && <span>{t('tasks.addTag')}</span>}
                   </Button>
                   {tagMenuOpen && (
-                    <div className="task-detail-tag-menu" role="menu" aria-label={t('tasks.tags')}>
+                    <div
+                      className="task-detail-tag-menu"
+                      data-side={tagMenuSide}
+                      role="menu"
+                      aria-label={t('tasks.tags')}
+                    >
                       {TASK_TAG_VALUES.map((tag) => {
                         const checked = tags.includes(tag)
                         return (

@@ -349,7 +349,8 @@ test('opens a task agent conversation with properties and accepts a follow-up me
     await expect(tagMenu).toBeVisible()
     const tagLayout = await detail.evaluate(() => {
       const properties = document.querySelector('.task-detail-properties-scroll')!.getBoundingClientRect()
-      const menu = document.querySelector('.task-detail-tag-menu')!.getBoundingClientRect()
+      const menuElement = document.querySelector<HTMLElement>('.task-detail-tag-menu')!
+      const menu = menuElement.getBoundingClientRect()
       const options = Array.from(document.querySelectorAll<HTMLElement>('.task-detail-tag-option')).map((option) => {
         const style = getComputedStyle(option)
         return {
@@ -358,10 +359,15 @@ test('opens a task agent conversation with properties and accepts a follow-up me
           variant: option.dataset.beuiVariant,
         }
       })
-      return { properties, menu, options }
+      return { properties, menu, options, side: menuElement.dataset.side }
     })
     expect(tagLayout.menu.left).toBeGreaterThanOrEqual(tagLayout.properties.left)
     expect(tagLayout.menu.right).toBeLessThanOrEqual(tagLayout.properties.right)
+    if (tagLayout.side === 'right') {
+      expect(tagLayout.menu.left - tagLayout.properties.left).toBeGreaterThanOrEqual(8)
+    } else {
+      expect(tagLayout.properties.right - tagLayout.menu.right).toBeGreaterThanOrEqual(8)
+    }
     for (const option of tagLayout.options) {
       expect(option.height).toBeLessThanOrEqual(31)
       expect(option.whiteSpace).toBe('nowrap')

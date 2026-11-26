@@ -628,6 +628,11 @@
   box-shadow: var(--menu-shadow);
 }
 
+.task-detail-tag-menu[data-side="right"] {
+  right: 0;
+  left: auto;
+}
+
 .task-detail-tag-option {
   display: grid;
   width: 100%;
