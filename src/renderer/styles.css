@@ -1420,7 +1420,7 @@ select:focus-visible {
   grid-template-columns: auto minmax(0, 1fr) 15px;
   align-items: center;
   gap: 7px;
-  border: 1px solid transparent;
+  border: 0;
   border-radius: 9px;
   background: transparent;
   padding: 0 8px;
@@ -1428,7 +1428,6 @@ select:focus-visible {
   cursor: pointer;
   text-align: left;
   transition:
-    border-color 140ms ease,
     background 140ms ease,
     color 140ms ease;
 }
@@ -1458,7 +1457,7 @@ select:focus-visible {
 
 .model-picker-menu-row:hover:not(:disabled),
 .model-picker-menu-row.active {
-  border-color: color-mix(in srgb, var(--accent) 14%, transparent);
+  border: 0;
   background: color-mix(in srgb, var(--panel-raised) 74%, var(--accent-soft));
   color: var(--text);
 }

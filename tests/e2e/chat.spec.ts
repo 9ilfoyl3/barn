@@ -379,6 +379,24 @@ test('selects a configured model and reasoning effort from the composer', async 
     await expect(page.locator('.model-option')).toHaveCount(2)
     await expect(page.getByRole('option', { name: /Reasoning Model/ })).toBeVisible()
     await expect(page.getByRole('option', { name: /Fast Model/ })).toBeVisible()
+    const menuRowBorder = await page.locator('.model-picker-menu-row').first().evaluate((row) => (
+      getComputedStyle(row).borderTopWidth
+    ))
+    expect(menuRowBorder).toBe('0px')
+    const selectedModelLayout = await page.locator('.model-option.active').evaluate((option) => {
+      const name = option.querySelector('span')!.getBoundingClientRect()
+      const check = option.querySelector('svg')!.getBoundingClientRect()
+      return {
+        nameCenter: name.top + name.height / 2,
+        checkCenter: check.top + check.height / 2,
+        nameRight: name.right,
+        checkLeft: check.left,
+        optionHeight: option.getBoundingClientRect().height,
+      }
+    })
+    expect(Math.abs(selectedModelLayout.nameCenter - selectedModelLayout.checkCenter)).toBeLessThanOrEqual(1)
+    expect(selectedModelLayout.checkLeft).toBeGreaterThan(selectedModelLayout.nameRight)
+    expect(selectedModelLayout.optionHeight).toBeLessThanOrEqual(40)
     await page.screenshot({ path: 'test-results/barn-model-list.png', fullPage: true })
     expect(await menu.boundingBox()).toEqual(initialMenuBox)
     const pickerClipping = await page.evaluate(() => ({

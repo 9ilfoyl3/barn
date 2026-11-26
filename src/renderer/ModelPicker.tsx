@@ -347,8 +347,7 @@ export function ModelPicker({
                         aria-selected={active}
                         key={modelKey(model)}
                         disabled={busyKey !== undefined}
-                        state={busy ? 'loading' : 'idle'}
-                        loadingText={model.name}
+                        {...(busy ? { state: 'loading' as const, loadingText: model.name } : {})}
                         onClick={() => void selectModel(model)}
                       >
                         <span>{model.name}</span>
