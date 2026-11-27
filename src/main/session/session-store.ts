@@ -5,6 +5,7 @@ import { DatabaseSync } from 'node:sqlite'
 import type { SessionSummary } from '../../shared/models'
 import { AesGcmEventCipher } from './event-cipher'
 import { TaskStore } from '../tasks/task-store'
+import { TaskRunStore } from '../tasks/task-run-store'
 import { PermissionStore } from '../permissions/permission-store'
 import { ActionStore } from '../actions/action-store'
 import { LocalSourceStore } from '../sources/local-source-store'
@@ -17,9 +18,9 @@ import { SkillStore } from '../skills/skill-store'
 
 export type SessionStatus = SessionSummary['status']
 
-// Schema 13 adds durable connector-backed event sources. Older schema versions
-// are upgraded in place by idempotent store initialization.
-export const CURRENT_SCHEMA_VERSION = 13
+// Schema 14 adds durable Task execution runs and guard state. Older schema
+// versions are upgraded in place by idempotent store initialization.
+export const CURRENT_SCHEMA_VERSION = 14
 
 export interface NewSessionEvent {
   type: string
@@ -38,6 +39,7 @@ export interface StoredSessionEvent extends Omit<NewSessionEvent, 'actor'> {
 export class SessionStore {
   private readonly database: DatabaseSync
   readonly tasks: TaskStore
+  readonly taskRuns: TaskRunStore
   readonly permissions: PermissionStore
   readonly actions: ActionStore
   readonly localSources: LocalSourceStore
@@ -55,6 +57,7 @@ export class SessionStore {
     mkdirSync(dirname(path), { recursive: true, mode: 0o700 })
     this.database = new DatabaseSync(path)
     this.tasks = new TaskStore(this.database, cipher)
+    this.taskRuns = new TaskRunStore(this.database, cipher)
     this.permissions = new PermissionStore(this.database, cipher)
     this.actions = new ActionStore(this.database, cipher)
     this.localSources = new LocalSourceStore(this.database, cipher)
@@ -117,6 +120,7 @@ export class SessionStore {
       throw new Error(`Database schema ${current.version} is newer than this app supports (${CURRENT_SCHEMA_VERSION})`)
     }
     this.tasks.initialize()
+    this.taskRuns.initialize()
     this.permissions.initialize()
     this.actions.initialize()
     this.localSources.initialize()
@@ -198,6 +202,12 @@ export class SessionStore {
           AND resolved_at IS NOT NULL AND resolved_at < ?
           AND id NOT IN (SELECT approval_id FROM actions WHERE approval_id IS NOT NULL)
       `).run(cutoff).changes)
+      this.database.prepare(`
+        DELETE FROM task_runs
+        WHERE status IN ('completed', 'failed', 'cancelled', 'waiting')
+          AND ended_at IS NOT NULL AND ended_at < ?
+          AND task_id IN (SELECT id FROM tasks WHERE status IN ('completed', 'failed', 'cancelled'))
+      `).run(cutoff)
       this.database.prepare('UPDATE maintenance_settings SET last_run_at = ? WHERE id = 1')
         .run(now.toISOString())
       this.database.exec('COMMIT')

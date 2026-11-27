@@ -9,6 +9,8 @@ export interface TaskRunnerOptions {
   now?: () => Date
   routerRequestIdForTask?: (taskId: string) => string | undefined
   taskEffectsForTask?: (taskId: string) => TaskEffectSnapshot[]
+  leaseMs?: number
+  leaseOwner?: string
 }
 
 export interface TaskEffectSnapshot {
@@ -34,6 +36,7 @@ export interface TaskAgent {
 interface ActiveTask {
   taskId: string
   workerSessionId: string
+  runId: string
   cancelRequested: boolean
 }
 
@@ -43,6 +46,8 @@ export class TaskRunner {
   private readonly now: () => Date
   private readonly routerRequestIdForTask: (taskId: string) => string | undefined
   private readonly taskEffectsForTask: (taskId: string) => TaskEffectSnapshot[]
+  private readonly leaseMs: number
+  private readonly leaseOwner: string
   private readonly active = new Map<string, ActiveTask>()
   private readonly activeSessions = new Map<string, string>()
   private disposers: Array<() => void> = []
@@ -57,7 +62,7 @@ export class TaskRunner {
       TaskService,
       'list' | 'updateStatus' | 'recordResult' | 'recordPendingResult' | 'requestApproval' | 'rescheduleReminder' | 'assignSession' | 'onEvent'
     >,
-    private readonly sessions: Pick<SessionStore, 'append' | 'createSession' | 'getSession' | 'read'>,
+    private readonly sessions: Pick<SessionStore, 'append' | 'createSession' | 'getSession' | 'read' | 'taskRuns'>,
     options: TaskRunnerOptions = {},
     private readonly threads?: Pick<ThreadService, 'appendMessage'>,
   ) {
@@ -65,6 +70,8 @@ export class TaskRunner {
     this.now = options.now ?? (() => new Date())
     this.routerRequestIdForTask = options.routerRequestIdForTask ?? (() => undefined)
     this.taskEffectsForTask = options.taskEffectsForTask ?? (() => [])
+    this.leaseMs = Math.max(5_000, options.leaseMs ?? 120_000)
+    this.leaseOwner = options.leaseOwner ?? 'desktop'
   }
 
   start(): void {
@@ -93,6 +100,7 @@ export class TaskRunner {
           return
         }
         if (task.status === 'waiting' || task.status === 'completed' || task.status === 'failed') {
+          this.sessions.taskRuns.finishLatest(task.id, task.status, task.detail)
           this.removeActive(task.id)
           this.schedule()
         }
@@ -105,6 +113,104 @@ export class TaskRunner {
   /** Nudge the runner after wake, network recovery, or an external lifecycle event. */
   kick(): void {
     this.schedule()
+  }
+
+  /** Whether this in-memory runner currently owns a worker for the Task. */
+  isActive(taskId: string): boolean {
+    return this.active.has(taskId)
+  }
+
+  /** A bounded view the guard uses to distinguish a healthy run from an orphaned Task row. */
+  activeSnapshot(): Array<{ taskId: string; sessionId: string; runId: string }> {
+    return [...this.active.values()].map((active) => ({
+      taskId: active.taskId,
+      sessionId: active.workerSessionId,
+      runId: active.runId,
+    }))
+  }
+
+  /**
+   * Restart a silent Worker in the same Session with a bounded status request.
+   * The worker protocol cannot accept a second prompt while a turn is running,
+   * so the guard stops the current attempt and records a new one.
+   */
+  async nudge(taskId: string, text: string): Promise<boolean> {
+    const active = this.active.get(taskId)
+    if (active === undefined) return false
+    const task = this.tasks.list().find((candidate) => candidate.id === taskId)
+    if (task === undefined || task.status !== 'running') return false
+    this.sessions.taskRuns.setStatus(active.runId, 'cancelled', 'Guard requested a progress check.')
+    this.removeActive(taskId)
+    try {
+      await this.agent.cancel(active.workerSessionId)
+    } catch {
+      // A worker that already stopped can still be asked for a final result.
+    }
+    await this.waitForSessionIdle(active.workerSessionId)
+    const run = this.sessions.taskRuns.start({
+      taskId,
+      sessionId: active.workerSessionId,
+      leaseOwner: this.leaseOwner,
+      leaseMs: this.leaseMs,
+    })
+    this.active.set(taskId, {
+      taskId,
+      workerSessionId: active.workerSessionId,
+      runId: run.id,
+      cancelRequested: false,
+    })
+    this.activeSessions.set(active.workerSessionId, taskId)
+    await this.agent.prompt(
+      active.workerSessionId,
+      text,
+      [],
+      task.workingDirectory,
+      undefined,
+      {
+        recordUserMessage: true,
+        projectUserMessage: false,
+        projectAssistantMessage: false,
+        userActorRole: 'router',
+        assistantActorRole: 'worker',
+        visibleActivity: false,
+        visibleMetadata: { taskId, taskGuard: true },
+        clientMessageIdPrefix: `task-guard:${taskId}`,
+        taskId,
+      },
+    )
+    return true
+  }
+
+  private async waitForSessionIdle(sessionId: string, timeoutMs = 5_000): Promise<void> {
+    const deadline = Date.now() + timeoutMs
+    while (Date.now() < deadline) {
+      if (this.sessions.getSession(sessionId).status !== 'running') return
+      await new Promise((resolve) => setTimeout(resolve, 25))
+    }
+    throw new Error('The Agent Worker did not stop before the guard could ask for a result')
+  }
+
+  /** Stop a silent run and return the Task to Needs you without claiming success or failure. */
+  async guardPause(taskId: string, detail: string): Promise<boolean> {
+    const active = this.active.get(taskId)
+    if (active === undefined) return false
+    this.removeActive(taskId)
+    try {
+      await this.agent.cancel(active.workerSessionId)
+    } catch {
+      // The guard still records the paused Task even when the worker already stopped.
+    }
+    const current = this.tasks.list().find((task) => task.id === taskId)
+    if (current !== undefined && current.status === 'running') {
+      this.tasks.updateStatus(taskId, {
+        status: 'waiting',
+        waitingReason: 'input',
+        detail,
+      })
+    }
+    this.sessions.taskRuns.finishLatest(taskId, 'waiting', detail)
+    this.schedule()
+    return true
   }
 
   stop(): void {
@@ -130,6 +236,7 @@ export class TaskRunner {
     const now = this.now().getTime()
     const queued = this.tasks.list()
       .filter((task) => task.status === 'queued' && !this.active.has(task.id))
+      .toSorted(compareQueuedTasks)
     if (queued.length === 0) return
     const scheduled = queued.map((task) => ({
       task,
@@ -162,6 +269,12 @@ export class TaskRunner {
       while (this.started && this.active.size < this.maxConcurrent) {
         const task = this.nextQueuedTask()
         if (task === undefined) return
+        if (this.mustReserveHumanSlot(task)) {
+          const userTask = this.nextQueuedTask((candidate) => candidate.origin === 'user' && candidate.kind !== 'reminder')
+          if (userTask === undefined) return
+          await this.launch(userTask)
+          continue
+        }
         if (task.prompt === undefined) {
           this.tasks.updateStatus(task.id, {
             status: 'waiting',
@@ -178,12 +291,29 @@ export class TaskRunner {
     }
   }
 
-  private nextQueuedTask(): Task | undefined {
+  private nextQueuedTask(filter: (task: Task) => boolean = () => true): Task | undefined {
     const now = this.now().getTime()
-    return this.tasks.list().find((task) => (
-      task.status === 'queued'
-      && !this.active.has(task.id)
-      && (task.scheduledFor === undefined || new Date(task.scheduledFor).getTime() <= now)
+    return this.tasks.list()
+      .filter((task) => (
+        task.status === 'queued'
+        && !this.active.has(task.id)
+        && (task.scheduledFor === undefined || new Date(task.scheduledFor).getTime() <= now)
+        && filter(task)
+      ))
+      .toSorted(compareQueuedTasks)[0]
+  }
+
+  /** Keep one slot free for user work when automation could otherwise occupy every worker. */
+  private mustReserveHumanSlot(task: Task): boolean {
+    if (this.maxConcurrent <= 1 || task.origin !== 'automation' || task.kind === 'reminder') return false
+    if (this.active.size < this.maxConcurrent - 1) return false
+    const now = this.now().getTime()
+    return this.tasks.list().some((candidate) => (
+      candidate.origin === 'user'
+      && candidate.kind !== 'reminder'
+      && candidate.status === 'queued'
+      && !this.active.has(candidate.id)
+      && (candidate.scheduledFor === undefined || new Date(candidate.scheduledFor).getTime() <= now)
     ))
   }
 
@@ -220,9 +350,16 @@ export class TaskRunner {
       : this.sessions.getSession(task.sessionId)
     const continued = task.detail === 'New instructions added; task requeued.'
       || this.sessions.read(workerSession.id).some(isTaskUserMessage)
+    const run = this.sessions.taskRuns.start({
+      taskId: task.id,
+      sessionId: workerSession.id,
+      leaseOwner: this.leaseOwner,
+      leaseMs: this.leaseMs,
+    })
     const active: ActiveTask = {
       taskId: task.id,
       workerSessionId: workerSession.id,
+      runId: run.id,
       cancelRequested: false,
     }
     this.active.set(task.id, active)
@@ -237,6 +374,8 @@ export class TaskRunner {
   }
 
   private handleRunEvent(event: SessionLiveEvent): void {
+    const sessionId = event.type === 'session.updated' ? event.session.id : event.sessionId
+    this.sessions.taskRuns.heartbeatSession(sessionId, this.leaseMs)
     if (event.type === 'session.updated' && event.session.status === 'failed') {
       const taskId = this.activeSessions.get(event.session.id)
       if (taskId === undefined) return
@@ -277,6 +416,7 @@ export class TaskRunner {
       .filter((effect) => effect.status === 'succeeded')
       .map((effect) => `action:${effect.id}:succeeded`)
     const pendingApproval = pendingEffects.find((effect) => effect.status === 'pending_approval' && effect.approvalId !== undefined)
+    this.sessions.taskRuns.setStatus(active.runId, pendingEffects.length > 0 ? 'waiting' : 'completed')
     const result: TaskResultEnvelope = {
       outcome: pendingEffects.length > 0
         ? 'needs_review'
@@ -323,6 +463,7 @@ export class TaskRunner {
   ): void {
     if (active === undefined) return
     this.removeActive(taskId)
+    this.sessions.taskRuns.setStatus(active.runId, status === 'cancelled' ? 'cancelled' : 'failed', detail)
     void this.agent.cancel(active.workerSessionId).catch(() => {})
     const current = this.tasks.list().find((task) => task.id === taskId)
     if (current === undefined || current.status === 'completed' || current.status === 'failed' || current.status === 'cancelled') return
@@ -414,6 +555,7 @@ export class TaskRunner {
     if (active === undefined) return
     active.cancelRequested = true
     this.removeActive(taskId)
+    this.sessions.taskRuns.setStatus(active.runId, 'cancelled', 'Task requeued with new instructions.')
     try {
       await this.agent.cancel(active.workerSessionId)
     } catch {
@@ -427,18 +569,13 @@ export class TaskRunner {
     const active = this.active.get(taskId)
     if (active === undefined) return
     active.cancelRequested = true
+    this.sessions.taskRuns.setStatus(active.runId, 'cancelled', 'Task cancelled.')
     try {
       await this.agent.cancel(active.workerSessionId)
     } catch {
       this.removeActive(taskId)
       this.schedule()
     }
-  }
-
-  private updateIfActive(taskId: string, update: Parameters<TaskService['updateStatus']>[1]): void {
-    const task = this.tasks.list().find((candidate) => candidate.id === taskId)
-    if (task === undefined || task.status === 'completed' || task.status === 'failed' || task.status === 'cancelled') return
-    this.tasks.updateStatus(taskId, update)
   }
 
   private removeActive(taskId: string): void {
@@ -517,4 +654,18 @@ function reminderDeliveryText(text: string): string {
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
+}
+
+
+/** User work outranks reminders, which outrank automation. Stable within each lane by schedule and age. */
+function compareQueuedTasks(left: Task, right: Task): number {
+  const rankDelta = queueLane(left) - queueLane(right)
+  if (rankDelta !== 0) return rankDelta
+  const leftAt = left.scheduledFor ?? left.createdAt
+  const rightAt = right.scheduledFor ?? right.createdAt
+  return leftAt.localeCompare(rightAt)
+}
+
+function queueLane(task: Task): number {
+  return task.origin === 'user' && task.kind !== 'reminder' ? 0 : task.kind === 'reminder' ? 1 : 2
 }

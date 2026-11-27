@@ -31,3 +31,5 @@ Task commands are exposed through a typed Task service and IPC bridge. Changes e
 - Running tasks recover predictably after a crash or app restart.
 - The current database owner is still named `SessionStore`; separating storage ownership is deferred to a dedicated refactor.
 - Task titles and lifecycle metadata are stored as SQLite metadata; Session payloads and Task instructions use authenticated encryption.
+
+Execution attempts and the outer liveness guard are defined in [Durable Task runs use an outer guard for silent work](2026-11-26-task-run-guard.md).
