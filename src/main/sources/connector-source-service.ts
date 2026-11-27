@@ -10,6 +10,7 @@ import type {
   ConnectorSourceEventKind,
 } from '../../shared/models'
 import type { TaskService } from '../tasks/task-service'
+import { ROUTINE_CARD_INSTRUCTION } from '../tasks/routine-card'
 import type { ConnectorSourceEventInput, ConnectorSourceStore } from './connector-source-store'
 
 export interface ConnectorReadClient {
@@ -339,13 +340,14 @@ export class ConnectorSourceService {
         && settings.suggestionCooldownMinutes > 0
         && now.getTime() - lastSuggestionAt < settings.suggestionCooldownMinutes * 60_000) continue
 
+      const routine = mode === 'active' && source.config.purpose !== 'reply'
       const task = this.tasks.create({
         title: event.taskTitle,
         origin: 'automation',
-        presentation: mode === 'active' && source.config.purpose !== 'reply' ? 'routine' : 'task',
+        presentation: routine ? 'routine' : 'task',
         status: mode === 'active' ? 'queued' : 'proposed',
         prompt: event.taskPrompt,
-        visiblePrompt: taskVisiblePrompt(source, event),
+        visiblePrompt: routine ? event.summary : taskVisiblePrompt(source, event),
         contract: {
           objective: event.taskPrompt,
           deliverable: 'A concise assessment of whether the user should act, with the next safe step.',
@@ -639,6 +641,7 @@ function watchTaskPrompt(
     purpose === 'reply'
       ? 'If action is needed, prepare the reply and use the approval-backed external-write path before sending or commenting. Never claim a reply was sent without a receipt.'
       : 'If action is needed, explain the recommendation or next step. Do not change the external system.',
+    ...(config.mode === 'active' && purpose === 'analysis' ? ['', ROUTINE_CARD_INSTRUCTION] : []),
   ].join('\n')
 }
 

@@ -30,7 +30,7 @@ For GitHub, Router targets accept `owner/repository` or a GitHub URL and optiona
 
 The existing automation settings remain the fallback mode for sources without a per-watch mode. First collection is always a baseline. DingTalk reads the latest page toward older messages for that baseline, then advances with a newer-than cursor; later versions use the existing event deduplication, matter grouping, Task creation, TaskRun, guard, approval, Action outbox, Needs You, and result delivery paths.
 
-An active analysis watch creates a Task with `presentation: routine`. Its Worker run is still durable and guard-protected, but its result is projected into the encrypted `routine_notifications` store instead of the Principal Thread or Router request list. The Routines feed shows the source, title, result summary, and a link back to the hidden Task detail. Acknowledging the notification is durable and removes it from the feed. Observe-mode suggestions and reply watches remain ordinary Tasks because they need a person to review or approve an external action. Routine projections are also excluded from Task-center events and operating-system Task notifications. The observe-mode pending limit and suggestion cooldown do not suppress active watch events; every bounded poll batch still becomes routine work.
+An active analysis watch creates a Task with `presentation: routine`. Its Worker run is still durable and guard-protected, but its result is projected into the encrypted `routine_notifications` store instead of the Principal Thread or Router request list. The routine prompt asks the Worker to return hidden card metadata containing a concise next-action title and a self-contained follow-up prompt. The Task keeps the matched source summary as its visible quote. A routine card shows the action, then quotes that original message, then names the source. Choosing the card stages the executable prompt in the composer and focuses it; it does not send anything or open the hidden Task. Acknowledging the notification is durable and removes it from the feed. Observe-mode suggestions and reply watches remain ordinary Tasks because they need a person to review or approve an external action. Routine projections are also excluded from Task-center events and operating-system Task notifications. The observe-mode pending limit and suggestion cooldown do not suppress active watch events; every bounded poll batch still becomes routine work.
 
 ## Alternatives considered
 
@@ -55,6 +55,7 @@ An active analysis watch creates a Task with `presentation: routine`. Its Worker
 - GitHub observation starts automatically with a connected account and needs no UI.
 - DingTalk remains silent until the user asks the Router to watch a specific target.
 - Active analysis results appear as routine notifications without adding noise to the Router thread, Task center, or Needs You count.
+- Routine cards follow the Comma shape: an action objective, the original source quote, and a prompt that is staged in the composer for explicit review before sending.
 - Natural-language watchers preserve the user's instruction, target label, keywords, purpose, and per-watch mode.
 - Source creation and watch management are auditable in the same encrypted source/event store.
 - Users can list or cancel watches conversationally without seeing connector implementation details.

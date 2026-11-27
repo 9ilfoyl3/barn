@@ -695,6 +695,12 @@ function normalizeResult(result: TaskResultEnvelope): TaskResultEnvelope {
     evidenceRefs: result.evidenceRefs.map((value) => requireListText(value, 'Task evidence ref')).slice(0, 100),
     limitations: result.limitations.map((value) => requireListText(value, 'Task limitation')).slice(0, 50),
     externalEffectReceipts: result.externalEffectReceipts.map((value) => requireListText(value, 'Task effect receipt')).slice(0, 100),
+    ...(result.routine === undefined ? {} : {
+      routine: {
+        title: requirePromptText(result.routine.title, 'Routine card title').slice(0, 100),
+        prompt: requirePromptText(result.routine.prompt, 'Routine card prompt').slice(0, 4_000),
+      },
+    }),
   }
 }
 

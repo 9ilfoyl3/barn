@@ -636,8 +636,17 @@ export function App() {
     if (durable !== undefined) {
       void window.barn.tasks.get(durable.taskId)
         .then((task) => {
-          setSelectedTaskId(task.id)
-          setView('task-detail')
+          const prompt = durable.prompt ?? task.prompt ?? task.visiblePrompt
+          if (prompt === undefined) {
+            setSelectedTaskId(task.id)
+            setView('task-detail')
+            return
+          }
+          setView('conversation')
+          setInput(prompt)
+          requestAnimationFrame(() => {
+            document.querySelector<HTMLElement>('.barn-prompt-inline .prompt-input-editor')?.focus()
+          })
         })
         .catch((reason: unknown) => setError(errorMessage(reason, t)))
       return
@@ -885,7 +894,7 @@ export function App() {
       return {
         id: message.key,
         title: message.routineTitle ?? text,
-        ...(message.routinePrompt === undefined ? {} : { body: message.routinePrompt }),
+        ...(message.routinePrompt === undefined ? {} : { quote: message.routinePrompt }),
         ...(message.routineRecurrence === undefined ? {} : { recurrence: message.routineRecurrence }),
         ...(message.createdAt === undefined ? {} : { deliveredAt: message.createdAt }),
       }
@@ -894,7 +903,8 @@ export function App() {
     ...routineNotifications.map((notification) => ({
       id: notification.id,
       title: notification.title,
-      body: notification.body,
+      quote: notification.quote,
+      ...(notification.prompt === undefined ? {} : { prompt: notification.prompt }),
       sourceLabel: notification.sourceLabel,
       deliveredAt: notification.createdAt,
     })),

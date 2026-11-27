@@ -139,7 +139,9 @@ describe('ConnectorSourceService', () => {
       origin: 'automation',
       presentation: 'routine',
       title: 'Review GitHub acme/payments issue #2: Build failed after merge',
+      visiblePrompt: expect.stringContaining('acme/payments · issue #2'),
     }])
+    expect(h.tasks.list()[0]?.prompt).toContain('<routine_card>')
     h.sessions.close()
   })
 

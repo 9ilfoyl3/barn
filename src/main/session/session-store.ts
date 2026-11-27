@@ -19,9 +19,9 @@ import { SkillStore } from '../skills/skill-store'
 
 export type SessionStatus = SessionSummary['status']
 
-// Schema 15 adds durable routine notifications projected from background work.
-// Older schema versions are upgraded in place by idempotent initialization.
-export const CURRENT_SCHEMA_VERSION = 15
+// Schema 16 adds routine card prompts. Older schema versions are upgraded in
+// place by idempotent store initialization.
+export const CURRENT_SCHEMA_VERSION = 16
 
 export interface NewSessionEvent {
   type: string

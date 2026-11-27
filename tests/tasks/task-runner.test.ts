@@ -142,14 +142,28 @@ describe('TaskRunner', () => {
       origin: 'automation',
       presentation: 'routine',
       prompt: 'Analyze the deployment failure.',
+      visiblePrompt: 'acme/payments issue #42\nState: open\nDeployment failed after upgrade.',
     })
     const running = await waitForTask(h.tasks, task.id, (current) => current.status === 'running')
-    finishWorker(h, running.sessionId!, 'The deployment failed after the migration step.')
+    finishWorker(h, running.sessionId!, `The deployment failed after the migration step.
+
+<routine_card>
+{"title":"Review the retry fix before release","prompt":"帮我复核 GitHub issue #42 的支付重试修复，确认迁移步骤风险。"}
+</routine_card>`)
 
     await waitForTask(h.tasks, task.id, (current) => current.status === 'completed')
+    expect(h.tasks.get(task.id).result).toMatchObject({
+      summary: 'The deployment failed after the migration step.',
+      routine: {
+        title: 'Review the retry fix before release',
+        prompt: '帮我复核 GitHub issue #42 的支付重试修复，确认迁移步骤风险。',
+      },
+    })
     expect(h.sessions.routines.list()).toMatchObject([{
       taskId: task.id,
-      body: 'The deployment failed after the migration step.',
+      title: 'Review the retry fix before release',
+      quote: 'acme/payments issue #42 State: open Deployment failed after upgrade.',
+      prompt: '帮我复核 GitHub issue #42 的支付重试修复，确认迁移步骤风险。',
       sourceLabel: 'GitHub',
     }])
     expect(h.threads?.listMessages({ limit: 100 }).some((message) => (

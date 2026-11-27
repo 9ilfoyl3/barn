@@ -12,6 +12,9 @@ interface RoutineRow {
   body_ciphertext: Uint8Array
   body_nonce: Uint8Array
   body_tag: Uint8Array
+  prompt_ciphertext: Uint8Array | null
+  prompt_nonce: Uint8Array | null
+  prompt_tag: Uint8Array | null
   url: string | null
   outcome: string
   created_at: string
@@ -40,6 +43,9 @@ export class RoutineStore {
         body_ciphertext BLOB NOT NULL,
         body_nonce BLOB NOT NULL,
         body_tag BLOB NOT NULL,
+        prompt_ciphertext BLOB,
+        prompt_nonce BLOB,
+        prompt_tag BLOB,
         url TEXT,
         outcome TEXT NOT NULL,
         created_at TEXT NOT NULL,
@@ -49,22 +55,26 @@ export class RoutineStore {
       CREATE INDEX IF NOT EXISTS routine_notifications_open
         ON routine_notifications(acknowledged_at, created_at DESC);
     `)
+    this.ensureColumns()
   }
 
   record(task: Task, result: TaskResultEnvelope, now = new Date()): RoutineNotification {
     const existing = this.database.prepare('SELECT * FROM routine_notifications WHERE task_id = ?').get(task.id) as RoutineRow | undefined
     const source = routineSource(task)
     const notificationId = existing?.id ?? randomUUID()
-    const title = plainTextPreview(task.title, 240)
-    const body = plainTextPreview(result.summary.trim() || task.title, 20_000)
-    const encrypted = this.cipher.encrypt(body, associatedData(notificationId))
+    const title = plainTextPreview(result.routine?.title || task.title, 100)
+    const quote = plainTextPreview(task.visiblePrompt?.trim() || task.title, 20_000)
+    const prompt = (result.routine?.prompt || task.prompt || task.visiblePrompt || task.title).trim().slice(0, 8_000)
+    const encryptedQuote = this.cipher.encrypt(quote, quoteAssociatedData(notificationId))
+    const encryptedPrompt = this.cipher.encrypt(prompt, promptAssociatedData(notificationId))
     const at = now.toISOString()
     this.database.prepare(`
       INSERT INTO routine_notifications (
         id, task_id, source_label, provider, title,
-        body_ciphertext, body_nonce, body_tag, url, outcome,
-        created_at, acknowledged_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)
+        body_ciphertext, body_nonce, body_tag,
+        prompt_ciphertext, prompt_nonce, prompt_tag,
+        url, outcome, created_at, acknowledged_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)
       ON CONFLICT(task_id) DO UPDATE SET
         source_label = excluded.source_label,
         provider = excluded.provider,
@@ -72,6 +82,9 @@ export class RoutineStore {
         body_ciphertext = excluded.body_ciphertext,
         body_nonce = excluded.body_nonce,
         body_tag = excluded.body_tag,
+        prompt_ciphertext = excluded.prompt_ciphertext,
+        prompt_nonce = excluded.prompt_nonce,
+        prompt_tag = excluded.prompt_tag,
         url = excluded.url,
         outcome = excluded.outcome,
         created_at = excluded.created_at,
@@ -82,9 +95,12 @@ export class RoutineStore {
       source.label,
       source.provider,
       title,
-      encrypted.ciphertext,
-      encrypted.nonce,
-      encrypted.tag,
+      encryptedQuote.ciphertext,
+      encryptedQuote.nonce,
+      encryptedQuote.tag,
+      encryptedPrompt.ciphertext,
+      encryptedPrompt.nonce,
+      encryptedPrompt.tag,
       source.url ?? null,
       result.outcome,
       at,
@@ -130,6 +146,20 @@ export class RoutineStore {
     `).get() as { count: number }).count)
   }
 
+  private ensureColumns(): void {
+    const columns = new Set(
+      (this.database.prepare('PRAGMA table_info(routine_notifications)').all() as Array<{ name: string }>)
+        .map((column) => column.name),
+    )
+    for (const [name, type] of [
+      ['prompt_ciphertext', 'BLOB'],
+      ['prompt_nonce', 'BLOB'],
+      ['prompt_tag', 'BLOB'],
+    ] as const) {
+      if (!columns.has(name)) this.database.exec(`ALTER TABLE routine_notifications ADD COLUMN ${name} ${type}`)
+    }
+  }
+
   private emit(event: RoutineNotificationEvent): void {
     for (const listener of this.listeners) listener(event)
   }
@@ -141,13 +171,21 @@ export class RoutineStore {
       sourceLabel: row.source_label,
       provider: row.provider,
       title: row.title,
-      body: this.cipher.decrypt({
+      quote: this.cipher.decrypt({
         ciphertext: row.body_ciphertext,
         nonce: row.body_nonce,
         tag: row.body_tag,
-      }, associatedData(row.id)),
+      }, quoteAssociatedData(row.id)),
       outcome: row.outcome as RoutineNotification['outcome'],
       createdAt: row.created_at,
+    }
+    const promptFields = [row.prompt_ciphertext, row.prompt_nonce, row.prompt_tag]
+    if (promptFields.every((field) => field !== null)) {
+      notification.prompt = this.cipher.decrypt({
+        ciphertext: row.prompt_ciphertext!,
+        nonce: row.prompt_nonce!,
+        tag: row.prompt_tag!,
+      }, promptAssociatedData(row.id))
     }
     if (row.url !== null) notification.url = row.url
     if (row.acknowledged_at !== null) notification.acknowledgedAt = row.acknowledged_at
@@ -182,6 +220,10 @@ function plainTextPreview(value: string, max: number): string {
   return plain.length <= max ? plain : `${plain.slice(0, max - 1)}…`
 }
 
-function associatedData(id: string): string {
+function quoteAssociatedData(id: string): string {
   return `routine:${id}:body`
+}
+
+function promptAssociatedData(id: string): string {
+  return `routine:${id}:prompt`
 }

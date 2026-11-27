@@ -553,6 +553,13 @@ export type TaskPresentation = 'task' | 'routine'
 export type TaskWaitingReason = 'input' | 'approval' | 'review'
 export type TaskOutcome = 'completed' | 'needs_input' | 'needs_review' | 'failed' | 'cancelled'
 
+export interface RoutineCardDraft {
+  /** Short, user-facing description of the action the routine card offers. */
+  title: string
+  /** Complete request staged into the composer when the card is chosen. */
+  prompt: string
+}
+
 export interface TaskResultEnvelope {
   outcome: TaskOutcome
   summary: string
@@ -560,6 +567,7 @@ export interface TaskResultEnvelope {
   evidenceRefs: string[]
   limitations: string[]
   externalEffectReceipts: string[]
+  routine?: RoutineCardDraft
 }
 export type RoutineRecurrence = 'none' | 'daily' | 'weekdays' | 'weekly'
 
@@ -779,8 +787,12 @@ export interface RoutineNotification {
   taskId: string
   sourceLabel: string
   provider: string
+  /** The concise next action this routine offers the user. */
   title: string
-  body: string
+  /** The original source message the routine is based on. */
+  quote: string
+  /** A complete request the user can stage in the composer. */
+  prompt?: string
   url?: string
   outcome: 'completed' | 'partial' | 'blocked' | 'failed' | 'cancelled' | 'needs_input' | 'needs_review'
   createdAt: string

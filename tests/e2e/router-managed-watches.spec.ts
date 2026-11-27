@@ -91,10 +91,11 @@ test('auto-watches GitHub and creates a natural-language watch through the Route
     expect(routine).toMatchObject({
       sourceLabel: 'GitHub',
       provider: 'github',
-      title: 'Review GitHub acme/payments issue #42: Payment retries fail after upgrade',
+      title: 'Review the retry fix before release',
       outcome: 'completed',
+      prompt: '帮我复核 GitHub acme/payments issue #42 的支付重试修复，确认迁移步骤风险。',
     })
-    expect(routine?.body).toContain('payment retry')
+    expect(routine?.quote).toContain('acme/payments · issue #42')
     expect(await page.evaluate(async () => (await window.barn.tasks.list()).length)).toBe(0)
     expect(await page.evaluate(async () => (await window.barn.router.getSnapshot()).requests.length)).toBe(0)
     const sourceEventTask = await page.evaluate(async () => {
@@ -105,12 +106,16 @@ test('auto-watches GitHub and creates a natural-language watch through the Route
     expect(sourceEventTask).toMatchObject({ presentation: 'routine', status: 'completed' })
 
     await page.locator('.app-rail-button', { hasText: 'Home' }).click()
-    const routineCard = page.locator('.routine-card', { hasText: 'Payment retries fail after upgrade' })
+    const routineCard = page.locator('.routine-card', { hasText: 'Review the retry fix before release' })
     await expect(routineCard).toBeVisible()
     await expect(routineCard).toContainText('GitHub')
-    await expect(routineCard).toContainText('payment retry')
+    await expect(routineCard).toContainText('acme/payments · issue #42')
     await page.screenshot({ path: 'test-results/barn-silent-watch-routine.png', fullPage: true })
+    await routineCard.click()
     const composer = page.getByLabel('Message Barn')
+    await expect(page.locator('.prompt-input-editor')).toContainText('帮我复核 GitHub acme/payments issue #42')
+    await expect(page.locator('.prompt-input-editor')).toBeFocused()
+    await page.screenshot({ path: 'test-results/barn-routine-prompt-prefilled.png', fullPage: true })
     await composer.fill('Watch acme/payments and only issues from octocat. Analyze anything that needs my attention.')
     await composer.press('Enter')
     await expect(page.getByText('I’ll watch acme/payments for octocat issues and analyze what needs attention.', { exact: true }))
@@ -211,7 +216,11 @@ function githubIssue(version: number): Record<string, unknown> {
 
 function writeModelResponse(response: ServerResponse, state: { modelRequests: number }, body: string): void {
   if (body.includes("You are Barn's Worker for one isolated durable Task")) {
-    sendTextResponse(response, 'The payment retry issue is still open after the upgrade. The retry path now reaches the migration step and should be reviewed before release.')
+    sendTextResponse(response, `The payment retry issue is still open after the upgrade. The retry path now reaches the migration step and should be reviewed before release.
+
+<routine_card>
+{"title":"Review the retry fix before release","prompt":"帮我复核 GitHub acme/payments issue #42 的支付重试修复，确认迁移步骤风险。"}
+</routine_card>`)
     return
   }
   if (!body.includes("You are Barn's Router")) {

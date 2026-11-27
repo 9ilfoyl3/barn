@@ -3,6 +3,7 @@ import type { ActionStatus } from '../actions/types'
 import type { SessionStore } from '../session/session-store'
 import type { ThreadService } from '../threads/thread-service'
 import type { TaskService } from './task-service'
+import { parseRoutineCardAnswer } from './routine-card'
 
 export interface TaskRunnerOptions {
   maxConcurrent?: number
@@ -405,6 +406,9 @@ export class TaskRunner {
     }
     this.removeActive(taskId)
     const currentTask = this.tasks.list().find((task) => task.id === taskId)
+    const final = currentTask?.presentation === 'routine'
+      ? parseRoutineCardAnswer(answer.text)
+      : { summary: answer.text }
     const effects = this.taskEffectsForTask(taskId)
     const pendingEffects = effects.filter((effect) => (
       effect.status === 'pending_approval' || effect.status === 'queued' || effect.status === 'running'
@@ -423,7 +427,7 @@ export class TaskRunner {
         : failedEffects.length > 0
           ? failedEffects.some((effect) => effect.status === 'unknown_effect') ? 'needs_review' : 'failed'
           : 'completed',
-      summary: answer.text,
+      summary: final.summary || answer.text,
       artifacts: taskArtifacts(this.tasks.list().find((task) => task.id === taskId)),
       evidenceRefs: [`session:${active.workerSessionId}:event:${answer.eventId}`],
       limitations: failedEffects.flatMap((effect): string[] => effect.lastError === undefined ? [] : [effect.lastError]),
@@ -433,6 +437,7 @@ export class TaskRunner {
           ...failedEffects.map((effect) => `action:${effect.id}:${effect.status}`),
         ]),
       ],
+      ...('routine' in final && final.routine !== undefined ? { routine: final.routine } : {}),
     }
     if (pendingEffects.length > 0) {
       if (currentTask?.status !== 'waiting' || currentTask.waitingReason !== 'approval') {
