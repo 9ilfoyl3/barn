@@ -6,6 +6,7 @@ import type { SessionSummary } from '../../shared/models'
 import { AesGcmEventCipher } from './event-cipher'
 import { TaskStore } from '../tasks/task-store'
 import { TaskRunStore } from '../tasks/task-run-store'
+import { RoutineStore } from '../tasks/routine-store'
 import { PermissionStore } from '../permissions/permission-store'
 import { ActionStore } from '../actions/action-store'
 import { LocalSourceStore } from '../sources/local-source-store'
@@ -18,9 +19,9 @@ import { SkillStore } from '../skills/skill-store'
 
 export type SessionStatus = SessionSummary['status']
 
-// Schema 14 adds durable Task execution runs and guard state. Older schema
-// versions are upgraded in place by idempotent store initialization.
-export const CURRENT_SCHEMA_VERSION = 14
+// Schema 15 adds durable routine notifications projected from background work.
+// Older schema versions are upgraded in place by idempotent initialization.
+export const CURRENT_SCHEMA_VERSION = 15
 
 export interface NewSessionEvent {
   type: string
@@ -40,6 +41,7 @@ export class SessionStore {
   private readonly database: DatabaseSync
   readonly tasks: TaskStore
   readonly taskRuns: TaskRunStore
+  readonly routines: RoutineStore
   readonly permissions: PermissionStore
   readonly actions: ActionStore
   readonly localSources: LocalSourceStore
@@ -58,6 +60,7 @@ export class SessionStore {
     this.database = new DatabaseSync(path)
     this.tasks = new TaskStore(this.database, cipher)
     this.taskRuns = new TaskRunStore(this.database, cipher)
+    this.routines = new RoutineStore(this.database, cipher)
     this.permissions = new PermissionStore(this.database, cipher)
     this.actions = new ActionStore(this.database, cipher)
     this.localSources = new LocalSourceStore(this.database, cipher)
@@ -121,6 +124,7 @@ export class SessionStore {
     }
     this.tasks.initialize()
     this.taskRuns.initialize()
+    this.routines.initialize()
     this.permissions.initialize()
     this.actions.initialize()
     this.localSources.initialize()

@@ -144,9 +144,16 @@ export class ConnectorSourceService {
     const created: ConnectorSource[] = []
     for (const connector of connectors) {
       if (connector.kind !== 'github' || connector.status !== 'ready') continue
-      if (current.some((source) => source.config.kind === 'github'
+      const existingIndex = current.findIndex((source) => source.config.kind === 'github'
         && source.config.connectorId === connector.id
-        && source.config.origin === 'github-default')) continue
+        && source.config.origin === 'github-default')
+      if (existingIndex !== -1) {
+        const existing = current[existingIndex]!
+        if (existing.config.kind === 'github' && existing.config.mode !== 'active') {
+          current[existingIndex] = this.store.updateConfig(existing.id, { ...existing.config, mode: 'active' })
+        }
+        continue
+      }
       const source = this.store.create({
         name: `${connector.name} · repositories`,
         config: {
@@ -157,7 +164,7 @@ export class ConnectorSourceService {
           pollSeconds: 120,
           origin: 'github-default',
           purpose: 'analysis',
-          mode: 'observe',
+          mode: 'active',
           instruction: 'Watch issues and pull requests across the connected GitHub user’s repositories. Tell me when something needs my attention.',
         },
       })
@@ -328,11 +335,14 @@ export class ConnectorSourceService {
       }
 
       if (mode === 'observe' && pendingSuggestions >= settings.maxPendingSuggestions) continue
-      if (settings.suggestionCooldownMinutes > 0 && now.getTime() - lastSuggestionAt < settings.suggestionCooldownMinutes * 60_000) continue
+      if (mode === 'observe'
+        && settings.suggestionCooldownMinutes > 0
+        && now.getTime() - lastSuggestionAt < settings.suggestionCooldownMinutes * 60_000) continue
 
       const task = this.tasks.create({
         title: event.taskTitle,
         origin: 'automation',
+        presentation: mode === 'active' && source.config.purpose !== 'reply' ? 'routine' : 'task',
         status: mode === 'active' ? 'queued' : 'proposed',
         prompt: event.taskPrompt,
         visiblePrompt: taskVisiblePrompt(source, event),
@@ -350,9 +360,11 @@ export class ConnectorSourceService {
         },
       })
       this.store.attachTask(recorded.event.id, task.id)
-      if (mode === 'observe') pendingSuggestions++
-      lastSuggestionAt = now.getTime()
-      nextLastSuggestion = now.toISOString()
+      if (mode === 'observe') {
+        pendingSuggestions++
+        lastSuggestionAt = now.getTime()
+        nextLastSuggestion = now.toISOString()
+      }
     }
 
     this.store.saveState(source.id, {

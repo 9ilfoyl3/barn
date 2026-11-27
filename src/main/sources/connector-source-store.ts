@@ -163,6 +163,18 @@ export class ConnectorSourceStore {
     return this.get(sourceId)
   }
 
+  updateConfig(sourceId: string, config: ConnectorSourceConfig): ConnectorSource {
+    const validated = validateConfig(config)
+    const encrypted = this.cipher.encrypt(validated, associatedData(sourceId, 'config'))
+    const result = this.database.prepare(`
+      UPDATE connector_sources
+      SET config_ciphertext = ?, config_nonce = ?, config_tag = ?, updated_at = ?
+      WHERE id = ?
+    `).run(encrypted.ciphertext, encrypted.nonce, encrypted.tag, new Date().toISOString(), sourceId)
+    if (result.changes === 0) throw new Error(`Unknown connector source: ${sourceId}`)
+    return this.get(sourceId)
+  }
+
   setEnabled(sourceId: string, enabled: boolean): ConnectorSource {
     const result = this.database.prepare(`
       UPDATE connector_sources SET enabled = ?, updated_at = ? WHERE id = ?

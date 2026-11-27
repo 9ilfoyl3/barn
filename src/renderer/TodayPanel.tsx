@@ -11,6 +11,7 @@ export interface RoutineFeedItem {
   title: string
   body?: string
   recurrence?: RoutineRecurrence
+  sourceLabel?: string
   deliveredAt?: string
 }
 
@@ -124,7 +125,7 @@ export function TodayPanel({
                     </span>
                     <span className="routine-card-tag routine-card-tag-app">
                       <b className="routine-card-app-mark" aria-hidden="true">B</b>
-                      {t('secretary.routineProvider')}
+                      {routine.sourceLabel ?? t('secretary.routineProvider')}
                     </span>
                   </span>
                   <Button

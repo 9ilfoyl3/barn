@@ -4,13 +4,14 @@ const cdpUrl = process.env.BARN_LIVE_CDP_URL
 const liveGroup = process.env.BARN_LIVE_DINGTALK_GROUP
 
 test.skip(cdpUrl === undefined || liveGroup === undefined, 'Set BARN_LIVE_CDP_URL and BARN_LIVE_DINGTALK_GROUP for the live DingTalk watch test')
-test.setTimeout(360_000)
+test.setTimeout(600_000)
 
 test('reads live DingTalk group messages with the configured connector and model without sending', async () => {
   const group = liveGroup!
   const browser = await chromium.connectOverCDP(cdpUrl!)
   try {
-    const page = browser.contexts().flatMap((context) => context.pages())[0]
+    const page = browser.contexts().flatMap((context) => context.pages())
+      .find((candidate) => candidate.url().includes('out/renderer/index.html') || candidate.url().startsWith('http://localhost'))
     if (page === undefined) throw new Error('Barn has no page over CDP')
     await page.waitForLoadState('domcontentloaded')
 
@@ -43,6 +44,8 @@ test('reads live DingTalk group messages with the configured connector and model
     }
     expect(watch).toBeDefined()
     expect(watch?.config.kind === 'dingtalk' ? watch.config.events : []).toEqual(['messages'])
+    expect(watch?.config.kind === 'dingtalk' ? watch.config.purpose : undefined).toBe('analysis')
+    expect(watch?.config.kind === 'dingtalk' ? watch.config.mode : undefined).toBe('active')
 
     await page.evaluate(() => window.barn.connectorSources.pollNow())
     await expect.poll(async () => page.evaluate(async (sourceId) => (
@@ -51,6 +54,46 @@ test('reads live DingTalk group messages with the configured connector and model
     expect(await page.evaluate(async (sourceId) => (
       await window.barn.connectorSources.listEvents(sourceId, 100)
     ).every((event) => event.kind === 'dingtalk_message'), watch!.id)).toBe(true)
+
+    const beforeEvents = await page.evaluate(async (sourceId) => (
+      await window.barn.connectorSources.listEvents(sourceId, 100)
+    ).map((event) => event.id), watch!.id)
+    const beforeEventIds = new Set(beforeEvents)
+    const beforeRoutines = await page.evaluate(() => window.barn.routines.list())
+    const beforeRoutineIds = new Set(beforeRoutines.map((notification) => notification.id))
+    const tasksBefore = await page.evaluate(async () => (await window.barn.tasks.list()).length)
+    const routerRequestsBefore = await page.evaluate(async () => (await window.barn.router.getSnapshot()).requests.length)
+
+    await expect.poll(async () => {
+      await page.evaluate(() => window.barn.connectorSources.pollNow())
+      return page.evaluate(async ({ sourceId, eventIds, routineIds }) => {
+        const events = await window.barn.connectorSources.listEvents(sourceId, 100)
+        const routines = await window.barn.routines.list()
+        return events.some((event) => !eventIds.includes(event.id))
+          || routines.some((notification) => !routineIds.includes(notification.id))
+      }, {
+        sourceId: watch!.id,
+        eventIds: [...beforeEventIds],
+        routineIds: [...beforeRoutineIds],
+      })
+    }, { timeout: 360_000, intervals: [10_000, 15_000, 30_000] }).toBe(true)
+
+    await expect.poll(async () => page.evaluate(async (routineIds) => (
+      await window.barn.routines.list()
+    ).some((notification) => !routineIds.includes(notification.id)), [...beforeRoutineIds]), {
+      timeout: 180_000,
+      intervals: [2_000, 5_000, 10_000],
+    }).toBe(true)
+    const routine = await page.evaluate(async (routineIds) => (
+      await window.barn.routines.list()
+    ).find((notification) => !routineIds.includes(notification.id)), [...beforeRoutineIds])
+    expect(routine).toMatchObject({ provider: 'dingtalk', sourceLabel: 'DingTalk' })
+    expect(routine?.body.trim().length).toBeGreaterThan(30)
+    expect(await page.evaluate(async () => (await window.barn.tasks.list()).length)).toBe(tasksBefore)
+    expect(await page.evaluate(async () => (await window.barn.router.getSnapshot()).requests.length)).toBe(routerRequestsBefore)
+    await page.locator('.app-rail-button').first().click()
+    await expect(page.locator('.routine-card', { hasText: routine!.title })).toBeVisible()
+    await page.screenshot({ path: 'test-results/barn-live-dingtalk-routine.png', fullPage: true })
 
     const assistantBefore = await page.evaluate(async () => (
       await window.barn.threads.getSnapshot()

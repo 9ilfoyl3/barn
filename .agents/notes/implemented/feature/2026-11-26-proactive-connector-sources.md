@@ -16,7 +16,7 @@ The product needs two different defaults:
 
 `ConnectorSourceStore` remains the durable internal source/event pool. Source configuration, cursor state, errors, and event summaries are authenticated-encrypted. Events are unique by `(source_id, event_key)` and keep a matter key, URL, occurrence time, and linked Task id. There is no user-facing connector event-source configuration page.
 
-On each connector source pass, `ConnectorSourceService` ensures one `github-default` watch for every ready GitHub connector. That watch has `bound-user` scope, observes open issues and pull requests across up to 20 repositories returned for the connected account, and uses `observe` mode by default. It records a baseline on first read. It needs no settings flow and follows new repositories on later reads.
+On each connector source pass, `ConnectorSourceService` ensures one `github-default` watch for every ready GitHub connector. That watch has `bound-user` scope, observes open issues and pull requests across up to 20 repositories returned for the connected account, and runs in `active` mode. It records a baseline on first read. It needs no settings flow and follows new repositories on later reads.
 
 DingTalk has no default watch. The Router exposes three validated tools:
 
@@ -29,6 +29,8 @@ A Router-created watch is active: a matching item becomes a queued Task. Analysi
 For GitHub, Router targets accept `owner/repository` or a GitHub URL and optional author logins. “My repositories” resolves to the default bound-user watch. For DingTalk, an explicit `openConversationId` or `user:<id>` is used directly; otherwise `dingtalk.chatList` resolves an exact or unique group name, followed by `dingtalk.chatSearch` and `dingtalk.contactSearch` for messages or people. Ambiguous or unresolved targets produce a clarification request rather than an invented identifier. A conversation watch reads group messages only; it never mixes in the user's personal todo list.
 
 The existing automation settings remain the fallback mode for sources without a per-watch mode. First collection is always a baseline. DingTalk reads the latest page toward older messages for that baseline, then advances with a newer-than cursor; later versions use the existing event deduplication, matter grouping, Task creation, TaskRun, guard, approval, Action outbox, Needs You, and result delivery paths.
+
+An active analysis watch creates a Task with `presentation: routine`. Its Worker run is still durable and guard-protected, but its result is projected into the encrypted `routine_notifications` store instead of the Principal Thread or Router request list. The Routines feed shows the source, title, result summary, and a link back to the hidden Task detail. Acknowledging the notification is durable and removes it from the feed. Observe-mode suggestions and reply watches remain ordinary Tasks because they need a person to review or approve an external action. Routine projections are also excluded from Task-center events and operating-system Task notifications. The observe-mode pending limit and suggestion cooldown do not suppress active watch events; every bounded poll batch still becomes routine work.
 
 ## Alternatives considered
 
@@ -44,10 +46,15 @@ The existing automation settings remain the fallback mode for sources without a 
 
 **Run all Router-created watches in observe mode.** Rejected because the user explicitly asked Barn to analyze or reply. The resulting Task is queued, while any external side effect still waits for approval.
 
+**Project silent watch results into the Router list.** Rejected because the person asked for a standing observation, not a new front-door request per matched message. Routine cards preserve the result while keeping the conversation and Task center quiet.
+
+**Treat every watch result as a routine.** Rejected because observe-mode suggestions need promotion and reply watches need approval. Both remain visible Tasks.
+
 ## Consequences
 
 - GitHub observation starts automatically with a connected account and needs no UI.
 - DingTalk remains silent until the user asks the Router to watch a specific target.
+- Active analysis results appear as routine notifications without adding noise to the Router thread, Task center, or Needs You count.
 - Natural-language watchers preserve the user's instruction, target label, keywords, purpose, and per-watch mode.
 - Source creation and watch management are auditable in the same encrypted source/event store.
 - Users can list or cancel watches conversationally without seeing connector implementation details.

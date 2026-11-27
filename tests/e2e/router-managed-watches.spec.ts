@@ -5,7 +5,7 @@ import { join } from 'node:path'
 import { _electron as electron, expect, test } from '@playwright/test'
 
 test('auto-watches GitHub and creates a natural-language watch through the Router', async () => {
-  test.setTimeout(90_000)
+  test.setTimeout(120_000)
   const fixture = await startFixtureServer()
   const address = fixture.server.address()
   if (address === null || typeof address === 'string') throw new Error('Fixture server did not bind')
@@ -80,17 +80,36 @@ test('auto-watches GitHub and creates a natural-language watch through the Route
       return source === undefined ? 0 : (await window.barn.connectorSources.listEvents(source.id)).length
     })).toBe(1)
     expect(await page.evaluate(async () => (await window.barn.tasks.list()).length)).toBe(0)
+    expect(await page.evaluate(async () => (await window.barn.routines.list()).length)).toBe(0)
 
     fixture.version = 2
     await page.evaluate(() => window.barn.connectorSources.pollNow())
-    await expect.poll(async () => page.evaluate(async () => (await window.barn.tasks.list()).length)).toBe(1)
-    const task = await page.evaluate(async () => (await window.barn.tasks.list())[0])
-    expect(task).toMatchObject({
-      status: 'proposed',
+    await expect.poll(async () => page.evaluate(async () => (await window.barn.routines.list()).length), {
+      timeout: 45_000,
+    }).toBe(1)
+    const routine = await page.evaluate(async () => (await window.barn.routines.list())[0])
+    expect(routine).toMatchObject({
+      sourceLabel: 'GitHub',
+      provider: 'github',
       title: 'Review GitHub acme/payments issue #42: Payment retries fail after upgrade',
+      outcome: 'completed',
     })
+    expect(routine?.body).toContain('payment retry')
+    expect(await page.evaluate(async () => (await window.barn.tasks.list()).length)).toBe(0)
+    expect(await page.evaluate(async () => (await window.barn.router.getSnapshot()).requests.length)).toBe(0)
+    const sourceEventTask = await page.evaluate(async () => {
+      const source = (await window.barn.connectorSources.list()).find((candidate) => candidate.config.kind === 'github' && candidate.config.origin === 'github-default')
+      const event = source === undefined ? undefined : (await window.barn.connectorSources.listEvents(source.id)).find((candidate) => candidate.title.includes('Payment retries fail after upgrade'))
+      return event?.taskId === undefined ? undefined : window.barn.tasks.get(event.taskId)
+    })
+    expect(sourceEventTask).toMatchObject({ presentation: 'routine', status: 'completed' })
 
     await page.locator('.app-rail-button', { hasText: 'Home' }).click()
+    const routineCard = page.locator('.routine-card', { hasText: 'Payment retries fail after upgrade' })
+    await expect(routineCard).toBeVisible()
+    await expect(routineCard).toContainText('GitHub')
+    await expect(routineCard).toContainText('payment retry')
+    await page.screenshot({ path: 'test-results/barn-silent-watch-routine.png', fullPage: true })
     const composer = page.getByLabel('Message Barn')
     await composer.fill('Watch acme/payments and only issues from octocat. Analyze anything that needs my attention.')
     await composer.press('Enter')
@@ -111,9 +130,9 @@ test('auto-watches GitHub and creates a natural-language watch through the Route
     await page.screenshot({ path: 'test-results/barn-router-managed-watch.png', fullPage: true })
 
     await page.locator('.task-nav-button').click()
-    await expect(page.locator('.task-row', { hasText: 'Payment retries fail after upgrade' })).toBeVisible()
+    await expect(page.locator('.task-row', { hasText: 'Payment retries fail after upgrade' })).toHaveCount(0)
     await expect(page.locator('.barn-toast')).toHaveCount(0, { timeout: 8_000 })
-    await page.screenshot({ path: 'test-results/barn-default-github-watch-task.png', fullPage: true })
+    await page.screenshot({ path: 'test-results/barn-routine-not-in-task-center.png', fullPage: true })
   } finally {
     await app.close()
     fixture.server.closeAllConnections()
@@ -125,8 +144,9 @@ async function startFixtureServer(): Promise<{ server: Server; version: number }
   const state = { version: 1, modelRequests: 0 }
   const server = createServer((request, response) => {
     if (request.method === 'POST' && request.url === '/v1/chat/completions') {
-      request.resume()
-      request.on('end', () => writeRouterResponse(response, ++state.modelRequests))
+      const chunks: Buffer[] = []
+      request.on('data', (chunk: Buffer) => chunks.push(chunk))
+      request.on('end', () => writeModelResponse(response, state, Buffer.concat(chunks).toString('utf8')))
       return
     }
     if (request.method === 'GET' && request.url === '/user') {
@@ -189,7 +209,16 @@ function githubIssue(version: number): Record<string, unknown> {
   }
 }
 
-function writeRouterResponse(response: ServerResponse, requestNumber: number): void {
+function writeModelResponse(response: ServerResponse, state: { modelRequests: number }, body: string): void {
+  if (body.includes("You are Barn's Worker for one isolated durable Task")) {
+    sendTextResponse(response, 'The payment retry issue is still open after the upgrade. The retry path now reaches the migration step and should be reviewed before release.')
+    return
+  }
+  if (!body.includes("You are Barn's Router")) {
+    sendTextResponse(response, 'No change is needed.')
+    return
+  }
+  const requestNumber = ++state.modelRequests
   if (requestNumber === 1) {
     sendToolCall(response, 'call', {
       tool: 'watch_create',
@@ -210,6 +239,30 @@ function writeRouterResponse(response: ServerResponse, requestNumber: number): v
     confidence: 0.99,
     rationaleCodes: ['create_connector_watch'],
   })
+}
+
+function sendTextResponse(response: ServerResponse, text: string): void {
+  response.writeHead(200, {
+    'content-type': 'text/event-stream',
+    'cache-control': 'no-cache',
+    connection: 'keep-alive',
+  })
+  const base = {
+    id: 'chatcmpl-watch-worker',
+    object: 'chat.completion.chunk',
+    created: Math.floor(Date.now() / 1000),
+    model: 'watch-router-model',
+  }
+  response.write(`data: ${JSON.stringify({
+    ...base,
+    choices: [{ index: 0, delta: { role: 'assistant', content: text }, finish_reason: null }],
+  })}\n\n`)
+  response.write(`data: ${JSON.stringify({
+    ...base,
+    choices: [{ index: 0, delta: {}, finish_reason: 'stop' }],
+    usage: { prompt_tokens: 10, completion_tokens: 15, total_tokens: 25 },
+  })}\n\n`)
+  response.end('data: [DONE]\n\n')
 }
 
 function sendToolCall(response: ServerResponse, name: string, args: Record<string, unknown>): void {

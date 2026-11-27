@@ -549,6 +549,7 @@ export interface DelegationBridge {
 
 export type TaskStatus = 'proposed' | 'queued' | 'running' | 'waiting' | 'completed' | 'failed' | 'cancelled'
 export type TaskOrigin = 'user' | 'automation'
+export type TaskPresentation = 'task' | 'routine'
 export type TaskWaitingReason = 'input' | 'approval' | 'review'
 export type TaskOutcome = 'completed' | 'needs_input' | 'needs_review' | 'failed' | 'cancelled'
 
@@ -568,6 +569,7 @@ export interface Task {
   title: string
   status: TaskStatus
   origin: TaskOrigin
+  presentation?: TaskPresentation
   sessionId?: string
   approvalId?: string
   contract?: TaskContract
@@ -591,6 +593,7 @@ export interface Task {
 export interface CreateTaskInput {
   title: string
   origin: TaskOrigin
+  presentation?: TaskPresentation
   status?: 'proposed' | 'queued'
   sessionId?: string
   contract?: TaskContract
@@ -769,6 +772,30 @@ export interface ConnectorSourceBridge {
   setEnabled(sourceId: string, enabled: boolean): Promise<ConnectorSource>
   remove(sourceId: string): Promise<void>
   pollNow(): Promise<void>
+}
+
+export interface RoutineNotification {
+  id: string
+  taskId: string
+  sourceLabel: string
+  provider: string
+  title: string
+  body: string
+  url?: string
+  outcome: 'completed' | 'partial' | 'blocked' | 'failed' | 'cancelled' | 'needs_input' | 'needs_review'
+  createdAt: string
+  acknowledgedAt?: string
+}
+
+export type RoutineLiveEvent = {
+  type: 'routine.created' | 'routine.dismissed'
+  notification: RoutineNotification
+}
+
+export interface RoutineNotificationBridge {
+  list(): Promise<RoutineNotification[]>
+  acknowledge(id: string): Promise<RoutineNotification>
+  onEvent(listener: (event: RoutineLiveEvent) => void): () => void
 }
 
 export type MemoryScope = 'global' | 'workspace'
@@ -1258,6 +1285,7 @@ export interface BarnBridge {
   approvals: ApprovalBridge
   localSources: LocalSourceBridge
   connectorSources: ConnectorSourceBridge
+  routines: RoutineNotificationBridge
   lifecycle: LifecycleBridge
   diagnostics: DiagnosticsBridge
   memory: MemoryBridge

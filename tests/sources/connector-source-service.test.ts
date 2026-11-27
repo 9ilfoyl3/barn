@@ -101,6 +101,7 @@ describe('ConnectorSourceService', () => {
     expect(h.tasks.list()).toMatchObject([{
       status: 'proposed',
       origin: 'automation',
+      presentation: 'task',
       title: 'Review GitHub acme/payments issue #1: Payment retries fail after upgrade',
     }])
     const task = h.tasks.list()[0]!
@@ -110,6 +111,35 @@ describe('ConnectorSourceService', () => {
     await h.service.pollNow()
     expect(h.tasks.list()).toHaveLength(1)
     expect(h.sessions.connectorSources.listEvents(source.id)).toHaveLength(2)
+    h.sessions.close()
+  })
+
+  it('marks an active analysis watch result as a routine instead of a visible Task', async () => {
+    const h = await harness()
+    h.connector.issues = [issue(2, 'Build failed', '2026-11-26T00:00:00.000Z')]
+    h.service.create({
+      name: 'Payments',
+      config: {
+        kind: 'github',
+        connectorId: 'github-connector',
+        owner: 'acme',
+        repo: 'payments',
+        events: ['issues'],
+        pollSeconds: 60,
+        purpose: 'analysis',
+        mode: 'active',
+      },
+    })
+    await h.service.pollNow()
+
+    h.connector.issues = [issue(2, 'Build failed after merge', '2026-11-26T01:00:00.000Z')]
+    await h.service.pollNow()
+    expect(h.tasks.list()).toMatchObject([{
+      status: 'queued',
+      origin: 'automation',
+      presentation: 'routine',
+      title: 'Review GitHub acme/payments issue #2: Build failed after merge',
+    }])
     h.sessions.close()
   })
 
@@ -163,6 +193,34 @@ describe('ConnectorSourceService', () => {
     h.sessions.close()
   })
 
+  it('does not apply the observe-mode suggestion cooldown to active routines', async () => {
+    const h = await harness({ mode: 'observe', maxPendingSuggestions: 20, suggestionCooldownMinutes: 60 })
+    h.connector.issues = [issue(4, 'First build', '2026-11-26T00:00:00.000Z')]
+    h.service.create({
+      name: 'Build watch',
+      config: {
+        kind: 'github',
+        connectorId: 'github-connector',
+        owner: 'acme',
+        repo: 'payments',
+        events: ['issues'],
+        pollSeconds: 60,
+        purpose: 'analysis',
+        mode: 'active',
+      },
+    })
+    await h.service.pollNow()
+    h.connector.issues = [issue(4, 'Second build', '2026-11-26T01:00:00.000Z')]
+    await h.service.pollNow()
+
+    expect(h.tasks.list()).toMatchObject([{
+      presentation: 'routine',
+      status: 'queued',
+      title: 'Review GitHub acme/payments issue #4: Second build',
+    }])
+    h.sessions.close()
+  })
+
   it('does not create any default watch for DingTalk', async () => {
     const h = await harness()
     h.connector.kind = 'dingtalk'
@@ -184,11 +242,36 @@ describe('ConnectorSourceService', () => {
       scope: 'bound-user',
       origin: 'github-default',
       purpose: 'analysis',
+      mode: 'active',
     })
     await h.service.pollNow()
     expect(h.sessions.connectorSources.listEvents(created[0]!.id)).toHaveLength(1)
     expect(await h.service.ensureGithubDefaults()).toHaveLength(0)
     expect(h.service.listWatches().filter((source) => source.config.origin === 'github-default')).toHaveLength(1)
+    h.sessions.close()
+  })
+
+  it('upgrades a previously created default GitHub watch to active analysis', async () => {
+    const h = await harness()
+    const source = h.service.create({
+      name: 'GitHub · repositories',
+      config: {
+        kind: 'github',
+        connectorId: 'github-connector',
+        scope: 'bound-user',
+        events: ['issues', 'pullRequests'],
+        pollSeconds: 120,
+        origin: 'github-default',
+        purpose: 'analysis',
+        mode: 'observe',
+      },
+    })
+
+    expect(await h.service.ensureGithubDefaults()).toHaveLength(0)
+    expect(h.service.list()).toMatchObject([{
+      id: source.id,
+      config: { origin: 'github-default', purpose: 'analysis', mode: 'active' },
+    }])
     h.sessions.close()
   })
 
@@ -256,6 +339,7 @@ describe('ConnectorSourceService', () => {
     await h.service.pollNow()
     expect(h.tasks.list()).toMatchObject([{
       status: 'queued',
+      presentation: 'task',
       title: 'Review DingTalk message: 上线审批还差你确认',
     }])
     expect(h.tasks.list()[0]?.prompt).toContain('Watch instruction: 看到上线审批相关消息时帮我拟一条回复。')

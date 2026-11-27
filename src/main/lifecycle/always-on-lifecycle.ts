@@ -92,6 +92,7 @@ export class AlwaysOnLifecycle {
   private notifyTask(event: TaskLiveEvent): void {
     if (event.type !== 'task.updated') return
     const task = event.task
+    if (task.presentation === 'routine') return
     const focused = BrowserWindow.getAllWindows().some((window) => !window.isDestroyed() && window.isFocused())
     const previous = this.notified.get(task.id)
     if (!shouldNotifyTask(task, focused, previous)) return

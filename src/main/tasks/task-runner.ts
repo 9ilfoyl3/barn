@@ -60,9 +60,9 @@ export class TaskRunner {
     private readonly agent: TaskAgent,
     private readonly tasks: Pick<
       TaskService,
-      'list' | 'updateStatus' | 'recordResult' | 'recordPendingResult' | 'requestApproval' | 'rescheduleReminder' | 'assignSession' | 'onEvent'
+      'get' | 'list' | 'updateStatus' | 'recordResult' | 'recordPendingResult' | 'requestApproval' | 'rescheduleReminder' | 'assignSession' | 'onEvent'
     >,
-    private readonly sessions: Pick<SessionStore, 'append' | 'createSession' | 'getSession' | 'read' | 'taskRuns'>,
+    private readonly sessions: Pick<SessionStore, 'append' | 'createSession' | 'getSession' | 'read' | 'taskRuns' | 'routines'>,
     options: TaskRunnerOptions = {},
     private readonly threads?: Pick<ThreadService, 'appendMessage'>,
   ) {
@@ -450,8 +450,13 @@ export class TaskRunner {
     } else {
       this.tasks.recordResult(taskId, result)
     }
-    this.recordResultForRouter(active.workerSessionId, taskId, result)
-    void this.projectTaskResult(taskId, active.workerSessionId, result, answer.eventId, pendingEffects.length > 0)
+    const routineTask = currentTask?.presentation === 'routine' ? this.tasks.get(taskId) : undefined
+    if (routineTask !== undefined) {
+      this.sessions.routines.record(routineTask, result)
+    } else {
+      this.recordResultForRouter(active.workerSessionId, taskId, result)
+      void this.projectTaskResult(taskId, active.workerSessionId, result, answer.eventId, pendingEffects.length > 0)
+    }
     this.schedule()
   }
 
@@ -476,8 +481,12 @@ export class TaskRunner {
       externalEffectReceipts: [],
     }
     this.tasks.recordResult(taskId, result)
-    this.recordResultForRouter(active.workerSessionId, taskId, result)
-    if (status === 'failed') void this.projectTaskResult(taskId, active.workerSessionId, result)
+    if (current.presentation === 'routine') {
+      this.sessions.routines.record(current, result)
+    } else {
+      this.recordResultForRouter(active.workerSessionId, taskId, result)
+      if (status === 'failed') void this.projectTaskResult(taskId, active.workerSessionId, result)
+    }
     this.schedule()
   }
 
