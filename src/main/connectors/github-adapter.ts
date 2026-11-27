@@ -80,7 +80,7 @@ export interface GithubTransport {
 export class GithubConnectorAdapter implements ConnectorAdapter {
   readonly kind = 'github'
 
-  constructor(private readonly transport: GithubTransport = createGithubTransport()) {}
+  constructor(private readonly transport: GithubTransport = createGithubTransport(fetch, process.env.BARN_GITHUB_API_BASE_URL ?? GITHUB_API_BASE)) {}
 
   async test(context: ConnectorExecutionContext): Promise<{ message: string }> {
     const token = credentialsSchema.parse(context.secrets).token
@@ -247,14 +247,14 @@ export class GithubConnectorAdapter implements ConnectorAdapter {
   }
 }
 
-export function createGithubTransport(fetchImpl: typeof fetch = fetch): GithubTransport {
+export function createGithubTransport(fetchImpl: typeof fetch = fetch, baseUrl = GITHUB_API_BASE): GithubTransport {
   return {
     async request<T>(input: GithubRequest): Promise<T> {
       if (!input.path.startsWith('/') || input.path.startsWith('//')) {
         throw new Error('GitHub API path must be relative to api.github.com')
       }
       const timeout = AbortSignal.timeout(REQUEST_TIMEOUT_MS)
-      const response = await fetchImpl(`${GITHUB_API_BASE}${input.path}`, {
+      const response = await fetchImpl(`${baseUrl.replace(/\/$/, '')}${input.path}`, {
         method: input.method,
         headers: {
           Accept: 'application/vnd.github+json',
