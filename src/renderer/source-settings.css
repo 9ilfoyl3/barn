@@ -35,6 +35,17 @@
   font-size: 13px;
 }
 
+.source-settings-loading {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0;
+  border-top: 1px solid var(--line);
+  padding: 24px 0;
+  color: var(--text-faint);
+  font-size: 13px;
+}
+
 .automation-settings {
   display: grid;
   gap: 16px;

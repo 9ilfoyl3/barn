@@ -278,7 +278,6 @@
   font-size: 11px;
 }
 
-.task-detail-loading svg,
 .task-detail-status-spinner {
   animation: secretary-spin 1.4s linear infinite;
 }
@@ -693,7 +692,6 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .task-detail-loading svg,
   .task-detail-status-spinner {
     animation: none;
   }

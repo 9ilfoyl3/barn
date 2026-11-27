@@ -276,14 +276,6 @@
   color: var(--danger);
 }
 
-.memory-save-state.saving svg {
-  animation: memory-spin 900ms linear infinite;
-}
-
-@keyframes memory-spin {
-  to { transform: rotate(360deg); }
-}
-
 .memory-document-editor textarea {
   width: 100%;
   min-height: 320px;

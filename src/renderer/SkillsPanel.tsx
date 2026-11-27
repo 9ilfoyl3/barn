@@ -2,12 +2,10 @@ import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
   BookOpen,
-  Check,
   ChevronRight,
   Copy,
   FileText,
   FolderOpen,
-  LoaderCircle,
   LockKeyhole,
   MoreHorizontal,
   MousePointerClick,
@@ -19,6 +17,7 @@ import {
   X,
 } from 'lucide-react'
 import { Streamdown } from 'streamdown'
+import { AnimatedStatusIcon } from './components/AnimatedStatusIcon'
 import { Input } from './components/Input'
 import type {
   SkillDetail,
@@ -283,7 +282,7 @@ export function SkillsPanel({ query, onTrySkill }: { query: string; onTrySkill?:
 
       {loading ? (
         <div className="skills-loading" role="status">
-          <LoaderCircle className="spin" size={16} aria-hidden="true" />
+          <AnimatedStatusIcon name="loading" size={16} />
           <span>{t('common.loading')}</span>
         </div>
       ) : visible.length === 0 ? (
@@ -422,7 +421,9 @@ export function SkillsPanel({ query, onTrySkill }: { query: string; onTrySkill?:
                         </Button>
                       )}
                       <Button role="menuitem" type="button" onClick={() => void copyMarkdown(selected)}>
-                        {copied ? <Check size={14} aria-hidden="true" /> : <Copy size={14} aria-hidden="true" />}
+                        {copied
+                          ? <AnimatedStatusIcon name="check" size={14} animateOnMount />
+                          : <Copy size={14} aria-hidden="true" />}
                         {copied ? t('plugins.skillUi.copied') : t('plugins.skillUi.copyMarkdown')}
                       </Button>
                     </div>
@@ -462,7 +463,7 @@ export function SkillsPanel({ query, onTrySkill }: { query: string; onTrySkill?:
                       onClick={() => void openResource(file)}
                     >
                       {resourceLoading === file.path
-                        ? <LoaderCircle className="spin" size={12} aria-hidden="true" />
+                        ? <AnimatedStatusIcon name="loading" size={12} />
                         : <FileText size={12} aria-hidden="true" />}
                       <span>{file.path}</span>
                       <small>{formatBytes(file.size)}</small>

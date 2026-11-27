@@ -23,6 +23,7 @@ import { useTranslation } from 'react-i18next'
 import type { AttachmentDescriptor, SessionLiveEvent, Task } from '../shared/models'
 import { attachmentDisplayName } from '../shared/attachments'
 import { AttachmentStrip } from './AttachmentStrip'
+import { AnimatedStatusIcon } from './components/AnimatedStatusIcon'
 import { ConversationParts, PendingThinking } from './ConversationParts'
 import { MessageBubble, MessageBubbleGroup } from '@/components/beui/components/agents/message-bubble'
 import { ReplyGuideGroup } from './ReplyGuideGroup'
@@ -439,7 +440,9 @@ export function TaskDetailPage({
             title={copied ? t('tasks.linkCopied') : t('tasks.copyTaskLink')}
             onClick={() => void copyTaskLink()}
           >
-            {copied ? <Check size={13} aria-hidden="true" /> : <Link2 size={13} aria-hidden="true" />}
+            {copied
+              ? <AnimatedStatusIcon name="check" size={13} animateOnMount />
+              : <Link2 size={13} aria-hidden="true" />}
           </Button>
         </div>
       </header>
@@ -450,7 +453,7 @@ export function TaskDetailPage({
             {dateText.length > 0 && <div className="task-detail-date">{dateText}</div>}
             {loading && (
               <div className="task-detail-loading" role="status">
-                <LoaderCircle size={15} aria-hidden="true" />
+                <AnimatedStatusIcon name="loading" size={15} />
                 <span>{t('tasks.loadingDetails')}</span>
               </div>
             )}
@@ -649,10 +652,13 @@ export function TaskDetailPage({
 }
 
 function TaskStatusGlyph({ status }: { status: Task['status'] }) {
-  if (status === 'running' || status === 'queued') {
+  if (status === 'running') {
+    return <AnimatedStatusIcon name="loading" size={15} />
+  }
+  if (status === 'queued') {
     return <LoaderCircle className="task-detail-status-spinner" size={15} aria-hidden="true" />
   }
-  if (status === 'completed') return <CircleCheck size={15} aria-hidden="true" />
+  if (status === 'completed') return <AnimatedStatusIcon name="checkCircle" size={15} active />
   if (status === 'failed') return <CircleX size={15} aria-hidden="true" />
   if (status === 'cancelled') return <CircleX size={15} aria-hidden="true" />
   if (status === 'waiting') return <CircleAlert size={15} aria-hidden="true" />

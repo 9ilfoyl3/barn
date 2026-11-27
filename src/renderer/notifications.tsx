@@ -1,11 +1,16 @@
 import { useEffect } from 'react'
 import { Toaster, toast } from 'sonner'
+import { AnimatedStatusIcon } from './components/AnimatedStatusIcon'
 import './notifications.css'
 
 export function AppToaster() {
   return (
     <Toaster
       gap={8}
+      icons={{
+        success: <AnimatedStatusIcon name="checkCircle" size={18} animateOnMount />,
+        loading: <AnimatedStatusIcon name="loading" size={18} />,
+      }}
       mobileOffset={16}
       offset={64}
       position="top-center"

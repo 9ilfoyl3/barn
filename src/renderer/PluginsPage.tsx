@@ -2,13 +2,10 @@ import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
   ArrowLeft,
-  CheckCircle2,
   CircleAlert,
-  CircleCheck,
   CirclePause,
   CircleX,
   Info,
-  LoaderCircle,
   Mail,
   Plug,
   Plus,
@@ -30,6 +27,7 @@ import type {
 } from '../shared/models'
 import { SkillsPanel } from './SkillsPanel'
 import { AutomationSourcesPage } from './AutomationSourcesPage'
+import { AnimatedStatusIcon } from './components/AnimatedStatusIcon'
 import { Input } from './components/Input'
 import { Input as BeuiInput } from './components/beui/components/motion/input'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './components/beui/components/motion/tabs'
@@ -316,7 +314,7 @@ export function PluginsPage({ onTrySkill }: { onTrySkill?: (skill: SkillSummary)
         <TabsContent className="plugins-tab-panel" value="plugins">
           {loading ? (
             <div className="plugins-loading" role="status">
-              <LoaderCircle className="spin" size={18} aria-hidden="true" />
+              <AnimatedStatusIcon name="loading" size={18} />
               <span>{t('common.loading')}</span>
             </div>
           ) : (
@@ -640,13 +638,18 @@ function ConnectorStatusGlyph({
   status: ConnectorInstance['status']
   size?: number
 }) {
-  const Icon = status === 'ready'
-    ? CircleCheck
-    : status === 'error'
-      ? CircleX
-      : status === 'needs_setup'
-        ? CircleAlert
-        : CirclePause
+  if (status === 'ready') {
+    return (
+      <span aria-hidden="true" data-status-icon={status}>
+        <AnimatedStatusIcon name="checkCircle" size={size} active />
+      </span>
+    )
+  }
+  const Icon = status === 'error'
+    ? CircleX
+    : status === 'needs_setup'
+      ? CircleAlert
+      : CirclePause
   return <Icon aria-hidden="true" data-status-icon={status} size={size} />
 }
 
@@ -883,12 +886,12 @@ function DingTalkSetup({
 
       {status === undefined ? (
         <div className="dingtalk-setup-status" role="status">
-          <LoaderCircle className="spin" size={16} aria-hidden="true" />
+          <AnimatedStatusIcon name="loading" size={16} />
           <span>{copy.checking}</span>
         </div>
       ) : status.authenticated ? (
         <div className="dingtalk-setup-status connected" role="status">
-          <CheckCircle2 size={18} aria-hidden="true" />
+          <AnimatedStatusIcon name="checkCircle" size={18} animateOnMount />
           <div>
             <strong>{copy.connected}</strong>
             <p>{copy.connectedDescription}</p>
@@ -897,7 +900,7 @@ function DingTalkSetup({
         </div>
       ) : status.installed ? (
         <div className="dingtalk-setup-status ready" role="status">
-          <CheckCircle2 size={18} aria-hidden="true" />
+          <AnimatedStatusIcon name="checkCircle" size={18} animateOnMount />
           <div>
             <strong>{copy.installed}</strong>
             <p>{copy.installedDescription}</p>

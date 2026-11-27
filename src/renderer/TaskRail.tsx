@@ -2,6 +2,7 @@ import { Bookmark, CircleCheck, CircleX, ListTodo, LoaderCircle } from 'lucide-r
 import { useTranslation } from 'react-i18next'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { Task, TaskStatus } from '../shared/models'
+import { AnimatedStatusIcon } from './components/AnimatedStatusIcon'
 import { Button } from './components/Button'
 import { Card } from './components/beui/components/motion/card'
 
@@ -201,8 +202,9 @@ function taskStatusLabel(
 }
 
 function TaskStatusIcon({ status }: { status: Task['status'] }) {
-  if (status === 'running' || status === 'queued') return <LoaderCircle className="task-rail-spinner" size={16} />
-  if (status === 'completed') return <CircleCheck size={16} />
+  if (status === 'running') return <AnimatedStatusIcon name="loading" size={16} />
+  if (status === 'queued') return <LoaderCircle className="task-rail-spinner" size={16} />
+  if (status === 'completed') return <AnimatedStatusIcon name="checkCircle" size={16} active />
   if (status === 'failed' || status === 'cancelled') return <CircleX size={16} />
   return <ReviewStatusIcon size={16} />
 }
