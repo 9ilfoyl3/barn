@@ -26,6 +26,7 @@ import { PermissionService } from './permissions/permission-service'
 import { TaskConversationService } from './tasks/task-conversation-service'
 import { ModelTaskRouterDecisionEngine } from './tasks/task-router-coordinator'
 import { registerTaskIpc } from './tasks/task-ipc'
+import { registerRoutineIpc } from './tasks/routine-ipc'
 import { registerRouterIpc } from './router/router-ipc'
 import { RouterService } from './router/router-service'
 import { ModelRouterDecisionEngine } from './router/router-decision'
@@ -253,6 +254,7 @@ void app.whenReady().then(async () => {
     () => permissionService,
     {
       definitions: builtinConnectorDefinitions(),
+      onChanged: () => connectorSourceService?.kick(),
       adapters: [
         new EmailConnectorAdapter(),
         new GithubConnectorAdapter(),
@@ -279,6 +281,7 @@ void app.whenReady().then(async () => {
     memory: memoryService,
     browser: browserTools,
     connectors: connectorService,
+    watches: () => connectorSourceService,
     skills: skillService,
     sessions: sessionStore,
   })
@@ -368,6 +371,7 @@ void app.whenReady().then(async () => {
   registerThreadIpc(threadService, trustedSender)
   registerDelegationIpc(trustedSender)
   registerTaskIpc(taskService, taskConversationService, trustedSender)
+  registerRoutineIpc(sessionStore.routines, trustedSender)
   registerRouterIpc(routerService, trustedSender)
   registerPermissionIpc(permissionService, trustedSender)
   registerLocalSourceIpc(localSourceService, trustedSender)

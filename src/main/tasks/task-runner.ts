@@ -3,6 +3,7 @@ import type { ActionStatus } from '../actions/types'
 import type { SessionStore } from '../session/session-store'
 import type { ThreadService } from '../threads/thread-service'
 import type { TaskService } from './task-service'
+import { parseRoutineCardAnswer } from './routine-card'
 
 export interface TaskRunnerOptions {
   maxConcurrent?: number
@@ -60,9 +61,9 @@ export class TaskRunner {
     private readonly agent: TaskAgent,
     private readonly tasks: Pick<
       TaskService,
-      'list' | 'updateStatus' | 'recordResult' | 'recordPendingResult' | 'requestApproval' | 'rescheduleReminder' | 'assignSession' | 'onEvent'
+      'get' | 'list' | 'updateStatus' | 'recordResult' | 'recordPendingResult' | 'requestApproval' | 'rescheduleReminder' | 'assignSession' | 'onEvent'
     >,
-    private readonly sessions: Pick<SessionStore, 'append' | 'createSession' | 'getSession' | 'read' | 'taskRuns'>,
+    private readonly sessions: Pick<SessionStore, 'append' | 'createSession' | 'getSession' | 'read' | 'taskRuns' | 'routines'>,
     options: TaskRunnerOptions = {},
     private readonly threads?: Pick<ThreadService, 'appendMessage'>,
   ) {
@@ -405,6 +406,9 @@ export class TaskRunner {
     }
     this.removeActive(taskId)
     const currentTask = this.tasks.list().find((task) => task.id === taskId)
+    const final = currentTask?.presentation === 'routine'
+      ? parseRoutineCardAnswer(answer.text)
+      : { summary: answer.text }
     const effects = this.taskEffectsForTask(taskId)
     const pendingEffects = effects.filter((effect) => (
       effect.status === 'pending_approval' || effect.status === 'queued' || effect.status === 'running'
@@ -423,7 +427,7 @@ export class TaskRunner {
         : failedEffects.length > 0
           ? failedEffects.some((effect) => effect.status === 'unknown_effect') ? 'needs_review' : 'failed'
           : 'completed',
-      summary: answer.text,
+      summary: final.summary || answer.text,
       artifacts: taskArtifacts(this.tasks.list().find((task) => task.id === taskId)),
       evidenceRefs: [`session:${active.workerSessionId}:event:${answer.eventId}`],
       limitations: failedEffects.flatMap((effect): string[] => effect.lastError === undefined ? [] : [effect.lastError]),
@@ -433,6 +437,7 @@ export class TaskRunner {
           ...failedEffects.map((effect) => `action:${effect.id}:${effect.status}`),
         ]),
       ],
+      ...('routine' in final && final.routine !== undefined ? { routine: final.routine } : {}),
     }
     if (pendingEffects.length > 0) {
       if (currentTask?.status !== 'waiting' || currentTask.waitingReason !== 'approval') {
@@ -450,8 +455,13 @@ export class TaskRunner {
     } else {
       this.tasks.recordResult(taskId, result)
     }
-    this.recordResultForRouter(active.workerSessionId, taskId, result)
-    void this.projectTaskResult(taskId, active.workerSessionId, result, answer.eventId, pendingEffects.length > 0)
+    const routineTask = currentTask?.presentation === 'routine' ? this.tasks.get(taskId) : undefined
+    if (routineTask !== undefined) {
+      this.sessions.routines.record(routineTask, result)
+    } else {
+      this.recordResultForRouter(active.workerSessionId, taskId, result)
+      void this.projectTaskResult(taskId, active.workerSessionId, result, answer.eventId, pendingEffects.length > 0)
+    }
     this.schedule()
   }
 
@@ -476,8 +486,12 @@ export class TaskRunner {
       externalEffectReceipts: [],
     }
     this.tasks.recordResult(taskId, result)
-    this.recordResultForRouter(active.workerSessionId, taskId, result)
-    if (status === 'failed') void this.projectTaskResult(taskId, active.workerSessionId, result)
+    if (current.presentation === 'routine') {
+      this.sessions.routines.record(current, result)
+    } else {
+      this.recordResultForRouter(active.workerSessionId, taskId, result)
+      if (status === 'failed') void this.projectTaskResult(taskId, active.workerSessionId, result)
+    }
     this.schedule()
   }
 

@@ -31,6 +31,7 @@ import type {
   PermissionRequestInput,
   LocalSourceBridge,
   ConnectorSourceBridge,
+  RoutineNotificationBridge,
   CreateConnectorSourceInput,
   LifecycleBridge,
   DiagnosticsBridge,
@@ -247,6 +248,16 @@ const connectorSources: ConnectorSourceBridge = {
   pollNow: () => ipcRenderer.invoke('connector-sources:poll-now'),
 }
 
+const routines: RoutineNotificationBridge = {
+  list: () => ipcRenderer.invoke('routines:list'),
+  acknowledge: (id: string) => ipcRenderer.invoke('routines:acknowledge', id),
+  onEvent: (listener) => {
+    const handler = (_event: Electron.IpcRendererEvent, routineEvent: Parameters<typeof listener>[0]): void => listener(routineEvent)
+    ipcRenderer.on('routines:event', handler)
+    return () => ipcRenderer.removeListener('routines:event', handler)
+  },
+}
+
 const lifecycle: LifecycleBridge = {
   onShowTasks: (listener: () => void) => {
     const handler = (): void => listener()
@@ -309,6 +320,7 @@ const api: BarnBridge = {
   approvals,
   localSources,
   connectorSources,
+  routines,
   lifecycle,
   diagnostics,
   memory,

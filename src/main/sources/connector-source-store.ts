@@ -163,6 +163,18 @@ export class ConnectorSourceStore {
     return this.get(sourceId)
   }
 
+  updateConfig(sourceId: string, config: ConnectorSourceConfig): ConnectorSource {
+    const validated = validateConfig(config)
+    const encrypted = this.cipher.encrypt(validated, associatedData(sourceId, 'config'))
+    const result = this.database.prepare(`
+      UPDATE connector_sources
+      SET config_ciphertext = ?, config_nonce = ?, config_tag = ?, updated_at = ?
+      WHERE id = ?
+    `).run(encrypted.ciphertext, encrypted.nonce, encrypted.tag, new Date().toISOString(), sourceId)
+    if (result.changes === 0) throw new Error(`Unknown connector source: ${sourceId}`)
+    return this.get(sourceId)
+  }
+
   setEnabled(sourceId: string, enabled: boolean): ConnectorSource {
     const result = this.database.prepare(`
       UPDATE connector_sources SET enabled = ?, updated_at = ? WHERE id = ?
@@ -342,8 +354,9 @@ export class ConnectorSourceStore {
 
 function validateConfig(config: ConnectorSourceConfig): ConnectorSourceConfig {
   if (config.kind === 'github') {
-    const owner = requirePattern(config.owner, 'Repository owner', 200)
-    const repo = requirePattern(config.repo, 'Repository name', 200)
+    const scope = config.scope ?? (config.owner !== undefined && config.repo !== undefined ? 'repository' : 'bound-user')
+    const owner = scope === 'repository' ? requirePattern(config.owner ?? '', 'Repository owner', 200) : undefined
+    const repo = scope === 'repository' ? requirePattern(config.repo ?? '', 'Repository name', 200) : undefined
     if (config.events.length === 0) throw new Error('Select at least one GitHub event type')
     const events = [...new Set(config.events)]
     if (events.some((event) => event !== 'issues' && event !== 'pullRequests')) {
@@ -352,10 +365,16 @@ function validateConfig(config: ConnectorSourceConfig): ConnectorSourceConfig {
     return {
       kind: 'github',
       connectorId: requireText(config.connectorId, 'Connector', 200),
-      owner,
-      repo,
+      scope,
+      ...(owner === undefined ? {} : { owner }),
+      ...(repo === undefined ? {} : { repo }),
+      ...(config.actors === undefined ? {} : { actors: normalizeActors(config.actors) }),
       events,
       pollSeconds: pollSeconds(config.pollSeconds),
+      ...(config.origin === undefined ? {} : { origin: normalizeOrigin(config.origin) }),
+      ...(config.purpose === undefined ? {} : { purpose: normalizePurpose(config.purpose) }),
+      ...(config.instruction === undefined ? {} : { instruction: requireText(config.instruction, 'Watch instruction', 20_000) }),
+      ...(config.mode === undefined ? {} : { mode: normalizeMode(config.mode) }),
     }
   }
 
@@ -374,10 +393,35 @@ function validateConfig(config: ConnectorSourceConfig): ConnectorSourceConfig {
     connectorId: requireText(config.connectorId, 'Connector', 200),
     ...(conversationId === undefined ? {} : { conversationId }),
     ...(userId === undefined ? {} : { userId }),
-    keywords: config.keywords.map((keyword) => requireText(keyword, 'Keyword', 100)).slice(0, 20),
+    ...(config.targetLabel === undefined ? {} : { targetLabel: requireText(config.targetLabel, 'Watch target', 500) }),
+    keywords: [...new Set(config.keywords.map((keyword) => requireText(keyword, 'Keyword', 100)))].slice(0, 20),
     events,
     pollSeconds: pollSeconds(config.pollSeconds),
+    ...(config.origin === undefined ? {} : { origin: normalizeOrigin(config.origin) }),
+    ...(config.purpose === undefined ? {} : { purpose: normalizePurpose(config.purpose) }),
+    ...(config.instruction === undefined ? {} : { instruction: requireText(config.instruction, 'Watch instruction', 20_000) }),
+    ...(config.mode === undefined ? {} : { mode: normalizeMode(config.mode) }),
   }
+}
+
+
+function normalizeActors(values: string[]): string[] {
+  return [...new Set(values.map((value) => requireText(value, 'GitHub user', 200).toLocaleLowerCase()))].slice(0, 20)
+}
+
+function normalizeOrigin(value: string): 'github-default' | 'router' {
+  if (value === 'github-default' || value === 'router') return value
+  throw new Error(`Unknown connector source origin: ${value}`)
+}
+
+function normalizePurpose(value: string): 'analysis' | 'reply' {
+  if (value === 'analysis' || value === 'reply') return value
+  throw new Error(`Unknown connector watch purpose: ${value}`)
+}
+
+function normalizeMode(value: string): 'observe' | 'active' {
+  if (value === 'observe' || value === 'active') return value
+  throw new Error(`Unknown connector watch mode: ${value}`)
 }
 
 function pollSeconds(value: number): number {

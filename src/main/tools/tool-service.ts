@@ -20,6 +20,7 @@ import { isDeniedPath } from './workspace-path-policy'
 import type { MemoryService } from '../memory/memory-service'
 import type { MemoryUpdateInput } from '../../shared/models'
 import type { ConnectorService } from '../connectors/connector-service'
+import type { ConnectorSourceService } from '../sources/connector-source-service'
 import type { SkillService } from '../skills/skill-service'
 import type { SessionStore } from '../session/session-store'
 import {
@@ -54,6 +55,17 @@ const sessionHistoryInput = z.object({
 }).strict()
 
 const connectorListInput = z.object({}).strict()
+const watchCreateInput = z.object({
+  provider: z.enum(['github', 'dingtalk']),
+  connectorId: z.string().uuid().optional(),
+  target: z.string().trim().max(500).default(''),
+  actors: z.array(z.string().trim().min(1).max(200)).max(20).default([]),
+  keywords: z.array(z.string().trim().min(1).max(100)).max(20).default([]),
+  purpose: z.enum(['analysis', 'reply']).default('analysis'),
+  instruction: z.string().trim().min(1).max(20_000),
+}).strict()
+const watchListInput = z.object({}).strict()
+const watchCancelInput = z.object({ query: z.string().trim().min(1).max(500) }).strict()
 const skillListInput = z.object({
   query: z.string().trim().max(200).optional(),
   limit: z.number().int().min(1).max(200).default(100),
@@ -91,6 +103,9 @@ const TOOL_INPUTS = {
   memory_forget: memoryForgetInput,
   connector_list: connectorListInput,
   connector_call: connectorCallInput,
+  watch_create: watchCreateInput,
+  watch_list: watchListInput,
+  watch_cancel: watchCancelInput,
   skill_list: skillListInput,
   skill_read: skillReadInput,
   skill_file: skillFileInput,
@@ -111,6 +126,9 @@ const ROUTER_DIRECT_TOOLS = [
   'memory_forget',
   'connector_list',
   'connector_call',
+  'watch_create',
+  'watch_list',
+  'watch_cancel',
   'skill_list',
   'skill_read',
   'skill_file',
@@ -130,6 +148,9 @@ const ROUTER_TOOL_DESCRIPTIONS: Record<(typeof ROUTER_DIRECT_TOOLS)[number], str
   memory_forget: 'Archive one durable memory entry by id.',
   connector_list: 'List configured connectors, their status, and every capability input schema. Call this before using a connector.',
   connector_call: 'Invoke one connector capability with arguments matching its declared inputSchema. Reads return immediately; approval-backed writes queue an Action.',
+  watch_create: 'Create a durable background watch for a connected GitHub repository/user set or DingTalk conversation. Use the user’s instruction and reply purpose exactly; do not configure sources yourself.',
+  watch_list: 'List active connector watches so the user can see or manage what Barn is monitoring.',
+  watch_cancel: 'Stop one active connector watch by id, name, or DingTalk target name.',
   skill_list: 'List enabled user-installed skills and their summaries.',
   skill_read: 'Read the full instructions for one enabled skill.',
   skill_file: 'Read one supporting resource from an enabled skill folder.',
@@ -143,6 +164,7 @@ export interface ToolServiceOptions {
   memory?: MemoryService
   browser?: BrowserToolService
   connectors?: ConnectorService
+  watches?: () => ConnectorSourceService | undefined
   skills?: SkillService
   sessions?: Pick<SessionStore, 'read'>
 }
@@ -167,6 +189,7 @@ export class ToolService {
     return ROUTER_DIRECT_TOOLS.flatMap((name) => {
       if (name.startsWith('memory_') && this.options.memory === undefined) return []
       if (name.startsWith('connector_') && this.options.connectors === undefined) return []
+      if (name.startsWith('watch_') && this.options.watches?.() === undefined) return []
       if (name.startsWith('skill_') && this.options.skills === undefined) return []
       return [{
         name,
@@ -249,6 +272,44 @@ export class ToolService {
           connectors.list(),
         ])
         return { content: [{ type: 'text', text: JSON.stringify({ definitions, instances }) }], details: { connectors: instances.length } }
+      } catch (error) {
+        return errorResult(error instanceof Error ? error.message : String(error))
+      }
+    }
+
+    if (toolName === 'watch_create' || toolName === 'watch_list' || toolName === 'watch_cancel') {
+      const watches = this.options.watches?.()
+      if (watches === undefined) return errorResult('Connector watches are unavailable')
+      try {
+        if (toolName === 'watch_create') {
+          const args = watchCreateInput.parse(rawArgs)
+          const source = await watches.createWatch({
+            provider: args.provider,
+            ...(args.connectorId === undefined ? {} : { connectorId: args.connectorId }),
+            target: args.target,
+            actors: args.actors,
+            keywords: args.keywords,
+            purpose: args.purpose,
+            instruction: args.instruction,
+          })
+          return {
+            content: [{ type: 'text', text: JSON.stringify({ created: watchView(source) }) }],
+            details: { sourceId: source.id, provider: source.config.kind, purpose: source.config.purpose ?? 'analysis' },
+          }
+        }
+        if (toolName === 'watch_list') {
+          const active = watches.listWatches().map(watchView)
+          return {
+            content: [{ type: 'text', text: JSON.stringify({ watches: active }) }],
+            details: { watches: active.length },
+          }
+        }
+        const args = watchCancelInput.parse(rawArgs)
+        const removed = watches.cancelWatch(args.query)
+        return {
+          content: [{ type: 'text', text: JSON.stringify({ cancelled: watchView(removed) }) }],
+          details: { sourceId: removed.id },
+        }
       } catch (error) {
         return errorResult(error instanceof Error ? error.message : String(error))
       }
@@ -686,6 +747,26 @@ function truncateHistoryText(value: string, maxChars: number): string {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function watchView(source: import('../../shared/models').ConnectorSource): Record<string, unknown> {
+  return {
+    id: source.id,
+    name: source.name,
+    provider: source.config.kind,
+    enabled: source.enabled,
+    purpose: source.config.purpose ?? 'analysis',
+    instruction: source.config.instruction,
+    ...(source.config.kind === 'github'
+      ? {
+          scope: source.config.scope ?? 'repository',
+          repository: source.config.owner === undefined ? undefined : `${source.config.owner}/${source.config.repo}`,
+          actors: source.config.actors ?? [],
+        }
+      : { target: source.config.targetLabel ?? source.config.conversationId ?? source.config.userId, keywords: source.config.keywords }),
+    lastCheckedAt: source.lastCheckedAt,
+    lastError: source.lastError,
+  }
 }
 
 function errorResult(message: string): ToolExecutionResult {

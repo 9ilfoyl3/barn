@@ -190,6 +190,19 @@ export const DINGTALK_CONNECTOR: ConnectorDefinition = {
       },
     },
     {
+      id: 'dingtalk.chatList',
+      name: 'List chats',
+      description: 'List group conversations joined by the connected DingTalk user.',
+      risk: 'read',
+      inputSchema: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          limit: { type: 'integer', minimum: 1, maximum: 100, default: 100 },
+        },
+      },
+    },
+    {
       id: 'dingtalk.chatSearch',
       name: 'Search messages',
       description: 'Search DingTalk messages by keyword, conversation, and time range.',

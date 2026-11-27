@@ -18,6 +18,10 @@ const todoListArgsSchema = z.object({
   size: z.number().int().min(1).max(100).default(20),
 }).strict()
 
+const chatListArgsSchema = z.object({
+  limit: z.number().int().min(1).max(100).default(100),
+}).strict()
+
 const chatSearchArgsSchema = z.object({
   query: z.string().trim().min(1).max(500),
   conversationId: z.string().trim().min(1).max(500).optional(),
@@ -103,6 +107,15 @@ export class DingTalkConnectorAdapter implements ConnectorAdapter {
           'todo', 'task', 'list',
           '--page', String(input.page),
           '--size', String(input.size),
+          '--format', 'json',
+        ], context.signal)
+      }
+      case 'dingtalk.chatList': {
+        const input = chatListArgsSchema.parse(args)
+        return this.runtime.runJson([
+          'chat', '+chat-list',
+          '--types', 'group',
+          '--page-size', String(input.limit),
           '--format', 'json',
         ], context.signal)
       }

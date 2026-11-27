@@ -549,8 +549,16 @@ export interface DelegationBridge {
 
 export type TaskStatus = 'proposed' | 'queued' | 'running' | 'waiting' | 'completed' | 'failed' | 'cancelled'
 export type TaskOrigin = 'user' | 'automation'
+export type TaskPresentation = 'task' | 'routine'
 export type TaskWaitingReason = 'input' | 'approval' | 'review'
 export type TaskOutcome = 'completed' | 'needs_input' | 'needs_review' | 'failed' | 'cancelled'
+
+export interface RoutineCardDraft {
+  /** Short, user-facing description of the action the routine card offers. */
+  title: string
+  /** Complete request staged into the composer when the card is chosen. */
+  prompt: string
+}
 
 export interface TaskResultEnvelope {
   outcome: TaskOutcome
@@ -559,6 +567,7 @@ export interface TaskResultEnvelope {
   evidenceRefs: string[]
   limitations: string[]
   externalEffectReceipts: string[]
+  routine?: RoutineCardDraft
 }
 export type RoutineRecurrence = 'none' | 'daily' | 'weekdays' | 'weekly'
 
@@ -568,6 +577,7 @@ export interface Task {
   title: string
   status: TaskStatus
   origin: TaskOrigin
+  presentation?: TaskPresentation
   sessionId?: string
   approvalId?: string
   contract?: TaskContract
@@ -591,6 +601,7 @@ export interface Task {
 export interface CreateTaskInput {
   title: string
   origin: TaskOrigin
+  presentation?: TaskPresentation
   status?: 'proposed' | 'queued'
   sessionId?: string
   contract?: TaskContract
@@ -697,13 +708,22 @@ export type ConnectorSourceEventKind =
   | 'dingtalk_message'
   | 'dingtalk_todo'
 
+export type ConnectorWatchPurpose = 'analysis' | 'reply'
+export type ConnectorSourceOrigin = 'github-default' | 'router'
+
 export interface GithubConnectorSourceConfig {
   kind: 'github'
   connectorId: string
-  owner: string
-  repo: string
+  scope?: 'repository' | 'bound-user'
+  owner?: string
+  repo?: string
+  actors?: string[]
   events: Array<'issues' | 'pullRequests'>
   pollSeconds: number
+  origin?: ConnectorSourceOrigin
+  purpose?: ConnectorWatchPurpose
+  instruction?: string
+  mode?: 'observe' | 'active'
 }
 
 export interface DingtalkConnectorSourceConfig {
@@ -711,9 +731,14 @@ export interface DingtalkConnectorSourceConfig {
   connectorId: string
   conversationId?: string
   userId?: string
+  targetLabel?: string
   keywords: string[]
   events: Array<'messages' | 'todos'>
   pollSeconds: number
+  origin?: ConnectorSourceOrigin
+  purpose?: ConnectorWatchPurpose
+  instruction?: string
+  mode?: 'observe' | 'active'
 }
 
 export type ConnectorSourceConfig = GithubConnectorSourceConfig | DingtalkConnectorSourceConfig
@@ -755,6 +780,34 @@ export interface ConnectorSourceBridge {
   setEnabled(sourceId: string, enabled: boolean): Promise<ConnectorSource>
   remove(sourceId: string): Promise<void>
   pollNow(): Promise<void>
+}
+
+export interface RoutineNotification {
+  id: string
+  taskId: string
+  sourceLabel: string
+  provider: string
+  /** The concise next action this routine offers the user. */
+  title: string
+  /** The original source message the routine is based on. */
+  quote: string
+  /** A complete request the user can stage in the composer. */
+  prompt?: string
+  url?: string
+  outcome: 'completed' | 'partial' | 'blocked' | 'failed' | 'cancelled' | 'needs_input' | 'needs_review'
+  createdAt: string
+  acknowledgedAt?: string
+}
+
+export type RoutineLiveEvent = {
+  type: 'routine.created' | 'routine.dismissed'
+  notification: RoutineNotification
+}
+
+export interface RoutineNotificationBridge {
+  list(): Promise<RoutineNotification[]>
+  acknowledge(id: string): Promise<RoutineNotification>
+  onEvent(listener: (event: RoutineLiveEvent) => void): () => void
 }
 
 export type MemoryScope = 'global' | 'workspace'
@@ -1244,6 +1297,7 @@ export interface BarnBridge {
   approvals: ApprovalBridge
   localSources: LocalSourceBridge
   connectorSources: ConnectorSourceBridge
+  routines: RoutineNotificationBridge
   lifecycle: LifecycleBridge
   diagnostics: DiagnosticsBridge
   memory: MemoryBridge

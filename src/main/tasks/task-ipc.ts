@@ -7,6 +7,7 @@ const taskIdSchema = z.string().uuid()
 const createTaskSchema = z.object({
   title: z.string().trim().min(1).max(200),
   origin: z.enum(['user', 'automation']),
+  presentation: z.enum(['task', 'routine']).optional(),
   status: z.enum(['proposed', 'queued']).optional(),
   sessionId: z.string().uuid().optional(),
   prompt: z.string().trim().min(1).max(2_000_000).optional(),
@@ -57,7 +58,7 @@ export function registerTaskIpc(
 ): void {
   ipcMain.handle('tasks:list', (event) => {
     requireTrusted(event, isTrustedSender)
-    return tasks.list()
+    return tasks.list().filter((task) => task.presentation !== 'routine')
   })
 
   ipcMain.handle('tasks:get', (event, taskId: unknown) => {
@@ -71,6 +72,7 @@ export function registerTaskIpc(
     return tasks.create({
       title: parsed.title,
       origin: parsed.origin,
+      ...(parsed.presentation === undefined ? {} : { presentation: parsed.presentation }),
       ...(parsed.status === undefined ? {} : { status: parsed.status }),
       ...(parsed.sessionId === undefined ? {} : { sessionId: parsed.sessionId }),
       ...(parsed.prompt === undefined ? {} : { prompt: parsed.prompt }),
@@ -113,6 +115,7 @@ export function registerTaskIpc(
   })
 
   tasks.onEvent((liveEvent) => {
+    if (liveEvent.task.presentation === 'routine') return
     for (const window of BrowserWindow.getAllWindows()) {
       if (!window.isDestroyed()) window.webContents.send('tasks:event', liveEvent)
     }

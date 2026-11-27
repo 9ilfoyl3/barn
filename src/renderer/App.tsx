@@ -25,6 +25,7 @@ import type {
   ModelConfigSnapshot,
   SessionLiveEvent,
   RouterRequest,
+  RoutineNotification,
   SessionSummary,
   SkillSummary,
   Task,
@@ -35,6 +36,7 @@ import { attachmentDisplayName } from '../shared/attachments'
 import { ModelPicker } from './ModelPicker'
 import { LanguagePicker } from './LanguagePicker'
 import { PluginsPage } from './PluginsPage'
+import { SourceSettings } from './SourceSettings'
 import { SettingsPage, type SettingsSectionKey } from './SettingsPage'
 import { AppToaster, useErrorToast } from './notifications'
 import { AttachmentStrip } from './AttachmentStrip'
@@ -166,6 +168,7 @@ export function App() {
   const [view, setView] = useState<'conversation' | 'tasks' | 'task-detail' | 'plugins' | 'settings'>('conversation')
   const [selectedTaskId, setSelectedTaskId] = useState<string>()
   const [tasks, setTasks] = useState<Task[]>([])
+  const [routineNotifications, setRoutineNotifications] = useState<RoutineNotification[]>([])
   const [tasksLoading, setTasksLoading] = useState(true)
   const [taskError, setTaskError] = useState<string>()
   const [acknowledgedRoutineIds, setAcknowledgedRoutineIds] = useState(readAcknowledgedRoutineIds)
@@ -174,6 +177,7 @@ export function App() {
   const [resizingHomePane, setResizingHomePane] = useState<HomePane>()
   const [browserOpen, setBrowserOpen] = useState(false)
   const [utilityOpen, setUtilityOpen] = useState(false)
+  const [localSourcesOpen, setLocalSourcesOpen] = useState(false)
   const [utilityTabs, setUtilityTabs] = useState<UtilityTab[]>([])
   const [activeUtilityTabId, setActiveUtilityTabId] = useState<string>()
   useErrorToast(error)
@@ -231,6 +235,14 @@ export function App() {
       .catch((reason: unknown) => setTaskError(errorMessage(reason, t)))
       .finally(() => setTasksLoading(false))
     const unsubscribeTasks = window.barn.tasks.onEvent(handleTaskEvent)
+    void window.barn.routines.list()
+      .then(setRoutineNotifications)
+      .catch((reason: unknown) => setError(errorMessage(reason, t)))
+    const unsubscribeRoutines = window.barn.routines.onEvent((event) => {
+      setRoutineNotifications((current) => event.type === 'routine.created'
+        ? [event.notification, ...current.filter((notification) => notification.id !== event.notification.id)]
+        : current.filter((notification) => notification.id !== event.notification.id))
+    })
     const unsubscribeThread = window.barn.threads.onEvent((event) => {
       setThreadMessages((current) => upsertVisibleMessage(current, event.message))
     })
@@ -265,6 +277,7 @@ export function App() {
     return () => {
       unsubscribeTheme()
       unsubscribeTasks()
+      unsubscribeRoutines()
       unsubscribeThread()
       unsubscribeRouter()
       unsubscribeSkills()
@@ -603,6 +616,12 @@ export function App() {
   }
 
   function acknowledgeRoutine(routineId: string): void {
+    if (routineNotifications.some((notification) => notification.id === routineId)) {
+      void window.barn.routines.acknowledge(routineId)
+        .then(() => setRoutineNotifications((current) => current.filter((notification) => notification.id !== routineId)))
+        .catch((reason: unknown) => setError(errorMessage(reason, t)))
+      return
+    }
     setAcknowledgedRoutineIds((current) => {
       if (current.has(routineId)) return current
       const next = new Set(current)
@@ -613,6 +632,25 @@ export function App() {
   }
 
   function openRoutine(routineId: string): void {
+    const durable = routineNotifications.find((notification) => notification.id === routineId)
+    if (durable !== undefined) {
+      void window.barn.tasks.get(durable.taskId)
+        .then((task) => {
+          const prompt = durable.prompt ?? task.prompt ?? task.visiblePrompt
+          if (prompt === undefined) {
+            setSelectedTaskId(task.id)
+            setView('task-detail')
+            return
+          }
+          setView('conversation')
+          setInput(prompt)
+          requestAnimationFrame(() => {
+            document.querySelector<HTMLElement>('.barn-prompt-inline .prompt-input-editor')?.focus()
+          })
+        })
+        .catch((reason: unknown) => setError(errorMessage(reason, t)))
+      return
+    }
     const surface = listRef.current
     if (surface === null) return
     const message = [...surface.querySelectorAll<HTMLElement>('.chat-message[data-message-key]')]
@@ -678,7 +716,12 @@ export function App() {
   async function refreshTasks(): Promise<void> {
     setTasksLoading(true)
     try {
-      setTasks(await window.barn.tasks.list())
+      const [nextTasks, nextRoutines] = await Promise.all([
+        window.barn.tasks.list(),
+        window.barn.routines.list(),
+      ])
+      setTasks(nextTasks)
+      setRoutineNotifications(nextRoutines)
       setTaskError(undefined)
     } catch (reason) {
       setTaskError(errorMessage(reason, t))
@@ -839,7 +882,7 @@ export function App() {
     : workingDirectory.split(/[\\/]/).filter(Boolean).at(-1) ?? workingDirectory
   const pendingApprovals = approvals.filter((approval) => approval.status === 'pending')
   const browserApproval = pendingApprovals.find((approval) => approval.title === 'Approve browser action')
-  const routines = displayMessages
+  const routineMessages = displayMessages
     .filter((message) => message.routineDelivery === true && !acknowledgedRoutineIds.has(message.key))
     .slice(-20)
     .toReversed()
@@ -851,11 +894,22 @@ export function App() {
       return {
         id: message.key,
         title: message.routineTitle ?? text,
-        ...(message.routinePrompt === undefined ? {} : { body: message.routinePrompt }),
+        ...(message.routinePrompt === undefined ? {} : { quote: message.routinePrompt }),
         ...(message.routineRecurrence === undefined ? {} : { recurrence: message.routineRecurrence }),
         ...(message.createdAt === undefined ? {} : { deliveredAt: message.createdAt }),
       }
     })
+  const routines = [
+    ...routineNotifications.map((notification) => ({
+      id: notification.id,
+      title: notification.title,
+      quote: notification.quote,
+      ...(notification.prompt === undefined ? {} : { prompt: notification.prompt }),
+      sourceLabel: notification.sourceLabel,
+      deliveredAt: notification.createdAt,
+    })),
+    ...routineMessages,
+  ].toSorted((left, right) => (right.deliveredAt ?? '').localeCompare(left.deliveredAt ?? '')).slice(0, 20)
   const workTasks = tasks.filter((task) => task.kind !== 'reminder')
   const needsYouCount = workTasks.filter((task) => ['proposed', 'waiting', 'failed'].includes(task.status)).length
   const messageActivity = resolveMessageActivity(routerRequests, tasks, pending)
@@ -1160,6 +1214,9 @@ export function App() {
               <strong>{t('sidebar.localWorkspace')}</strong>
               <small>{t('sidebar.localOnly')}</small>
             </div>
+            <Button className="account-menu-item" type="button" role="menuitem" onClick={() => { setAccountOpen(false); setLocalSourcesOpen(true) }}>
+              <Folder size={14} /><span>{t('sidebar.localSources')}</span>
+            </Button>
             <Button className="account-menu-item" type="button" role="menuitem" onClick={() => { setAccountOpen(false); setSettingsSection(undefined); setView('settings') }}>
               <Settings2 size={14} /><span>{t('sidebar.settings')}</span><ChevronRight className="account-menu-chevron" size={13} />
             </Button>
@@ -1563,6 +1620,7 @@ export function App() {
         }}
       />
 
+      {localSourcesOpen && <SourceSettings onClose={() => setLocalSourcesOpen(false)} />}
       <AppToaster />
     </div>
   )

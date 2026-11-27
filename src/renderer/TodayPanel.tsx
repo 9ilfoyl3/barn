@@ -10,8 +10,9 @@ import { Card } from './components/beui/components/motion/card'
 export interface RoutineFeedItem {
   id: string
   title: string
-  body?: string
+  quote?: string
   recurrence?: RoutineRecurrence
+  sourceLabel?: string
   deliveredAt?: string
 }
 
@@ -115,8 +116,8 @@ export function TodayPanel({
                   <span className="routine-card-heading">
                     <strong className="routine-card-title">{routine.title}</strong>
                   </span>
-                  {routine.body !== undefined && (
-                    <span className="routine-card-quote">{routine.body}</span>
+                  {routine.quote !== undefined && (
+                    <span className="routine-card-quote">{routine.quote}</span>
                   )}
                   <span className="routine-card-tags">
                     <span className={`routine-card-tag routine-card-tag-${tone}`}>
@@ -125,7 +126,7 @@ export function TodayPanel({
                     </span>
                     <span className="routine-card-tag routine-card-tag-app">
                       <b className="routine-card-app-mark" aria-hidden="true">B</b>
-                      {t('secretary.routineProvider')}
+                      {routine.sourceLabel ?? t('secretary.routineProvider')}
                     </span>
                   </span>
                   <Button

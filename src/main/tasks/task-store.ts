@@ -7,6 +7,7 @@ import type {
   Task,
   TaskContract,
   TaskOrigin,
+  TaskPresentation,
   TaskStatus,
   TaskResultEnvelope,
   TaskStatusUpdate,
@@ -36,6 +37,7 @@ interface TaskRow {
   status: string
   origin: string
   kind: string
+  presentation: string
   scheduled_for: string | null
   recurrence: string | null
   timezone: string | null
@@ -80,6 +82,7 @@ export class TaskStore {
         status TEXT NOT NULL,
         origin TEXT NOT NULL,
         kind TEXT NOT NULL DEFAULT 'work',
+        presentation TEXT NOT NULL DEFAULT 'task',
         scheduled_for TEXT,
         recurrence TEXT,
         timezone TEXT,
@@ -135,6 +138,7 @@ export class TaskStore {
       status,
       origin: input.origin,
       kind: input.kind ?? 'work',
+      presentation: input.presentation ?? 'task',
       createdAt: now,
       updatedAt: now,
     }
@@ -161,20 +165,21 @@ export class TaskStore {
       : this.cipher.encrypt(task.contract, contractAssociatedData(task.id))
     this.database.prepare(`
       INSERT INTO tasks (
-        id, title, status, origin, kind, scheduled_for, recurrence, timezone, session_id, approval_id,
+        id, title, status, origin, kind, presentation, scheduled_for, recurrence, timezone, session_id, approval_id,
         prompt_ciphertext, prompt_nonce, prompt_tag,
         visible_prompt_ciphertext, visible_prompt_nonce, visible_prompt_tag,
         working_directory, attachments_ciphertext, attachments_nonce, attachments_tag,
         contract_ciphertext, contract_nonce, contract_tag,
         result_ciphertext, result_nonce, result_tag,
         waiting_reason, detail, created_at, updated_at, started_at, finished_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, NULL, NULL, NULL, ?, ?, NULL, NULL)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, NULL, NULL, NULL, ?, ?, NULL, NULL)
     `).run(
       task.id,
       task.title,
       task.status,
       task.origin,
       task.kind ?? 'work',
+      task.presentation ?? 'task',
       task.scheduledFor ?? null,
       task.recurrence ?? null,
       task.timezone ?? null,
@@ -497,6 +502,7 @@ export class TaskStore {
       status: requireStatus(row.status),
       origin: requireOrigin(row.origin),
       kind: row.kind === 'reminder' ? 'reminder' : 'work',
+      presentation: requirePresentation(row.presentation),
       createdAt: row.created_at,
       updatedAt: row.updated_at,
     }
@@ -587,6 +593,7 @@ export class TaskStore {
       ['result_nonce', 'BLOB'],
       ['result_tag', 'BLOB'],
       ['kind', "TEXT NOT NULL DEFAULT 'work'"],
+      ['presentation', "TEXT NOT NULL DEFAULT 'task'"],
       ['scheduled_for', 'TEXT'],
       ['recurrence', 'TEXT'],
       ['timezone', 'TEXT'],
@@ -688,6 +695,12 @@ function normalizeResult(result: TaskResultEnvelope): TaskResultEnvelope {
     evidenceRefs: result.evidenceRefs.map((value) => requireListText(value, 'Task evidence ref')).slice(0, 100),
     limitations: result.limitations.map((value) => requireListText(value, 'Task limitation')).slice(0, 50),
     externalEffectReceipts: result.externalEffectReceipts.map((value) => requireListText(value, 'Task effect receipt')).slice(0, 100),
+    ...(result.routine === undefined ? {} : {
+      routine: {
+        title: requirePromptText(result.routine.title, 'Routine card title').slice(0, 100),
+        prompt: requirePromptText(result.routine.prompt, 'Routine card prompt').slice(0, 4_000),
+      },
+    }),
   }
 }
 
@@ -751,6 +764,11 @@ function normalizeDetail(value: string | undefined): string | null {
 function requireStatus(value: string): TaskStatus {
   if (!STATUSES.includes(value as TaskStatus)) throw new Error(`Unknown task status in storage: ${value}`)
   return value as TaskStatus
+}
+
+function requirePresentation(value: string): TaskPresentation {
+  if (value === 'task' || value === 'routine') return value
+  throw new Error(`Unknown task presentation: ${value}`)
 }
 
 function requireOrigin(value: string): TaskOrigin {

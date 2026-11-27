@@ -28,6 +28,7 @@ class FakeAgent {
 async function harness(maxConcurrent = 1, options: {
   now?: () => Date
   threads?: ThreadService
+  withThreads?: boolean
   taskEffectsForTask?: (taskId: string) => TaskEffectSnapshot[]
 } = {}) {
   const directory = await mkdtemp(join(tmpdir(), 'barn-task-runner-'))
@@ -35,6 +36,7 @@ async function harness(maxConcurrent = 1, options: {
   await sessions.initialize()
   const tasks = new TaskService(sessions.tasks)
   const agent = new FakeAgent()
+  const threads = options.threads ?? (options.withThreads === true ? new ThreadService(sessions.threads) : undefined)
   const runner = new TaskRunner(
     agent,
     tasks,
@@ -44,9 +46,9 @@ async function harness(maxConcurrent = 1, options: {
       ...(options.now === undefined ? {} : { now: options.now }),
       ...(options.taskEffectsForTask === undefined ? {} : { taskEffectsForTask: options.taskEffectsForTask }),
     },
-    options.threads,
+    threads,
   )
-  return { sessions, tasks, agent, runner }
+  return { sessions, tasks, agent, runner, threads }
 }
 
 async function waitForTask(tasks: TaskService, taskId: string, predicate: (task: Task) => boolean): Promise<Task> {
@@ -128,6 +130,45 @@ describe('TaskRunner', () => {
       attempt: 1,
       guardState: 'watching',
     })
+    h.runner.stop()
+    h.sessions.close()
+  })
+
+  it('projects a routine Task result without writing it into the Router thread', async () => {
+    const h = await harness(1, { withThreads: true })
+    h.runner.start()
+    const task = h.tasks.create({
+      title: 'Review GitHub issue #42: deployment failure',
+      origin: 'automation',
+      presentation: 'routine',
+      prompt: 'Analyze the deployment failure.',
+      visiblePrompt: 'acme/payments issue #42\nState: open\nDeployment failed after upgrade.',
+    })
+    const running = await waitForTask(h.tasks, task.id, (current) => current.status === 'running')
+    finishWorker(h, running.sessionId!, `The deployment failed after the migration step.
+
+<routine_card>
+{"title":"Review the retry fix before release","prompt":"帮我复核 GitHub issue #42 的支付重试修复，确认迁移步骤风险。"}
+</routine_card>`)
+
+    await waitForTask(h.tasks, task.id, (current) => current.status === 'completed')
+    expect(h.tasks.get(task.id).result).toMatchObject({
+      summary: 'The deployment failed after the migration step.',
+      routine: {
+        title: 'Review the retry fix before release',
+        prompt: '帮我复核 GitHub issue #42 的支付重试修复，确认迁移步骤风险。',
+      },
+    })
+    expect(h.sessions.routines.list()).toMatchObject([{
+      taskId: task.id,
+      title: 'Review the retry fix before release',
+      quote: 'acme/payments issue #42 State: open Deployment failed after upgrade.',
+      prompt: '帮我复核 GitHub issue #42 的支付重试修复，确认迁移步骤风险。',
+      sourceLabel: 'GitHub',
+    }])
+    expect(h.threads?.listMessages({ limit: 100 }).some((message) => (
+      message.metadata.taskResult === true && message.metadata.taskId === task.id
+    ))).toBe(false)
     h.runner.stop()
     h.sessions.close()
   })

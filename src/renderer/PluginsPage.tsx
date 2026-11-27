@@ -26,7 +26,6 @@ import type {
   SkillSummary,
 } from '../shared/models'
 import { SkillsPanel } from './SkillsPanel'
-import { AutomationSourcesPage } from './AutomationSourcesPage'
 import { AnimatedStatusIcon } from './components/AnimatedStatusIcon'
 import { Input } from './components/Input'
 import { Input as BeuiInput } from './components/beui/components/motion/input'
@@ -35,7 +34,7 @@ import { notifyError, notifySuccess, useErrorToast } from './notifications'
 import './plugins-page.css'
 import { Button } from './components/Button'
 
-type PluginsTab = 'plugins' | 'skills' | 'sources'
+type PluginsTab = 'plugins' | 'skills'
 type ConnectorCategory = 'integrations' | 'china'
 
 interface EditorState {
@@ -46,6 +45,10 @@ interface EditorState {
 const CATEGORY_ORDER: readonly ConnectorCategory[] = ['integrations', 'china']
 
 const DINGTALK_CAPABILITY_COPY = {
+  'dingtalk.chatList': {
+    en: { name: 'List chats', description: 'List group conversations joined by the connected DingTalk user.' },
+    zh: { name: '列出群聊', description: '列出当前钉钉账号已加入的群会话。' },
+  },
   'dingtalk.contactSearch': {
     en: { name: 'Search contacts', description: 'Search DingTalk colleagues and contacts by name or keyword.' },
     zh: { name: '搜索联系人', description: '按姓名或关键词搜索钉钉同事和联系人。' },
@@ -282,34 +285,28 @@ export function PluginsPage({ onTrySkill }: { onTrySkill?: (skill: SkillSummary)
           <TabsList className="plugins-tabs" aria-label={t('plugins.title')}>
             <TabsTrigger className="plugins-tab" value="plugins">{t('plugins.title')}</TabsTrigger>
             <TabsTrigger className="plugins-tab" value="skills">{t('plugins.skills')}</TabsTrigger>
-            <TabsTrigger className="plugins-tab" value="sources">{t('plugins.sources')}</TabsTrigger>
           </TabsList>
         </header>
 
-        {tab !== 'sources' && (
-          <BeuiInput
-            className="plugins-search"
-            leftIcon={<Search size={17} aria-hidden="true" />}
-            aria-label={tab === 'skills' ? t('plugins.searchSkills') : t('plugins.search')}
-            onChange={setQuery}
-            placeholder={tab === 'skills' ? t('plugins.searchSkillsPlaceholder') : t('plugins.searchPlaceholder')}
-            type="search"
-            value={query}
-            rightIcon={query.length > 0 ? (
-              <Button type="button" aria-label={t('plugins.clearSearch')} onClick={() => setQuery('')}>
-                <X size={14} />
-              </Button>
-            ) : undefined}
-          />
-        )}
+        <BeuiInput
+          className="plugins-search"
+          leftIcon={<Search size={17} aria-hidden="true" />}
+          aria-label={tab === 'skills' ? t('plugins.searchSkills') : t('plugins.search')}
+          onChange={setQuery}
+          placeholder={tab === 'skills' ? t('plugins.searchSkillsPlaceholder') : t('plugins.searchPlaceholder')}
+          type="search"
+          value={query}
+          rightIcon={query.length > 0 ? (
+            <Button type="button" aria-label={t('plugins.clearSearch')} onClick={() => setQuery('')}>
+              <X size={14} />
+            </Button>
+          ) : undefined}
+        />
 
         <TabsContent className="plugins-tab-panel" value="skills">
           <SkillsPanel query={query} {...(onTrySkill === undefined ? {} : { onTrySkill })} />
         </TabsContent>
 
-        <TabsContent className="plugins-tab-panel automation-sources-tab-panel" value="sources">
-          <AutomationSourcesPage />
-        </TabsContent>
 
         <TabsContent className="plugins-tab-panel" value="plugins">
           {loading ? (
