@@ -45,6 +45,12 @@ const ROUTER_TASK_COLLABORATION = `Create a durable Task only when the work need
 Do not create a Task merely because the request needs multiple tool calls, multiple connector reads, file reading or editing, memory or skill access, or because a connector is involved. Complete ordinary synchronous work directly and report exactly what changed.
 Use task.update for additional instructions to an existing active Task. Use task.cancel only for an explicit cancellation request.`
 
+
+const ROUTER_WATCHES = `A recurring request to watch, follow, monitor, or automatically reply is a durable connector watch, not a one-shot Task.
+Use watch_create with the user's exact instruction. GitHub accounts are already watched by default through their connected user's repositories; create an explicit GitHub watch only for a narrower repository or author scope. DingTalk has no default watch.
+For DingTalk, preserve the group/person name and keywords. If the runtime cannot resolve the target, ask for the conversation ID rather than inventing one. A reply watch prepares replies; external sends still require the approval-backed write path.
+Use watch_list or watch_cancel when the user asks what is being watched or wants it stopped.`
+
 const ROUTER_TASK_COLLABORATION_NO_TOOLS = `Ordinary business tools are unavailable in this Router session. Create a Task for work that needs tools, and otherwise answer from the visible conversation.
 Use task.update for additional instructions to an existing active Task. Use task.cancel only for an explicit cancellation request.`
 
@@ -160,6 +166,7 @@ export function composeRouterSystemPrompt(options: RouterPromptOptions): string 
       'Task collaboration',
       options.tools.length > 0 ? ROUTER_TASK_COLLABORATION : ROUTER_TASK_COLLABORATION_NO_TOOLS,
     ),
+    ...(options.tools.some((tool) => tool.name === 'watch_create') ? [section('Connector watches', ROUTER_WATCHES)] : []),
     section('Delivery', DELIVERY),
     section('Tool disclosure', routerToolDisclosure(options.tools)),
     section('Channel and language', channelAndLanguage(options.locale)),

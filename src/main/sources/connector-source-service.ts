@@ -24,6 +24,16 @@ export interface ConnectorSourceServiceOptions {
   getAutomationSettings?: () => AutomationSettings
 }
 
+export interface ConnectorWatchRequest {
+  provider: 'github' | 'dingtalk'
+  connectorId?: string
+  target: string
+  actors: string[]
+  keywords: string[]
+  purpose: 'analysis' | 'reply'
+  instruction: string
+}
+
 interface CollectedEvent extends ConnectorSourceEventInput {
   taskTitle: string
   taskPrompt: string
@@ -113,13 +123,13 @@ export class ConnectorSourceService {
 
   create(input: Parameters<ConnectorSourceStore['create']>[0]): ConnectorSource {
     const source = this.store.create(input)
-    queueMicrotask(() => void this.poll(true))
+    if (this.started) queueMicrotask(() => void this.poll(true))
     return source
   }
 
   setEnabled(sourceId: string, enabled: boolean): ConnectorSource {
     const source = this.store.setEnabled(sourceId, enabled)
-    if (enabled) queueMicrotask(() => void this.poll(true))
+    if (enabled && this.started) queueMicrotask(() => void this.poll(true))
     return source
   }
 
@@ -127,8 +137,135 @@ export class ConnectorSourceService {
     this.store.remove(sourceId)
   }
 
+  /** Create the no-configuration GitHub observation source for every ready GitHub account. */
+  async ensureGithubDefaults(known?: ConnectorInstance[]): Promise<ConnectorSource[]> {
+    const connectors = known ?? await this.connectors.list()
+    const current = this.store.list()
+    const created: ConnectorSource[] = []
+    for (const connector of connectors) {
+      if (connector.kind !== 'github' || connector.status !== 'ready') continue
+      if (current.some((source) => source.config.kind === 'github'
+        && source.config.connectorId === connector.id
+        && source.config.origin === 'github-default')) continue
+      const source = this.store.create({
+        name: `${connector.name} · repositories`,
+        config: {
+          kind: 'github',
+          connectorId: connector.id,
+          scope: 'bound-user',
+          events: ['issues', 'pullRequests'],
+          pollSeconds: 120,
+          origin: 'github-default',
+          purpose: 'analysis',
+          mode: 'observe',
+          instruction: 'Watch issues and pull requests across the connected GitHub user’s repositories. Tell me when something needs my attention.',
+        },
+      })
+      current.push(source)
+      created.push(source)
+    }
+    return created
+  }
+
+  async createWatch(input: ConnectorWatchRequest): Promise<ConnectorSource> {
+    const connectors = await this.connectors.list()
+    const connector = this.resolveConnector(connectors, input)
+    if (input.provider === 'github') {
+      const target = input.target.trim()
+      if (target.length === 0 || /^(my|all)\s+(repos|repositories)$/iu.test(target) || /^(我的|全部)仓库$/u.test(target)) {
+        if (input.purpose === 'analysis' && input.actors.length === 0) {
+          const defaults = await this.ensureGithubDefaults(connectors)
+          const existing = this.store.list().find((source) => source.config.kind === 'github'
+            && source.config.connectorId === connector.id
+            && source.config.origin === 'github-default')
+          const source = existing ?? defaults.find((candidate) => candidate.config.connectorId === connector.id)
+          if (source === undefined) throw new Error('Could not create the default GitHub watch')
+          return source
+        }
+        const source = this.store.create({
+          name: `GitHub · ${connector.name}${input.actors.length === 0 ? '' : ` · ${input.actors.join(', ')}`}`,
+          config: {
+            kind: 'github',
+            connectorId: connector.id,
+            scope: 'bound-user',
+            ...(input.actors.length === 0 ? {} : { actors: input.actors }),
+            events: ['issues', 'pullRequests'],
+            pollSeconds: 120,
+            origin: 'router',
+            purpose: input.purpose,
+            mode: 'active',
+            instruction: input.instruction,
+          },
+        })
+        if (this.started) queueMicrotask(() => void this.poll(true))
+        return source
+      }
+      const repository = parseGithubRepository(target)
+      if (repository === undefined) throw new Error('GitHub watch target must be owner/repository')
+      const source = this.store.create({
+        name: `GitHub · ${repository.owner}/${repository.repo}`,
+        config: {
+          kind: 'github',
+          connectorId: connector.id,
+          scope: 'repository',
+          owner: repository.owner,
+          repo: repository.repo,
+          ...(input.actors.length === 0 ? {} : { actors: input.actors }),
+          events: ['issues', 'pullRequests'],
+          pollSeconds: 120,
+          origin: 'router',
+          purpose: input.purpose,
+          mode: 'active',
+          instruction: input.instruction,
+        },
+      })
+      if (this.started) queueMicrotask(() => void this.poll(true))
+      return source
+    }
+
+    const target = await this.resolveDingtalkTarget(connector, input)
+    const source = this.store.create({
+      name: `DingTalk · ${input.target.trim()}`,
+      config: {
+        kind: 'dingtalk',
+        connectorId: connector.id,
+        ...target,
+        targetLabel: input.target.trim(),
+        keywords: input.keywords,
+        events: ['messages', 'todos'],
+        pollSeconds: 180,
+        origin: 'router',
+        purpose: input.purpose,
+        mode: 'active',
+        instruction: input.instruction,
+      },
+    })
+    if (this.started) queueMicrotask(() => void this.poll(true))
+    return source
+  }
+
+  listWatches(): ConnectorSource[] {
+    return this.store.list().filter((source) => source.enabled)
+  }
+
+  cancelWatch(query: string): ConnectorSource {
+    const normalized = query.trim().toLocaleLowerCase()
+    if (normalized.length === 0) throw new Error('Watch id or name is required')
+    const match = this.store.list().find((source) => source.id === query.trim()
+      || source.name.toLocaleLowerCase().includes(normalized)
+      || (source.config.kind === 'dingtalk' && source.config.targetLabel?.toLocaleLowerCase().includes(normalized)))
+    if (match === undefined) throw new Error(`No watch matches: ${query}`)
+    this.store.remove(match.id)
+    return match
+  }
+
   async pollNow(): Promise<void> {
     await this.poll(true)
+  }
+
+  /** Reconcile implicit/default watches after connector configuration changes. */
+  kick(): void {
+    void this.poll(true)
   }
 
   private async poll(force: boolean): Promise<void> {
@@ -136,6 +273,8 @@ export class ConnectorSourceService {
     this.running = true
     try {
       const connectors = await this.connectors.list()
+      this.pruneMissingGithubDefaults(connectors)
+      await this.ensureGithubDefaults(connectors).catch(() => [])
       const now = this.options.now()
       for (const source of this.store.list()) {
         if (!source.enabled) continue
@@ -163,6 +302,7 @@ export class ConnectorSourceService {
     const state = this.store.state(source.id)
     const now = this.options.now()
     const events = collected.slice(0, this.options.maxEventsPerPoll)
+    const mode = source.config.mode ?? settings.mode
     const lastEventAt = events.map((event) => event.occurredAt).toSorted().at(-1)
     const cursor = nextCursor(source.config, events, state.cursor)
 
@@ -187,13 +327,13 @@ export class ConnectorSourceService {
         continue
       }
 
-      if (settings.mode === 'observe' && pendingSuggestions >= settings.maxPendingSuggestions) continue
+      if (mode === 'observe' && pendingSuggestions >= settings.maxPendingSuggestions) continue
       if (settings.suggestionCooldownMinutes > 0 && now.getTime() - lastSuggestionAt < settings.suggestionCooldownMinutes * 60_000) continue
 
       const task = this.tasks.create({
         title: event.taskTitle,
         origin: 'automation',
-        status: settings.mode === 'active' ? 'queued' : 'proposed',
+        status: mode === 'active' ? 'queued' : 'proposed',
         prompt: event.taskPrompt,
         visiblePrompt: taskVisiblePrompt(source, event),
         contract: {
@@ -210,7 +350,7 @@ export class ConnectorSourceService {
         },
       })
       this.store.attachTask(recorded.event.id, task.id)
-      if (settings.mode === 'observe') pendingSuggestions++
+      if (mode === 'observe') pendingSuggestions++
       lastSuggestionAt = now.getTime()
       nextLastSuggestion = now.toISOString()
     }
@@ -223,6 +363,54 @@ export class ConnectorSourceService {
     this.store.markChecked(source.id, lastEventAt)
   }
 
+  private pruneMissingGithubDefaults(connectors: ConnectorInstance[]): void {
+    const ids = new Set(connectors.filter((connector) => connector.kind === 'github').map((connector) => connector.id))
+    for (const source of this.store.list()) {
+      if (source.config.kind !== 'github' || source.config.origin !== 'github-default') continue
+      if (!ids.has(source.config.connectorId)) this.store.remove(source.id)
+    }
+  }
+
+  private resolveConnector(connectors: ConnectorInstance[], input: ConnectorWatchRequest): ConnectorInstance {
+    const ready = connectors.filter((connector) => connector.kind === input.provider && connector.status === 'ready')
+    if (input.connectorId !== undefined) {
+      const selected = ready.find((connector) => connector.id === input.connectorId)
+      if (selected === undefined) throw new Error(`No ready ${input.provider} connector matches ${input.connectorId}`)
+      return selected
+    }
+    if (ready.length === 1) return ready[0]!
+    if (ready.length === 0) throw new Error(`Connect a ${input.provider} account before creating a watch`)
+    throw new Error(`Choose one ${input.provider} connector: ${ready.map((connector) => `${connector.name} (${connector.id})`).join(', ')}`)
+  }
+
+  private async resolveDingtalkTarget(
+    connector: ConnectorInstance,
+    input: ConnectorWatchRequest,
+  ): Promise<{ conversationId: string } | { userId: string }> {
+    const target = input.target.trim()
+    if (/^cid_[\w-]+$/iu.test(target)) return { conversationId: target }
+    if (target.toLocaleLowerCase().startsWith('user:')) return { userId: target.slice(5).trim() }
+
+    const searched = await this.read(connector, 'dingtalk.chatSearch', { query: target, limit: 50 })
+    const conversations = new Set<string>()
+    for (const item of recordsFrom(searched, ['messages', 'items'])) {
+      const id = text(item.conversationId ?? item.openConversationId ?? item.groupId ?? item.chatId)
+      if (id !== undefined) conversations.add(id)
+    }
+    if (conversations.size === 1) return { conversationId: [...conversations][0]! }
+    if (conversations.size > 1) throw new Error('The DingTalk target matches more than one conversation; send the conversation ID')
+
+    const contacts = await this.read(connector, 'dingtalk.contactSearch', { query: target })
+    const users = new Set<string>()
+    for (const item of recordsFrom(contacts, ['users', 'items'])) {
+      const id = text(item.userId ?? item.openDingTalkId ?? item.id)
+      if (id !== undefined) users.add(id)
+    }
+    if (users.size === 1) return { userId: [...users][0]! }
+    if (users.size > 1) throw new Error('The DingTalk target matches more than one person; send the user ID')
+    throw new Error('I could not resolve that DingTalk conversation. Send its conversation ID, or use user:<id> for a direct chat.')
+  }
+
   private async collect(source: ConnectorSource, connector: ConnectorInstance): Promise<CollectedEvent[]> {
     if (source.config.kind === 'github') return this.collectGithub(source, connector, source.config)
     return this.collectDingtalk(source, connector, source.config)
@@ -233,34 +421,58 @@ export class ConnectorSourceService {
     connector: ConnectorInstance,
     config: Extract<ConnectorSourceConfig, { kind: 'github' }>,
   ): Promise<CollectedEvent[]> {
+    const repositories = config.scope === 'bound-user'
+      ? await this.boundUserRepositories(connector)
+      : [{ owner: config.owner!, repo: config.repo! }]
     const events: CollectedEvent[] = []
-    if (config.events.includes('issues')) {
-      const value = await this.read(connector, 'github.listIssues', {
-        owner: config.owner,
-        repo: config.repo,
-        state: 'open',
-        perPage: 30,
-      })
-      for (const item of recordsFrom(value, ['issues'])) {
-        const issue = githubItem(item)
-        if (issue === undefined) continue
-        events.push(githubEvent(source, connector, config, issue, false))
+    const actors = new Set((config.actors ?? []).map((actor) => actor.toLocaleLowerCase()))
+    for (const repository of repositories.slice(0, 20)) {
+      const repoConfig = { ...config, owner: repository.owner, repo: repository.repo }
+      if (config.events.includes('issues')) {
+        const value = await this.read(connector, 'github.listIssues', {
+          owner: repository.owner,
+          repo: repository.repo,
+          state: 'open',
+          perPage: 30,
+        })
+        for (const item of recordsFrom(value, ['issues'])) {
+          const issue = githubItem(item)
+          if (issue === undefined || !matchesActors(issue, actors)) continue
+          events.push(githubEvent(source, connector, repoConfig, issue, false))
+        }
       }
-    }
-    if (config.events.includes('pullRequests')) {
-      const value = await this.read(connector, 'github.listPullRequests', {
-        owner: config.owner,
-        repo: config.repo,
-        state: 'open',
-        perPage: 30,
-      })
-      for (const item of recordsFrom(value, ['pullRequests'])) {
-        const pull = githubItem(item)
-        if (pull === undefined) continue
-        events.push(githubEvent(source, connector, config, pull, true))
+      if (config.events.includes('pullRequests')) {
+        const value = await this.read(connector, 'github.listPullRequests', {
+          owner: repository.owner,
+          repo: repository.repo,
+          state: 'open',
+          perPage: 30,
+        })
+        for (const item of recordsFrom(value, ['pullRequests'])) {
+          const pull = githubItem(item)
+          if (pull === undefined || !matchesActors(pull, actors)) continue
+          events.push(githubEvent(source, connector, repoConfig, pull, true))
+        }
       }
     }
     return events
+  }
+
+  private async boundUserRepositories(connector: ConnectorInstance): Promise<Array<{ owner: string; repo: string }>> {
+    const value = await this.read(connector, 'github.listRepositories', {
+      perPage: 50,
+      includeLanguages: false,
+    })
+    return recordsFrom(value, ['repositories']).flatMap((item) => {
+      const fullName = text(item.fullName ?? item.full_name)
+      if (fullName !== undefined) {
+        const parsed = parseGithubRepository(fullName)
+        if (parsed !== undefined) return [parsed]
+      }
+      const owner = text(item.owner)
+      const repo = text(item.name)
+      return owner === undefined || repo === undefined ? [] : [{ owner, repo }]
+    })
   }
 
   private async collectDingtalk(
@@ -290,7 +502,7 @@ export class ConnectorSourceService {
       for (const item of recordsFrom(value, ['tasks', 'items'])) {
         const todo = dingtalkTodo(item)
         if (todo === undefined) continue
-        events.push(dingtalkTodoEvent(connector, todo))
+        events.push(dingtalkTodoEvent(connector, config, todo))
       }
     }
     return events
@@ -323,22 +535,15 @@ function githubEvent(
     `Updated: ${item.updatedAt}`,
   ].filter((line): line is string => line !== undefined).join('\n')
   return {
-    eventKey: `${eventKind}:${item.number}:${item.updatedAt}:${item.state}`,
+    eventKey: `${repository}:${eventKind}:${item.number}:${item.updatedAt}:${item.state}`,
     matterKey,
     kind: eventKind,
-    title: `${titleCase(label)} #${item.number}: ${item.title}`,
+    title: `${repository} ${label} #${item.number}: ${item.title}`,
     summary,
     url: item.htmlUrl,
     occurredAt: item.updatedAt || item.createdAt || new Date().toISOString(),
-    taskTitle: `Review GitHub ${label} #${item.number}: ${truncate(item.title, 120)}`,
-    taskPrompt: [
-      `Review this GitHub ${label} from ${connector.name}.`,
-      '',
-      summary,
-      item.htmlUrl === undefined ? '' : `URL: ${item.htmlUrl}`,
-      '',
-      'Decide whether the user needs to act. If they do, analyze the item and give a concise recommendation, draft reply, or implementation plan. Use read-only connector calls for more context. Do not comment, create, modify, or merge anything without approval.',
-    ].join('\n'),
+    taskTitle: `Review GitHub ${repository} ${label} #${item.number}: ${truncate(item.title, 120)}`,
+    taskPrompt: watchTaskPrompt(connector.name, summary, config, item.htmlUrl),
   }
 }
 
@@ -364,19 +569,13 @@ function dingtalkMessageEvent(
     summary,
     occurredAt: message.occurredAt,
     taskTitle: `Review DingTalk message: ${truncate(message.text, 120)}`,
-    taskPrompt: [
-      `Review this DingTalk message from ${connector.name}.`,
-      '',
-      summary,
-      '',
-      `Target: ${JSON.stringify(target)}`,
-      'Decide whether the user needs to reply or act. If they do, draft the next step clearly. Do not send a message or change DingTalk without approval.',
-    ].join('\n'),
+    taskPrompt: watchTaskPrompt(connector.name, `${summary}\n\nTarget: ${JSON.stringify(target)}`, config),
   }
 }
 
 function dingtalkTodoEvent(
   connector: ConnectorInstance,
+  config: Extract<ConnectorSourceConfig, { kind: 'dingtalk' }>,
   todo: DingtalkTodo,
 ): CollectedEvent {
   const summary = [
@@ -393,15 +592,29 @@ function dingtalkTodoEvent(
     summary,
     occurredAt: todo.occurredAt,
     taskTitle: `Review DingTalk todo: ${truncate(todo.title, 120)}`,
-    taskPrompt: [
-      `Review this DingTalk todo from ${connector.name}.`,
-      '',
-      summary,
-      todo.title,
-      '',
-      'Decide whether the user needs to act before the due time. If they do, prepare a concise next step. Do not change DingTalk without approval.',
-    ].join('\n'),
+    taskPrompt: watchTaskPrompt(connector.name, `${summary}\n${todo.title}`, config),
   }
+}
+
+function watchTaskPrompt(
+  connectorName: string,
+  evidence: string,
+  config: Extract<ConnectorSourceConfig, { kind: 'github' | 'dingtalk' }>,
+  url?: string,
+): string {
+  const purpose = config.purpose ?? 'analysis'
+  const instruction = config.instruction?.trim() || 'Tell me when this needs my attention.'
+  return [
+    `A configured watch on ${connectorName} matched this item.`,
+    '',
+    evidence,
+    ...(url === undefined ? [] : ['', `URL: ${url}`]),
+    '',
+    `Watch instruction: ${instruction}`,
+    purpose === 'reply'
+      ? 'If action is needed, prepare the reply and use the approval-backed external-write path before sending or commenting. Never claim a reply was sent without a receipt.'
+      : 'If action is needed, explain the recommendation or next step. Do not change the external system.',
+  ].join('\n')
 }
 
 function taskVisiblePrompt(source: ConnectorSource, event: CollectedEvent): string {
@@ -416,6 +629,18 @@ function taskVisiblePrompt(source: ConnectorSource, event: CollectedEvent): stri
     facts,
     'Barn will assess whether action is needed and keep external changes behind approval.',
   ].filter((part) => part.length > 0).join('\n\n')
+}
+
+function parseGithubRepository(value: string): { owner: string; repo: string } | undefined {
+  const url = value.match(/github\.com\/([A-Za-z0-9_.-]+)\/([A-Za-z0-9_.-]+?)(?:\.git)?(?:[#/?]|$)/iu)
+  const shorthand = value.match(/^([A-Za-z0-9_.-]+)\/([A-Za-z0-9_.-]+?)(?:\.git)?$/u)
+  const match = url ?? shorthand
+  if (match === null) return undefined
+  return { owner: match[1]!, repo: match[2]!.replace(/\.git$/u, '') }
+}
+
+function matchesActors(item: GithubItem, actors: Set<string>): boolean {
+  return actors.size === 0 || item.author !== undefined && actors.has(item.author.toLocaleLowerCase())
 }
 
 function githubItem(value: Record<string, unknown>): GithubItem | undefined {
@@ -511,10 +736,6 @@ function timeText(value: unknown): string | undefined {
 
 function truncate(value: string, max: number): string {
   return value.length <= max ? value : `${value.slice(0, max - 1)}…`
-}
-
-function titleCase(value: string): string {
-  return value.length === 0 ? value : `${value[0]!.toUpperCase()}${value.slice(1)}`
 }
 
 function hash(value: string): string {

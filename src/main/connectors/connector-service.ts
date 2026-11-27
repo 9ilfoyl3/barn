@@ -48,6 +48,7 @@ export interface ConnectorCallContext {
 export interface ConnectorServiceOptions {
   definitions?: ConnectorDefinitionMap
   adapters?: readonly ConnectorAdapter[]
+  onChanged?: () => void
 }
 
 const effectPayloadSchema = z.object({
@@ -60,6 +61,7 @@ const effectPayloadSchema = z.object({
 export class ConnectorService {
   private readonly definitions: ConnectorDefinitionMap
   private readonly adapters = new Map<string, ConnectorAdapter>()
+  private readonly onChanged: (() => void) | undefined
 
   constructor(
     private readonly store: ConnectorStore,
@@ -69,6 +71,7 @@ export class ConnectorService {
     options: ConnectorServiceOptions = {},
   ) {
     this.definitions = options.definitions ?? new Map()
+    this.onChanged = options.onChanged
     for (const adapter of options.adapters ?? []) this.adapters.set(adapter.kind, adapter)
   }
 
@@ -90,24 +93,29 @@ export class ConnectorService {
     const definition = this.requireDefinition(input.kind)
     const config = normalizeConfig(definition, input.config)
     const name = input.name.trim() || definition.name
-    return this.toInstance(this.store.create({ kind: definition.kind, name, config }))
+    const created = this.toInstance(this.store.create({ kind: definition.kind, name, config }))
+    this.onChanged?.()
+    return created
   }
 
   async update(connectorId: string, input: UpdateConnectorInput): Promise<ConnectorInstance> {
     const current = this.store.get(connectorId)
     const definition = this.requireDefinition(current.kind)
     const config = input.config === undefined ? undefined : normalizeConfig(definition, input.config)
-    return this.toInstance(this.store.update(connectorId, {
+    const updated = this.toInstance(this.store.update(connectorId, {
       ...(input.name === undefined ? {} : { name: input.name }),
       ...(config === undefined ? {} : { config }),
       ...(input.enabled === undefined ? {} : { enabled: input.enabled }),
     }))
+    this.onChanged?.()
+    return updated
   }
 
   async remove(connectorId: string): Promise<void> {
     this.store.get(connectorId)
     await this.credentials.delete(connectorId)
     this.store.remove(connectorId)
+    this.onChanged?.()
   }
 
   /** Remove connectors for providers that are no longer shipped, including their encrypted credentials. */
@@ -131,7 +139,9 @@ export class ConnectorService {
       Object.entries(input.values).filter(([key, value]) => allowed.has(key) && value.length > 0),
     )
     await this.credentials.save(input.connectorId, values, input.replace === true)
-    return this.toInstance(this.store.setError(input.connectorId, undefined))
+    const saved = this.toInstance(this.store.setError(input.connectorId, undefined))
+    this.onChanged?.()
+    return saved
   }
 
   async test(connectorId: string): Promise<ConnectorTestResult> {

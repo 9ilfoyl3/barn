@@ -697,13 +697,22 @@ export type ConnectorSourceEventKind =
   | 'dingtalk_message'
   | 'dingtalk_todo'
 
+export type ConnectorWatchPurpose = 'analysis' | 'reply'
+export type ConnectorSourceOrigin = 'github-default' | 'router'
+
 export interface GithubConnectorSourceConfig {
   kind: 'github'
   connectorId: string
-  owner: string
-  repo: string
+  scope?: 'repository' | 'bound-user'
+  owner?: string
+  repo?: string
+  actors?: string[]
   events: Array<'issues' | 'pullRequests'>
   pollSeconds: number
+  origin?: ConnectorSourceOrigin
+  purpose?: ConnectorWatchPurpose
+  instruction?: string
+  mode?: 'observe' | 'active'
 }
 
 export interface DingtalkConnectorSourceConfig {
@@ -711,9 +720,14 @@ export interface DingtalkConnectorSourceConfig {
   connectorId: string
   conversationId?: string
   userId?: string
+  targetLabel?: string
   keywords: string[]
   events: Array<'messages' | 'todos'>
   pollSeconds: number
+  origin?: ConnectorSourceOrigin
+  purpose?: ConnectorWatchPurpose
+  instruction?: string
+  mode?: 'observe' | 'active'
 }
 
 export type ConnectorSourceConfig = GithubConnectorSourceConfig | DingtalkConnectorSourceConfig

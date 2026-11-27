@@ -253,6 +253,7 @@ void app.whenReady().then(async () => {
     () => permissionService,
     {
       definitions: builtinConnectorDefinitions(),
+      onChanged: () => connectorSourceService?.kick(),
       adapters: [
         new EmailConnectorAdapter(),
         new GithubConnectorAdapter(),
@@ -279,6 +280,7 @@ void app.whenReady().then(async () => {
     memory: memoryService,
     browser: browserTools,
     connectors: connectorService,
+    watches: () => connectorSourceService,
     skills: skillService,
     sessions: sessionStore,
   })

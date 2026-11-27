@@ -35,6 +35,7 @@ import { attachmentDisplayName } from '../shared/attachments'
 import { ModelPicker } from './ModelPicker'
 import { LanguagePicker } from './LanguagePicker'
 import { PluginsPage } from './PluginsPage'
+import { SourceSettings } from './SourceSettings'
 import { SettingsPage, type SettingsSectionKey } from './SettingsPage'
 import { AppToaster, useErrorToast } from './notifications'
 import { AttachmentStrip } from './AttachmentStrip'
@@ -174,6 +175,7 @@ export function App() {
   const [resizingHomePane, setResizingHomePane] = useState<HomePane>()
   const [browserOpen, setBrowserOpen] = useState(false)
   const [utilityOpen, setUtilityOpen] = useState(false)
+  const [localSourcesOpen, setLocalSourcesOpen] = useState(false)
   const [utilityTabs, setUtilityTabs] = useState<UtilityTab[]>([])
   const [activeUtilityTabId, setActiveUtilityTabId] = useState<string>()
   useErrorToast(error)
@@ -1160,6 +1162,9 @@ export function App() {
               <strong>{t('sidebar.localWorkspace')}</strong>
               <small>{t('sidebar.localOnly')}</small>
             </div>
+            <Button className="account-menu-item" type="button" role="menuitem" onClick={() => { setAccountOpen(false); setLocalSourcesOpen(true) }}>
+              <Folder size={14} /><span>{t('sidebar.localSources')}</span>
+            </Button>
             <Button className="account-menu-item" type="button" role="menuitem" onClick={() => { setAccountOpen(false); setSettingsSection(undefined); setView('settings') }}>
               <Settings2 size={14} /><span>{t('sidebar.settings')}</span><ChevronRight className="account-menu-chevron" size={13} />
             </Button>
@@ -1563,6 +1568,7 @@ export function App() {
         }}
       />
 
+      {localSourcesOpen && <SourceSettings onClose={() => setLocalSourcesOpen(false)} />}
       <AppToaster />
     </div>
   )

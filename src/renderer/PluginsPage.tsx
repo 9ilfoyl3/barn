@@ -29,7 +29,6 @@ import type {
   SkillSummary,
 } from '../shared/models'
 import { SkillsPanel } from './SkillsPanel'
-import { AutomationSourcesPage } from './AutomationSourcesPage'
 import { Input } from './components/Input'
 import { Input as BeuiInput } from './components/beui/components/motion/input'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './components/beui/components/motion/tabs'
@@ -37,7 +36,7 @@ import { notifyError, notifySuccess, useErrorToast } from './notifications'
 import './plugins-page.css'
 import { Button } from './components/Button'
 
-type PluginsTab = 'plugins' | 'skills' | 'sources'
+type PluginsTab = 'plugins' | 'skills'
 type ConnectorCategory = 'integrations' | 'china'
 
 interface EditorState {
@@ -284,34 +283,28 @@ export function PluginsPage({ onTrySkill }: { onTrySkill?: (skill: SkillSummary)
           <TabsList className="plugins-tabs" aria-label={t('plugins.title')}>
             <TabsTrigger className="plugins-tab" value="plugins">{t('plugins.title')}</TabsTrigger>
             <TabsTrigger className="plugins-tab" value="skills">{t('plugins.skills')}</TabsTrigger>
-            <TabsTrigger className="plugins-tab" value="sources">{t('plugins.sources')}</TabsTrigger>
           </TabsList>
         </header>
 
-        {tab !== 'sources' && (
-          <BeuiInput
-            className="plugins-search"
-            leftIcon={<Search size={17} aria-hidden="true" />}
-            aria-label={tab === 'skills' ? t('plugins.searchSkills') : t('plugins.search')}
-            onChange={setQuery}
-            placeholder={tab === 'skills' ? t('plugins.searchSkillsPlaceholder') : t('plugins.searchPlaceholder')}
-            type="search"
-            value={query}
-            rightIcon={query.length > 0 ? (
-              <Button type="button" aria-label={t('plugins.clearSearch')} onClick={() => setQuery('')}>
-                <X size={14} />
-              </Button>
-            ) : undefined}
-          />
-        )}
+        <BeuiInput
+          className="plugins-search"
+          leftIcon={<Search size={17} aria-hidden="true" />}
+          aria-label={tab === 'skills' ? t('plugins.searchSkills') : t('plugins.search')}
+          onChange={setQuery}
+          placeholder={tab === 'skills' ? t('plugins.searchSkillsPlaceholder') : t('plugins.searchPlaceholder')}
+          type="search"
+          value={query}
+          rightIcon={query.length > 0 ? (
+            <Button type="button" aria-label={t('plugins.clearSearch')} onClick={() => setQuery('')}>
+              <X size={14} />
+            </Button>
+          ) : undefined}
+        />
 
         <TabsContent className="plugins-tab-panel" value="skills">
           <SkillsPanel query={query} {...(onTrySkill === undefined ? {} : { onTrySkill })} />
         </TabsContent>
 
-        <TabsContent className="plugins-tab-panel automation-sources-tab-panel" value="sources">
-          <AutomationSourcesPage />
-        </TabsContent>
 
         <TabsContent className="plugins-tab-panel" value="plugins">
           {loading ? (
