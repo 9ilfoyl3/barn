@@ -799,11 +799,6 @@
   outline-offset: 2px;
 }
 
-.routine-card-acknowledge svg path {
-  stroke-dasharray: 24;
-  stroke-dashoffset: 0;
-}
-
 .routine-card-acknowledge.is-confirming {
   background: var(--green);
   color: var(--panel);
@@ -811,20 +806,6 @@
   opacity: 1;
   pointer-events: none;
   visibility: visible;
-}
-
-.routine-card-acknowledge.is-confirming svg path {
-  animation: routine-check-draw 320ms cubic-bezier(0.22, 1, 0.36, 1) both;
-}
-
-@keyframes routine-check-draw {
-  from {
-    stroke-dashoffset: 24;
-  }
-
-  to {
-    stroke-dashoffset: 0;
-  }
 }
 
 .routine-card-title {
@@ -869,10 +850,6 @@
   .routine-card-acknowledge,
   .routine-card-acknowledge.is-confirming {
     transition: none;
-  }
-
-  .routine-card-acknowledge.is-confirming svg path {
-    animation: none;
   }
 }
 

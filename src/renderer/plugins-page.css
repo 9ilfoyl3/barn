@@ -731,8 +731,8 @@
   border-color: color-mix(in srgb, var(--green) 24%, var(--line));
 }
 
-.dingtalk-setup-status.connected > svg,
-.dingtalk-setup-status.ready > svg {
+.dingtalk-setup-status.connected > [data-animated-status-icon],
+.dingtalk-setup-status.ready > [data-animated-status-icon] {
   color: var(--green);
 }
 

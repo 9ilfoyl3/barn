@@ -1,8 +1,6 @@
 import { cx } from '@/components/boardui/utils/cx'
 import {
-  Check,
   Circle,
-  LoaderCircle,
   Maximize2,
   Minimize2,
   Pause,
@@ -13,6 +11,7 @@ import {
 } from 'lucide-react'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import * as React from 'react'
+import { AnimatedStatusIcon } from '../AnimatedStatusIcon'
 import './agent-screen.css'
 import { Button } from '../Button'
 
@@ -100,7 +99,7 @@ function ScreenMedia({
         >
           {loading ? (
             <div className="agent-screen-kit-empty">
-              <LoaderCircle className={cx('agent-screen-kit-loader', !reduce && 'is-spinning')} size={20} />
+              <AnimatedStatusIcon name="loading" size={20} />
               <span>{loadingLabel}</span>
             </div>
           ) : !src ? (
@@ -248,11 +247,6 @@ export function AgentScreen({
         <motion.div layout className="agent-screen-kit-steps">
           <AnimatePresence initial={false}>
             {steps.map((step) => {
-              const Icon = step.status === 'complete'
-                ? Check
-                : step.status === 'running'
-                  ? LoaderCircle
-                  : Circle
               return (
                 <motion.div
                   key={step.id}
@@ -263,10 +257,13 @@ export function AgentScreen({
                   transition={{ duration: reduce ? 0 : 0.14 }}
                   className="agent-screen-kit-step"
                 >
-                  <Icon
-                    className={cx('agent-screen-kit-step-icon', step.status === 'running' && 'is-spinning')}
-                    size={16}
-                  />
+                  {step.status === 'complete' ? (
+                    <AnimatedStatusIcon name="check" className="agent-screen-kit-step-icon" size={16} animateOnMount />
+                  ) : step.status === 'running' ? (
+                    <AnimatedStatusIcon name="loading" className="agent-screen-kit-step-icon" size={16} />
+                  ) : (
+                    <Circle className="agent-screen-kit-step-icon" size={16} aria-hidden="true" />
+                  )}
                   <span>{step.label}</span>
                   <span className="agent-screen-kit-step-status">{step.status}</span>
                 </motion.div>

@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { AlertCircle, Check, LoaderCircle, Pencil, Pin, PinOff, Settings2, Trash2, X } from 'lucide-react'
+import { AlertCircle, Check, Pencil, Pin, PinOff, Settings2, Trash2, X } from 'lucide-react'
 import type { MemoryDocument, MemoryDocumentName, MemoryDocumentRevision, MemoryEntry, MemorySettings } from '../shared/models'
+import { AnimatedStatusIcon } from './components/AnimatedStatusIcon'
 import { Input } from './components/Input'
 import { Tabs, TabsList, TabsTrigger } from './components/beui/components/motion/tabs'
 import { notifySuccess, useErrorToast } from './notifications'
@@ -457,8 +458,8 @@ export function MemorySettingsPanel({ onChanged }: { onChanged?(): void }) {
               <div className="memory-document-editor-heading">
                 <span>{fileName}</span>
                 <span className={`memory-save-state ${saveState}`} aria-live="polite">
-                  {saveState === 'saving' && <LoaderCircle size={13} aria-hidden="true" />}
-                  {saveState === 'saved' && <Check size={13} aria-hidden="true" />}
+                  {saveState === 'saving' && <AnimatedStatusIcon name="loading" size={13} />}
+                  {saveState === 'saved' && <AnimatedStatusIcon name="check" size={13} animateOnMount />}
                   {saveState === 'error' && <AlertCircle size={13} aria-hidden="true" />}
                   {saveState === 'saving'
                     ? t('memorySettings.saving')

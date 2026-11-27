@@ -3,7 +3,8 @@
 
 import * as React from "react";
 
-import { Check, Loader2, X } from "lucide-react";
+import { X } from "lucide-react";
+import { AnimatedStatusIcon } from "@/components/AnimatedStatusIcon";
 import {
   AnimatePresence,
   motion,
@@ -214,12 +215,12 @@ export const StatefulButton = forwardRef<HTMLButtonElement, StatefulButtonProps>
         <AnimatePresence initial={false}>
           {state === "loading" ? (
             <IconSlot keyId="loading-icon">
-              <Loader2 className="h-4 w-4 animate-spin" />
+              <AnimatedStatusIcon name="loading" size={16} />
             </IconSlot>
           ) : null}
           {state === "success" ? (
             <IconSlot keyId="success-icon">
-              <Check className="h-4 w-4" />
+              <AnimatedStatusIcon name="check" size={16} animateOnMount />
             </IconSlot>
           ) : null}
           {state === "error" ? (

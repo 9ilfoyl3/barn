@@ -1,8 +1,9 @@
 /* Hallmark · dismissed F4 · the refresh control is a utility action, not a competing primary action */
-import { Blocks, CalendarDays, Check, Cloud, Mail, RefreshCw } from 'lucide-react'
+import { Blocks, CalendarDays, Cloud, Mail, RefreshCw } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { RoutineRecurrence } from '../shared/models'
+import { AnimatedStatusIcon } from './components/AnimatedStatusIcon'
 import { Button } from './components/Button'
 import { Card } from './components/beui/components/motion/card'
 
@@ -137,7 +138,7 @@ export function TodayPanel({
                     title={t('secretary.acknowledgeRoutine', { title: routine.title })}
                     onClick={() => confirmRoutine(routine.id)}
                   >
-                    <Check size={13} strokeWidth={2.6} aria-hidden="true" />
+                    <AnimatedStatusIcon name="check" size={16} active={confirming} />
                   </Button>
                 </Card>
               )

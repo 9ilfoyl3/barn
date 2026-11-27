@@ -8,7 +8,6 @@ import {
   Copy,
   Download,
   Globe2,
-  LoaderCircle,
   MoreHorizontal,
   Plus,
   RotateCw,
@@ -18,6 +17,7 @@ import {
 import type { ApprovalRequest, BrowserState } from '../shared/models'
 import { BrowserNewTab, browserTarget, type BrowserQuickAction } from './BrowserNewTab'
 import { TaskApprovalCard } from './TaskApprovalCard'
+import { AnimatedStatusIcon } from './components/AnimatedStatusIcon'
 import { Button } from './components/Button'
 
 export type { BrowserQuickAction } from './BrowserNewTab'
@@ -144,7 +144,7 @@ export function BrowserPanel({
                   title={label}
                   onClick={() => void onActivateTab(tab.id)}
                 >
-                  {tab.loading ? <LoaderCircle className="browser-spinner" size={12} /> : <Globe2 size={12} />}
+                  {tab.loading ? <AnimatedStatusIcon name="loading" size={12} /> : <Globe2 size={12} />}
                   <span>{label}</span>
                 </Button>
                 <Button

@@ -13,7 +13,6 @@ import {
   ChevronDown,
   ChevronLeft,
   ChevronRight,
-  LoaderCircle,
   RotateCcw,
   Settings2,
 } from 'lucide-react'
@@ -24,6 +23,7 @@ import {
   type ReasoningEffort,
 } from '../shared/models'
 import { SecondaryMenu } from './components/SecondaryMenu'
+import { AnimatedStatusIcon } from './components/AnimatedStatusIcon'
 import type { FloatingMenuSide } from './floating-menu'
 import { useErrorToast } from './notifications'
 import { Button } from './components/Button'
@@ -323,7 +323,7 @@ export function ModelPicker({
               <div className="model-options" role="listbox" aria-label={t('modelPicker.title')}>
                 {loading && models.length === 0 ? (
                   <div className="model-picker-message">
-                    <LoaderCircle className="spin" size={14} />
+                    <AnimatedStatusIcon name="loading" size={14} />
                     {t('modelPicker.loading')}
                   </div>
                 ) : models.length === 0 ? (
@@ -365,7 +365,7 @@ export function ModelPicker({
                 <div className="effort-card-title">
                   <strong>
                     {effortLabel}
-                    {busyKey?.startsWith('effort:') === true && <LoaderCircle className="spin" size={13} />}
+                    {busyKey?.startsWith('effort:') === true && <AnimatedStatusIcon name="loading" size={13} />}
                   </strong>
                 </div>
                 <Button

@@ -15,6 +15,7 @@ import {
 } from 'lucide-react'
 import './task-center.css'
 import type { ApprovalRequest, ConnectorActionSummary, Task, TaskStatus } from '../shared/models'
+import { AnimatedStatusIcon } from './components/AnimatedStatusIcon'
 import { Input } from './components/Input'
 import { useErrorToast } from './notifications'
 import { TaskApprovalCard } from './TaskApprovalCard'
@@ -734,10 +735,13 @@ function TaskCard({
 }
 
 function TaskStatusGlyph({ status }: { status: TaskStatus }) {
-  if (status === 'running' || status === 'queued') {
+  if (status === 'running') return <AnimatedStatusIcon name="loading" className="task-card-status-icon" size={16} />
+  if (status === 'queued') {
     return <LoaderCircle className="task-card-status-icon task-card-status-spin" size={16} aria-hidden="true" />
   }
-  if (status === 'completed') return <CircleCheck className="task-card-status-icon task-card-status-completed" size={16} aria-hidden="true" />
+  if (status === 'completed') {
+    return <AnimatedStatusIcon name="checkCircle" className="task-card-status-icon task-card-status-completed" size={16} active />
+  }
   if (status === 'cancelled') return <CircleX className="task-card-status-icon task-card-status-cancelled" size={16} aria-hidden="true" />
   if (status === 'failed') return <CircleX className="task-card-status-icon task-card-status-failed" size={16} aria-hidden="true" />
   return <CircleAlert className="task-card-status-icon task-card-status-waiting" size={16} aria-hidden="true" />
