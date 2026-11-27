@@ -96,6 +96,20 @@ describe('DingTalk connector', () => {
     ], undefined)
   })
 
+  it('lists joined group conversations for natural-language watch resolution', async () => {
+    const { runtime, runJson } = fakeRuntime()
+    const adapter = new DingTalkConnectorAdapter(runtime)
+
+    await adapter.call({ connector, secrets: {} }, capability('dingtalk.chatList'), { limit: 75 })
+
+    expect(runJson).toHaveBeenCalledWith([
+      'chat', '+chat-list',
+      '--types', 'group',
+      '--page-size', '75',
+      '--format', 'json',
+    ], undefined)
+  })
+
   it('searches messages and sends directly as the connected user', async () => {
     const { runtime, runJson } = fakeRuntime()
     const adapter = new DingTalkConnectorAdapter(runtime)

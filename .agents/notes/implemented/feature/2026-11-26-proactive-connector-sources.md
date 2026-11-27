@@ -26,9 +26,9 @@ DingTalk has no default watch. The Router exposes three validated tools:
 
 A Router-created watch is active: a matching item becomes a queued Task. Analysis watches ask the Worker for a recommendation or next step. Reply watches ask the Worker to prepare the reply through the approval-backed external-write path; the collector itself remains read-only and never sends as the user.
 
-For GitHub, Router targets accept `owner/repository` or a GitHub URL and optional author logins. “My repositories” resolves to the default bound-user watch. For DingTalk, an explicit `cid_…` or `user:<id>` is used directly; otherwise `dingtalk.chatSearch` and `dingtalk.contactSearch` resolve one target. Ambiguous or unresolved targets produce a clarification request rather than an invented identifier.
+For GitHub, Router targets accept `owner/repository` or a GitHub URL and optional author logins. “My repositories” resolves to the default bound-user watch. For DingTalk, an explicit `openConversationId` or `user:<id>` is used directly; otherwise `dingtalk.chatList` resolves an exact or unique group name, followed by `dingtalk.chatSearch` and `dingtalk.contactSearch` for messages or people. Ambiguous or unresolved targets produce a clarification request rather than an invented identifier. A conversation watch reads group messages only; it never mixes in the user's personal todo list.
 
-The existing automation settings remain the fallback mode for sources without a per-watch mode. First collection is always a baseline. Later versions use the existing event deduplication, matter grouping, Task creation, TaskRun, guard, approval, Action outbox, Needs You, and result delivery paths.
+The existing automation settings remain the fallback mode for sources without a per-watch mode. First collection is always a baseline. DingTalk reads the latest page toward older messages for that baseline, then advances with a newer-than cursor; later versions use the existing event deduplication, matter grouping, Task creation, TaskRun, guard, approval, Action outbox, Needs You, and result delivery paths.
 
 ## Alternatives considered
 

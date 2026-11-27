@@ -47,6 +47,10 @@ interface EditorState {
 const CATEGORY_ORDER: readonly ConnectorCategory[] = ['integrations', 'china']
 
 const DINGTALK_CAPABILITY_COPY = {
+  'dingtalk.chatList': {
+    en: { name: 'List chats', description: 'List group conversations joined by the connected DingTalk user.' },
+    zh: { name: '列出群聊', description: '列出当前钉钉账号已加入的群会话。' },
+  },
   'dingtalk.contactSearch': {
     en: { name: 'Search contacts', description: 'Search DingTalk colleagues and contacts by name or keyword.' },
     zh: { name: '搜索联系人', description: '按姓名或关键词搜索钉钉同事和联系人。' },

@@ -29,6 +29,7 @@ class FakeConnector implements ConnectorReadClient {
   messages: Record<string, unknown>[] = []
   repositories: Record<string, unknown>[] = []
   users: Record<string, unknown>[] = []
+  chats: Record<string, unknown>[] = []
 
   async list(): Promise<ConnectorInstance[]> {
     return [{
@@ -49,6 +50,7 @@ class FakeConnector implements ConnectorReadClient {
     if (input.capability === 'github.listIssues') return { kind: 'result', value: { issues: this.issues } }
     if (input.capability === 'github.listPullRequests') return { kind: 'result', value: { pullRequests: this.pullRequests } }
     if (input.capability === 'github.listRepositories') return { kind: 'result', value: { repositories: this.repositories } }
+    if (input.capability === 'dingtalk.chatList') return { kind: 'result', value: { chats: this.chats } }
     if (input.capability === 'dingtalk.chatSearch') return { kind: 'result', value: { messages: this.messages } }
     if (input.capability === 'dingtalk.contactSearch') return { kind: 'result', value: { users: this.users } }
     if (input.capability === 'dingtalk.messageList') return { kind: 'result', value: { messages: this.messages } }
@@ -222,6 +224,7 @@ describe('ConnectorSourceService', () => {
   it('resolves a DingTalk conversation name and creates a reply watch with the user instruction', async () => {
     const h = await harness()
     h.connector.kind = 'dingtalk'
+    h.connector.chats = [{ name: '上线项目群', openConversationId: 'cid_launch' }]
     h.connector.messages = [{
       ...dingtalkMessage('m1', '上线项目需要确认'),
       conversationId: 'cid_launch',

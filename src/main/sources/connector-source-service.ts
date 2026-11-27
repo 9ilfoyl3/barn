@@ -232,7 +232,7 @@ export class ConnectorSourceService {
         ...target,
         targetLabel: input.target.trim(),
         keywords: input.keywords,
-        events: ['messages', 'todos'],
+        events: ['messages'],
         pollSeconds: 180,
         origin: 'router',
         purpose: input.purpose,
@@ -391,6 +391,18 @@ export class ConnectorSourceService {
     if (/^cid_[\w-]+$/iu.test(target)) return { conversationId: target }
     if (target.toLocaleLowerCase().startsWith('user:')) return { userId: target.slice(5).trim() }
 
+    const listed = await this.read(connector, 'dingtalk.chatList', { limit: 100 })
+    const groups = recordsFrom(listed, ['chats', 'items'])
+    const normalized = target.toLocaleLowerCase()
+    const exact = groups.filter((group) => text(group.name)?.toLocaleLowerCase() === normalized)
+    const partial = groups.filter((group) => text(group.name)?.toLocaleLowerCase().includes(normalized))
+    const candidates = exact.length > 0 ? exact : partial
+    if (candidates.length === 1) {
+      const id = text(candidates[0]!.openConversationId ?? candidates[0]!.conversationId)
+      if (id !== undefined) return { conversationId: id }
+    }
+    if (candidates.length > 1) throw new Error('The DingTalk target matches more than one conversation; send the conversation ID')
+
     const searched = await this.read(connector, 'dingtalk.chatSearch', { query: target, limit: 50 })
     const conversations = new Set<string>()
     for (const item of recordsFrom(searched, ['messages', 'items'])) {
@@ -483,11 +495,12 @@ export class ConnectorSourceService {
     const events: CollectedEvent[] = []
     const target = config.conversationId === undefined ? { userId: config.userId! } : { conversationId: config.conversationId }
     if (config.events.includes('messages')) {
+      const cursor = this.store.state(source.id).cursor
       const args = {
         ...target,
-        direction: 'newer',
+        direction: cursor === undefined ? 'older' : 'newer',
         limit: 50,
-        ...(this.store.state(source.id).cursor === undefined ? {} : { time: this.store.state(source.id).cursor }),
+        ...(cursor === undefined ? {} : { time: cursor }),
       }
       const value = await this.read(connector, 'dingtalk.messageList', args)
       for (const item of recordsFrom(value, ['messages', 'items'])) {
