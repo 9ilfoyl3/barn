@@ -5,14 +5,13 @@
 import {
   ArrowLeft,
   ArrowRight,
-  Check,
   CircleHelp,
-  LoaderCircle,
   MessageSquareText,
   X,
 } from "lucide-react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { AnimatedStatusIcon } from "@/components/AnimatedStatusIcon";
 import { AgentDisclosure } from "@/components/beui/components/agents/agent-disclosure";
 import { ActionSwapRollText } from "@/components/beui/components/motion/action-swap-roll";
 import { Button } from "@/components/beui/components/motion/button";
@@ -317,7 +316,7 @@ export function ApprovalCard({
           )}
         >
           {busy ? (
-            <LoaderCircle className={cn("size-4", !reduce && "animate-spin")} />
+            <AnimatedStatusIcon name="loading" size={16} />
           ) : interactive ? (
             questionMode ? (
               <CircleHelp className="size-4" />
@@ -327,7 +326,7 @@ export function ApprovalCard({
           ) : status === "rejected" ? (
             <X className="size-4" />
           ) : (
-            <Check className="size-4" />
+            <AnimatedStatusIcon name="checkCircle" size={16} animateOnMount />
           )}
         </span>
 
@@ -441,7 +440,7 @@ export function ApprovalCard({
                   className="ml-auto rounded-full"
                 >
                   {busy ? (
-                    <LoaderCircle className={cn("size-4", !reduce && "animate-spin")} />
+                    <AnimatedStatusIcon name="loading" size={16} />
                   ) : currentStep === questions.length - 1 ? (
                     <>
                       {submitLabel ?? t("submit")}

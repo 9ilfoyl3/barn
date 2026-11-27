@@ -65,14 +65,6 @@
   font-size: 22px;
 }
 
-.agent-screen-kit-loader.is-spinning {
-  animation: agent-screen-kit-spin 900ms linear infinite;
-}
-
-@keyframes agent-screen-kit-spin {
-  to { transform: rotate(360deg); }
-}
-
 .agent-screen-kit-open-overlay {
   position: absolute;
   inset: 0;
@@ -209,22 +201,8 @@
   color: var(--text-faint);
 }
 
-.agent-screen-kit-step-icon.is-spinning {
-  animation: agent-screen-kit-spin 900ms linear infinite;
-}
-
 .agent-screen-kit-step-status {
   margin-left: auto;
   color: var(--text-faint);
   text-transform: capitalize;
-}
-
-
-@media (prefers-reduced-motion: reduce) {
-  .agent-screen-kit-loader.is-spinning,
-  .agent-screen-kit-step-icon.is-spinning {
-    animation: none;
-    transform: none;
-    transition: none;
-  }
 }

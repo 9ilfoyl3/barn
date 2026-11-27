@@ -2,7 +2,7 @@
 
 import * as React from "react";
 
-import { ArrowUp, LoaderCircle, Plus, Square } from "lucide-react";
+import { ArrowUp, Plus, Square } from "lucide-react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import {
   type FormEvent,
@@ -13,6 +13,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { AnimatedStatusIcon } from "@/components/AnimatedStatusIcon";
 import { Button } from "@/components/beui/components/motion/button";
 import {
   MorphPopover,
@@ -675,7 +676,7 @@ export function PromptInput({
             >
               {loading ? (
                 stopping ? (
-                  <LoaderCircle className="size-4 animate-spin" />
+                  <AnimatedStatusIcon name="loading" size={16} />
                 ) : (
                   <Square className="size-3 fill-current" />
                 )
