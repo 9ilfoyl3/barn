@@ -9,6 +9,7 @@ import type {
   CreateConnectorSourceInput,
   LocalSource,
 } from '../shared/models'
+import { AnimatedStatusIcon } from './components/AnimatedStatusIcon'
 import { Button } from './components/Button'
 import { Input } from './components/Input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './components/beui/components/motion/select'
@@ -293,7 +294,10 @@ export function AutomationSourcesPage() {
         </div>
 
         {loading ? (
-          <p className="source-settings-muted">{t('sourceSettings.loading')}</p>
+          <div className="source-settings-loading" role="status">
+            <AnimatedStatusIcon name="loading" size={15} />
+            <span>{t('sourceSettings.loading')}</span>
+          </div>
         ) : sources.length === 0 ? (
           <div className="automation-source-empty">
             <BellRing size={20} aria-hidden="true" />

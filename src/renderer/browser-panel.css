@@ -361,14 +361,6 @@
   flex: 1 1 auto;
 }
 
-.browser-spinner {
-  animation: browser-spin 900ms linear infinite;
-}
-
-@keyframes browser-spin {
-  to { transform: rotate(360deg); }
-}
-
 .browser-viewport {
   position: relative;
   display: flex;
@@ -542,8 +534,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .workspace-shell > .browser-panel,
-  .browser-spinner {
+  .workspace-shell > .browser-panel {
     animation: none;
     transform: none;
     transition: none;
